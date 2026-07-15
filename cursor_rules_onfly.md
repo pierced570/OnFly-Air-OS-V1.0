@@ -1,0 +1,37 @@
+# Save this file's contents as `.cursor/rules/onfly.mdc` in the repo
+
+---
+description: OnFly OS core constraints — always apply
+alwaysApply: true
+---
+
+You are building OnFly OS — the operating system for on-demand, time-critical air freight. Full context: `docs/00_ONFLY_BRIEFING.md`, `docs/01_MISSION_SCOPE.md`, `docs/OnFly_OS_Blueprint.md`. Current work arrives as `docs/CHUNK_*.md` files — implement the active chunk exactly; if a decision isn't covered there or in the blueprint, ask before inventing.
+
+## Architecture rules (non-negotiable)
+
+1. **One Trip spine.** Every feature is a view or automation over the Trip object (state machine + ETA chain + trip_events). No parallel sources of truth. Trip state changes ONLY through the `trip_transition` RPC / state machine module — never a direct `update trips set state`.
+2. **Adapters for every external service** (comms, email, maps, ADS-B, accounting, LLM): interface + mock + real implementation, selected by env var. The full app must run and demo with mocks and zero API keys. Never call a provider SDK from UI or domain code.
+3. **`src/domain/` is pure TypeScript** — no React, no Supabase imports. All business math (tax, ETA chain, routing, parsers, state machine) lives there with Vitest tests.
+4. **UTC only in storage.** All timestamps `timestamptz`. Locations carry IANA zone names. Rendering: dispatcher UI = Zulu + local; client docs = stop-local. Never store offsets.
+5. **Flag, don't exclude.** Missing data attaches NEEDS-INFO flags and creates tasks; it never drops an operator, aircraft, or candidate. Compliance lapses gate booking, not pings.
+6. **Approve, don't enter.** AI/system drafts; the dispatcher confirms. Any parsed or inferred data shows a review step before it commits (except high-confidence tracked actuals, which log with an undo path).
+7. **Taxes are table-driven** from `tax_rates` — no rate literals in code. FET exemption comes from per-tail MTOW.
+8. **Append-only event log.** `trip_events` never updates or deletes. Every message, transition, and edit writes an event.
+
+## Language rules (customer/operator-visible strings)
+
+- Operators see "trip offer" / "availability check" — NEVER "bid", "bidding", "competing".
+- Clients see "a vetted Part 135 carrier" — carrier names only in internal UI and crew manifests; passenger acceptances auto-attach the Part 295.24 disclosure.
+- Never expose client names, margins, or operator cost in portal-facing views — use the `portal_*` safe views.
+
+## Design rules
+
+- Brand: near-black `#0C0C0E–#141414`, gold `#C9A227` (hover `#E3B341`), cream `#F7F2E3`. NEVER navy.
+- Dispatcher UI dark-mode-first; color = meaning only (gold attention, red exception `#C0392B`, green on-plan `#2E7D32`). Client surfaces = light cream theme.
+- Monospace for tails, ICAO, times. Exception queue visually first on the Board.
+
+## Workflow rules
+
+- Feature branches + PRs, small commits, `npm test` + typecheck green before push. Vercel preview per branch; merge to main = production.
+- Schema changes = migration files in `supabase/migrations/` (never dashboard-only edits). Edge functions in `supabase/functions/`. Secrets via `supabase secrets` / Vercel env — never committed; `VITE_*` vars are public, nothing sensitive in them.
+- Finish each chunk by executing its acceptance checklist and reporting results before starting anything else.

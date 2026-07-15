@@ -1,0 +1,421 @@
+operator,tail_number,aircraft_type,category,engines,cargo_pax,seats,base_icao,crew,cruise_kts,range_nm,max_payload_lbs,mtow_lbs,fet_status,door_type,door_w_in,door_h_in,cabin_l_ft,cabin_w_ft,cabin_h_ft,cabin_vol_cuft,trips_logged,avg_op_per_nm_circuit,med_assumed_op_per_nm,est_op_per_hr,liability_limit,hull_value,notes,spec_source
+45 NORTH AVIATION,TBD,TBM,Turboprop,Single Turboprop,,5,KRIC,,290,1300,1300,6579,FET applies,Pax door,27,45,13.3,4,4.1,123,1,7.2,10.84,3145,,,,published typical config — verify per tail
+45 NORTH AVIATION,TBD,King Air 200,Turboprop,Multi Turboprop,,8,KRIC,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,1,7.2,13.32,3596,,,,published typical config — verify per tail
+"ACE TRANSPORT SERVICE, INC.",N825SD,King Air 90,Turboprop,Multi Turboprop,,6,KILG,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,1,13.83,13.83,3111,,,,published typical config — verify per tail
+"ACE TRANSPORT SERVICE, INC.",N15TV,Cessna 310,Piston,Multi Piston,,5,KILG,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,1,9.06,9.06,,,,,published typical config — verify per tail
+"ACE TRANSPORT SERVICE, INC.",N159FM,Hawker 800,Midsize Jet,Turbine,,8,KILG,,430,2500,2200,28000,FET applies,Airstair,27,51,21.3,6,5.7,600,,,,,,,,published typical config — verify per tail
+"AeroDynamic Jets, LLC",N798SB,Challenger 300,Super-Mid Jet,Turbine,,9,KPVU,,460,3000,3500,38850,FET applies,Airstair,30,62,28.6,7.2,6.1,860,,,,,,,,published typical config — verify per tail
+"AeroDynamic Jets, LLC",N25F,Cessna 182,Piston,Single Piston,,3,KPVU,,130,800,900,3100,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,37,41,9.1,3.5,4,75,,,,,,,,published typical config — verify per tail
+"AeroDynamic Jets, LLC",N125DG,Citation CJ3,Light Jet,Turbine,,7,KPVU,,415,1800,2000,13870,FET applies,Airstair,24,51,15.7,4.8,4.8,290,,,17.21,6970,,,,published typical config — verify per tail
+"AeroDynamic Jets, LLC",N125CD,Citation CJ3,Light Jet,Turbine,,7,KPVU,,415,1800,2000,13870,FET applies,Airstair,24,51,15.7,4.8,4.8,290,,,17.21,6970,,,,published typical config — verify per tail
+AERY AVIATION LLC,N340SR,Lear 45,Light Jet,Turbine,Pax,8,KCLE,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+AERY AVIATION LLC,N632JS,Lear 45,Light Jet,Turbine,Pax,8,KCLE,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+AERY AVIATION LLC,N972PF,Hawker,Midsize Jet,Turbine,Pax,8,KCLE,,430,2500,2200,28000,FET applies,Airstair,27,51,21.3,6,5.7,600,,,,,,,,published typical config — verify per tail
+AERY AVIATION LLC,N331SB,Cirrus Vision SF50,Light Jet,Turbine,Pax,5,KCLE,,300,1100,1100,6000,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Clamshell,25,49,10.8,5.1,4.1,180,,,,,,,SINGLE-ENGINE jet — excluded by any multi-engine-only client rule.,published typical config — verify per tail
+"Air Reldan, Inc. - Neil",N427DM,King Air 90,Turboprop,Multi Turboprop,,6,KBTR,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,8.97,2018,,,,published typical config — verify per tail
+"Air Reldan, Inc. - Neil",N401MC,King Air 90,Turboprop,Multi Turboprop,,6,KBTR,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,8.97,2018,,,,published typical config — verify per tail
+"Air Reldan, Inc. - Neil",N8350Z,Piper Seneca,Piston,Multi Piston,,6,KBTR,,160,750,1200,4750,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Door + aft cargo,25,41,10.3,4.1,3.9,120,,,10.78,1725,,,,published typical config — verify per tail
+"Air Travel Management, LLC",N330DK,Citation 550,Light Jet,Turbine,,7,KPIT,,400,1500,1800,13300,FET applies,Airstair,24,51,15.8,4.8,4.7,280,,,,,,,,published typical config — verify per tail
+"Air Travel Management, LLC",N24CK,Piper Navajo C/R,Piston,Multi Piston,,7,KPIT,,170,900,1800,6500,FET applies,Door + aft cargo,26,44,12.8,4.2,4.3,160,,,,,,,,published typical config — verify per tail
+"Air Travel Management, LLC",N39EH,Piper Navajo C/R,Piston,Multi Piston,,7,KPIT,,170,900,1800,6500,FET applies,Door + aft cargo,26,44,12.8,4.2,4.3,160,,,,,,,,published typical config — verify per tail
+"Air Travel Management, LLC",N195AA,Piper Navajo C/R,Piston,Multi Piston,,7,KPIT,,170,900,1800,6500,FET applies,Door + aft cargo,26,44,12.8,4.2,4.3,160,,,,,,,,published typical config — verify per tail
+AIR Z FLYING SERVICE (Larry),N1908G,C310,Piston,Multi Piston,,4,KCGF,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,4,6.62,6.47,1164,,,,published typical config — verify per tail
+AIR Z FLYING SERVICE (Larry),N3938G,C340,Piston,Multi Piston,,4,KCGF,,195,1100,1200,5990,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Airstair,24,46,12.4,3.9,4.1,125,,,6.86,1338,,,,published typical config — verify per tail
+AIR Z FLYING SERVICE (Larry),N8188J,Saratoga,Piston,Single Piston,,5,KCGF,,150,750,1100,3600,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Door + aft cargo,27,41,10.4,4.1,3.9,110,,,4.56,684,,,,published typical config — verify per tail
+AirNet II LLC,N355CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N35WL,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N76CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N163CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N217CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N220CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N264CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N290CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N295CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N352CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N353CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N354CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N359CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N644CK,Lear 35a,Light Jet,Turbine,Cargo,,KCMH,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+AirNet II LLC,N581CK,Baron 58,Piston,Multi Piston,Cargo,,KCMH,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+AirNet II LLC,N583CK,Baron 58,Piston,Multi Piston,Cargo,,KCMH,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+AirNet II LLC,N584CK,Baron 58,Piston,Multi Piston,Cargo,,KCMH,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+AirNet II LLC,N586CK,Baron 58,Piston,Multi Piston,Cargo,,KCMH,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+AirNet II LLC,N587CK,Baron 58,Piston,Multi Piston,Cargo,,KCMH,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+AirNet II LLC,N588CK,Baron 58,Piston,Multi Piston,Cargo,,KCMH,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+Alpha Three Aviation Incorporated,N690SC,King Air 200,Turboprop,Multi Turboprop,,8,KPIT,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+Alpha Three Aviation Incorporated,N282EA,Baron 58,Piston,Multi Piston,,5,KPIT,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+"American Jet Charter, Inc.",N2333B,Baron 58,Piston,Multi Piston,Pax,5,KPWA,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+"American Jet Charter, Inc.",N48W,King Air 90,Turboprop,Multi Turboprop,Pax,6,KPWA,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+"American Jet Charter, Inc.",N906TW,King Air 300,Turboprop,Multi Turboprop,Pax,8,KPWA,,300,1800,2600,14000,FET applies,Airstair,27,52,16.7,4.5,4.8,303,,,,,,,,published typical config — verify per tail
+"American Jet Charter, Inc.",N13092,Citation XLS,Midsize Jet,Turbine,Pax,8,KPWA,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,15.55,6687,,,,published typical config — verify per tail
+"American Jet Charter, Inc.",N253SC,Lear 45,Light Jet,Turbine,Pax,8,KPWA,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+Ameriflight,N189WA,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N191WA,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N802BA,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N20FW,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N21FW,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N34AK,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N1924T,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N7862R,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N192WA,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N197WA,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N4299A,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N51RP,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N52RP,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N68TA,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N96AV,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N104BE,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N106SX,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N108SX,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N131GP,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N174AV,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N190WA,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N191AV,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N193SU,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N196WA,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N204AF,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N206AV,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N221BH,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N223BH,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N225BH,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N226BH,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N227AV,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N228BH,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N230BH,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N330AV,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N388AV,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N990AF,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N991AF,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N992AF,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N997SB,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N6724D,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N7209W,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N8226Z,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N8227P,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N62989,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N63978,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N81820,Beech 99,Turboprop,Multi Turboprop,Cargo,,,,220,900,4000,10900,FET applies,Airstair + cargo door,45,53,25.3,4.5,4.8,380,,,,,,,,published typical config — verify per tail
+Ameriflight,N354AE,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N360AE,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N370AE,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N421MA,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N422MA,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N424MA,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N428MA,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N671AV,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N672AV,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N673AV,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N709TR,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N801AF,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N240DH,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N241DH,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N244DH,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N245DH,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N246DH,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N248DH,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N249DH,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N544UP,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N560UP,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N561UP,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N573G,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N807M,Metroliner,Turboprop,Multi Turboprop,Cargo,,,,245,1200,4700,14500,FET applies,Airstair + cargo door,51,53,25.8,5.2,4.8,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N19RZ,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N21RZ,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N26RZ,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N34RZ,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N39UB,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N49UC,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N111YV,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N112YV,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N330AF,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N331AF,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N338AF,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N346AF,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N347AF,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N575G,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N718AF,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N1568G,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N2049K,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N3052K,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N3071A,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N3229A,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N7203C,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N31701,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N31702,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N31703,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N31704,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N31705,Beech 1900,Turboprop,Multi Turboprop,Cargo,,,,270,1200,5500,16600,FET applies,Airstair + cargo door,52,58,25.3,4.5,5.9,470,,,,,,,,published typical config — verify per tail
+Ameriflight,N219KA,SAAB 340,Turboprop,Multi Turboprop,Cargo,,,,250,900,8000,29000,FET applies,Airstair + cargo door,53,63,34.1,7.1,6,1100,,,,,,,,published typical config — verify per tail
+Ameriflight,N968AF,SAAB 340,Turboprop,Multi Turboprop,Cargo,,,,250,900,8000,29000,FET applies,Airstair + cargo door,53,63,34.1,7.1,6,1100,,,,,,,,published typical config — verify per tail
+Ameriflight,N985ES,SAAB 340,Turboprop,Multi Turboprop,Cargo,,,,250,900,8000,29000,FET applies,Airstair + cargo door,53,63,34.1,7.1,6,1100,,,,,,,,published typical config — verify per tail
+Ameriflight,N989AF,SAAB 340,Turboprop,Multi Turboprop,Cargo,,,,250,900,8000,29000,FET applies,Airstair + cargo door,53,63,34.1,7.1,6,1100,,,,,,,,published typical config — verify per tail
+Ameriflight,N179CA,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N189CA,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N246AS,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N257AS,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N258AS,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N266AS,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N560SW,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N566SW,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N567SW,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+Ameriflight,N578SW,Emb. Brasilia,Turboprop,Multi Turboprop,Cargo,,,,290,1000,7700,26433,FET applies,Airstair + cargo door,51,70,30.9,6.9,5.8,950,,,,,,,,published typical config — verify per tail
+"Ameristar Jet Charter, Inc.",N148TW,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"Ameristar Jet Charter, Inc.",N158TW,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"Ameristar Jet Charter, Inc.",N699TW,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"Ameristar Jet Charter, Inc.",N204TW,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"Ameristar Jet Charter, Inc.",N221TW,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"Ameristar Jet Charter, Inc.",N285TW,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"Ameristar Jet Charter, Inc.",N314TW,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Apex Jet,N111WH,Falcon 10,Light Jet,Turbine,,7,KHUM,,400,1800,2500,18740,FET applies,Airstair,26,45,12.9,4.8,4.9,240,,,,,,,,published typical config — verify per tail
+Apex Jet,N716AP,King Air 200,Turboprop,Multi Turboprop,,8,KHUM,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+Apex Jet,N388BB,Falcon 50,Super-Mid Jet,Turbine,,9,KHUM,,470,3000,3500,40780,FET applies,Airstair,32,62,23.5,6.1,5.9,700,,,,,,,,published typical config — verify per tail
+Apex Jet,N865PC,Falcon 50,Super-Mid Jet,Turbine,,9,KHUM,,470,3000,3500,40780,FET applies,Airstair,32,62,23.5,6.1,5.9,700,,,,,,,,published typical config — verify per tail
+Apex Jet,N790A,King Air 90,Turboprop,Multi Turboprop,,6,KHUM,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+Apex Jet,CE-560-560,Citation XLS,Midsize Jet,Turbine,,8,KHUM,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,15.55,6687,,,,published typical config — verify per tail
+Atlanta Air Charter,N143DE,King Air 200,Turboprop,Multi Turboprop,,8,KRYY,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+Atlanta Air Charter,N383JP,King Air 200,Turboprop,Multi Turboprop,,8,KRYY,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+Atlanta Air Charter,N700NA,King Air 200,Turboprop,Multi Turboprop,,8,KRYY,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+Atlanta Air Charter,N717VA,King Air 200,Turboprop,Multi Turboprop,,8,KRYY,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+AUGUSTA AVIATION INC,N8GU,Beechcraft King Air C90A,Turboprop,Multi Turboprop,,6,KDNL,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,12.33,2774,,,,published typical config — verify per tail
+AUGUSTA AVIATION INC,N329GS,Beechcraft King Air C90A,Turboprop,Multi Turboprop,,6,KDNL,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,12.33,2774,,,,published typical config — verify per tail
+AUGUSTA AVIATION INC,N377P,Beechcraft King Air C90A,Turboprop,Multi Turboprop,,6,KDNL,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,12.33,2774,,,,published typical config — verify per tail
+AUGUSTA AVIATION INC,N891AA,Beechcraft King Air C90A,Turboprop,Multi Turboprop,,6,KDNL,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,12.33,2774,,,,published typical config — verify per tail
+"Avcenter, Inc.",N520DF,Citation CJ1,Light Jet,Turbine,,5,KPIH,,380,1200,1500,10700,FET applies,Airstair,24,51,11,4.8,4.8,200,,,17.89,6799,,,,published typical config — verify per tail
+"Avcenter, Inc.",N155AV,King Air 200,Turboprop,Multi Turboprop,,8,KPIH,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+"Avcenter, Inc.",N299AV,King Air 200,Turboprop,Multi Turboprop,,8,KPIH,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+"Avcenter, Inc.",N208AV,Citation XLS,Midsize Jet,Turbine,,8,KPIH,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,15.55,6687,,,,published typical config — verify per tail
+"Avcenter, Inc.",N499AV,Citation XLS,Midsize Jet,Turbine,,8,KPIH,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,15.55,6687,,,,published typical config — verify per tail
+"Avcenter, Inc.",N231AV,Turbo Commander,Turboprop,Multi Turboprop,,7,KPIH,,260,1300,1800,10325,FET applies,Airstair,26,47,14.5,4.3,4.4,200,,,,,,,,published typical config — verify per tail
+"Avcenter, Inc.",N721TB,Turbo Commander,Turboprop,Multi Turboprop,,7,KPIH,,260,1300,1800,10325,FET applies,Airstair,26,47,14.5,4.3,4.4,200,,,,,,,,published typical config — verify per tail
+Axio,N533CP,SR-22,Piston,Single Piston,,3,KSPA,,175,1000,900,3600,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,32,41,10.8,4.1,4.2,90,,,8.05,1408,,,,published typical config — verify per tail
+Axio,N606MF,SR-22,Piston,Single Piston,,3,KSPA,,175,1000,900,3600,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,32,41,10.8,4.1,4.2,90,1,8.05,8.05,1408,,,,published typical config — verify per tail
+Axio,N369AX,Phenom 100,Light Jet,Turbine,,5,KSPA,,380,1150,1100,10472,FET applies,Airstair,29,57,11,5.1,4.9,212,,,9.58,3639,,,,published typical config — verify per tail
+Axio,N283MA,Baron 58,Piston,Multi Piston,,5,KSPA,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+Axio,N707PW,Baron 58,Piston,Multi Piston,,5,KSPA,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+Axio,N758CA,Baron 58,Piston,Multi Piston,,5,KSPA,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,1,8.16,8.16,1550,,,,published typical config — verify per tail
+Axio,N4380W,Baron 58,Piston,Multi Piston,,5,KSPA,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,6,7.49,6.97,1324,,,,published typical config — verify per tail
+Axio,N6725T,Baron 58,Piston,Multi Piston,,5,KSPA,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+Axio,N789CT,King Air 200,Turboprop,Multi Turboprop,,8,KSPA,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.22,3570,,,,published typical config — verify per tail
+Axio,N34LT,King Air 200,Turboprop,Multi Turboprop,,8,KSPA,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,1,12.71,12.71,3431,,,,published typical config — verify per tail
+Axio,N989LA,King Air 200,Turboprop,Multi Turboprop,,8,KSPA,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,2,13.13,13.13,3545,,,,published typical config — verify per tail
+Castle Aviation,N49MG,Aerostar,Piston,Multi Piston,,2,KCAK,,215,1100,1100,6000,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,25,37,11,3.9,3.7,110,1,18.97,18.97,4079,,,,published typical config — verify per tail
+Castle Aviation,N52MG,Aerostar,Piston,Multi Piston,,2,KCAK,,215,1100,1100,6000,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,25,37,11,3.9,3.7,110,4,5.38,5.4,1161,,,,published typical config — verify per tail
+Castle Aviation,N92MG,Aerostar,Piston,Multi Piston,,2,KCAK,,215,1100,1100,6000,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,25,37,11,3.9,3.7,110,,,5.74,1234,,,,published typical config — verify per tail
+Castle Aviation,N1058N,Cessna Caravan,Turboprop,Single Turboprop,,9,KCAK,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+Castle Aviation,N27MG,Cessna Caravan,Turboprop,Single Turboprop,,9,KCAK,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+Castle Aviation,N805TH,Cessna Caravan,Turboprop,Single Turboprop,,9,KCAK,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+Castle Aviation,N1086F,Cessna Caravan,Turboprop,Single Turboprop,,9,KCAK,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+Castle Aviation,N1116W,Cessna Caravan,Turboprop,Single Turboprop,,9,KCAK,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+Castle Aviation,N9612B,Cessna Caravan,Turboprop,Single Turboprop,,9,KCAK,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+Castle Aviation,N253AE,SAAB 340,Turboprop,Multi Turboprop,,34,KCAK,,250,900,8000,29000,FET applies,Airstair + cargo door,53,63,34.1,7.1,6,1100,,,,,,,,published typical config — verify per tail
+Castle Aviation,N336SA,SAAB 340,Turboprop,Multi Turboprop,,34,KCAK,,250,900,8000,29000,FET applies,Airstair + cargo door,53,63,34.1,7.1,6,1100,,,,,,,,published typical config — verify per tail
+Castle Aviation,N431BC,SAAB 340,Turboprop,Multi Turboprop,,34,KCAK,,250,900,8000,29000,FET applies,Airstair + cargo door,53,63,34.1,7.1,6,1100,,,,,,,,published typical config — verify per tail
+Clemson Air Charter,N686FR,Baron 58,Piston,Multi Piston,,5,KAND,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+Clemson Air Charter,N1065B,Baron 58,Piston,Multi Piston,,5,KAND,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+Contrail - Charlie,N443J,Diamond DA-42,Piston,Multi Piston,,3,KABE,,155,1000,900,4407,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Canopy + rear door,34,33,8.5,3.8,3.9,80,1,7.66,7.66,1188,,,,published typical config — verify per tail
+Contrail - Charlie,N651WB,TBM 700,Turboprop,Single Turboprop,,5,KABE,,290,1300,1300,6579,FET applies,Pax door,27,45,13.3,4,4.1,123,2,9.98,9.98,2895,,,,published typical config — verify per tail
+ENG Aviation,N196JH,CJ3,Light Jet,Turbine,,7,KADS,,415,1800,2000,13870,FET applies,Airstair,24,51,15.7,4.8,4.8,290,,,17.21,6970,,,,published typical config — verify per tail
+ENG Aviation,N2KK,Citation XL,Midsize Jet,Turbine,,8,KADS,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,,,,,,published typical config — verify per tail
+ENG Aviation,N100YB,Citation XL,Midsize Jet,Turbine,,8,KADS,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,,,,,,published typical config — verify per tail
+ENG Aviation,N421LT,Citation XL,Midsize Jet,Turbine,,8,KADS,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,,,,,,published typical config — verify per tail
+ENG Aviation,N560SJ,Citation XL,Midsize Jet,Turbine,,8,KADS,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,,,,,,published typical config — verify per tail
+EXECUTIVE SHUTTLE,N643EA,King Air 90,Turboprop,Multi Turboprop,,6,KGRD,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,12,8.83,8.32,1873,,,,published typical config — verify per tail
+FedAir (Mario),TBD,Cheyenne,Turboprop,Multi Turboprop,,6,KHFY,,240,1300,1800,9000,FET applies,Airstair,26,47,12.9,4.3,4.3,180,1,7.2,15.59,3741,,,,published typical config — verify per tail
+FLIGHT CHOICE,N436AT,Baron 58,Piston,Multi Piston,,5,KTYS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+FLIGHT CHOICE,N584PC,Baron 58,Piston,Multi Piston,,5,KTYS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+FLIGHT CHOICE,N6211J,King Air 90,Turboprop,Multi Turboprop,,6,KTYS,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+FLIGHT CHOICE,N7206E,King Air 90,Turboprop,Multi Turboprop,,6,KTYS,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+FLIGHT CHOICE,N250XX,King Air 200,Turboprop,Multi Turboprop,,8,KTYS,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+"Gem Air, LLC",N4438,Islander,Piston,Multi Piston,Cargo,,KSLC,,140,700,1900,6600,FET applies,Three doors,45,43,10.1,3.6,4.2,120,,,,,,,,published typical config — verify per tail
+"Gem Air, LLC",N6561B,Islander,Piston,Multi Piston,Cargo,,KSLC,,140,700,1900,6600,FET applies,Three doors,45,43,10.1,3.6,4.2,120,,,,,,,,published typical config — verify per tail
+"Gem Air, LLC",N801SA,Islander,Piston,Multi Piston,Cargo,,KSLC,,140,700,1900,6600,FET applies,Three doors,45,43,10.1,3.6,4.2,120,,,,,,,,published typical config — verify per tail
+"Gem Air, LLC",N802SA,Islander,Piston,Multi Piston,Cargo,,KSLC,,140,700,1900,6600,FET applies,Three doors,45,43,10.1,3.6,4.2,120,,,,,,,,published typical config — verify per tail
+"Gem Air, LLC",N8514C,Piper Seneca,Piston,Multi Piston,Cargo,,KSLC,,160,750,1200,4750,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Door + aft cargo,25,41,10.3,4.1,3.9,120,,,10.78,1725,,,,published typical config — verify per tail
+"Gem Air, LLC",N84153,C-172,Piston,Single Piston,Cargo,,KSLC,,110,600,750,2450,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,37,40,8.9,3.3,4,70,,,,,,,,published typical config — verify per tail
+"Gem Air, LLC",N376ME,C-206,Piston,Single Piston,Cargo,,KSLC,,140,700,1300,3600,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Cargo double doors,42,42,12.1,3.7,4.1,100,,,,,,,,published typical config — verify per tail
+"Gem Air, LLC",N247JP,Cessna Caravan,Turboprop,Single Turboprop,Cargo,,KSLC,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+"Gem Air, LLC",N585SA,Cessna Caravan,Turboprop,Single Turboprop,Cargo,,KSLC,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+"Gem Air, LLC",N843SA,Cessna Caravan,Turboprop,Single Turboprop,Cargo,,KSLC,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+"Gem Air, LLC",N984AC,Cessna Caravan,Turboprop,Single Turboprop,Cargo,,KSLC,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.71,1272,,,,published typical config — verify per tail
+Gen 4 Jets,TBD,Citation CJ1,Light Jet,Turbine,,5,M19,,380,1200,1500,10700,FET applies,Airstair,24,51,11,4.8,4.8,200,1,7.2,17.89,6799,,,,published typical config — verify per tail
+Gen 4 Jets,TBD,PC-12,Turboprop,Single Turboprop,,8,M19,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,1,7.2,,,,,,published typical config — verify per tail
+Gen 4 Jets,TBD,CJ3,Light Jet,Turbine,,7,M19,,415,1800,2000,13870,FET applies,Airstair,24,51,15.7,4.8,4.8,290,1,7.2,17.21,6970,,,,published typical config — verify per tail
+GTA Air,N1194A,Bonanza,Piston,Single Piston,Cargo,,KADS,,165,800,900,3650,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,37,36,10,3.5,4.2,100,,,4.24,699,,,,published typical config — verify per tail
+GTA Air,N75AT,Bonanza,Piston,Single Piston,Cargo,,KADS,,165,800,900,3650,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,37,36,10,3.5,4.2,100,,,4.24,699,,,,published typical config — verify per tail
+GTA Air,N236CH,Bonanza,Piston,Single Piston,Cargo,,KADS,,165,800,900,3650,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,37,36,10,3.5,4.2,100,,,4.24,699,,,,published typical config — verify per tail
+GTA Air,N361BC,Bonanza,Piston,Single Piston,Cargo,,KADS,,165,800,900,3650,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,37,36,10,3.5,4.2,100,,,4.24,699,,,,published typical config — verify per tail
+GTA Air,N6735Z,Bonanza,Piston,Single Piston,Cargo,,KADS,,165,800,900,3650,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,37,36,10,3.5,4.2,100,,,4.24,699,,,,published typical config — verify per tail
+GTA Air,N66919,Bonanza,Piston,Single Piston,Cargo,,KADS,,165,800,900,3650,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,37,36,10,3.5,4.2,100,,,4.24,699,,,,published typical config — verify per tail
+GTA Air,N140S,Baron 58,Piston,Multi Piston,Cargo,,KADS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+GTA Air,N577W,Baron 58,Piston,Multi Piston,Cargo,,KADS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+GTA Air,N882MT,Baron 58,Piston,Multi Piston,Cargo,,KADS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+GTA Air,N2026W,Baron 58,Piston,Multi Piston,Cargo,,KADS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+GTA Air,N2064V,Baron 58,Piston,Multi Piston,Cargo,,KADS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+GTA Air,N6573K,Baron 58,Piston,Multi Piston,Cargo,,KADS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+GTA Air,N36673,Baron 58,Piston,Multi Piston,Cargo,,KADS,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+"IFL Group, Inc.",N481FL,AMD Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"IFL Group, Inc.",N511FL,AMD Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"IFL Group, Inc.",N521FL,AMD Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"IFL Group, Inc.",N531FL,AMD Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"IFL Group, Inc.",N541FL,AMD Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+"IFL Group, Inc.",N581FL,AMD Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N808CK,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N240CK,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N820CK,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N192CK,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N229CK,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N47LP,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N100AS,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N244CK,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N396CK,Falcon 20,Midsize Jet (Cargo),Turbine,Cargo,,KYIP,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,10.14,4361,,,,published typical config — verify per tail
+Kalitta Charters LLC,N242CK,Challenger 600,Heavy Jet,Turbine,Cargo,,KYIP,,450,3500,4000,41250,FET applies,Airstair,32,63,28.3,8.2,6.1,1150,,,,,,,,published typical config — verify per tail
+Kalitta Charters LLC,N245CK,Challenger 600,Heavy Jet,Turbine,Cargo,,KYIP,,450,3500,4000,41250,FET applies,Airstair,32,63,28.3,8.2,6.1,1150,,,,,,,,published typical config — verify per tail
+Kalitta Charters LLC,N76CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N355CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N913CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N35WL,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N73CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N163CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N217CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N237CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N295CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N298CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N325NW,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N352CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N353CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N357CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N431CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N824CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N870CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N905CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N71CK,Lear 35a,Light Jet,Turbine,Cargo,,KYIP,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Kalitta Charters LLC,N45KX,Lear 45,Light Jet,Turbine,Cargo,,KYIP,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+Kalitta Charters LLC,N273LP,Lear 45,Light Jet,Turbine,Cargo,,KYIP,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+Kalitta Charters LLC,N451CK,Lear 45,Light Jet,Turbine,Cargo,,KYIP,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+Kalitta Charters LLC,N452CK,Lear 45,Light Jet,Turbine,Cargo,,KYIP,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+Kalitta Charters LLC,N453CK,Lear 45,Light Jet,Turbine,Cargo,,KYIP,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+Kalitta Charters LLC,N881MJ,Lear 45,Light Jet,Turbine,Cargo,,KYIP,,445,1800,2500,21500,FET applies,Airstair,24,48,19.8,5.1,4.9,410,,,,,,,,published typical config — verify per tail
+Kentucky Airmotive Inc.,N16KW,King Air 90,Turboprop,Multi Turboprop,Pax,6,KIOB,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+Kentucky Airmotive Inc.,N61698,King Air 90,Turboprop,Multi Turboprop,Pax,6,KIOB,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+Kentucky Airmotive Inc.,N7901Q,Cessna 401,Piston,Multi Piston,Pax,7,KIOB,,190,1100,1600,6300,FET applies,Single door,26,36,15,4,4.1,150,,,,,,,,published typical config — verify per tail
+Kentucky Airmotive Inc.,N613TA,King Air 200,Turboprop,Multi Turboprop,Pax,8,KIOB,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+Kentucky Airmotive Inc.,N82ER,Cessna 182,Piston,Single Piston,Pax,3,KIOB,,130,800,900,3100,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,37,41,9.1,3.5,4,75,,,,,,,,published typical config — verify per tail
+Kentucky Airmotive Inc.,N4861S,Cessna 182,Piston,Single Piston,Pax,3,KIOB,,130,800,900,3100,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,37,41,9.1,3.5,4,75,,,,,,,,published typical config — verify per tail
+LOWCOUNTRY AVIATION - Marco,N332MS,King Air 90,Turboprop,Multi Turboprop,,6,KCHS,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+LOWCOUNTRY AVIATION - Marco,N600AC,King Air 90,Turboprop,Multi Turboprop,,6,KCHS,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+LOWCOUNTRY AVIATION - Marco,N997LM,King Air 200,Turboprop,Multi Turboprop,,8,KCHS,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+LOWCOUNTRY AVIATION - Marco,N825ST,King Air 200,Turboprop,Multi Turboprop,,8,KCHS,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+LOWE AVIATION CO - Ed Lowe,N83KK,Baron 58,Piston,Multi Piston,,5,KMCN,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.49,1233,,,,published typical config — verify per tail
+LOWE AVIATION CO - Ed Lowe,N1103G,King Air 90,Turboprop,Multi Turboprop,,6,KMCN,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+Miller Aviation,N5336C,Cessna 310,Piston,Multi Piston,,4,KHHG,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,6,6.21,6.04,,,,,published typical config — verify per tail
+Miller Aviation,N6209X,Cessna 310,Piston,Multi Piston,,4,KHHG,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,8,6.33,6.08,,,,,published typical config — verify per tail
+Moyer Aviation Inc,N938PM,Piper Navajo,Piston,Multi Piston,,7,KMPO,,170,900,1800,6500,FET applies,Door + aft cargo,26,44,12.8,4.2,4.3,160,,,9.24,1478,,,,published typical config — verify per tail
+Moyer Aviation Inc,N4086E,Piper Navajo,Piston,Multi Piston,,7,KMPO,,170,900,1800,6500,FET applies,Door + aft cargo,26,44,12.8,4.2,4.3,160,,,9.24,1478,,,,published typical config — verify per tail
+Moyer Aviation Inc,N41166,Piper Navajo,Piston,Multi Piston,,7,KMPO,,170,900,1800,6500,FET applies,Door + aft cargo,26,44,12.8,4.2,4.3,160,,,9.24,1478,,,,published typical config — verify per tail
+Moyer Aviation Inc,N9480E,Cessna 172,Piston,Single Piston,,3,KMPO,,110,600,750,2450,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,37,40,8.9,3.3,4,70,,,,,,,,published typical config — verify per tail
+Moyer Aviation Inc,N5185U,Cessna 172,Piston,Single Piston,,3,KMPO,,110,600,750,2450,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,37,40,8.9,3.3,4,70,,,,,,,,published typical config — verify per tail
+Moyer Aviation Inc,N7MW,Baron 58,Piston,Multi Piston,,5,KMPO,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,6.75,1282,,,,published typical config — verify per tail
+PACC Air,N310TS,Cessna 310,Piston,Multi Piston,Cargo,,KMSP,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,,,,,,,,published typical config — verify per tail
+PACC Air,N314U,Cessna 310,Piston,Multi Piston,Cargo,,KMSP,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,,,,,,,,published typical config — verify per tail
+PACC Air,N780SH,Cessna 310,Piston,Multi Piston,Cargo,,KMSP,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,,,,,,,,published typical config — verify per tail
+PACC Air,N1203W,Cessna 310,Piston,Multi Piston,Cargo,,KMSP,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,,,,,,,,published typical config — verify per tail
+PACC Air,N3397G,Cessna 310,Piston,Multi Piston,Cargo,,KMSP,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,,,,,,,,published typical config — verify per tail
+PACC Air,N6832Y,Cessna 310,Piston,Multi Piston,Cargo,,KMSP,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,,,,,,,,published typical config — verify per tail
+PACC Air,N75GB,Cessna 402b,Piston,Multi Piston,Cargo,,KMSP,,190,1200,1900,6300,FET applies,Door + cargo door opt.,49,47,15,4,4.1,150,,,,,,,,published typical config — verify per tail
+PACC Air,N3796C,Cessna 402b,Piston,Multi Piston,Cargo,,KMSP,,190,1200,1900,6300,FET applies,Door + cargo door opt.,49,47,15,4,4.1,150,,,,,,,,published typical config — verify per tail
+PACC Air,N6384X,Cessna 402b,Piston,Multi Piston,Cargo,,KMSP,,190,1200,1900,6300,FET applies,Door + cargo door opt.,49,47,15,4,4.1,150,,,,,,,,published typical config — verify per tail
+PACC Air,N401VA,Piper Cheyenne,Turboprop,Multi Turboprop,Cargo,,KMSP,,240,1300,1800,9000,FET applies,Airstair,26,47,12.9,4.3,4.3,180,,,12.49,2997,,,,published typical config — verify per tail
+PACC Air,N700RD,Piper Cheyenne,Turboprop,Multi Turboprop,Cargo,,KMSP,,240,1300,1800,9000,FET applies,Airstair,26,47,12.9,4.3,4.3,180,,,12.49,2997,,,,published typical config — verify per tail
+"PlaneSmart! Charter, LLC.",N882MZ,Citation CJ,Light Jet,Turbine,,5,KADS,,380,1200,1500,10700,FET applies,Airstair,24,51,11,4.8,4.8,200,,,17.89,6799,,,,published typical config — verify per tail
+"PlaneSmart! Charter, LLC.",N817SA,PC-12,Turboprop,Single Turboprop,,8,KADS,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+Precision Aviation,N204BG,Citation Ultra,Light Jet,Turbine,,7,KJER/KTWF,,425,1700,2300,16300,FET applies,Airstair,24,53,17.3,4.8,4.7,320,,,,,,,,published typical config — verify per tail
+Precision Aviation,N501EB,King Air 200,Turboprop,Multi Turboprop,,8,KJER/KTWF,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+Precision Aviation,N5728G,Kodiak 100,Turboprop,Single Turboprop,,9,KJER/KTWF,,170,1000,3100,7255,FET applies,Cargo door,49,50,15.9,4.5,4.8,250,,,,,,,,published typical config — verify per tail
+Priority Air Charter LLC,N812PA,PC-12,Turboprop,Single Turboprop,Cargo,,KBJJ,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+Priority Air Charter LLC,N814PA,PC-12,Turboprop,Single Turboprop,Cargo,,KBJJ,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+Priority Air Charter LLC,N179SA,Cessna 208B Grand Caravan,Turboprop,Single Turboprop,Cargo,,KBJJ,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.33,1209,,,,published typical config — verify per tail
+Priority Air Charter LLC,N702PA,Cessna 208B Grand Caravan,Turboprop,Single Turboprop,Cargo,,KBJJ,,165,900,3300,8750,FET applies,Cargo door,49,50,16.8,5.2,4.5,340,,,7.33,1209,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N20WK,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,1,11.9,11.9,5118,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N68UP,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,11.53,4959,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N166RA,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,11.53,4959,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N239CD,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,11.53,4959,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N600RA,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,11.53,4959,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N730RA,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,11.53,4959,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N760RA,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,11.53,4959,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N766RA,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,11.53,4959,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N780RA,Falcon 20,Midsize Jet (Cargo),Turbine,,8,KPTK,,430,1800,6000,28660,FET applies,Cargo door,74.5,55.5,24,6.1,5.6,630,,,11.53,4959,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N950RA,Falcon 50,Super-Mid Jet,Turbine,,9,KPTK,,470,3000,3500,40780,FET applies,Airstair,32,62,23.5,6.1,5.9,700,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N850RA,Falcon 50,Super-Mid Jet,Turbine,,9,KPTK,,470,3000,3500,40780,FET applies,Airstair,32,62,23.5,6.1,5.9,700,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N74RA,King Air 200,Turboprop,Multi Turboprop,,8,KPTK,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N220RA,King Air 200,Turboprop,Multi Turboprop,,8,KPTK,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N34A,Embrarer Bandit,Turboprop,Multi Turboprop,,15,KPTK,,220,1000,3500,12500,FET applies,Airstair + cargo door,47,55,30.9,5.3,5.3,600,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N49RA,Embrarer Bandit,Turboprop,Multi Turboprop,,15,KPTK,,220,1000,3500,12500,FET applies,Airstair + cargo door,47,55,30.9,5.3,5.3,600,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N64DA,Embrarer Bandit,Turboprop,Multi Turboprop,,15,KPTK,,220,1000,3500,12500,FET applies,Airstair + cargo door,47,55,30.9,5.3,5.3,600,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N72RA,Embrarer Bandit,Turboprop,Multi Turboprop,,15,KPTK,,220,1000,3500,12500,FET applies,Airstair + cargo door,47,55,30.9,5.3,5.3,600,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N73RA,Embrarer Bandit,Turboprop,Multi Turboprop,,15,KPTK,,220,1000,3500,12500,FET applies,Airstair + cargo door,47,55,30.9,5.3,5.3,600,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N9RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N31RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N41RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N61RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N71RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N76RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N81RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N351AS,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N417BA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N669RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N731RA,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N804TF,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N841TF,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N945W,Lear 35a,Light Jet,Turbine,,8,KPTK,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N551RA,Lear 55,Midsize Jet,Turbine,,7,KPTK,,440,2000,2700,21500,FET applies,Airstair,27,50,16.7,5.9,5.7,450,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N805PC,Lear 55,Midsize Jet,Turbine,,7,KPTK,,440,2000,2700,21500,FET applies,Airstair,27,50,16.7,5.9,5.7,450,,,,,,,,published typical config — verify per tail
+"Royal Air Freight, Inc.",N860RA,Lear 60,Midsize Jet,Turbine,,7,KPTK,,445,2200,2600,23500,FET applies,Airstair,27,50,17.7,5.9,5.7,450,,,,,,,,published typical config — verify per tail
+SkyLife Elite LLC.,N812GB,King Air 90,Turboprop,Multi Turboprop,,6,KMCO,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+SkyLife Elite LLC.,N933RG,Citation CJ1,Light Jet,Turbine,,5,KMCO,,380,1200,1500,10700,FET applies,Airstair,24,51,11,4.8,4.8,200,,,17.89,6799,,,,published typical config — verify per tail
+SkyLife Elite LLC.,N3MH,King Air 200,Turboprop,Multi Turboprop,,8,KMCO,,270,1700,2500,12500,FET applies,Airstair (cargo door opt.),27,52,16.7,4.5,4.8,303,,,13.32,3596,,,,published typical config — verify per tail
+SkyLife Elite LLC.,HA-420,Honda Jet,Light Jet,Turbine,,5,KMCO,,420,1200,1400,10700,FET applies,Airstair,26,50,12.1,5,4.8,220,,,,,,,,published typical config — verify per tail
+SKYSHARE,N612FA,Gulfstream G200,Super-Mid Jet,Turbine,Pax,9,KOGD,,450,3000,4000,35450,FET applies,Airstair,32,62,24.5,7.2,6.3,870,,,,,,,,published typical config — verify per tail
+SKYSHARE,N860CB,Gulfstream G200,Super-Mid Jet,Turbine,Pax,9,KOGD,,450,3000,4000,35450,FET applies,Airstair,32,62,24.5,7.2,6.3,870,,,,,,,,published typical config — verify per tail
+SKYSHARE,N861CB,Gulfstream G200,Super-Mid Jet,Turbine,Pax,9,KOGD,,450,3000,4000,35450,FET applies,Airstair,32,62,24.5,7.2,6.3,870,,,,,,,,published typical config — verify per tail
+SKYSHARE,N450GR,Gulfstream GIV,Heavy Jet,Turbine,Pax,13,KOGD,,470,4000,4500,74600,FET applies,Airstair,36,62,45.1,7.3,6.2,1650,,,,,,,,published typical config — verify per tail
+SKYSHARE,N787JS,Gulfstream GIV,Heavy Jet,Turbine,Pax,13,KOGD,,470,4000,4500,74600,FET applies,Airstair,36,62,45.1,7.3,6.2,1650,,,,,,,,published typical config — verify per tail
+SKYSHARE,N744CB,Citation CJ2,Light Jet,Turbine,Pax,6,KOGD,,405,1500,1700,12500,FET applies,Airstair,24,51,13.6,4.8,4.8,250,,,,,,,,published typical config — verify per tail
+SKYSHARE,N868CB,Citation CJ2,Light Jet,Turbine,Pax,6,KOGD,,405,1500,1700,12500,FET applies,Airstair,24,51,13.6,4.8,4.8,250,,,,,,,,published typical config — verify per tail
+SKYSHARE,N871CB,Citation CJ2,Light Jet,Turbine,Pax,6,KOGD,,405,1500,1700,12500,FET applies,Airstair,24,51,13.6,4.8,4.8,250,,,,,,,,published typical config — verify per tail
+SKYSHARE,N606CB,Citation XLS,Midsize Jet,Turbine,Pax,8,KOGD,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,15.55,6687,,,,published typical config — verify per tail
+SKYSHARE,N766CB,Citation XLS,Midsize Jet,Turbine,Pax,8,KOGD,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,15.55,6687,,,,published typical config — verify per tail
+SKYSHARE,N409KG,Embrarer Legacy,Heavy Jet,Turbine,Pax,13,KOGD,,450,3200,4800,49604,FET applies,Airstair,33,66,42.5,6.9,6,1650,,,,,,,,published typical config — verify per tail
+SKYSHARE,N499CB,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N515RP,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N870CB,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N739S,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N863CB,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N418T,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N477KR,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N511DR,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N825NX,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SKYSHARE,N963CB,Pilatus PC-12,Turboprop,Single Turboprop,Pax,8,KOGD,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+"Sonrise Aviation, LLC",N98DM,Cessna 310,Piston,Multi Piston,,4,KPLD,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,1,6.49,6.49,,,,,published typical config — verify per tail
+"Sonrise Aviation, LLC",N2738B,Cessna 310,Piston,Multi Piston,,4,KPLD,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,4,6.21,6.21,,,,,published typical config — verify per tail
+"Sonrise Aviation, LLC",N3284M,Cessna 310,Piston,Multi Piston,,4,KPLD,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,1,6.38,6.38,,,,,published typical config — verify per tail
+"Sonrise Aviation, LLC",N4258C,Cessna 310,Piston,Multi Piston,,4,KPLD,,180,900,1300,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Single door,26,36,10.5,4,4.1,110,2,6.15,6.15,,,,,published typical config — verify per tail
+"Sonrise Aviation, LLC",N80BS,Cessna 404,Piston,Multi Piston,,4,KPLD,,185,1300,2300,8400,FET applies,Door + cargo door,49,51,15.5,4.2,4.1,160,1,7.3,7.3,,,,,published typical config — verify per tail
+"Sonrise Aviation, LLC",N103RC,Cessna 404,Piston,Multi Piston,,4,KPLD,,185,1300,2300,8400,FET applies,Door + cargo door,49,51,15.5,4.2,4.1,160,2,8.77,8.77,,,,,published typical config — verify per tail
+"Speed Aviation, Inc.",N904P,King Air 90,Turboprop,Multi Turboprop,Pax,6,KBHM,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,9.13,2053,,,,published typical config — verify per tail
+"Speed Aviation, Inc.",N631KA,Lear 31,Light Jet,Turbine,Pax,7,KBHM,,430,1400,2500,17000,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,,,,,,published typical config — verify per tail
+"Speed Aviation, Inc.",N1932K,Lear 31,Light Jet,Turbine,Pax,7,KBHM,,430,1400,2500,17000,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,,,,,,published typical config — verify per tail
+SWEET AVIATION LLC,N812SA,PC-12,Turboprop,Single Turboprop,Pax,8,KFWA,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SWEET AVIATION LLC,N813SA,PC-12,Turboprop,Single Turboprop,Pax,8,KFWA,,270,1800,2600,10450,FET applies,Cargo door + airstair,53,52,16.9,5,4.8,330,,,,,,,,published typical config — verify per tail
+SWEET AVIATION LLC,N57SA,SR-22,Piston,Single Piston,Pax,3,KFWA,,175,1000,900,3600,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,32,41,10.8,4.1,4.2,90,,,8.05,1408,,,,published typical config — verify per tail
+SWEET AVIATION LLC,N287CJ,CJ3,Light Jet,Turbine,Pax,7,KFWA,,415,1800,2000,13870,FET applies,Airstair,24,51,15.7,4.8,4.8,290,,,17.21,6970,,,,published typical config — verify per tail
+SWEET AVIATION LLC,N855AC,Citation XLS,Midsize Jet,Turbine,Pax,8,KFWA,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,15.55,6687,,,,published typical config — verify per tail
+SWEET AVIATION LLC,N85HA,Citation XLS,Midsize Jet,Turbine,Pax,8,KFWA,,430,1800,2300,20200,FET applies,Airstair,25,56,18.5,5.5,5.7,460,,,15.55,6687,,,,published typical config — verify per tail
+Trans North Aviation,N742LG,SR-22,Piston,Single Piston,,3,KAID,,175,1000,900,3600,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Two doors,32,41,10.8,4.1,4.2,90,,,8.05,1408,,,,published typical config — verify per tail
+Trans North Aviation,N907DK,Cessna Citation,Light Jet,Turbine,,6,KAID,,350,1200,1500,11850,FET applies,Airstair,24,51,12.4,4.8,4.3,210,,,,,,,,published typical config — verify per tail
+Trans North Aviation,N1327J,Cessna Citation,Light Jet,Turbine,,6,KAID,,350,1200,1500,11850,FET applies,Airstair,24,51,12.4,4.8,4.3,210,,,,,,,,published typical config — verify per tail
+Trans North Aviation,630MW,Piper Cheyenne,Turboprop,Multi Turboprop,,6,KAID,,240,1300,1800,9000,FET applies,Airstair,26,47,12.9,4.3,4.3,180,,,12.49,2997,,,,published typical config — verify per tail
+Trans North Aviation,N89TB,Lear 35a,Light Jet,Turbine,,8,KAID,,430,2000,3200,18300,FET applies,Clamshell,24,47,12.9,4.9,4.3,268,,,7.08,3045,,,,published typical config — verify per tail
+Vertivue - Ted,N525TM,Baron 58,Piston,Multi Piston,,5,KXLL,,190,1050,1100,5500,"EXEMPT — MTOW ≤ 6,000 lb (IRC §4281)",Double aft doors,43,36,12.6,3.5,4.2,136,,,15.23,2894,,,,published typical config — verify per tail
+Vertivue - Ted,N321TR,King Air 90,Turboprop,Multi Turboprop,,6,KXLL,,225,1200,1500,10100,FET applies,Airstair,27,51,12.6,4.5,4.8,220,,,12.05,2711,,,,published typical config — verify per tail
+Zanesville Aviation,TBD,CJ1,Light Jet,Turbine,,5,KZZV,,380,1200,1500,10700,FET applies,Airstair,24,51,11,4.8,4.8,200,1,7.2,17.89,6799,,,,published typical config — verify per tail
+Zanesville Aviation,TBD,Citation Bravo,Light Jet,Turbine,,7,KZZV,,400,1500,1800,13300,FET applies,Airstair,24,51,15.8,4.8,4.7,280,1,7.2,23.33,9334,,,,published typical config — verify per tail
