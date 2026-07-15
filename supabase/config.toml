@@ -1,0 +1,8 @@
+# Minimal supabase config — link a project with `supabase link`
+project_id = "onfly-os"
+
+[api]
+enabled = true
+
+[db]
+major_version = 15

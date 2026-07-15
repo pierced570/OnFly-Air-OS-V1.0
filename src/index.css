@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* ── Brand tokens ─────────────────────────────────────────── */
+[data-theme="dispatcher"] {
+  --ink: #0c0c0e;
+  --surface: #141414;
+  --surface-2: #1c1c1f;
+  --border: #2a2a2e;
+  --gold: #c9a227;
+  --gold-lt: #e3b341;
+  --cream: #f7f2e3;
+  --muted: #8a8680;
+  --attn: var(--gold);
+  --late: #c0392b;
+  --onplan: #2e7d32;
+  --text: var(--cream);
+  --bg: var(--ink);
+  color-scheme: dark;
+}
+
+[data-theme="client"] {
+  --ink: #0c0c0e;
+  --surface: #f7f2e3;
+  --surface-2: #ffffff;
+  --border: #e5dfd0;
+  --gold: #c9a227;
+  --gold-lt: #e3b341;
+  --cream: #f7f2e3;
+  --muted: #6b6560;
+  --attn: var(--gold);
+  --late: #c0392b;
+  --onplan: #2e7d32;
+  --text: var(--ink);
+  --bg: var(--cream);
+  color-scheme: light;
+}
+
+@theme {
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-gold: var(--gold);
+  --color-gold-lt: var(--gold-lt);
+  --color-cream: var(--cream);
+  --color-muted: var(--muted);
+  --color-attn: var(--attn);
+  --color-late: var(--late);
+  --color-onplan: var(--onplan);
+  --font-avionic: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* ── Base ─────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.avionic {
+  font-family: var(--font-avionic);
+  letter-spacing: 0.02em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
