@@ -5,6 +5,7 @@ const nav = [
   { to: '/', label: 'Board', end: true },
   { to: '/trips/new', label: 'New trip' },
   { to: '/network', label: 'Network' },
+  { to: '/radar', label: 'Radar' },
   { to: '/admin', label: 'Admin' },
 ]
 
