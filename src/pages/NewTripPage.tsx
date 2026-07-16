@@ -9,7 +9,9 @@ import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { TEST_TAX_RATES_2026 } from '@/domain/tax'
 import { buildQuoteTotals } from '@/domain/quote'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
+import { RestChip } from '@/components/RestChip'
 import { formatStopLocal } from '@/domain/timeFmt'
+import { fleetStatusByTail } from '@/lib/fleetRadar'
 
 type PayloadKind = 'cargo' | 'pax' | 'both'
 
@@ -88,6 +90,7 @@ export default function NewTripPage() {
       const ready_at = localInputToUtc(readyLocal, origin.tz)
       const fleet = await loadFleetForRouting()
       const maps = createMapsAdapter()
+      const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
       const t0 = performance.now()
       const cands = await generateCandidates(
         {
@@ -122,6 +125,7 @@ export default function NewTripPage() {
         },
         fleet,
         maps,
+        { fleetStatusByTail: radar },
       )
       const ms = performance.now() - t0
       console.info(`generateCandidates ${Math.round(ms)}ms → ${cands.length} options`)
@@ -329,6 +333,11 @@ export default function NewTripPage() {
                   </div>
                 )}
                 <div className="mt-2 flex flex-wrap gap-2">
+                  <RestChip
+                    rest={c.rest}
+                    inPosition={c.inPosition}
+                    laddBlocked={c.laddBlocked}
+                  />
                   <NeedsInfoBadge count={c.needsInfo.length} />
                   {c.bookingGated && (
                     <span className="rounded-full border border-late/40 px-2 py-0.5 text-xs text-late">

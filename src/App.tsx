@@ -16,6 +16,7 @@ const OneTapPage = lazy(() => import('@/pages/OneTapPage'))
 const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
 const RadarPage = lazy(() => import('@/pages/RadarPage'))
+const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 
 function Fallback() {
   return (
@@ -48,6 +49,7 @@ export function App() {
         <Route path="/quotes/preview" element={<QuotePreviewPage />} />
         <Route path="/network" element={<NetworkPage />} />
         <Route path="/radar" element={<RadarPage />} />
+        <Route path="/briefing" element={<BriefingPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/tasks" element={<AdminTasksPage />} />
         <Route path="/offer/:token" element={<OfferPublicPage />} />

@@ -6,6 +6,7 @@ const nav = [
   { to: '/trips/new', label: 'New trip' },
   { to: '/network', label: 'Network' },
   { to: '/radar', label: 'Radar' },
+  { to: '/briefing', label: 'Briefing' },
   { to: '/admin', label: 'Admin' },
 ]
 
@@ -37,7 +38,7 @@ export function DispatchShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="border-t border-border px-4 py-3 text-xs text-muted">
-          Chunk 1 · Foundation
+          OnFly OS · mock integrations
         </div>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col overflow-auto">{children}</main>

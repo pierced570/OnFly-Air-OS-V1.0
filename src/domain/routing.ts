@@ -14,6 +14,11 @@ import {
 import type { MapsAdapter } from '@/adapters/maps'
 import { haversineNm } from '@/domain/geo'
 import type { LatLon } from '@/adapters/maps'
+import {
+  radarRankPenalty,
+  type FleetStatus,
+  type RestChip,
+} from '@/domain/fleetStatus'
 
 export type ClientRules = {
   dual_pilot_required?: boolean
@@ -81,6 +86,10 @@ export type Candidate = {
   label?: 'cheapest' | 'fastest' | 'best'
   eta_end: string
   circuit_nm: number
+  /** Advisory ADS-B rest / position chips */
+  rest?: RestChip
+  inPosition?: boolean
+  laddBlocked?: boolean
 }
 
 export const PRICING_CONSTANTS = {
@@ -132,7 +141,11 @@ export async function generateCandidates(
   trip: TripForRouting,
   fleet: AircraftCandidateSource[],
   maps: MapsAdapter,
-  opts?: { targetMargin?: number },
+  opts?: {
+    targetMargin?: number
+    /** Optional radar statuses keyed by tail — boosts rested + in-position */
+    fleetStatusByTail?: Map<string, FleetStatus>
+  },
 ): Promise<Candidate[]> {
   const margin = opts?.targetMargin ?? PRICING_CONSTANTS.targetMargin
   const pieces = trip.pieces
@@ -141,6 +154,7 @@ export async function generateCandidates(
   const origin = trip.origin
   const dest = trip.destination
   const results: Candidate[] = []
+  const radar = opts?.fleetStatusByTail
 
   for (const ac of fleet) {
     const needsInfo: string[] = []
@@ -148,6 +162,7 @@ export async function generateCandidates(
     let confidence = 1
     let hardFail = false
     let bookingGated = false
+    const status = radar?.get(ac.tail)
 
     // cargo/pax match
     if (trip.payload_kind === 'cargo' && ac.cargo_pax && /pax only/i.test(ac.cargo_pax)) {
@@ -273,6 +288,26 @@ export async function generateCandidates(
       )
     }
 
+    if (status) {
+      if (status.laddBlocked) {
+        reasoning.push('ADS-B LADD / no data — rest unknown')
+      } else {
+        if (status.rest === 'likely_rested') {
+          confidence += 0.05
+          reasoning.push('radar: likely rested (advisory)')
+        } else if (status.rest === 'rest_clock_running') {
+          confidence -= 0.05
+          reasoning.push('radar: rest clock running (advisory)')
+        }
+        if (status.inPositionOfBase) {
+          confidence += 0.08
+          reasoning.push(
+            `radar: in-position near base${status.nmFromBase != null ? ` (${status.nmFromBase.toFixed(0)} NM)` : ''}`,
+          )
+        }
+      }
+    }
+
     const routing: RoutingForChain = {
       originAirport: origin,
       destAirport: dest,
@@ -301,6 +336,9 @@ export async function generateCandidates(
       reasoning,
       eta_end,
       circuit_nm: Math.round(circuitNm),
+      rest: status?.rest,
+      inPosition: status?.inPositionOfBase,
+      laddBlocked: status?.laddBlocked,
     })
   }
 
@@ -313,8 +351,9 @@ export async function generateCandidates(
     const score = (c: Candidate) => {
       const priceRank = byPrice.indexOf(c)
       const timeRank = byTime.indexOf(c)
-      const useful = 0 // usefulness later
-      return 0.5 * priceRank + 0.35 * timeRank + 0.15 * useful
+      const st = radar?.get(c.tail)
+      const radarPen = radarRankPenalty(st)
+      return 0.45 * priceRank + 0.3 * timeRank + 0.25 * radarPen
     }
     return score(a) - score(b)
   })

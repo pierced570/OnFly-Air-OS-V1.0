@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
+import { RestChip } from '@/components/RestChip'
+import { loadFleetStatuses } from '@/lib/fleetRadar'
 import { loadNetwork } from '@/lib/networkData'
+import type { FleetStatus } from '@/domain/fleetStatus'
 import type { NetworkFixture } from '@/lib/types'
 
 export default function NetworkPage() {
   const [data, setData] = useState<NetworkFixture | null>(null)
+  const [statusByTail, setStatusByTail] = useState<Map<string, FleetStatus>>(
+    () => new Map(),
+  )
   const [q, setQ] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -12,6 +18,9 @@ export default function NetworkPage() {
     loadNetwork()
       .then(setData)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+    void loadFleetStatuses(40).then((rows) => {
+      setStatusByTail(new Map(rows.map((s) => [s.tail, s])))
+    })
   }, [])
 
   const filtered = useMemo(() => {
@@ -95,17 +104,31 @@ export default function NetworkPage() {
                       <th className="px-4 py-2 font-medium">Tail</th>
                       <th className="px-4 py-2 font-medium">Type</th>
                       <th className="px-4 py-2 font-medium">Base</th>
+                      <th className="px-4 py-2 font-medium">Status</th>
                       <th className="px-4 py-2 font-medium">Cruise</th>
                       <th className="px-4 py-2 font-medium">MTOW</th>
                       <th className="px-4 py-2 font-medium">Flags</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {aircraft.map((a) => (
+                    {aircraft.map((a) => {
+                      const st = statusByTail.get(a.tail)
+                      return (
                       <tr key={a.id} className="border-t border-border/60">
                         <td className="avionic px-4 py-2 text-gold">{a.tail}</td>
                         <td className="px-4 py-2 text-cream">{a.type_name ?? '—'}</td>
                         <td className="avionic px-4 py-2 text-muted">{a.base_icao ?? '—'}</td>
+                        <td className="px-4 py-2">
+                          {st ? (
+                            <RestChip
+                              rest={st.rest}
+                              inPosition={st.inPositionOfBase}
+                              laddBlocked={st.laddBlocked}
+                            />
+                          ) : (
+                            <span className="text-xs text-muted">—</span>
+                          )}
+                        </td>
                         <td className="avionic px-4 py-2 text-muted">
                           {a.cruise_kts != null ? `${a.cruise_kts} kt` : '—'}
                         </td>
@@ -116,7 +139,8 @@ export default function NetworkPage() {
                           <NeedsInfoBadge count={a.needs_info.length} />
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
