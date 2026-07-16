@@ -13,29 +13,17 @@ import { TripRequestForm } from '@/components/TripRequestForm'
 import { formatStopLocal } from '@/domain/timeFmt'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { submitTripRequest } from '@/lib/requestStore'
-import { newLeg, type TripRequestDraft, type TripRequestRecord } from '@/domain/tripRequest'
+import type { TripRequestDraft, TripRequestRecord } from '@/domain/tripRequest'
 
 function resolveAirport(icaoRaw: string) {
   const icao = icaoRaw.trim().toUpperCase()
   return lookupAirport(icao) ?? AIRPORTS[icao] ?? AIRPORTS.KCAK!
 }
 
-const DISPATCH_DEFAULT: Partial<TripRequestDraft> = {
-  client_id: 'demo-freight',
-  client_name: 'Demo Freight Co',
-  email: 'requester@demo-freight.test',
-  legs: [
-    newLeg({
-      origin_icao: 'KCAK',
-      dest_icao: 'KMDW',
-    }),
-  ],
-}
-
 export default function NewTripPage() {
   const nav = useNavigate()
   const [request, setRequest] = useState<TripRequestRecord | null>(null)
-  const [dimsText, setDimsText] = useState('3 skids 48x40x60 @ 800ea')
+  const [dimsText, setDimsText] = useState('')
   const [piecesApproved, setPiecesApproved] = useState<Piece[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -167,7 +155,6 @@ export default function NewTripPage() {
           {!request ? (
             <TripRequestForm
               variant="dispatch"
-              initial={DISPATCH_DEFAULT}
               submitLabel="Save request & continue"
               onSubmit={onFormSubmit}
             />

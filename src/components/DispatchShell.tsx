@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
 const nav = [
@@ -37,8 +37,14 @@ export function DispatchShell({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-border px-4 py-3 text-xs text-muted">
-          OnFly OS · mock integrations
+        <div className="space-y-2 border-t border-border px-4 py-3">
+          <Link
+            to="/portal"
+            className="block text-xs text-gold hover:text-gold-lt"
+          >
+            Client portal →
+          </Link>
+          <p className="text-[11px] text-muted">Share /portal with clients</p>
         </div>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col overflow-auto">{children}</main>

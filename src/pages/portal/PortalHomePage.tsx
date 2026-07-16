@@ -6,7 +6,7 @@ function useRequests() {
   return useSyncExternalStore(subscribeRequests, listRequests, () => [])
 }
 
-/** Client portal shell — magic-link auth wired later; demo uses open mock path. */
+/** Client-facing portal — magic-link auth later; open for now. */
 export default function PortalHomePage() {
   const requests = useRequests().filter((r) => r.source === 'portal')
 
@@ -20,11 +20,11 @@ export default function PortalHomePage() {
         <section className="rounded-lg border border-border bg-surface-2 p-5">
           <h2 className="font-medium">Your requests</h2>
           <p className="mt-1 text-sm text-muted">
-            Submitted trip requests appear here. Live tracker cards unlock after booking.
+            Trip requests you submit appear here. Live tracking unlocks after booking.
           </p>
           {requests.length === 0 ? (
             <div className="mt-4 rounded-md border border-dashed border-border p-4 text-sm text-muted">
-              No requests yet. Start one below.
+              No requests yet.
             </div>
           ) : (
             <ul className="mt-4 space-y-2">
@@ -52,10 +52,6 @@ export default function PortalHomePage() {
         >
           Request a trip
         </Link>
-        <p className="text-xs text-muted">
-          Enter your email on the form — magic-link auth + RLS ship later; mock path is open for
-          demo.
-        </p>
       </main>
     </div>
   )

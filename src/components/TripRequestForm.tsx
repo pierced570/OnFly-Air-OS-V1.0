@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import {
   ASAP_MAX_HOURS,
   emptyTripRequestDraft,
@@ -8,7 +8,11 @@ import {
   type TripLegDraft,
   type PaxRow,
 } from '@/domain/tripRequest'
-import { DEMO_CLIENTS } from '@/lib/requestStore'
+import {
+  addSessionClient,
+  listSessionClients,
+  subscribeClients,
+} from '@/lib/requestStore'
 
 type Variant = 'portal' | 'dispatch'
 
@@ -49,6 +53,7 @@ export function TripRequestForm({
   }))
   const [showNewClient, setShowNewClient] = useState(false)
   const [newClientName, setNewClientName] = useState('')
+  const [newClientEmail, setNewClientEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [issues, setIssues] = useState<string[]>([])
 
@@ -57,7 +62,11 @@ export function TripRequestForm({
 
   const paxCount = draft.pax.length
 
-  const clientOptions = useMemo(() => DEMO_CLIENTS, [])
+  const clientOptions = useSyncExternalStore(
+    subscribeClients,
+    listSessionClients,
+    () => [],
+  )
 
   function setPaxCount(n: number) {
     const count = Math.max(0, Math.min(20, n))
@@ -154,11 +163,18 @@ export function TripRequestForm({
             </button>
           </div>
           {showNewClient && (
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
               <input
                 value={newClientName}
                 onChange={(e) => setNewClientName(e.target.value)}
-                placeholder="New client name"
+                placeholder="Client name"
+                className={inputCls}
+              />
+              <input
+                type="email"
+                value={newClientEmail}
+                onChange={(e) => setNewClientEmail(e.target.value)}
+                placeholder="Requester email (optional)"
                 className={inputCls}
               />
               <button
@@ -167,19 +183,26 @@ export function TripRequestForm({
                 onClick={() => {
                   const name = newClientName.trim()
                   if (!name) return
-                  const id = `new-${crypto.randomUUID().slice(0, 8)}`
+                  const row = addSessionClient(name, newClientEmail)
                   setDraft((d) => ({
                     ...d,
-                    client_id: id,
-                    client_name: name,
+                    client_id: row.id,
+                    client_name: row.name,
+                    email: row.email || d.email,
                   }))
                   setShowNewClient(false)
                   setNewClientName('')
+                  setNewClientEmail('')
                 }}
               >
                 Add
               </button>
             </div>
+          )}
+          {clientOptions.length === 0 && !showNewClient && (
+            <p className="mt-2 text-xs text-muted">
+              No clients yet — use + New to add one.
+            </p>
           )}
           <label className={`${labelCls} mt-3`}>
             Requester email

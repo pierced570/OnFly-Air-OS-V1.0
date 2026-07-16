@@ -5,7 +5,7 @@ import { loadFleetStatuses } from '@/lib/fleetRadar'
 import type { FleetStatus } from '@/domain/fleetStatus'
 import { RestChip } from '@/components/RestChip'
 import { RadarMap } from '@/components/RadarMap'
-import scorecards from '@/fixtures/scorecards.json'
+import { scorecards } from '@/lib/scorecards'
 
 type Filter = 'all' | 'rested' | 'airborne' | 'in_position' | 'ladd'
 
@@ -50,7 +50,7 @@ export default function RadarPage() {
         <div>
           <h1 className="text-2xl font-semibold text-cream">Fleet Radar</h1>
           <p className="mt-1 text-sm text-muted">
-            Trial fixtures · {statuses.length} tails · chips are advisory (not a 135.267 determination)
+            {statuses.length} tails · rest chips are advisory (not a 135.267 determination)
           </p>
         </div>
         <Link to="/briefing" className="text-sm text-gold hover:text-gold-lt">
@@ -111,21 +111,27 @@ export default function RadarPage() {
 
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">
-            Operator scorecards (fixture)
+            Operator scorecards
           </h2>
-          <ul className="mt-2 space-y-2 text-sm">
-            {scorecards.operators.slice(0, 5).map((o) => (
-              <li
-                key={o.name}
-                className="flex items-center justify-between border-b border-border/40 pb-2"
-              >
-                <span className="text-cream">{o.name}</span>
-                <span className="avionic text-xs text-muted">
-                  {o.median_response_min}m · {o.response_rate_pct}% reply
-                </span>
-              </li>
-            ))}
-          </ul>
+          {scorecards.operators.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">
+              No response history yet — fills in as you run offers.
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-2 text-sm">
+              {scorecards.operators.slice(0, 5).map((o) => (
+                <li
+                  key={o.name}
+                  className="flex items-center justify-between border-b border-border/40 pb-2"
+                >
+                  <span className="text-cream">{o.name}</span>
+                  <span className="avionic text-xs text-muted">
+                    {o.median_response_min}m · {o.response_rate_pct}% reply
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 

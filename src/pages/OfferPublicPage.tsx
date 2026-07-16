@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom'
 import { getTripByOfferToken } from '@/lib/tripStore'
 import { submitOperatorQuote } from '@/lib/offerFlow'
 import { DateTime } from 'luxon'
-import scorecards from '@/fixtures/scorecards.json'
 
 export default function OfferPublicPage() {
   const { token } = useParams()
@@ -111,16 +110,6 @@ export default function OfferPublicPage() {
             </button>
           </form>
         )}
-
-        <div className="rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted">
-          You respond in ~
-          {scorecards.operators.find((o) => o.name === offer.operator_name)?.median_response_min ??
-            8}{' '}
-          min — top{' '}
-          {scorecards.operators.find((o) => o.name === offer.operator_name)?.percentile_response ??
-            40}
-          % of the network (fixture scorecard).
-        </div>
 
         <Link to={`/trips/${trip.id}/offers`} className="block text-center text-xs text-muted">
           Dispatcher compare view

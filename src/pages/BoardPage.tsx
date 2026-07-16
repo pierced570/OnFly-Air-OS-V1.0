@@ -1,6 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { parseThreadActual } from '@/domain/threadParse'
 import { listTrips } from '@/lib/tripStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
 
@@ -15,17 +14,8 @@ export default function BoardPage() {
   const trips = listTrips()
   const requests = useSyncExternalStore(subscribeRequests, listRequests, () => [])
   const pendingRequests = requests.filter((r) => r.status === 'submitted')
-  const [exceptions, setExceptions] = useState<ExceptionCard[]>([
-    {
-      id: 'ex1',
-      title: 'Demo slip watch',
-      detail: 'Manufactured 30-min slip on air leg — ack when reviewed',
-      severity: 'late',
-    },
-  ])
-  const [threadIn, setThreadIn] = useState('wheels up')
-  const [parseOut, setParseOut] = useState(() => parseThreadActual('wheels up'))
-  const [onShift, setOnShift] = useState('Pierce')
+  const [exceptions, setExceptions] = useState<ExceptionCard[]>([])
+  const [onShift, setOnShift] = useState('')
 
   return (
     <div className="flex min-h-full flex-col gap-6 p-8 lg:flex-row">
@@ -59,11 +49,24 @@ export default function BoardPage() {
           <input
             value={onShift}
             onChange={(e) => setOnShift(e.target.value)}
-            className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
+            placeholder="Dispatcher name"
+            className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream placeholder:text-muted"
           />
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface p-3 text-sm">
+          <div className="text-xs uppercase tracking-wider text-muted">Client portal</div>
           <p className="mt-2 text-xs text-muted">
-            Briefing: {trips.length} session trips · route-to-role = {onShift}
+            Share this link with clients so they can submit trip requests. New
+            requests show under Incoming below.
           </p>
+          <Link
+            to="/portal"
+            className="mt-3 inline-flex rounded-md border border-gold/40 px-3 py-1.5 text-xs text-gold hover:bg-gold/10"
+          >
+            Open client portal →
+          </Link>
+          <p className="mt-2 avionic text-[11px] text-muted">/portal</p>
         </div>
       </aside>
 
@@ -72,7 +75,7 @@ export default function BoardPage() {
           <div>
             <h1 className="text-2xl font-semibold text-cream">Dispatch Board</h1>
             <p className="mt-1 text-sm text-muted">
-              Exceptions first · portal requests land here · trips self-track
+              Home base: incoming portal requests, active trips, and exceptions.
             </p>
           </div>
           <Link
@@ -83,12 +86,21 @@ export default function BoardPage() {
           </Link>
         </header>
 
-        {pendingRequests.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-xs uppercase tracking-wider text-gold">
-              Incoming requests ({pendingRequests.length})
-            </h2>
-            {pendingRequests.map((r) => (
+        <section className="space-y-2">
+          <h2 className="text-xs uppercase tracking-wider text-gold">
+            Incoming requests
+            {pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ''}
+          </h2>
+          {pendingRequests.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-sm text-muted">
+              No requests yet. Clients submit at{' '}
+              <Link to="/portal/request" className="text-gold hover:text-gold-lt">
+                /portal/request
+              </Link>
+              , or you create one under New trip.
+            </p>
+          ) : (
+            pendingRequests.map((r) => (
               <div
                 key={r.id}
                 className="rounded-lg border border-gold/40 bg-gold/10 px-4 py-3"
@@ -108,49 +120,34 @@ export default function BoardPage() {
                   </Link>
                 </div>
               </div>
-            ))}
-          </section>
-        )}
-
-        <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Thread parse simulator</h2>
-          <div className="mt-2 flex gap-2">
-            <input
-              value={threadIn}
-              onChange={(e) => {
-                setThreadIn(e.target.value)
-                setParseOut(parseThreadActual(e.target.value))
-              }}
-              className="flex-1 rounded border border-border bg-ink px-3 py-2 text-sm text-cream"
-            />
-          </div>
-          <pre className="mt-2 overflow-auto rounded bg-ink/50 p-2 text-xs text-gold">
-            {JSON.stringify(parseOut, null, 2)}
-          </pre>
+            ))
+          )}
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Active / session trips</h2>
-          {trips.length === 0 && (
+          <h2 className="text-xs uppercase tracking-wider text-muted">Active trips</h2>
+          {trips.length === 0 ? (
             <p className="text-sm text-muted">
-              No session trips yet — run intake → quote → offers to populate.
+              No active trips in this session. After you quote and send offers, they
+              appear here.
             </p>
-          )}
-          {trips.map((t) => (
-            <Link
-              key={t.id}
-              to={`/trips/${t.id}/offers`}
-              className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 hover:border-gold/40"
-            >
-              <div>
-                <div className="font-medium text-cream">
-                  T-{t.ref} · {t.lane}
+          ) : (
+            trips.map((t) => (
+              <Link
+                key={t.id}
+                to={`/trips/${t.id}/offers`}
+                className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 hover:border-gold/40"
+              >
+                <div>
+                  <div className="font-medium text-cream">
+                    T-{t.ref} · {t.lane}
+                  </div>
+                  <div className="avionic text-xs text-muted">{t.state}</div>
                 </div>
-                <div className="avionic text-xs text-muted">{t.state}</div>
-              </div>
-              <span className="text-xs text-gold">Offers →</span>
-            </Link>
-          ))}
+                <span className="text-xs text-gold">Offers →</span>
+              </Link>
+            ))
+          )}
         </section>
       </div>
     </div>

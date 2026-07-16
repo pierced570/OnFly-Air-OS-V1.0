@@ -75,16 +75,36 @@ export function updateRequestStatus(
   bump()
 }
 
-/** Demo clients for dispatcher select (matches seed). */
-export const DEMO_CLIENTS = [
-  {
-    id: 'demo-freight',
-    name: 'Demo Freight Co',
-    email: 'requester@demo-freight.test',
-  },
-  {
-    id: 'demo-parts',
-    name: 'Midwest Parts Express',
-    email: 'ops@midwest-parts.test',
-  },
-] as const
+/** Clients created in-session via dispatcher “+ New”. */
+export type SessionClient = { id: string; name: string; email: string }
+
+const sessionClients: SessionClient[] = []
+const clientListeners = new Set<() => void>()
+let clientsSnapshot: SessionClient[] = []
+
+function bumpClients() {
+  clientsSnapshot = [...sessionClients]
+  for (const l of clientListeners) l()
+}
+
+export function subscribeClients(fn: () => void): () => void {
+  clientListeners.add(fn)
+  return () => {
+    clientListeners.delete(fn)
+  }
+}
+
+export function listSessionClients(): SessionClient[] {
+  return clientsSnapshot
+}
+
+export function addSessionClient(name: string, email = ''): SessionClient {
+  const row: SessionClient = {
+    id: `client-${crypto.randomUUID().slice(0, 8)}`,
+    name: name.trim(),
+    email: email.trim(),
+  }
+  sessionClients.push(row)
+  bumpClients()
+  return row
+}
