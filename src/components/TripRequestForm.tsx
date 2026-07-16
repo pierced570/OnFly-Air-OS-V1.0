@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
+import { AirportSelect } from '@/components/AirportSelect'
 import {
   ASAP_MAX_HOURS,
   emptyTripRequestDraft,
@@ -382,74 +383,66 @@ export function TripRequestForm({
                 {(draft.service_mode === 'a2a' ||
                   draft.service_mode === 'mixed') && (
                   <>
-                    <label className={labelCls}>
-                      Origin (ICAO)
-                      <input
-                        value={leg.origin_icao}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              origin_icao: e.target.value.toUpperCase(),
-                            }),
-                          }))
-                        }
-                        placeholder="KJFK"
-                        className={`${inputCls} avionic uppercase`}
-                      />
-                    </label>
-                    <label className={labelCls}>
-                      Destination (ICAO)
-                      <input
-                        value={leg.dest_icao}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              dest_icao: e.target.value.toUpperCase(),
-                            }),
-                          }))
-                        }
-                        placeholder="KLAX"
-                        className={`${inputCls} avionic uppercase`}
-                      />
-                    </label>
+                    <AirportSelect
+                      label="Origin"
+                      value={leg.origin_icao}
+                      required
+                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      onChange={(icao) =>
+                        setDraft((d) => ({
+                          ...d,
+                          legs: updateLeg(d.legs, leg.id, {
+                            origin_icao: icao,
+                          }),
+                        }))
+                      }
+                    />
+                    <AirportSelect
+                      label="Destination"
+                      value={leg.dest_icao}
+                      required
+                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      onChange={(icao) =>
+                        setDraft((d) => ({
+                          ...d,
+                          legs: updateLeg(d.legs, leg.id, {
+                            dest_icao: icao,
+                          }),
+                        }))
+                      }
+                    />
                   </>
                 )}
                 {draft.service_mode === 'd2d' && (
                   <>
-                    <label className={labelCls}>
-                      Preferred origin airport (optional)
-                      <input
-                        value={leg.origin_icao}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              origin_icao: e.target.value.toUpperCase(),
-                            }),
-                          }))
-                        }
-                        placeholder="ICAO if known"
-                        className={`${inputCls} avionic uppercase`}
-                      />
-                    </label>
-                    <label className={labelCls}>
-                      Preferred dest airport (optional)
-                      <input
-                        value={leg.dest_icao}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              dest_icao: e.target.value.toUpperCase(),
-                            }),
-                          }))
-                        }
-                        placeholder="ICAO if known"
-                        className={`${inputCls} avionic uppercase`}
-                      />
-                    </label>
+                    <AirportSelect
+                      label="Preferred origin airport"
+                      optional
+                      value={leg.origin_icao}
+                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      onChange={(icao) =>
+                        setDraft((d) => ({
+                          ...d,
+                          legs: updateLeg(d.legs, leg.id, {
+                            origin_icao: icao,
+                          }),
+                        }))
+                      }
+                    />
+                    <AirportSelect
+                      label="Preferred dest airport"
+                      optional
+                      value={leg.dest_icao}
+                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      onChange={(icao) =>
+                        setDraft((d) => ({
+                          ...d,
+                          legs: updateLeg(d.legs, leg.id, {
+                            dest_icao: icao,
+                          }),
+                        }))
+                      }
+                    />
                   </>
                 )}
                 {draft.timing === 'scheduled' && (

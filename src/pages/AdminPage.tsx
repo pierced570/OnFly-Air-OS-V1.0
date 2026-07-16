@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AirportSelect } from '@/components/AirportSelect'
 import {
   WizardShell,
   wizardInput,
@@ -253,14 +254,12 @@ function OperatorWizard() {
             Certificate #
             <input className={wizardInput} value={cert} onChange={(e) => setCert(e.target.value)} />
           </label>
-          <label className={wizardLabel}>
-            Base ICAO
-            <input
-              className={`${wizardInput} avionic`}
-              value={base}
-              onChange={(e) => setBase(e.target.value.toUpperCase())}
-            />
-          </label>
+          <AirportSelect
+            label="Base airport"
+            value={base}
+            required
+            onChange={setBase}
+          />
           <label className={`${wizardLabel} sm:col-span-2`}>
             Region
             <input className={wizardInput} value={region} onChange={(e) => setRegion(e.target.value)} />
@@ -752,14 +751,12 @@ function FboWizard() {
     >
       {step === 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className={wizardLabel}>
-            Airport ICAO
-            <input
-              className={`${wizardInput} avionic`}
-              value={icao}
-              onChange={(e) => setIcao(e.target.value.toUpperCase())}
-            />
-          </label>
+          <AirportSelect
+            label="Airport"
+            value={icao}
+            required
+            onChange={setIcao}
+          />
           <label className={wizardLabel}>
             FBO name
             <input className={wizardInput} value={name} onChange={(e) => setName(e.target.value)} />

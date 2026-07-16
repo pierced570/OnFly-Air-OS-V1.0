@@ -1,5 +1,6 @@
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AirportSelect } from '@/components/AirportSelect'
 import {
   addClient,
   addClientContact,
@@ -400,40 +401,30 @@ export default function QuickDispatchPage() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <label className={label}>
-                Origin (ICAO)
-                <input
-                  className={`${input} avionic uppercase`}
-                  value={leg.origin_icao}
-                  onChange={(e) =>
-                    setLegs((xs) =>
-                      xs.map((l) =>
-                        l.id === leg.id
-                          ? { ...l, origin_icao: e.target.value.toUpperCase() }
-                          : l,
-                      ),
-                    )
-                  }
-                  placeholder="KCAK"
-                />
-              </label>
-              <label className={label}>
-                Destination (ICAO)
-                <input
-                  className={`${input} avionic uppercase`}
-                  value={leg.dest_icao}
-                  onChange={(e) =>
-                    setLegs((xs) =>
-                      xs.map((l) =>
-                        l.id === leg.id
-                          ? { ...l, dest_icao: e.target.value.toUpperCase() }
-                          : l,
-                      ),
-                    )
-                  }
-                  placeholder="KMEM"
-                />
-              </label>
+              <AirportSelect
+                label="Origin"
+                value={leg.origin_icao}
+                required
+                onChange={(icao) =>
+                  setLegs((xs) =>
+                    xs.map((l) =>
+                      l.id === leg.id ? { ...l, origin_icao: icao } : l,
+                    ),
+                  )
+                }
+              />
+              <AirportSelect
+                label="Destination"
+                value={leg.dest_icao}
+                required
+                onChange={(icao) =>
+                  setLegs((xs) =>
+                    xs.map((l) =>
+                      l.id === leg.id ? { ...l, dest_icao: icao } : l,
+                    ),
+                  )
+                }
+              />
               {timing === 'scheduled' && (
                 <label className={label}>
                   Date
