@@ -19,6 +19,7 @@ const PortalTrackPage = lazy(() => import('@/pages/portal/PortalTrackPage'))
 const RadarPage = lazy(() => import('@/pages/RadarPage'))
 const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
+const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
 
 function Fallback() {
   return (
@@ -47,6 +48,7 @@ export function App() {
         <Route path="/" element={<BoardPage />} />
         <Route path="/trips/new" element={<NewTripPage />} />
         <Route path="/quick-dispatch" element={<QuickDispatchPage />} />
+        <Route path="/financials" element={<FinancialsPage />} />
         <Route path="/trips/:id/offers" element={<OffersPage />} />
         <Route path="/trips/:id" element={<TripPage />} />
         <Route path="/quotes/preview" element={<QuotePreviewPage />} />
