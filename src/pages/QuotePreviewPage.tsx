@@ -5,6 +5,8 @@ import { TEST_TAX_RATES_2026 } from '@/domain/tax'
 import { buildQuoteTotals, type MarkupMode } from '@/domain/quote'
 import { formatStopLocal } from '@/domain/timeFmt'
 import { createEmailAdapter } from '@/adapters/email'
+import { createTripFromCandidates } from '@/lib/tripStore'
+import { useNavigate } from 'react-router-dom'
 
 type Draft = {
   pieces: unknown
@@ -20,6 +22,7 @@ type Draft = {
 }
 
 export default function QuotePreviewPage() {
+  const nav = useNavigate()
   const draft = useMemo(() => {
     try {
       return JSON.parse(sessionStorage.getItem('onfly_quote_draft') ?? 'null') as Draft | null
@@ -84,6 +87,14 @@ export default function QuotePreviewPage() {
       }),
     })
     setSent(r.id)
+    const trip = createTripFromCandidates({
+      lane: `${draft!.originText} → ${draft!.destText}`,
+      payload_summary: draft!.payloadKind,
+      ready_label: draft!.ready_at,
+      candidates: draft!.candidates,
+      payload_kind: draft!.payloadKind,
+    })
+    sessionStorage.setItem('onfly_last_trip_id', trip.id)
   }
 
   return (
@@ -172,7 +183,19 @@ export default function QuotePreviewPage() {
             Approve & send estimated quote
           </button>
           {sent && (
-            <p className="text-sm text-onplan">Mock email sent ({sent}). Accept token logged.</p>
+            <p className="text-sm text-onplan">
+              Mock email sent ({sent}).{' '}
+              <button
+                type="button"
+                className="text-gold underline"
+                onClick={() => {
+                  const id = sessionStorage.getItem('onfly_last_trip_id')
+                  if (id) nav(`/trips/${id}/offers`)
+                }}
+              >
+                Open offers / phone simulator →
+              </button>
+            </p>
           )}
         </section>
 
