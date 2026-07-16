@@ -243,8 +243,8 @@ export function TripRequestForm({
         </div>
         {draft.service_mode === 'a2a' && (
           <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
-            Airport-to-airport: enter ICAO codes now. FBO selection happens in
-            step two with dispatch.
+            Airport-to-airport: pick by ICAO or city/state. FBO selection
+            happens in step two with dispatch.
           </p>
         )}
         {draft.service_mode === 'd2d' && (
