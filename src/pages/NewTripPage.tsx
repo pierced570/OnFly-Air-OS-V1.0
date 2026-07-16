@@ -13,11 +13,23 @@ import { TripRequestForm } from '@/components/TripRequestForm'
 import { formatStopLocal } from '@/domain/timeFmt'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { submitTripRequest } from '@/lib/requestStore'
-import type { TripRequestDraft, TripRequestRecord } from '@/domain/tripRequest'
+import { newLeg, type TripRequestDraft, type TripRequestRecord } from '@/domain/tripRequest'
 
 function resolveAirport(icaoRaw: string) {
   const icao = icaoRaw.trim().toUpperCase()
   return lookupAirport(icao) ?? AIRPORTS[icao] ?? AIRPORTS.KCAK!
+}
+
+const DISPATCH_DEFAULT: Partial<TripRequestDraft> = {
+  client_id: 'demo-freight',
+  client_name: 'Demo Freight Co',
+  email: 'requester@demo-freight.test',
+  legs: [
+    newLeg({
+      origin_icao: 'KCAK',
+      dest_icao: 'KMDW',
+    }),
+  ],
 }
 
 export default function NewTripPage() {
@@ -155,24 +167,7 @@ export default function NewTripPage() {
           {!request ? (
             <TripRequestForm
               variant="dispatch"
-              initial={{
-                client_id: 'demo-freight',
-                client_name: 'Demo Freight Co',
-                email: 'requester@demo-freight.test',
-                legs: [
-                  {
-                    id: crypto.randomUUID(),
-                    origin_icao: 'KCAK',
-                    dest_icao: 'KMDW',
-                    date: '',
-                    pickup_time: '',
-                    pickup_address: '',
-                    pickup_tbd: false,
-                    dropoff_address: '',
-                    dropoff_tbd: false,
-                  },
-                ],
-              }}
+              initial={DISPATCH_DEFAULT}
               submitLabel="Save request & continue"
               onSubmit={onFormSubmit}
             />

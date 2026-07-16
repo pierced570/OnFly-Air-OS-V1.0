@@ -14,19 +14,30 @@ const requests = new Map<string, TripRequestRecord>()
 let refSeq = 9000
 const listeners = new Set<() => void>()
 
+/** Cached snapshot for useSyncExternalStore (must be referentially stable). */
+let cachedList: TripRequestRecord[] = []
+
+function rebuildCache() {
+  cachedList = [...requests.values()].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  )
+}
+
 function bump() {
+  rebuildCache()
   for (const l of listeners) l()
 }
 
 export function subscribeRequests(fn: () => void): () => void {
   listeners.add(fn)
-  return () => listeners.delete(fn)
+  return () => {
+    listeners.delete(fn)
+  }
 }
 
+/** Stable snapshot — do not allocate a new array unless data changed. */
 export function listRequests(): TripRequestRecord[] {
-  return [...requests.values()].sort(
-    (a, b) => b.created_at.localeCompare(a.created_at),
-  )
+  return cachedList
 }
 
 export function getRequest(id: string): TripRequestRecord | undefined {
