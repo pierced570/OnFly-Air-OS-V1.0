@@ -6,6 +6,8 @@ const BoardPage = lazy(() => import('@/pages/BoardPage'))
 const NetworkPage = lazy(() => import('@/pages/NetworkPage'))
 const TripPage = lazy(() => import('@/pages/TripPage'))
 const AdminPage = lazy(() => import('@/pages/AdminPage'))
+const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
+const QuotePreviewPage = lazy(() => import('@/pages/QuotePreviewPage'))
 
 export function App() {
   return (
@@ -19,7 +21,9 @@ export function App() {
       >
         <Routes>
           <Route path="/" element={<BoardPage />} />
+          <Route path="/trips/new" element={<NewTripPage />} />
           <Route path="/trips/:id" element={<TripPage />} />
+          <Route path="/quotes/preview" element={<QuotePreviewPage />} />
           <Route path="/network" element={<NetworkPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

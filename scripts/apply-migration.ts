@@ -51,7 +51,6 @@ async function run() {
     user,
     password,
     ssl: { rejectUnauthorized: false },
-    family: 4,
   })
 
   console.log(`Connecting to ${host}…`)

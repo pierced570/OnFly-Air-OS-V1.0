@@ -53,6 +53,8 @@ export const AIRPORTS: Record<string, AirportInfo> = {
   KYIP: { icao: 'KYIP', name: 'Willow Run', lat: 42.2373, lon: -83.5304, tz: 'America/Detroit' },
   KZZV: { icao: 'KZZV', name: 'Zanesville Municipal', lat: 39.9444, lon: -81.8921, tz: 'America/New_York' },
   M19: { icao: 'M19', name: 'Newport Municipal (TN)', lat: 35.9642, lon: -83.199, tz: 'America/New_York' },
+  KMDW: { icao: 'KMDW', name: 'Chicago Midway', lat: 41.7868, lon: -87.7524, tz: 'America/Chicago' },
+  KORD: { icao: 'KORD', name: 'Chicago O\'Hare', lat: 41.9742, lon: -87.9073, tz: 'America/Chicago' },
 }
 
 export function lookupAirport(icao: string): AirportInfo | null {
