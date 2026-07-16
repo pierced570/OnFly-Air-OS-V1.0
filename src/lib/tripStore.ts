@@ -1,5 +1,5 @@
 /**
- * In-memory trip/offers store for Chunk 3 demos (mock path).
+ * In-memory trip/offers store (mock path).
  */
 
 import type { Candidate } from '@/domain/routing'
@@ -37,6 +37,34 @@ export type OfferRow = {
   contact_cell: string
 }
 
+export type QuickDispatchMeta = {
+  client_id: string
+  client_name: string
+  po: string
+  timing: 'asap' | 'scheduled'
+  roundtrip: boolean
+  cargo_only: boolean
+  operator_name: string
+  aircraft_type: string
+  tail: string
+  vendor_cost: number
+  client_price: number
+  pay_terms: string
+  invoice_email: string
+  cc_emails: string[]
+  send_invoice: boolean
+  referred_by: string
+  notes: string
+  legs: Array<{
+    origin_icao: string
+    dest_icao: string
+    date: string
+    pax: number
+    repo_time: string
+    live_leg_time: string
+  }>
+}
+
 export type TripStoreRow = {
   id: string
   ref: number
@@ -55,10 +83,33 @@ export type TripStoreRow = {
     payload_kind: 'cargo' | 'pax' | 'both'
   }
   lost_reason?: string
+  quick?: QuickDispatchMeta
 }
 
 const trips = new Map<string, TripStoreRow>()
 let refSeq = 2000
+const listeners = new Set<() => void>()
+let snapshot: TripStoreRow[] = []
+
+function rebuild() {
+  snapshot = [...trips.values()].sort((a, b) => b.ref - a.ref)
+}
+
+function bump() {
+  rebuild()
+  for (const l of listeners) l()
+}
+
+export function subscribeTrips(fn: () => void): () => void {
+  listeners.add(fn)
+  return () => {
+    listeners.delete(fn)
+  }
+}
+
+export function listTripsStable(): TripStoreRow[] {
+  return snapshot
+}
 
 export function createTripFromCandidates(opts: {
   lane: string
@@ -113,6 +164,54 @@ export function createTripFromCandidates(opts: {
     ],
   }
   trips.set(id, row)
+  bump()
+  return row
+}
+
+export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
+  const id = crypto.randomUUID()
+  const lane = meta.legs
+    .map((l) => `${l.origin_icao || '?'}→${l.dest_icao || '?'}`)
+    .join(' · ')
+  const row: TripStoreRow = {
+    id,
+    ref: ++refSeq,
+    state: 'booked',
+    lane,
+    payload_summary: meta.cargo_only
+      ? `cargo · ${meta.tail || 'TBD'}`
+      : `${meta.legs.reduce((n, l) => n + l.pax, 0)} pax · ${meta.tail || 'TBD'}`,
+    ready_label: meta.timing === 'asap' ? 'ASAP' : meta.legs[0]?.date || 'scheduled',
+    candidates: [],
+    offers: [],
+    quick: structuredClone(meta),
+    hard_quote: {
+      total: meta.client_price,
+      accept_token: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
+      payload_kind: meta.cargo_only ? 'cargo' : 'pax',
+    },
+    events: [
+      {
+        at: new Date().toISOString(),
+        actor: 'dispatcher',
+        kind: 'quick_dispatch',
+        payload: {
+          po: meta.po,
+          client_id: meta.client_id,
+          vendor_cost: meta.vendor_cost,
+          client_price: meta.client_price,
+        },
+      },
+      {
+        at: new Date().toISOString(),
+        actor: 'system',
+        kind: 'payload_kind',
+        payload: { payload_kind: meta.cargo_only ? 'cargo' : 'pax' },
+      },
+    ],
+  }
+  trips.set(id, row)
+  bump()
   return row
 }
 
@@ -144,6 +243,7 @@ export function mutateTrip(id: string, fn: (t: TripStoreRow) => void) {
   if (!t) throw new Error('trip not found')
   fn(t)
   trips.set(id, t)
+  bump()
   return t
 }
 

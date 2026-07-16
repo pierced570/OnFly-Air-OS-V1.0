@@ -78,12 +78,20 @@ export default function BoardPage() {
               Home base: incoming portal requests, active trips, and exceptions.
             </p>
           </div>
-          <Link
-            to="/trips/new"
-            className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink hover:bg-gold-lt"
-          >
-            New trip
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/quick-dispatch"
+              className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink hover:bg-gold-lt"
+            >
+              ⚡ Quick Dispatch
+            </Link>
+            <Link
+              to="/trips/new"
+              className="rounded-md border border-border px-4 py-2 text-sm text-cream hover:border-gold/40"
+            >
+              New trip
+            </Link>
+          </div>
         </header>
 
         <section className="space-y-2">
@@ -128,23 +136,31 @@ export default function BoardPage() {
           <h2 className="text-xs uppercase tracking-wider text-muted">Active trips</h2>
           {trips.length === 0 ? (
             <p className="text-sm text-muted">
-              No active trips in this session. After you quote and send offers, they
-              appear here.
+              No active trips yet. Use Quick Dispatch for instant book+track, or New
+              trip for the full quote path.
             </p>
           ) : (
             trips.map((t) => (
               <Link
                 key={t.id}
-                to={`/trips/${t.id}/offers`}
+                to={t.quick ? `/trips/${t.id}` : `/trips/${t.id}/offers`}
                 className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 hover:border-gold/40"
               >
                 <div>
                   <div className="font-medium text-cream">
                     T-{t.ref} · {t.lane}
+                    {t.quick?.po ? (
+                      <span className="ml-2 text-xs text-muted">PO {t.quick.po}</span>
+                    ) : null}
                   </div>
-                  <div className="avionic text-xs text-muted">{t.state}</div>
+                  <div className="avionic text-xs text-muted">
+                    {t.state}
+                    {t.quick ? ' · quick dispatch' : ''}
+                  </div>
                 </div>
-                <span className="text-xs text-gold">Offers →</span>
+                <span className="text-xs text-gold">
+                  {t.quick ? 'Track →' : 'Offers →'}
+                </span>
               </Link>
             ))
           )}

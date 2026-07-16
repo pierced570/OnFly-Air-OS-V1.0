@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 const nav = [
   { to: '/', label: 'Board', end: true },
+  { to: '/quick-dispatch', label: 'Quick Dispatch' },
   { to: '/trips/new', label: 'New trip' },
   { to: '/network', label: 'Network' },
   { to: '/radar', label: 'Radar' },

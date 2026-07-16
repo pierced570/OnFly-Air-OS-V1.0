@@ -9,6 +9,12 @@ import {
   type TripRequestDraft,
   type TripRequestRecord,
 } from '@/domain/tripRequest'
+import {
+  addClient,
+  listClients,
+  subscribeClients,
+  type ClientProfile,
+} from '@/lib/clientStore'
 
 const requests = new Map<string, TripRequestRecord>()
 let refSeq = 9000
@@ -35,7 +41,6 @@ export function subscribeRequests(fn: () => void): () => void {
   }
 }
 
-/** Stable snapshot — do not allocate a new array unless data changed. */
 export function listRequests(): TripRequestRecord[] {
   return cachedList
 }
@@ -75,36 +80,11 @@ export function updateRequestStatus(
   bump()
 }
 
-/** Clients created in-session via dispatcher “+ New”. */
-export type SessionClient = { id: string; name: string; email: string }
+/** Re-export client helpers used by TripRequestForm. */
+export { subscribeClients, listClients as listSessionClients }
 
-const sessionClients: SessionClient[] = []
-const clientListeners = new Set<() => void>()
-let clientsSnapshot: SessionClient[] = []
-
-function bumpClients() {
-  clientsSnapshot = [...sessionClients]
-  for (const l of clientListeners) l()
-}
-
-export function subscribeClients(fn: () => void): () => void {
-  clientListeners.add(fn)
-  return () => {
-    clientListeners.delete(fn)
-  }
-}
-
-export function listSessionClients(): SessionClient[] {
-  return clientsSnapshot
-}
+export type SessionClient = Pick<ClientProfile, 'id' | 'name' | 'email'>
 
 export function addSessionClient(name: string, email = ''): SessionClient {
-  const row: SessionClient = {
-    id: `client-${crypto.randomUUID().slice(0, 8)}`,
-    name: name.trim(),
-    email: email.trim(),
-  }
-  sessionClients.push(row)
-  bumpClients()
-  return row
+  return addClient({ name, email, invoice_email: email })
 }

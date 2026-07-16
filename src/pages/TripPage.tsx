@@ -1,115 +1,142 @@
 import { Link, useParams } from 'react-router-dom'
-import sampleTrip from '@/fixtures/sampleTrip.json'
-import { TRIP_STATES, TRANSITIONS, type TripState } from '@/domain/stateMachine'
-import type { TripFixture } from '@/lib/types'
-
-const trip = sampleTrip as TripFixture
-const spine = TRIP_STATES.filter((s) => s !== 'lost' && s !== 'cancelled')
+import { getTrip } from '@/lib/tripStore'
 
 export default function TripPage() {
   const { id } = useParams()
-  const isSample = id === trip.id || id === 'sample'
+  const trip = id ? getTrip(id) : null
 
-  if (!isSample) {
+  if (!trip) {
     return (
       <div className="p-8">
         <h1 className="text-xl text-cream">Trip not found</h1>
         <p className="mt-2 text-sm text-muted">
-          Chunk 1 ships one fixture trip. Open{' '}
-          <Link className="text-gold" to={`/trips/${trip.id}`}>
-            T-{trip.ref}
+          Open a trip from the Board, or create one with{' '}
+          <Link className="text-gold" to="/quick-dispatch">
+            Quick Dispatch
           </Link>
           .
         </p>
+        <Link to="/" className="mt-4 inline-block text-sm text-gold">
+          ← Board
+        </Link>
       </div>
     )
   }
 
-  const state = trip.state as TripState
-  const next = TRANSITIONS[state] ?? []
-  const stateIndex = spine.findIndex((s) => s === state)
+  const q = trip.quick
+  const margin =
+    q != null ? q.client_price - q.vendor_cost : null
 
   return (
-    <div className="flex flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">Trip</div>
+          <div className="text-xs uppercase tracking-[0.2em] text-gold">
+            {q ? 'Quick dispatch · tracking' : 'Trip'}
+          </div>
           <h1 className="mt-1 text-2xl font-semibold text-cream">
             T-<span className="avionic">{trip.ref}</span>
+            {q?.po ? (
+              <span className="ml-2 text-base font-normal text-muted">
+                PO {q.po}
+              </span>
+            ) : null}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            <span className="avionic">{trip.origin.icao ?? trip.origin.text}</span>
-            {' → '}
-            <span className="avionic">{trip.destination.icao ?? trip.destination.text}</span>
+            <span className="avionic">{trip.lane}</span>
             {' · '}
-            {trip.mode.toUpperCase()} · {trip.payload_kind}
+            {trip.payload_summary}
+            {' · '}
+            {trip.ready_label}
           </p>
+          {q && (
+            <p className="mt-1 text-sm text-cream">
+              {q.client_name}
+              {q.operator_name ? ` · ${q.operator_name}` : ''}
+              {q.tail ? (
+                <span className="avionic"> · {q.tail}</span>
+              ) : null}
+              {q.aircraft_type ? ` · ${q.aircraft_type}` : ''}
+            </p>
+          )}
         </div>
         <div className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-gold">
-          State: <span className="avionic font-medium">{state}</span>
+          <span className="avionic font-medium">{trip.state}</span>
         </div>
       </header>
 
-      {/* State machine position */}
-      <section className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-xs uppercase tracking-wider text-muted">State machine</h2>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {spine.map((s, i) => {
-            const active = s === state
-            const past = stateIndex >= 0 && i < stateIndex
-            return (
-              <div
-                key={s}
-                className={[
-                  'rounded-full px-3 py-1 text-xs avionic',
-                  active
-                    ? 'bg-gold text-ink'
-                    : past
-                      ? 'bg-onplan/20 text-onplan'
-                      : 'bg-surface-2 text-muted',
-                ].join(' ')}
-              >
-                {s}
+      {q && (
+        <>
+          <section className="rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-xs uppercase tracking-wider text-muted">Legs</h2>
+            <ul className="mt-3 space-y-2">
+              {q.legs.map((leg, i) => (
+                <li
+                  key={i}
+                  className="flex flex-wrap gap-x-3 gap-y-1 border-b border-border/40 pb-2 text-sm last:border-0"
+                >
+                  <span className="text-muted">Leg {i + 1}</span>
+                  <span className="avionic text-cream">
+                    {leg.origin_icao}→{leg.dest_icao}
+                  </span>
+                  {leg.date && <span className="text-muted">{leg.date}</span>}
+                  {leg.repo_time && (
+                    <span className="text-muted">repo {leg.repo_time}</span>
+                  )}
+                  {leg.live_leg_time && (
+                    <span className="text-muted">live {leg.live_leg_time}</span>
+                  )}
+                  {!q.cargo_only && (
+                    <span className="text-muted">{leg.pax} pax</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-border bg-surface p-3">
+              <div className="text-xs text-muted">Vendor</div>
+              <div className="avionic text-lg text-cream">
+                ${q.vendor_cost.toLocaleString()}
               </div>
-            )
-          })}
-        </div>
-        {next.length > 0 && (
-          <p className="mt-3 text-xs text-muted">
-            Legal next:{' '}
-            <span className="avionic text-cream">{next.join(', ')}</span>
-            {' · '}transitions via <span className="avionic">trip_transition</span> RPC only
-          </p>
-        )}
-      </section>
+            </div>
+            <div className="rounded-lg border border-border bg-surface p-3">
+              <div className="text-xs text-muted">Client</div>
+              <div className="avionic text-lg text-cream">
+                ${q.client_price.toLocaleString()}
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-surface p-3">
+              <div className="text-xs text-muted">Margin</div>
+              <div className="avionic text-lg text-gold">
+                {margin == null ? '—' : `$${margin.toLocaleString()}`}
+              </div>
+            </div>
+          </section>
 
-      {/* Empty ETA chain */}
-      <section className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-xs uppercase tracking-wider text-muted">ETA chain</h2>
-        {trip.legs.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">
-            No legs yet — routing engine populates this in Chunk 2.
-          </p>
-        ) : (
-          <ol className="mt-3 space-y-2">
-            {trip.legs.map((leg) => (
-              <li key={leg.seq} className="flex gap-3 text-sm">
-                <span className="avionic text-gold">{leg.seq}</span>
-                <span className="text-cream">{leg.type}</span>
-                <span className="text-muted">{leg.status}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+          <section className="rounded-lg border border-border bg-surface p-4 text-sm">
+            <h2 className="text-xs uppercase tracking-wider text-muted">Invoice</h2>
+            <p className="mt-2 text-cream">
+              {q.send_invoice ? 'Will send' : 'Do not send'} · {q.pay_terms}
+            </p>
+            {q.invoice_email && (
+              <p className="mt-1 text-muted">To: {q.invoice_email}</p>
+            )}
+            {q.cc_emails.length > 0 && (
+              <p className="mt-1 text-muted">CC: {q.cc_emails.join(', ')}</p>
+            )}
+            {q.notes && <p className="mt-3 text-cream">{q.notes}</p>}
+          </section>
+        </>
+      )}
 
-      {/* Event log */}
       <section className="rounded-lg border border-border bg-surface p-4">
         <h2 className="text-xs uppercase tracking-wider text-muted">Event log</h2>
         <ul className="mt-3 space-y-2">
-          {trip.events.map((e) => (
+          {trip.events.map((e, i) => (
             <li
-              key={e.id}
+              key={i}
               className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border/50 pb-2 text-sm last:border-0"
             >
               <span className="avionic text-xs text-muted">
@@ -121,6 +148,23 @@ export default function TripPage() {
           ))}
         </ul>
       </section>
+
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link to="/" className="text-gold hover:text-gold-lt">
+          ← Board
+        </Link>
+        {!q && trip.offers.length > 0 && (
+          <Link
+            to={`/trips/${trip.id}/offers`}
+            className="text-gold hover:text-gold-lt"
+          >
+            Offers →
+          </Link>
+        )}
+        <Link to="/quick-dispatch" className="text-muted hover:text-cream">
+          Quick Dispatch another
+        </Link>
+      </div>
     </div>
   )
 }
