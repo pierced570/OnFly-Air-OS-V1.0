@@ -46,17 +46,35 @@ describe('tripRequest', () => {
     expect(issues.some((i) => i.field === 'pax.0.dob')).toBe(true)
   })
 
-  it('d2d requires addresses unless TBD', () => {
+  it('d2d requires pickup + delivery addresses; ICAO optional', () => {
     const d = emptyTripRequestDraft()
     d.email = 'a@b.co'
-    d.legs[0]!.origin_icao = 'KCAK'
-    d.legs[0]!.dest_icao = 'KMDW'
     d.service_mode = 'd2d'
     expect(validateTripRequest(d).some((i) => i.field === 'leg.0.pickup')).toBe(
       true,
     )
-    d.legs[0]!.pickup_tbd = true
-    d.legs[0]!.dropoff_tbd = true
+    expect(validateTripRequest(d).some((i) => i.field === 'leg.0.dropoff')).toBe(
+      true,
+    )
+    expect(validateTripRequest(d).some((i) => i.field === 'leg.0.origin')).toBe(
+      false,
+    )
+    d.legs[0]!.pickup_address = '100 Industrial Pkwy, Akron OH'
+    d.legs[0]!.dropoff_address = '500 Warehouse Rd, Chicago IL'
+    expect(validateTripRequest(d).length).toBe(0)
+  })
+
+  it('mixed requires ICAOs and door addresses', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.service_mode = 'mixed'
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    expect(validateTripRequest(d).some((i) => i.field === 'leg.0.pickup')).toBe(
+      true,
+    )
+    d.legs[0]!.pickup_address = '100 Industrial Pkwy, Akron OH'
+    d.legs[0]!.dropoff_address = 'KMDW FBO ramp'
     expect(validateTripRequest(d).length).toBe(0)
   })
 })

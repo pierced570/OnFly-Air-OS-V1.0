@@ -111,11 +111,22 @@ export function deriveReadyAt(draft: TripRequestDraft, now = new Date()): string
   return now.toISOString()
 }
 
+function shortPlace(address: string, icao: string): string {
+  const code = icao.trim().toUpperCase()
+  if (code) return code
+  const addr = address.trim()
+  if (!addr) return '?'
+  // City-ish: last meaningful comma segment, truncated
+  const parts = addr.split(',').map((p) => p.trim()).filter(Boolean)
+  const label = parts.length >= 2 ? parts[parts.length - 2]! : parts[0]!
+  return label.length > 18 ? `${label.slice(0, 16)}…` : label
+}
+
 export function laneFromDraft(draft: TripRequestDraft): string {
   return draft.legs
     .map((l) => {
-      const o = l.origin_icao.trim().toUpperCase() || '?'
-      const d = l.dest_icao.trim().toUpperCase() || '?'
+      const o = shortPlace(l.pickup_address, l.origin_icao)
+      const d = shortPlace(l.dropoff_address, l.dest_icao)
       return `${o}→${d}`
     })
     .join(' · ')
@@ -159,28 +170,41 @@ export function validateTripRequest(
     issues.push({ field: 'legs', message: 'Add at least one leg' })
   }
 
+  const needsDoorAddresses =
+    draft.service_mode === 'd2d' || draft.service_mode === 'mixed'
+  /** Pure D2D: airports are assigned from addresses; ICAO optional. */
+  const requireIcaos = draft.service_mode !== 'd2d'
+
   draft.legs.forEach((leg, i) => {
     const prefix = `Leg ${i + 1}`
-    if (!leg.origin_icao.trim()) {
-      issues.push({ field: `leg.${i}.origin`, message: `${prefix}: origin ICAO required` })
-    }
-    if (!leg.dest_icao.trim()) {
-      issues.push({ field: `leg.${i}.dest`, message: `${prefix}: destination ICAO required` })
+    if (requireIcaos) {
+      if (!leg.origin_icao.trim()) {
+        issues.push({
+          field: `leg.${i}.origin`,
+          message: `${prefix}: origin ICAO required`,
+        })
+      }
+      if (!leg.dest_icao.trim()) {
+        issues.push({
+          field: `leg.${i}.dest`,
+          message: `${prefix}: destination ICAO required`,
+        })
+      }
     }
     if (draft.timing === 'scheduled' && !leg.date) {
       issues.push({ field: `leg.${i}.date`, message: `${prefix}: date required for scheduled` })
     }
-    if (draft.service_mode === 'd2d' || draft.service_mode === 'mixed') {
-      if (!leg.pickup_tbd && !leg.pickup_address.trim()) {
+    if (needsDoorAddresses) {
+      if (!leg.pickup_address.trim()) {
         issues.push({
           field: `leg.${i}.pickup`,
-          message: `${prefix}: pickup address or TBD required for door-to-door`,
+          message: `${prefix}: pickup address required (used to assign origin airport)`,
         })
       }
-      if (!leg.dropoff_tbd && !leg.dropoff_address.trim()) {
+      if (!leg.dropoff_address.trim()) {
         issues.push({
           field: `leg.${i}.dropoff`,
-          message: `${prefix}: dropoff address or TBD required for door-to-door`,
+          message: `${prefix}: delivery address required (used to assign destination airport)`,
         })
       }
     }

@@ -219,19 +219,21 @@ export function TripRequestForm({
         </div>
         {draft.service_mode === 'a2a' && (
           <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
-            Airport-to-airport: FBO selection happens in step two with dispatch.
-            Enter ICAO codes for each leg now.
+            Airport-to-airport: enter ICAO codes now. FBO selection happens in
+            step two with dispatch.
           </p>
         )}
         {draft.service_mode === 'd2d' && (
-          <p className="mt-2 text-xs text-muted">
-            Door-to-door: include pickup and delivery addresses (or mark TBD).
+          <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
+            Door-to-door: enter full pickup and delivery addresses. Dispatch
+            assigns the nearest suitable airports from those locations.
           </p>
         )}
         {draft.service_mode === 'mixed' && (
-          <p className="mt-2 text-xs text-muted">
-            Combination: ICAOs plus door addresses where ground transfer applies.
-            FBOs for pure air segments are sourced in step two.
+          <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
+            Combination: provide ICAOs for the air segment plus pickup and
+            delivery addresses for ground legs so we can assign airports and
+            routing.
           </p>
         )}
       </section>
@@ -306,39 +308,127 @@ export function TripRequestForm({
                   </button>
                 )}
               </div>
+              {needsAddresses && (
+                <div className="mb-3 grid gap-3 sm:grid-cols-2">
+                  <label className={labelCls}>
+                    Pickup address
+                    <input
+                      value={leg.pickup_address}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          legs: updateLeg(d.legs, leg.id, {
+                            pickup_address: e.target.value,
+                            pickup_tbd: false,
+                          }),
+                        }))
+                      }
+                      placeholder="Street, city, state, ZIP"
+                      required
+                      className={inputCls}
+                    />
+                    <span className="mt-1 block text-[11px] text-muted">
+                      Used to assign origin airport
+                    </span>
+                  </label>
+                  <label className={labelCls}>
+                    Delivery address
+                    <input
+                      value={leg.dropoff_address}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          legs: updateLeg(d.legs, leg.id, {
+                            dropoff_address: e.target.value,
+                            dropoff_tbd: false,
+                          }),
+                        }))
+                      }
+                      placeholder="Street, city, state, ZIP"
+                      required
+                      className={inputCls}
+                    />
+                    <span className="mt-1 block text-[11px] text-muted">
+                      Used to assign destination airport
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className={labelCls}>
-                  Origin (ICAO)
-                  <input
-                    value={leg.origin_icao}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        legs: updateLeg(d.legs, leg.id, {
-                          origin_icao: e.target.value.toUpperCase(),
-                        }),
-                      }))
-                    }
-                    placeholder="KJFK"
-                    className={`${inputCls} avionic uppercase`}
-                  />
-                </label>
-                <label className={labelCls}>
-                  Destination (ICAO)
-                  <input
-                    value={leg.dest_icao}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        legs: updateLeg(d.legs, leg.id, {
-                          dest_icao: e.target.value.toUpperCase(),
-                        }),
-                      }))
-                    }
-                    placeholder="KLAX"
-                    className={`${inputCls} avionic uppercase`}
-                  />
-                </label>
+                {(draft.service_mode === 'a2a' ||
+                  draft.service_mode === 'mixed') && (
+                  <>
+                    <label className={labelCls}>
+                      Origin (ICAO)
+                      <input
+                        value={leg.origin_icao}
+                        onChange={(e) =>
+                          setDraft((d) => ({
+                            ...d,
+                            legs: updateLeg(d.legs, leg.id, {
+                              origin_icao: e.target.value.toUpperCase(),
+                            }),
+                          }))
+                        }
+                        placeholder="KJFK"
+                        className={`${inputCls} avionic uppercase`}
+                      />
+                    </label>
+                    <label className={labelCls}>
+                      Destination (ICAO)
+                      <input
+                        value={leg.dest_icao}
+                        onChange={(e) =>
+                          setDraft((d) => ({
+                            ...d,
+                            legs: updateLeg(d.legs, leg.id, {
+                              dest_icao: e.target.value.toUpperCase(),
+                            }),
+                          }))
+                        }
+                        placeholder="KLAX"
+                        className={`${inputCls} avionic uppercase`}
+                      />
+                    </label>
+                  </>
+                )}
+                {draft.service_mode === 'd2d' && (
+                  <>
+                    <label className={labelCls}>
+                      Preferred origin airport (optional)
+                      <input
+                        value={leg.origin_icao}
+                        onChange={(e) =>
+                          setDraft((d) => ({
+                            ...d,
+                            legs: updateLeg(d.legs, leg.id, {
+                              origin_icao: e.target.value.toUpperCase(),
+                            }),
+                          }))
+                        }
+                        placeholder="ICAO if known"
+                        className={`${inputCls} avionic uppercase`}
+                      />
+                    </label>
+                    <label className={labelCls}>
+                      Preferred dest airport (optional)
+                      <input
+                        value={leg.dest_icao}
+                        onChange={(e) =>
+                          setDraft((d) => ({
+                            ...d,
+                            legs: updateLeg(d.legs, leg.id, {
+                              dest_icao: e.target.value.toUpperCase(),
+                            }),
+                          }))
+                        }
+                        placeholder="ICAO if known"
+                        className={`${inputCls} avionic uppercase`}
+                      />
+                    </label>
+                  </>
+                )}
                 {draft.timing === 'scheduled' && (
                   <>
                     <label className={labelCls}>
@@ -376,85 +466,6 @@ export function TripRequestForm({
                   </>
                 )}
               </div>
-
-              {needsAddresses && (
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className={labelCls}>
-                      Pickup address
-                      <input
-                        value={leg.pickup_address}
-                        disabled={leg.pickup_tbd}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              pickup_address: e.target.value,
-                            }),
-                          }))
-                        }
-                        placeholder="FBO or address…"
-                        className={inputCls}
-                      />
-                    </label>
-                    <label className="mt-1 flex items-center gap-2 text-xs text-muted">
-                      <input
-                        type="checkbox"
-                        checked={leg.pickup_tbd}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              pickup_tbd: e.target.checked,
-                              pickup_address: e.target.checked
-                                ? ''
-                                : leg.pickup_address,
-                            }),
-                          }))
-                        }
-                      />
-                      TBD
-                    </label>
-                  </div>
-                  <div>
-                    <label className={labelCls}>
-                      Dropoff address
-                      <input
-                        value={leg.dropoff_address}
-                        disabled={leg.dropoff_tbd}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              dropoff_address: e.target.value,
-                            }),
-                          }))
-                        }
-                        placeholder="FBO or address…"
-                        className={inputCls}
-                      />
-                    </label>
-                    <label className="mt-1 flex items-center gap-2 text-xs text-muted">
-                      <input
-                        type="checkbox"
-                        checked={leg.dropoff_tbd}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              dropoff_tbd: e.target.checked,
-                              dropoff_address: e.target.checked
-                                ? ''
-                                : leg.dropoff_address,
-                            }),
-                          }))
-                        }
-                      />
-                      TBD
-                    </label>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
