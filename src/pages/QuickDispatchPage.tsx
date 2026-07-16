@@ -12,6 +12,7 @@ import {
   type ClientProfile,
 } from '@/lib/clientStore'
 import { createQuickDispatchTrip } from '@/lib/tripStore'
+import { sendQuickDispatchEtaSheetAndPortalLinks } from '@/lib/etaSheetSender'
 
 type Leg = {
   id: string
@@ -82,6 +83,7 @@ export default function QuickDispatchPage() {
   const [referredBy, setReferredBy] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const client: ClientProfile | undefined = clientId
     ? getClient(clientId)
@@ -114,59 +116,72 @@ export default function QuickDispatchPage() {
     setCc([...set].join(', '))
   }
 
-  function dispatchNow() {
+  async function dispatchNow() {
     setError(null)
-    if (!client) {
-      setError('Select or create a client')
-      return
-    }
-    for (const [i, leg] of legs.entries()) {
-      if (!leg.origin_icao.trim() || !leg.dest_icao.trim()) {
-        setError(`Leg ${i + 1}: origin and destination ICAO required`)
+    setBusy(true)
+    try {
+      if (!client) {
+        setError('Select or create a client')
         return
       }
-      if (timing === 'scheduled' && !leg.date) {
-        setError(`Leg ${i + 1}: date required for scheduled`)
+      for (const [i, leg] of legs.entries()) {
+        if (!leg.origin_icao.trim() || !leg.dest_icao.trim()) {
+          setError(`Leg ${i + 1}: origin and destination ICAO required`)
+          return
+        }
+        if (timing === 'scheduled' && !leg.date) {
+          setError(`Leg ${i + 1}: date required for scheduled`)
+          return
+        }
+      }
+      if (!operator.trim() || !tail.trim()) {
+        setError('Operator and tail required')
         return
       }
-    }
-    if (!operator.trim() || !tail.trim()) {
-      setError('Operator and tail required')
-      return
-    }
-    const poFinal = po.trim() || suggestedPo
-    const ccList = parseCc(cc)
-    rememberEmailsOnClient(client.id, invoiceEmail, ccList)
-    recordPoUsed(client.id, poFinal)
 
-    const trip = createQuickDispatchTrip({
-      client_id: client.id,
-      client_name: client.name,
-      po: poFinal,
-      timing,
-      roundtrip,
-      cargo_only: cargoOnly,
-      operator_name: operator.trim(),
-      aircraft_type: aircraftType.trim(),
-      tail: tail.trim().toUpperCase(),
-      vendor_cost: Number(vendorCost) || 0,
-      client_price: Number(clientPrice) || 0,
-      pay_terms: payTerms,
-      invoice_email: invoiceEmail.trim(),
-      cc_emails: ccList,
-      send_invoice: sendInvoice,
-      referred_by: referredBy,
-      notes: notes.trim(),
-      legs: legs.map((l) => ({
-        origin_icao: l.origin_icao.trim().toUpperCase(),
-        dest_icao: l.dest_icao.trim().toUpperCase(),
-        date: l.date,
-        pax: cargoOnly ? 0 : l.pax,
-        repo_time: l.repo_time.trim(),
-        live_leg_time: l.live_leg_time.trim(),
-      })),
-    })
-    nav(`/trips/${trip.id}`)
+      const poFinal = po.trim() || suggestedPo
+      const ccList = parseCc(cc)
+      rememberEmailsOnClient(client.id, invoiceEmail, ccList)
+      recordPoUsed(client.id, poFinal)
+
+      const trip = createQuickDispatchTrip({
+        client_id: client.id,
+        client_name: client.name,
+        po: poFinal,
+        timing,
+        roundtrip,
+        cargo_only: cargoOnly,
+        operator_name: operator.trim(),
+        aircraft_type: aircraftType.trim(),
+        tail: tail.trim().toUpperCase(),
+        vendor_cost: Number(vendorCost) || 0,
+        client_price: Number(clientPrice) || 0,
+        pay_terms: payTerms,
+        invoice_email: invoiceEmail.trim(),
+        cc_emails: ccList,
+        send_invoice: sendInvoice,
+        referred_by: referredBy,
+        notes: notes.trim(),
+        legs: legs.map((l) => ({
+          origin_icao: l.origin_icao.trim().toUpperCase(),
+          dest_icao: l.dest_icao.trim().toUpperCase(),
+          date: l.date,
+          pax: cargoOnly ? 0 : l.pax,
+          repo_time: l.repo_time.trim(),
+          live_leg_time: l.live_leg_time.trim(),
+        })),
+      })
+
+      // Draft ETA sheet + portal tracking links + CC contacts (mock email).
+      const recipients = [invoiceEmail, ...ccList]
+      if (recipients.some((r) => r.trim().includes('@'))) {
+        await sendQuickDispatchEtaSheetAndPortalLinks({ trip, recipients })
+      }
+
+      nav(`/trips/${trip.id}`)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const selectedCc = new Set(parseCc(cc))
@@ -681,8 +696,9 @@ export default function QuickDispatchPage() {
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-ink/95 p-4 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <button
           type="button"
-          onClick={dispatchNow}
-          className="mx-auto flex w-full max-w-lg items-center justify-center gap-2 rounded-md bg-gold py-3.5 text-sm font-semibold text-ink hover:bg-gold-lt"
+          onClick={() => void dispatchNow()}
+          disabled={busy}
+          className="mx-auto flex w-full max-w-lg items-center justify-center gap-2 rounded-md bg-gold py-3.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-60"
         >
           <span aria-hidden>⚡</span> Dispatch Now
         </button>

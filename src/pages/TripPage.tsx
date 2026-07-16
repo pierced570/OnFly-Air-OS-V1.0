@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
+import { useMemo } from 'react'
 import { getTrip } from '@/lib/tripStore'
 
 export default function TripPage() {
@@ -26,6 +27,12 @@ export default function TripPage() {
   const q = trip.quick
   const margin =
     q != null ? q.client_price - q.vendor_cost : null
+
+  const etaSent = useMemo(() => {
+    return trip.events.find((e) => e.kind === 'eta_sheet_sent') ?? null
+  }, [trip.events])
+
+  const etaRecipients = (etaSent?.payload?.recipients as string[] | undefined) ?? []
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 sm:p-8">
@@ -127,6 +134,22 @@ export default function TripPage() {
               <p className="mt-1 text-muted">CC: {q.cc_emails.join(', ')}</p>
             )}
             {q.notes && <p className="mt-3 text-cream">{q.notes}</p>}
+          </section>
+
+          <section className="rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-xs uppercase tracking-wider text-muted">
+              ETA sheet + portal tracking
+            </h2>
+            {etaRecipients.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">
+                ETA sheet not sent yet.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-cream">
+                Mock ETA sheet emailed to:{' '}
+                <span className="avionic">{etaRecipients.join(', ')}</span>
+              </p>
+            )}
           </section>
         </>
       )}

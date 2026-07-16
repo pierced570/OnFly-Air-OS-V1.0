@@ -15,6 +15,7 @@ const AcceptPage = lazy(() => import('@/pages/AcceptPage'))
 const OneTapPage = lazy(() => import('@/pages/OneTapPage'))
 const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
+const PortalTrackPage = lazy(() => import('@/pages/portal/PortalTrackPage'))
 const RadarPage = lazy(() => import('@/pages/RadarPage'))
 const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
@@ -59,6 +60,7 @@ export function App() {
         <Route path="/t/:legToken" element={<OneTapPage />} />
         <Route path="/portal" element={<PortalHomePage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
+        <Route path="/portal/track/:token" element={<PortalTrackPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
