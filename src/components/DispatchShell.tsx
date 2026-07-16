@@ -5,6 +5,7 @@ const nav = [
   { to: '/', label: 'Board', end: true },
   { to: '/quick-dispatch', label: 'Quick Dispatch' },
   { to: '/financials', label: 'Financials' },
+  { to: '/clients', label: 'Clients' },
   { to: '/trips/new', label: 'New trip' },
   { to: '/network', label: 'Network' },
   { to: '/radar', label: 'Radar' },

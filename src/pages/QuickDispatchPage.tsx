@@ -5,6 +5,7 @@ import {
   addClientContact,
   getClient,
   listClients,
+  listInvoiceEmails,
   rememberEmailsOnClient,
   recordPoUsed,
   suggestNextPo,
@@ -105,8 +106,17 @@ export default function QuickDispatchPage() {
     if (!c) return
     setPo(suggestNextPo(c.last_po))
     setPayTerms(c.pay_terms || 'Net 30')
-    setInvoiceEmail(c.invoice_email || c.email || '')
-    setCc('')
+    const invoiceTargets = listInvoiceEmails(id)
+    setInvoiceEmail(invoiceTargets[0] || c.invoice_email || c.email || '')
+    const trackerCc = c.contacts
+      .filter((x) => x.notify_prefs.tracker && x.email)
+      .map((x) => x.email)
+      .filter(
+        (e) =>
+          !invoiceTargets.includes(e.toLowerCase()) &&
+          e.toLowerCase() !== (invoiceTargets[0] || '').toLowerCase(),
+      )
+    setCc(trackerCc.join(', '))
   }
 
   function toggleCc(email: string) {
@@ -275,11 +285,25 @@ export default function QuickDispatchPage() {
                   email: newInvoice,
                   invoice_email: newInvoice,
                 })
-                if (newContactEmail.trim()) {
+                const contactEmail = newContactEmail.trim()
+                const invEmail = newInvoice.trim()
+                if (contactEmail) {
                   addClientContact(
                     c.id,
-                    newContactName || newContactEmail.split('@')[0] || 'Contact',
-                    newContactEmail,
+                    newContactName || contactEmail.split('@')[0] || 'Contact',
+                    contactEmail,
+                    'requester',
+                  )
+                }
+                if (
+                  invEmail &&
+                  invEmail.toLowerCase() !== contactEmail.toLowerCase()
+                ) {
+                  addClientContact(
+                    c.id,
+                    invEmail.split('@')[0] || 'AP',
+                    invEmail,
+                    'ap',
                   )
                 }
                 selectClient(c.id)

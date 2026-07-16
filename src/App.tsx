@@ -20,6 +20,7 @@ const RadarPage = lazy(() => import('@/pages/RadarPage'))
 const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
+const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 
 function Fallback() {
   return (
@@ -49,6 +50,7 @@ export function App() {
         <Route path="/trips/new" element={<NewTripPage />} />
         <Route path="/quick-dispatch" element={<QuickDispatchPage />} />
         <Route path="/financials" element={<FinancialsPage />} />
+        <Route path="/clients" element={<ClientsPage />} />
         <Route path="/trips/:id/offers" element={<OffersPage />} />
         <Route path="/trips/:id" element={<TripPage />} />
         <Route path="/quotes/preview" element={<QuotePreviewPage />} />

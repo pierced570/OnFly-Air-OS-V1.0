@@ -50,6 +50,13 @@ export default function AdminPage() {
       <header>
         <h1 className="text-2xl font-semibold text-cream">Admin wizards</h1>
         <p className="mt-1 text-sm text-muted">Approve/adjust interviews — never blank tables</p>
+        <p className="mt-2 text-sm text-muted">
+          Client contacts, phone-ring flags, and invoice emails live on{' '}
+          <Link to="/clients" className="text-gold hover:text-gold-lt">
+            Clients
+          </Link>
+          .
+        </p>
       </header>
 
       <div className="flex gap-2">

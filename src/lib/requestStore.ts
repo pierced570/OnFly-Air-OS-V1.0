@@ -86,5 +86,13 @@ export { subscribeClients, listClients as listSessionClients }
 export type SessionClient = Pick<ClientProfile, 'id' | 'name' | 'email'>
 
 export function addSessionClient(name: string, email = ''): SessionClient {
-  return addClient({ name, email, invoice_email: email })
+  const trimmed = email.trim()
+  return addClient({
+    name,
+    email: trimmed,
+    invoice_email: trimmed,
+    contacts: trimmed
+      ? [{ name: trimmed.split('@')[0] || name, email: trimmed, role: 'requester' }]
+      : [],
+  })
 }
