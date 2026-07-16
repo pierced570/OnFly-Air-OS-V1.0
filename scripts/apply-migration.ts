@@ -19,8 +19,11 @@ config({ path: resolve(ROOT, '.env') })
 
 const PROJECT_REF = 'udowzmoswudrqtjebehr'
 const password = process.env.SUPABASE_DB_PASSWORD
+/** Prefer pooler (IPv4). Direct db.*.supabase.co is often IPv6-only. */
 const host =
-  process.env.SUPABASE_DB_HOST ?? `db.${PROJECT_REF}.supabase.co`
+  process.env.SUPABASE_DB_HOST ?? `aws-1-us-east-2.pooler.supabase.com`
+const port = Number(process.env.SUPABASE_DB_PORT ?? 6543)
+const user = process.env.SUPABASE_DB_USER ?? `postgres.${PROJECT_REF}`
 
 if (!password) {
   console.error(
@@ -43,11 +46,12 @@ async function run() {
 
   const client = new pg.Client({
     host,
-    port: 5432,
+    port,
     database: 'postgres',
-    user: 'postgres',
+    user,
     password,
     ssl: { rejectUnauthorized: false },
+    family: 4,
   })
 
   console.log(`Connecting to ${host}…`)
