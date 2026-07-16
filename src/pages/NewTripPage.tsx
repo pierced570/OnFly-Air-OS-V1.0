@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { parseDims, type Piece } from '@/domain/dimsParser'
-import { localInputToUtc } from '@/domain/timeFmt'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import { createMapsAdapter } from '@/adapters/maps'
 import { generateCandidates, type Candidate } from '@/domain/routing'
@@ -10,84 +9,64 @@ import { TEST_TAX_RATES_2026 } from '@/domain/tax'
 import { buildQuoteTotals } from '@/domain/quote'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
 import { RestChip } from '@/components/RestChip'
+import { TripRequestForm } from '@/components/TripRequestForm'
 import { formatStopLocal } from '@/domain/timeFmt'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
+import { submitTripRequest } from '@/lib/requestStore'
+import type { TripRequestDraft, TripRequestRecord } from '@/domain/tripRequest'
 
-type PayloadKind = 'cargo' | 'pax' | 'both'
-
-function detectPlace(text: string): {
-  kind: 'airport' | 'address'
-  icao?: string
-  lat: number
-  lon: number
-  tz: string
-  label: string
-} {
-  const t = text.trim().toUpperCase()
-  if (/^[KCP][A-Z0-9]{3}$/.test(t) || lookupAirport(t)) {
-    const ap = lookupAirport(t) ?? AIRPORTS[t]
-    if (ap) {
-      return {
-        kind: 'airport',
-        icao: ap.icao,
-        lat: ap.lat,
-        lon: ap.lon,
-        tz: ap.tz,
-        label: ap.name,
-      }
-    }
-  }
-  // Heuristic city stubs for demos
-  const cities: Record<string, { lat: number; lon: number; tz: string; icao: string }> = {
-    AKRON: { lat: 41.08, lon: -81.52, tz: 'America/New_York', icao: 'KCAK' },
-    CHICAGO: { lat: 41.88, lon: -87.63, tz: 'America/Chicago', icao: 'KMDW' },
-  }
-  for (const [key, v] of Object.entries(cities)) {
-    if (text.toUpperCase().includes(key)) {
-      return {
-        kind: 'address',
-        icao: v.icao,
-        lat: v.lat,
-        lon: v.lon,
-        tz: v.tz,
-        label: text,
-      }
-    }
-  }
-  // fallback KCAK
-  const ap = AIRPORTS.KCAK!
-  return { kind: 'address', icao: 'KCAK', lat: ap.lat, lon: ap.lon, tz: ap.tz, label: text }
+function resolveAirport(icaoRaw: string) {
+  const icao = icaoRaw.trim().toUpperCase()
+  return lookupAirport(icao) ?? AIRPORTS[icao] ?? AIRPORTS.KCAK!
 }
 
 export default function NewTripPage() {
   const nav = useNavigate()
-  const [payloadKind, setPayloadKind] = useState<PayloadKind>('cargo')
+  const [request, setRequest] = useState<TripRequestRecord | null>(null)
   const [dimsText, setDimsText] = useState('3 skids 48x40x60 @ 800ea')
-  const [originText, setOriginText] = useState('Akron, OH')
-  const [destText, setDestText] = useState('Chicago, IL')
-  const [readyLocal, setReadyLocal] = useState('2026-07-15T09:00')
-  const [hazmat, setHazmat] = useState(false)
-  const [paxCount, setPaxCount] = useState(0)
+  const [piecesApproved, setPiecesApproved] = useState<Piece[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
-  const [piecesApproved, setPiecesApproved] = useState<Piece[] | null>(null)
 
   const parsed = useMemo(() => parseDims(dimsText), [dimsText])
 
+  const payloadKind =
+    request && !request.cargo_only
+      ? request.cargo_notes.trim()
+        ? 'both'
+        : 'pax'
+      : 'cargo'
+  const paxCount = request?.pax.length ?? 0
+
+  async function onFormSubmit(draft: TripRequestDraft) {
+    const row = submitTripRequest(draft, 'dispatch')
+    setRequest(row)
+    if (draft.cargo_notes.trim()) {
+      setDimsText(draft.cargo_notes)
+      setPiecesApproved(null)
+    }
+    setCandidates(null)
+  }
+
   async function runQuote() {
+    if (!request) return
     setBusy(true)
     setError(null)
     try {
       const pieces = piecesApproved ?? parsed.pieces
-      if (!pieces.length) throw new Error('Approve parsed pieces first')
-      const origin = detectPlace(originText)
-      const dest = detectPlace(destText)
-      const originAp = lookupAirport(origin.icao!) ?? AIRPORTS[origin.icao!]!
-      const destAp = lookupAirport(dest.icao!) ?? AIRPORTS[dest.icao!]!
+      if (payloadKind !== 'pax' && !pieces.length) {
+        throw new Error('Approve parsed pieces first (or describe cargo above)')
+      }
+      const leg = request.legs[0]!
+      const originAp = resolveAirport(leg.origin_icao)
+      const destAp = resolveAirport(leg.dest_icao)
       const mode =
-        origin.kind === 'airport' && dest.kind === 'airport' ? 'a2a' : 'd2d'
-      const ready_at = localInputToUtc(readyLocal, origin.tz)
+        request.service_mode === 'mixed'
+          ? 'mixed'
+          : request.service_mode === 'd2d'
+            ? 'd2d'
+            : 'a2a'
       const fleet = await loadFleetForRouting()
       const maps = createMapsAdapter()
       const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
@@ -96,54 +75,56 @@ export default function NewTripPage() {
         {
           mode,
           payload_kind: payloadKind,
-          pieces,
+          pieces: pieces.length ? pieces : [],
           pax_count: paxCount,
-          hazmat,
-          ready_at,
+          hazmat: request.hazmat,
+          ready_at: request.ready_at,
           origin: {
-            kind: origin.kind,
-            text: originText,
+            kind: mode === 'a2a' ? 'airport' : 'address',
+            text: leg.pickup_address || originAp.icao,
             icao: originAp.icao,
             lat: originAp.lat,
             lon: originAp.lon,
             tz: originAp.tz,
           },
           destination: {
-            kind: dest.kind,
-            text: destText,
+            kind: mode === 'a2a' ? 'airport' : 'address',
+            text: leg.dropoff_address || destAp.icao,
             icao: destAp.icao,
             lat: destAp.lat,
             lon: destAp.lon,
             tz: destAp.tz,
           },
           shipper:
-            mode === 'd2d'
-              ? { lat: origin.lat, lon: origin.lon, tz: origin.tz }
+            mode !== 'a2a'
+              ? { lat: originAp.lat, lon: originAp.lon, tz: originAp.tz }
               : undefined,
           consignee:
-            mode === 'd2d' ? { lat: dest.lat, lon: dest.lon, tz: dest.tz } : undefined,
+            mode !== 'a2a'
+              ? { lat: destAp.lat, lon: destAp.lon, tz: destAp.tz }
+              : undefined,
         },
         fleet,
         maps,
         { fleetStatusByTail: radar },
       )
       const ms = performance.now() - t0
-      console.info(`generateCandidates ${Math.round(ms)}ms → ${cands.length} options`)
       setCandidates(cands)
-      // stash for quote page
       sessionStorage.setItem(
         'onfly_quote_draft',
         JSON.stringify({
           pieces,
-          originText,
-          destText,
-          ready_at,
+          originText: leg.origin_icao,
+          destText: leg.dest_icao,
+          ready_at: request.ready_at,
           payloadKind,
-          hazmat,
+          hazmat: request.hazmat,
           paxCount,
           mode,
           candidates: cands,
           originatedMs: ms,
+          requestId: request.id,
+          requestRef: request.ref,
         }),
       )
     } catch (e) {
@@ -160,7 +141,8 @@ export default function NewTripPage() {
           <div className="text-xs uppercase tracking-[0.2em] text-gold">Intake</div>
           <h1 className="mt-1 text-2xl font-semibold text-cream">New trip request</h1>
           <p className="mt-1 text-sm text-muted">
-            Instant estimated quote from OnFly fleet data — approve parsed fields, don&apos;t retype.
+            Same request form as the client portal — then generate an estimated quote from the
+            fleet.
           </p>
         </div>
         <Link to="/" className="text-sm text-muted hover:text-cream">
@@ -168,120 +150,110 @@ export default function NewTripPage() {
         </Link>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="space-y-4 rounded-lg border border-border bg-surface p-4">
-          <div className="flex gap-2">
-            {(['cargo', 'pax', 'both'] as const).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setPayloadKind(k)}
-                className={[
-                  'rounded-md px-3 py-1.5 text-sm capitalize',
-                  payloadKind === k ? 'bg-gold text-ink' : 'bg-surface-2 text-muted',
-                ].join(' ')}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-
-          <label className="block text-xs uppercase tracking-wider text-muted">
-            Pieces (dims parser)
-            <textarea
-              value={dimsText}
-              onChange={(e) => {
-                setDimsText(e.target.value)
-                setPiecesApproved(null)
+      <div className="grid gap-6 xl:grid-cols-2">
+        <section className="rounded-lg border border-border bg-surface p-5">
+          {!request ? (
+            <TripRequestForm
+              variant="dispatch"
+              initial={{
+                client_id: 'demo-freight',
+                client_name: 'Demo Freight Co',
+                email: 'requester@demo-freight.test',
+                legs: [
+                  {
+                    id: crypto.randomUUID(),
+                    origin_icao: 'KCAK',
+                    dest_icao: 'KMDW',
+                    date: '',
+                    pickup_time: '',
+                    pickup_address: '',
+                    pickup_tbd: false,
+                    dropoff_address: '',
+                    dropoff_tbd: false,
+                  },
+                ],
               }}
-              rows={2}
-              className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
+              submitLabel="Save request & continue"
+              onSubmit={onFormSubmit}
             />
-          </label>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-md border border-onplan/40 bg-onplan/10 p-3 text-sm">
+                <div className="font-medium text-cream">
+                  Request R-{request.ref} saved
+                </div>
+                <p className="mt-1 text-muted">
+                  {request.lane} · {request.summary}
+                  {request.client_name ? ` · ${request.client_name}` : ''}
+                </p>
+                <button
+                  type="button"
+                  className="mt-2 text-xs text-gold"
+                  onClick={() => {
+                    setRequest(null)
+                    setCandidates(null)
+                  }}
+                >
+                  Edit / new request
+                </button>
+              </div>
 
-          <div className="rounded-md border border-border/60 bg-ink/40 p-3 text-sm">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wider text-muted">Parsed preview</span>
-              <span className="text-xs text-gold">{parsed.confidence}</span>
+              {payloadKind !== 'pax' && (
+                <>
+                  <label className="block text-xs uppercase tracking-wider text-muted">
+                    Pieces (dims parser)
+                    <textarea
+                      value={dimsText}
+                      onChange={(e) => {
+                        setDimsText(e.target.value)
+                        setPiecesApproved(null)
+                      }}
+                      rows={2}
+                      className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
+                    />
+                  </label>
+                  <div className="rounded-md border border-border/60 bg-ink/40 p-3 text-sm">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs uppercase tracking-wider text-muted">
+                        Parsed preview
+                      </span>
+                      <span className="text-xs text-gold">{parsed.confidence}</span>
+                    </div>
+                    {parsed.pieces.map((p, i) => (
+                      <div key={i} className="avionic text-cream">
+                        {p.count}× {p.l_in}×{p.w_in}×{p.h_in} in @ {p.weight_lbs} lb
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="mt-2 rounded-md border border-gold/40 px-3 py-1 text-xs text-gold hover:bg-gold/10"
+                      onClick={() => setPiecesApproved(parsed.pieces)}
+                    >
+                      {piecesApproved ? 'Pieces approved ✓' : 'Approve pieces'}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void runQuote()}
+                className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
+              >
+                {busy ? 'Routing…' : 'Generate estimated quote'}
+              </button>
+              {error && <p className="text-sm text-late">{error}</p>}
             </div>
-            {parsed.pieces.map((p, i) => (
-              <div key={i} className="avionic text-cream">
-                {p.count}× {p.l_in}×{p.w_in}×{p.h_in} in @ {p.weight_lbs} lb
-              </div>
-            ))}
-            {parsed.notes.map((n) => (
-              <div key={n} className="text-xs text-late">
-                {n}
-              </div>
-            ))}
-            <button
-              type="button"
-              className="mt-2 rounded-md border border-gold/40 px-3 py-1 text-xs text-gold hover:bg-gold/10"
-              onClick={() => setPiecesApproved(parsed.pieces)}
-            >
-              {piecesApproved ? 'Pieces approved ✓' : 'Approve pieces'}
-            </button>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-xs uppercase tracking-wider text-muted">
-              Origin
-              <input
-                value={originText}
-                onChange={(e) => setOriginText(e.target.value)}
-                className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
-              />
-            </label>
-            <label className="block text-xs uppercase tracking-wider text-muted">
-              Destination
-              <input
-                value={destText}
-                onChange={(e) => setDestText(e.target.value)}
-                className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
-              />
-            </label>
-            <label className="block text-xs uppercase tracking-wider text-muted">
-              Ready (local at origin)
-              <input
-                type="datetime-local"
-                value={readyLocal}
-                onChange={(e) => setReadyLocal(e.target.value)}
-                className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
-              />
-            </label>
-            {payloadKind !== 'cargo' && (
-              <label className="block text-xs uppercase tracking-wider text-muted">
-                Pax count
-                <input
-                  type="number"
-                  value={paxCount}
-                  onChange={(e) => setPaxCount(Number(e.target.value))}
-                  className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
-                />
-              </label>
-            )}
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-cream">
-            <input type="checkbox" checked={hazmat} onChange={(e) => setHazmat(e.target.checked)} />
-            Hazmat
-          </label>
-
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void runQuote()}
-            className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
-          >
-            {busy ? 'Routing…' : 'Generate estimated quote'}
-          </button>
-          {error && <p className="text-sm text-late">{error}</p>}
+          )}
         </section>
 
         <section className="space-y-3">
           {!candidates && (
             <div className="rounded-lg border border-border border-dashed bg-surface p-8 text-center text-sm text-muted">
-              Options appear here after you generate — Cheapest / Fastest / Best from the live fleet.
+              {request
+                ? 'Approve pieces (if cargo), then generate — Cheapest / Fastest / Best from the fleet.'
+                : 'Complete the trip request form to continue to estimates.'}
             </div>
           )}
           {candidates?.map((c) => {
@@ -339,22 +311,7 @@ export default function NewTripPage() {
                     laddBlocked={c.laddBlocked}
                   />
                   <NeedsInfoBadge count={c.needsInfo.length} />
-                  {c.bookingGated && (
-                    <span className="rounded-full border border-late/40 px-2 py-0.5 text-xs text-late">
-                      booking gated
-                    </span>
-                  )}
                 </div>
-                <ul className="mt-2 space-y-0.5 text-xs text-muted">
-                  {c.reasoning.slice(0, 3).map((r) => (
-                    <li key={r}>· {r}</li>
-                  ))}
-                  {c.needsInfo.map((n) => (
-                    <li key={n} className="text-gold">
-                      · NEEDS-INFO: {n}
-                    </li>
-                  ))}
-                </ul>
                 <button
                   type="button"
                   className="mt-3 text-sm text-gold hover:text-gold-lt"

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { parseThreadActual } from '@/domain/threadParse'
 import { listTrips } from '@/lib/tripStore'
+import { listRequests, subscribeRequests } from '@/lib/requestStore'
 
 type ExceptionCard = {
   id: string
@@ -12,6 +13,8 @@ type ExceptionCard = {
 
 export default function BoardPage() {
   const trips = listTrips()
+  const requests = useSyncExternalStore(subscribeRequests, listRequests, () => [])
+  const pendingRequests = requests.filter((r) => r.status === 'submitted')
   const [exceptions, setExceptions] = useState<ExceptionCard[]>([
     {
       id: 'ex1',
@@ -68,7 +71,9 @@ export default function BoardPage() {
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-cream">Dispatch Board</h1>
-            <p className="mt-1 text-sm text-muted">Chunk 4 — exceptions first, trips self-track</p>
+            <p className="mt-1 text-sm text-muted">
+              Exceptions first · portal requests land here · trips self-track
+            </p>
           </div>
           <Link
             to="/trips/new"
@@ -77,6 +82,35 @@ export default function BoardPage() {
             New trip
           </Link>
         </header>
+
+        {pendingRequests.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-xs uppercase tracking-wider text-gold">
+              Incoming requests ({pendingRequests.length})
+            </h2>
+            {pendingRequests.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-lg border border-gold/40 bg-gold/10 px-4 py-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-cream">
+                      R-{r.ref} · {r.lane}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {r.source === 'portal' ? 'Portal' : 'Dispatch'} · {r.summary}
+                      {r.email ? ` · ${r.email}` : ''}
+                    </div>
+                  </div>
+                  <Link to="/trips/new" className="text-xs text-gold hover:text-gold-lt">
+                    Open intake →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
 
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">Thread parse simulator</h2>
