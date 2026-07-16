@@ -21,6 +21,9 @@ const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
 const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
+const FbosPage = lazy(() => import('@/pages/FbosPage'))
+const IntakePage = lazy(() => import('@/pages/IntakePage'))
+const IntakeReviewPage = lazy(() => import('@/pages/IntakeReviewPage'))
 
 function Fallback() {
   return (
@@ -51,6 +54,9 @@ export function App() {
         <Route path="/quick-dispatch" element={<QuickDispatchPage />} />
         <Route path="/financials" element={<FinancialsPage />} />
         <Route path="/clients" element={<ClientsPage />} />
+        <Route path="/fbos" element={<FbosPage />} />
+        <Route path="/intake" element={<IntakePage />} />
+        <Route path="/intake/:id" element={<IntakeReviewPage />} />
         <Route path="/trips/:id/offers" element={<OffersPage />} />
         <Route path="/trips/:id" element={<TripPage />} />
         <Route path="/quotes/preview" element={<QuotePreviewPage />} />

@@ -5,6 +5,107 @@
 import type { Candidate } from '@/domain/routing'
 import type { TripState } from '@/domain/stateMachine'
 import { transition } from '@/domain/stateMachine'
+import { parseThreadActual } from '@/domain/threadParse'
+import { createAccountingAdapter } from '@/adapters/accounting'
+
+function tapToken(kind: string): string {
+  return `${kind}-${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`
+}
+
+function buildQuickLegs(
+  meta: QuickDispatchMeta,
+): TripLegRow[] {
+  const legs: TripLegRow[] = []
+  let seq = 1
+  for (const [i, leg] of meta.legs.entries()) {
+    const o = leg.origin_icao || '?'
+    const d = leg.dest_icao || '?'
+    legs.push({
+      id: crypto.randomUUID(),
+      seq: seq++,
+      type: 'position',
+      label: `Position to ${o}`,
+      status: i === 0 ? 'active' : 'pending',
+      origin: '',
+      dest: o,
+      est_start: null,
+      est_end: null,
+      actual_start: null,
+      actual_end: null,
+      one_tap_token: tapToken('pos'),
+      party: 'pilot',
+    })
+    legs.push({
+      id: crypto.randomUUID(),
+      seq: seq++,
+      type: 'air_leg',
+      label: `Air ${o}→${d}`,
+      status: 'pending',
+      origin: o,
+      dest: d,
+      est_start: null,
+      est_end: null,
+      actual_start: null,
+      actual_end: null,
+      one_tap_token: tapToken('air'),
+      party: 'pilot',
+    })
+  }
+  legs.push({
+    id: crypto.randomUUID(),
+    seq: seq++,
+    type: 'offload',
+    label: 'Delivered / POD',
+    status: 'pending',
+    origin: meta.legs.at(-1)?.dest_icao,
+    dest: meta.legs.at(-1)?.dest_icao,
+    est_start: null,
+    est_end: null,
+    actual_start: null,
+    actual_end: null,
+    one_tap_token: tapToken('del'),
+    party: 'driver',
+  })
+  return legs
+}
+
+function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
+  const out: TripParticipant[] = [
+    {
+      id: crypto.randomUUID(),
+      role: 'dispatcher',
+      name: 'On-shift',
+      cell: '',
+      email: '',
+    },
+    {
+      id: crypto.randomUUID(),
+      role: 'operator_ops',
+      name: meta.operator_name || 'Operator',
+      cell: '',
+      email: '',
+    },
+  ]
+  if (meta.invoice_email) {
+    out.push({
+      id: crypto.randomUUID(),
+      role: 'client_ap',
+      name: 'AP',
+      cell: '',
+      email: meta.invoice_email,
+    })
+  }
+  for (const email of meta.cc_emails) {
+    out.push({
+      id: crypto.randomUUID(),
+      role: 'client_supply',
+      name: email.split('@')[0] || 'CC',
+      cell: '',
+      email,
+    })
+  }
+  return out
+}
 
 export type OfferState =
   | 'pinged'
@@ -65,6 +166,58 @@ export type QuickDispatchMeta = {
   }>
 }
 
+export type TripLegStatus = 'pending' | 'active' | 'done'
+
+export type TripLegRow = {
+  id: string
+  seq: number
+  type: string
+  label: string
+  status: TripLegStatus
+  origin?: string
+  dest?: string
+  est_start: string | null
+  est_end: string | null
+  actual_start: string | null
+  actual_end: string | null
+  one_tap_token: string
+  party: string
+}
+
+export type TripParticipant = {
+  id: string
+  role: string
+  name: string
+  cell: string
+  email: string
+}
+
+export type ThreadMessage = {
+  id: string
+  at: string
+  from: string
+  channel: 'sms' | 'email' | 'web'
+  body: string
+  parsed_kind: string | null
+}
+
+export type TripDocument = {
+  id: string
+  kind: 'quote' | 'eta_sheet' | 'manifest' | 'pod' | 'coi' | 'd085' | 'other'
+  title: string
+  at: string
+  url: string
+}
+
+export type TripInvoice = {
+  id: string
+  qb_invoice_id: string
+  total: number
+  status: 'draft' | 'sent' | 'viewed' | 'paid'
+  url: string
+  created_at: string
+}
+
 export type TripStoreRow = {
   id: string
   ref: number
@@ -84,6 +237,12 @@ export type TripStoreRow = {
   }
   lost_reason?: string
   quick?: QuickDispatchMeta
+  legs: TripLegRow[]
+  participants: TripParticipant[]
+  thread: ThreadMessage[]
+  documents: TripDocument[]
+  invoice: TripInvoice | null
+  client_id?: string
 }
 
 const trips = new Map<string, TripStoreRow>()
@@ -148,6 +307,19 @@ export function createTripFromCandidates(opts: {
       needsInfo: c.needsInfo,
       contact_cell: `+1555000${String(1000 + i).slice(-4)}`,
     })),
+    legs: [],
+    participants: [
+      {
+        id: crypto.randomUUID(),
+        role: 'dispatcher',
+        name: 'On-shift',
+        cell: '',
+        email: '',
+      },
+    ],
+    thread: [],
+    documents: [],
+    invoice: null,
     events: [
       {
         at: new Date().toISOString(),
@@ -185,6 +357,20 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
     candidates: [],
     offers: [],
     quick: structuredClone(meta),
+    client_id: meta.client_id,
+    legs: buildQuickLegs(meta),
+    participants: buildQuickParticipants(meta),
+    thread: [],
+    documents: [
+      {
+        id: crypto.randomUUID(),
+        kind: 'eta_sheet',
+        title: `ETA sheet · PO ${meta.po || 'TBD'}`,
+        at: new Date().toISOString(),
+        url: `#eta-${id.slice(0, 8)}`,
+      },
+    ],
+    invoice: null,
     hard_quote: {
       total: meta.client_price,
       accept_token: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
@@ -268,4 +454,173 @@ export function safeTransitionTrip(
 export function payloadKindOf(t: TripStoreRow): 'cargo' | 'pax' | 'both' {
   const ev = [...t.events].reverse().find((e) => e.kind === 'payload_kind')
   return (ev?.payload.payload_kind as 'cargo' | 'pax' | 'both') ?? 'cargo'
+}
+
+export function getTripByLegToken(token: string): {
+  trip: TripStoreRow
+  leg: TripLegRow
+} | null {
+  for (const t of trips.values()) {
+    const leg = t.legs.find((l) => l.one_tap_token === token)
+    if (leg) return { trip: t, leg }
+  }
+  return null
+}
+
+export function completeLegCheckIn(
+  token: string,
+  actor = 'field',
+  podNote?: string,
+): { trip: TripStoreRow; leg: TripLegRow } | null {
+  const hit = getTripByLegToken(token)
+  if (!hit) return null
+  const now = new Date().toISOString()
+  mutateTrip(hit.trip.id, (t) => {
+    const leg = t.legs.find((l) => l.id === hit.leg.id)
+    if (!leg || leg.status === 'done') return
+    leg.status = 'done'
+    leg.actual_end = now
+    if (!leg.actual_start) leg.actual_start = now
+    const next = t.legs.find((l) => l.status === 'pending')
+    if (next) next.status = 'active'
+    t.events.push({
+      at: now,
+      actor,
+      kind: 'one_tap_checkin',
+      payload: { leg_id: leg.id, label: leg.label, token },
+    })
+    if (leg.type === 'offload' || token.includes('del')) {
+      t.documents.push({
+        id: crypto.randomUUID(),
+        kind: 'pod',
+        title: podNote?.trim() || `POD · T-${t.ref}`,
+        at: now,
+        url: `#pod-${leg.id.slice(0, 8)}`,
+      })
+      if (t.state === 'booked' || t.state === 'in_progress') {
+        try {
+          const result = transition(t.state, 'delivered', actor, { via: 'one_tap' })
+          t.state = result.to
+          t.events.push({
+            at: now,
+            actor,
+            kind: result.event.kind,
+            payload: result.event.payload,
+          })
+        } catch {
+          /* already past */
+        }
+      }
+    } else if (t.state === 'booked') {
+      try {
+        const result = transition(t.state, 'in_progress', actor, { via: 'one_tap' })
+        t.state = result.to
+        t.events.push({
+          at: now,
+          actor,
+          kind: result.event.kind,
+          payload: result.event.payload,
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+  })
+  return getTripByLegToken(token)
+}
+
+export function postThreadMessage(
+  tripId: string,
+  opts: { from: string; channel: ThreadMessage['channel']; body: string },
+): ThreadMessage | null {
+  let msg: ThreadMessage | null = null
+  mutateTrip(tripId, (t) => {
+    const parsed = parseThreadActual(opts.body)
+    msg = {
+      id: crypto.randomUUID(),
+      at: new Date().toISOString(),
+      from: opts.from,
+      channel: opts.channel,
+      body: opts.body.trim(),
+      parsed_kind: parsed.kind === 'unknown' ? null : parsed.kind,
+    }
+    t.thread.push(msg)
+    t.events.push({
+      at: msg.at,
+      actor: opts.from,
+      kind: 'thread_message',
+      payload: { parsed: msg.parsed_kind, channel: opts.channel },
+    })
+  })
+  return msg
+}
+
+export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
+  const t = trips.get(tripId)
+  if (!t) return null
+  if (t.invoice) return t.invoice
+  const total = t.quick?.client_price ?? t.hard_quote?.total ?? 0
+  const acct = createAccountingAdapter()
+  const clientName = t.quick?.client_name ?? 'Client'
+  await acct.ensureCustomer(clientName)
+  const created = await acct.createInvoice(t.ref, [
+    { description: `Trip T-${t.ref}`, amount: total },
+  ])
+  const inv: TripInvoice = {
+    id: crypto.randomUUID(),
+    qb_invoice_id: created.qbInvoiceId,
+    total,
+    status: 'sent',
+    url: created.url,
+    created_at: new Date().toISOString(),
+  }
+  mutateTrip(tripId, (row) => {
+    row.invoice = inv
+    row.documents.push({
+      id: crypto.randomUUID(),
+      kind: 'other',
+      title: `Invoice ${inv.qb_invoice_id}`,
+      at: inv.created_at,
+      url: inv.url,
+    })
+    if (row.state === 'delivered') {
+      try {
+        const result = transition(row.state, 'invoiced', 'system', {
+          qb_invoice_id: inv.qb_invoice_id,
+        })
+        row.state = result.to
+        row.events.push({
+          at: inv.created_at,
+          actor: 'system',
+          kind: result.event.kind,
+          payload: result.event.payload,
+        })
+      } catch {
+        /* ignore */
+      }
+    } else {
+      row.events.push({
+        at: inv.created_at,
+        actor: 'system',
+        kind: 'invoice_created',
+        payload: { qb_invoice_id: inv.qb_invoice_id, total },
+      })
+    }
+  })
+  return inv
+}
+
+export function addTripDocument(
+  tripId: string,
+  doc: Omit<TripDocument, 'id' | 'at'> & { at?: string },
+): void {
+  mutateTrip(tripId, (t) => {
+    t.documents.push({
+      id: crypto.randomUUID(),
+      at: doc.at ?? new Date().toISOString(),
+      kind: doc.kind,
+      title: doc.title,
+      url: doc.url,
+    })
+  })
 }

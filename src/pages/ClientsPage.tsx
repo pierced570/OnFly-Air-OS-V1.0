@@ -1,4 +1,5 @@
 import { useMemo, useState, useSyncExternalStore } from 'react'
+import { Link } from 'react-router-dom'
 import {
   addClient,
   addClientContact,
@@ -159,6 +160,66 @@ function ClientDetail({ client }: { client: ClientProfile }) {
             onChange={(e) => updateClient(client.id, { pay_terms: e.target.value })}
           />
         </label>
+      </section>
+
+      <section className="rounded-lg border border-border bg-surface p-3">
+        <div className="text-xs uppercase tracking-wider text-muted">Routing rules</div>
+        <div className="mt-3 flex flex-wrap gap-4 text-sm text-cream">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={client.rules.dual_pilot_required}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { dual_pilot_required: e.target.checked },
+                })
+              }
+            />
+            Dual pilot
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={client.rules.freight_only}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { freight_only: e.target.checked },
+                })
+              }
+            />
+            Freight only
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={client.rules.multi_engine_only}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { multi_engine_only: e.target.checked },
+                })
+              }
+            />
+            Multi-engine only
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={client.rules.hazmat_allowed}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { hazmat_allowed: e.target.checked },
+                })
+              }
+            />
+            Hazmat OK
+          </label>
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Full interview:{' '}
+          <Link to="/admin" className="text-gold">
+            Admin → Add client
+          </Link>
+        </p>
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2">

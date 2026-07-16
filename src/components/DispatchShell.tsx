@@ -4,13 +4,16 @@ import type { ReactNode } from 'react'
 const nav = [
   { to: '/', label: 'Board', end: true },
   { to: '/quick-dispatch', label: 'Quick Dispatch' },
+  { to: '/intake', label: 'Intake' },
   { to: '/financials', label: 'Financials' },
   { to: '/clients', label: 'Clients' },
+  { to: '/fbos', label: 'FBOs' },
   { to: '/trips/new', label: 'New trip' },
   { to: '/network', label: 'Network' },
   { to: '/radar', label: 'Radar' },
   { to: '/briefing', label: 'Briefing' },
   { to: '/admin', label: 'Admin' },
+  { to: '/admin/tasks', label: 'Tasks' },
 ]
 
 export function DispatchShell({ children }: { children: ReactNode }) {

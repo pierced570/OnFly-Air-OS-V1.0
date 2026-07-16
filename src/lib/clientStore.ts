@@ -28,6 +28,28 @@ export type ClientContact = {
   notify_prefs: ContactNotifyPrefs
 }
 
+export type ClientRules = {
+  dual_pilot_required: boolean
+  freight_only: boolean
+  multi_engine_only: boolean
+  no_single_engine_night: boolean
+  hazmat_allowed: boolean
+  hazmat_notes: string
+  declared_value_norm: string
+  other_rules: string[]
+}
+
+export const DEFAULT_CLIENT_RULES: ClientRules = {
+  dual_pilot_required: false,
+  freight_only: false,
+  multi_engine_only: false,
+  no_single_engine_night: false,
+  hazmat_allowed: true,
+  hazmat_notes: '',
+  declared_value_norm: '',
+  other_rules: [],
+}
+
 export type ClientProfile = {
   id: string
   name: string
@@ -39,6 +61,8 @@ export type ClientProfile = {
   last_po: string | null
   pay_terms: string
   notes: string
+  rules: ClientRules
+  qb_customer_id: string | null
 }
 
 const clients = new Map<string, ClientProfile>()
@@ -87,6 +111,8 @@ function seedFromFinancials() {
           ?.operator_po ?? null,
       pay_terms: String(pay),
       notes: '',
+      rules: { ...DEFAULT_CLIENT_RULES },
+      qb_customer_id: null,
     })
   }
   rebuild()
@@ -114,6 +140,8 @@ export function addClient(opts: {
   email?: string
   invoice_email?: string
   pay_terms?: string
+  rules?: Partial<ClientRules>
+  qb_customer_id?: string | null
   contacts?: Array<{
     name: string
     email: string
@@ -143,6 +171,8 @@ export function addClient(opts: {
     last_po: null,
     pay_terms: opts.pay_terms?.trim() || 'Net 30',
     notes: '',
+    rules: { ...DEFAULT_CLIENT_RULES, ...opts.rules },
+    qb_customer_id: opts.qb_customer_id ?? null,
   }
   clients.set(id, row)
   bump()
@@ -154,15 +184,40 @@ export function updateClient(
   patch: Partial<
     Pick<
       ClientProfile,
-      'name' | 'email' | 'invoice_email' | 'pay_terms' | 'notes' | 'last_po'
-    >
+      | 'name'
+      | 'email'
+      | 'invoice_email'
+      | 'pay_terms'
+      | 'notes'
+      | 'last_po'
+      | 'qb_customer_id'
+    > & { rules: Partial<ClientRules> }
   >,
 ): ClientProfile | undefined {
   const row = clients.get(id)
   if (!row) return undefined
-  Object.assign(row, patch)
+  const { rules, ...rest } = patch
+  Object.assign(row, rest)
+  if (rules) row.rules = { ...row.rules, ...rules }
   bump()
   return row
+}
+
+/** Chips for quote screens. */
+export function clientRuleChips(clientId: string): string[] {
+  const c = clients.get(clientId)
+  if (!c) return []
+  const chips: string[] = []
+  if (c.rules.dual_pilot_required) chips.push('Dual pilot required')
+  if (c.rules.freight_only) chips.push('Freight only')
+  if (c.rules.multi_engine_only) chips.push('Multi-engine only')
+  if (c.rules.no_single_engine_night) chips.push('No SE night')
+  if (!c.rules.hazmat_allowed) chips.push('No hazmat')
+  else if (c.rules.hazmat_notes) chips.push(`Hazmat: ${c.rules.hazmat_notes}`)
+  if (c.rules.declared_value_norm)
+    chips.push(`Declared value: ${c.rules.declared_value_norm}`)
+  chips.push(...c.rules.other_rules)
+  return chips
 }
 
 export function addClientContact(

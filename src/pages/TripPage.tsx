@@ -1,10 +1,27 @@
 import { Link, useParams } from 'react-router-dom'
-import { useMemo } from 'react'
-import { getTrip } from '@/lib/tripStore'
+import { useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  createMockInvoiceForTrip,
+  getTrip,
+  listTripsStable,
+  postThreadMessage,
+  safeTransitionTrip,
+  subscribeTrips,
+} from '@/lib/tripStore'
+import { clientRuleChips } from '@/lib/clientStore'
+import { canTransition } from '@/domain/stateMachine'
 
 export default function TripPage() {
   const { id } = useParams()
+  useSyncExternalStore(subscribeTrips, listTripsStable, () => [])
   const trip = id ? getTrip(id) : null
+  const [threadBody, setThreadBody] = useState('')
+  const [invoiceBusy, setInvoiceBusy] = useState(false)
+
+  const ruleChips = useMemo(
+    () => (trip?.client_id ? clientRuleChips(trip.client_id) : []),
+    [trip?.client_id],
+  )
 
   if (!trip) {
     return (
@@ -25,28 +42,22 @@ export default function TripPage() {
   }
 
   const q = trip.quick
-  const margin =
-    q != null ? q.client_price - q.vendor_cost : null
-
-  const etaSent = useMemo(() => {
-    return trip.events.find((e) => e.kind === 'eta_sheet_sent') ?? null
-  }, [trip.events])
-
-  const etaRecipients = (etaSent?.payload?.recipients as string[] | undefined) ?? []
+  const margin = q != null ? q.client_price - q.vendor_cost : null
+  const nextStates = (
+    ['in_progress', 'delivered', 'invoiced', 'closed', 'cancelled', 'lost'] as const
+  ).filter((to) => canTransition(trip.state, to))
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 sm:p-8">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-gold">
-            {q ? 'Quick dispatch · tracking' : 'Trip'}
+            {q ? 'Quick dispatch · execution' : 'Trip execution'}
           </div>
           <h1 className="mt-1 text-2xl font-semibold text-cream">
             T-<span className="avionic">{trip.ref}</span>
             {q?.po ? (
-              <span className="ml-2 text-base font-normal text-muted">
-                PO {q.po}
-              </span>
+              <span className="ml-2 text-base font-normal text-muted">PO {q.po}</span>
             ) : null}
           </h1>
           <p className="mt-1 text-sm text-muted">
@@ -60,99 +71,218 @@ export default function TripPage() {
             <p className="mt-1 text-sm text-cream">
               {q.client_name}
               {q.operator_name ? ` · ${q.operator_name}` : ''}
-              {q.tail ? (
-                <span className="avionic"> · {q.tail}</span>
-              ) : null}
-              {q.aircraft_type ? ` · ${q.aircraft_type}` : ''}
+              {q.tail ? <span className="avionic"> · {q.tail}</span> : null}
             </p>
           )}
+          {ruleChips.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {ruleChips.map((c) => (
+                <span
+                  key={c}
+                  className="rounded border border-gold/30 px-2 py-0.5 text-[11px] text-gold"
+                >
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-gold">
-          <span className="avionic font-medium">{trip.state}</span>
+        <div className="space-y-2 text-right">
+          <div className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-gold">
+            <span className="avionic font-medium">{trip.state}</span>
+          </div>
+          <div className="flex flex-wrap justify-end gap-1">
+            {nextStates.map((to) => (
+              <button
+                key={to}
+                type="button"
+                className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-cream"
+                onClick={() => {
+                  try {
+                    safeTransitionTrip(trip.id, to, 'dispatcher')
+                  } catch {
+                    /* illegal */
+                  }
+                }}
+              >
+                → {to}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-      {q && (
-        <>
-          <section className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-xs uppercase tracking-wider text-muted">Legs</h2>
-            <ul className="mt-3 space-y-2">
-              {q.legs.map((leg, i) => (
-                <li
-                  key={i}
-                  className="flex flex-wrap gap-x-3 gap-y-1 border-b border-border/40 pb-2 text-sm last:border-0"
+      <section className="rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-xs uppercase tracking-wider text-muted">ETA chain / legs</h2>
+        {trip.legs.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">
+            No execution legs yet — book via Quick Dispatch or accept an offer.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {trip.legs.map((leg) => (
+              <li
+                key={leg.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2 text-sm last:border-0"
+              >
+                <div>
+                  <span className="text-muted">#{leg.seq}</span>{' '}
+                  <span className="text-cream">{leg.label}</span>
+                  <span className="ml-2 avionic text-xs text-muted">{leg.status}</span>
+                  {leg.origin && leg.dest && (
+                    <span className="ml-2 avionic text-xs text-muted">
+                      {leg.origin}→{leg.dest}
+                    </span>
+                  )}
+                </div>
+                <Link
+                  to={`/t/${leg.one_tap_token}`}
+                  className="text-xs text-gold hover:text-gold-lt"
+                  target="_blank"
                 >
-                  <span className="text-muted">Leg {i + 1}</span>
-                  <span className="avionic text-cream">
-                    {leg.origin_icao}→{leg.dest_icao}
-                  </span>
-                  {leg.date && <span className="text-muted">{leg.date}</span>}
-                  {leg.repo_time && (
-                    <span className="text-muted">repo {leg.repo_time}</span>
-                  )}
-                  {leg.live_leg_time && (
-                    <span className="text-muted">live {leg.live_leg_time}</span>
-                  )}
-                  {!q.cargo_only && (
-                    <span className="text-muted">{leg.pax} pax</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
+                  One-tap →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-          <section className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-border bg-surface p-3">
-              <div className="text-xs text-muted">Vendor</div>
-              <div className="avionic text-lg text-cream">
-                ${q.vendor_cost.toLocaleString()}
-              </div>
-            </div>
-            <div className="rounded-lg border border-border bg-surface p-3">
-              <div className="text-xs text-muted">Client</div>
-              <div className="avionic text-lg text-cream">
-                ${q.client_price.toLocaleString()}
-              </div>
-            </div>
-            <div className="rounded-lg border border-border bg-surface p-3">
-              <div className="text-xs text-muted">Margin</div>
-              <div className="avionic text-lg text-gold">
-                {margin == null ? '—' : `$${margin.toLocaleString()}`}
-              </div>
-            </div>
-          </section>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-xs uppercase tracking-wider text-muted">Participants</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {trip.participants.map((p) => (
+              <li key={p.id} className="flex justify-between gap-2">
+                <span className="text-cream">{p.name}</span>
+                <span className="text-xs text-muted">
+                  {p.role}
+                  {p.email ? ` · ${p.email}` : ''}
+                </span>
+              </li>
+            ))}
+            {trip.participants.length === 0 && (
+              <li className="text-muted">No participants yet.</li>
+            )}
+          </ul>
+        </section>
 
-          <section className="rounded-lg border border-border bg-surface p-4 text-sm">
-            <h2 className="text-xs uppercase tracking-wider text-muted">Invoice</h2>
-            <p className="mt-2 text-cream">
-              {q.send_invoice ? 'Will send' : 'Do not send'} · {q.pay_terms}
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-xs uppercase tracking-wider text-muted">Documents</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {trip.documents.map((d) => (
+              <li key={d.id} className="flex justify-between gap-2">
+                <span className="text-cream">{d.title}</span>
+                <span className="avionic text-xs text-muted">{d.kind}</span>
+              </li>
+            ))}
+            {trip.documents.length === 0 && (
+              <li className="text-muted">No documents yet.</li>
+            )}
+          </ul>
+          {trip.state === 'delivered' && !trip.invoice && (
+            <button
+              type="button"
+              disabled={invoiceBusy}
+              className="mt-3 rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
+              onClick={() => {
+                setInvoiceBusy(true)
+                void createMockInvoiceForTrip(trip.id).finally(() =>
+                  setInvoiceBusy(false),
+                )
+              }}
+            >
+              {invoiceBusy ? 'Creating…' : 'Create mock QB invoice'}
+            </button>
+          )}
+          {trip.invoice && (
+            <p className="mt-3 text-xs text-onplan">
+              Invoice {trip.invoice.qb_invoice_id} · {trip.invoice.status} · $
+              {trip.invoice.total.toLocaleString()}
             </p>
-            {q.invoice_email && (
-              <p className="mt-1 text-muted">To: {q.invoice_email}</p>
-            )}
-            {q.cc_emails.length > 0 && (
-              <p className="mt-1 text-muted">CC: {q.cc_emails.join(', ')}</p>
-            )}
-            {q.notes && <p className="mt-3 text-cream">{q.notes}</p>}
-          </section>
+          )}
+        </section>
+      </div>
 
-          <section className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-xs uppercase tracking-wider text-muted">
-              ETA sheet + portal tracking
-            </h2>
-            {etaRecipients.length === 0 ? (
-              <p className="mt-3 text-sm text-muted">
-                ETA sheet not sent yet.
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-cream">
-                Mock ETA sheet emailed to:{' '}
-                <span className="avionic">{etaRecipients.join(', ')}</span>
-              </p>
-            )}
-          </section>
-        </>
+      {q && (
+        <section className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="text-xs text-muted">Vendor</div>
+            <div className="avionic text-lg text-cream">
+              ${q.vendor_cost.toLocaleString()}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="text-xs text-muted">Client</div>
+            <div className="avionic text-lg text-cream">
+              ${q.client_price.toLocaleString()}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="text-xs text-muted">Margin</div>
+            <div className="avionic text-lg text-gold">
+              {margin == null ? '—' : `$${margin.toLocaleString()}`}
+            </div>
+          </div>
+        </section>
       )}
+
+      <section className="rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-xs uppercase tracking-wider text-muted">Trip thread</h2>
+        <p className="mt-1 text-xs text-muted">
+          Paste field updates — regex parses wheels-up / loaded / POD (mock relay).
+        </p>
+        <ul className="mt-3 max-h-48 space-y-2 overflow-auto">
+          {trip.thread.length === 0 && (
+            <li className="text-sm text-muted">No messages yet.</li>
+          )}
+          {trip.thread.map((m) => (
+            <li key={m.id} className="border-b border-border/40 pb-2 text-sm">
+              <div className="flex gap-2 text-xs text-muted">
+                <span className="avionic">{new Date(m.at).toISOString().slice(11, 19)}Z</span>
+                <span>{m.from}</span>
+                {m.parsed_kind && (
+                  <span className="text-gold">parsed: {m.parsed_kind}</span>
+                )}
+              </div>
+              <p className="text-cream">{m.body}</p>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex gap-2">
+          <input
+            className="min-w-0 flex-1 rounded border border-border bg-ink px-3 py-2 text-sm text-cream"
+            placeholder="wheels up / arrived / delivered…"
+            value={threadBody}
+            onChange={(e) => setThreadBody(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && threadBody.trim()) {
+                postThreadMessage(trip.id, {
+                  from: 'dispatcher',
+                  channel: 'web',
+                  body: threadBody,
+                })
+                setThreadBody('')
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="rounded bg-gold px-3 py-2 text-sm text-ink"
+            onClick={() => {
+              if (!threadBody.trim()) return
+              postThreadMessage(trip.id, {
+                from: 'dispatcher',
+                channel: 'web',
+                body: threadBody,
+              })
+              setThreadBody('')
+            }}
+          >
+            Post
+          </button>
+        </div>
+      </section>
 
       <section className="rounded-lg border border-border bg-surface p-4">
         <h2 className="text-xs uppercase tracking-wider text-muted">Event log</h2>
@@ -177,10 +307,7 @@ export default function TripPage() {
           ← Board
         </Link>
         {!q && trip.offers.length > 0 && (
-          <Link
-            to={`/trips/${trip.id}/offers`}
-            className="text-gold hover:text-gold-lt"
-          >
+          <Link to={`/trips/${trip.id}/offers`} className="text-gold hover:text-gold-lt">
             Offers →
           </Link>
         )}

@@ -1,21 +1,37 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { listTrips } from '@/lib/tripStore'
+import { listTrips, listTripsStable, subscribeTrips } from '@/lib/tripStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
-
-type ExceptionCard = {
-  id: string
-  title: string
-  detail: string
-  severity: 'late' | 'attn'
-}
+import {
+  acknowledgeException,
+  listExceptions,
+  subscribeExceptions,
+  syncExceptionsFromTrips,
+} from '@/lib/exceptionStore'
+import {
+  endShift,
+  getOnShift,
+  startShift,
+  subscribeShift,
+} from '@/lib/shiftStore'
+import { listPendingIntake, subscribeIntake } from '@/lib/intakeStore'
+import { listOpenNeedsInfo, subscribeNeedsInfo } from '@/lib/needsInfoStore'
 
 export default function BoardPage() {
-  const trips = listTrips()
+  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTrips)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, () => [])
+  const exceptions = useSyncExternalStore(subscribeExceptions, listExceptions, () => [])
+  const onShift = useSyncExternalStore(subscribeShift, getOnShift, () => null)
+  const intake = useSyncExternalStore(subscribeIntake, listPendingIntake, () => [])
+  const openTasks = useSyncExternalStore(subscribeNeedsInfo, listOpenNeedsInfo, () => [])
+
   const pendingRequests = requests.filter((r) => r.status === 'submitted')
-  const [exceptions, setExceptions] = useState<ExceptionCard[]>([])
-  const [onShift, setOnShift] = useState('')
+  const [shiftName, setShiftName] = useState('')
+  const [shiftPhone, setShiftPhone] = useState('+15555550100')
+
+  useEffect(() => {
+    syncExceptionsFromTrips(trips)
+  }, [trips])
 
   return (
     <div className="flex min-h-full flex-col gap-6 p-8 lg:flex-row">
@@ -34,39 +50,86 @@ export default function BoardPage() {
           >
             <div className="text-sm font-medium text-cream">{ex.title}</div>
             <p className="mt-1 text-xs text-muted">{ex.detail}</p>
-            <button
-              type="button"
-              className="mt-2 text-xs text-gold"
-              onClick={() => setExceptions((xs) => xs.filter((x) => x.id !== ex.id))}
-            >
-              Acknowledge
-            </button>
+            <div className="mt-2 flex gap-3">
+              {ex.trip_id && (
+                <Link to={`/trips/${ex.trip_id}`} className="text-xs text-gold">
+                  Open trip
+                </Link>
+              )}
+              <button
+                type="button"
+                className="text-xs text-muted"
+                onClick={() => acknowledgeException(ex.id)}
+              >
+                Acknowledge
+              </button>
+            </div>
           </div>
         ))}
 
         <div className="rounded-lg border border-border bg-surface p-3">
           <div className="text-xs uppercase tracking-wider text-muted">On shift</div>
-          <input
-            value={onShift}
-            onChange={(e) => setOnShift(e.target.value)}
-            placeholder="Dispatcher name"
-            className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream placeholder:text-muted"
-          />
+          {onShift ? (
+            <div className="mt-2 space-y-2">
+              <p className="text-sm text-cream">{onShift.person_name}</p>
+              <p className="avionic text-xs text-muted">{onShift.phone}</p>
+              <button
+                type="button"
+                className="text-xs text-late"
+                onClick={() => endShift()}
+              >
+                End shift
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2 space-y-2">
+              <input
+                value={shiftName}
+                onChange={(e) => setShiftName(e.target.value)}
+                placeholder="Dispatcher name"
+                className="w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream placeholder:text-muted"
+              />
+              <input
+                value={shiftPhone}
+                onChange={(e) => setShiftPhone(e.target.value)}
+                placeholder="Ring phone"
+                className="avionic w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
+              />
+              <button
+                type="button"
+                className="text-xs text-gold"
+                onClick={() => {
+                  if (!shiftName.trim()) return
+                  startShift(shiftName, shiftPhone)
+                }}
+              >
+                Start shift
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-3 text-sm">
-          <div className="text-xs uppercase tracking-wider text-muted">Client portal</div>
-          <p className="mt-2 text-xs text-muted">
-            Share this link with clients so they can submit trip requests. New
-            requests show under Incoming below.
-          </p>
-          <Link
-            to="/portal"
-            className="mt-3 inline-flex rounded-md border border-gold/40 px-3 py-1.5 text-xs text-gold hover:bg-gold/10"
-          >
-            Open client portal →
-          </Link>
-          <p className="mt-2 avionic text-[11px] text-muted">/portal</p>
+          <div className="text-xs uppercase tracking-wider text-muted">Queues</div>
+          <ul className="mt-2 space-y-1 text-xs">
+            <li>
+              <Link to="/intake" className="text-gold">
+                Intake
+              </Link>
+              <span className="ml-2 avionic text-muted">{intake.length}</span>
+            </li>
+            <li>
+              <Link to="/admin/tasks" className="text-gold">
+                NEEDS-INFO
+              </Link>
+              <span className="ml-2 avionic text-muted">{openTasks.length}</span>
+            </li>
+            <li>
+              <Link to="/portal" className="text-gold">
+                Client portal
+              </Link>
+            </li>
+          </ul>
         </div>
       </aside>
 
@@ -75,7 +138,7 @@ export default function BoardPage() {
           <div>
             <h1 className="text-2xl font-semibold text-cream">Dispatch Board</h1>
             <p className="mt-1 text-sm text-muted">
-              Home base: incoming portal requests, active trips, and exceptions.
+              Incoming requests, intake review, active trips, exceptions.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -83,7 +146,13 @@ export default function BoardPage() {
               to="/quick-dispatch"
               className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink hover:bg-gold-lt"
             >
-              ⚡ Quick Dispatch
+              Quick Dispatch
+            </Link>
+            <Link
+              to="/intake"
+              className="rounded-md border border-border px-4 py-2 text-sm text-cream hover:border-gold/40"
+            >
+              Intake
             </Link>
             <Link
               to="/trips/new"
@@ -94,6 +163,30 @@ export default function BoardPage() {
           </div>
         </header>
 
+        {intake.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-xs uppercase tracking-wider text-late">
+              Email / SMS intake ({intake.length})
+            </h2>
+            {intake.map((d) => (
+              <Link
+                key={d.id}
+                to={`/intake/${d.id}`}
+                className="block rounded-lg border border-late/40 bg-late/10 px-4 py-3 hover:border-late"
+              >
+                <div className="font-medium text-cream">
+                  {d.channel.toUpperCase()} · {d.from}
+                </div>
+                <div className="text-xs text-muted">
+                  {d.extracted
+                    ? `${String(d.extracted.origin_text ?? '?')} → ${String(d.extracted.destination_text ?? '?')}`
+                    : d.subject}
+                </div>
+              </Link>
+            ))}
+          </section>
+        )}
+
         <section className="space-y-2">
           <h2 className="text-xs uppercase tracking-wider text-gold">
             Incoming requests
@@ -101,11 +194,11 @@ export default function BoardPage() {
           </h2>
           {pendingRequests.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-sm text-muted">
-              No requests yet. Clients submit at{' '}
+              No portal requests yet. Clients submit at{' '}
               <Link to="/portal/request" className="text-gold hover:text-gold-lt">
                 /portal/request
               </Link>
-              , or you create one under New trip.
+              , or simulate email under Intake.
             </p>
           ) : (
             pendingRequests.map((r) => (
@@ -143,7 +236,7 @@ export default function BoardPage() {
             trips.map((t) => (
               <Link
                 key={t.id}
-                to={t.quick ? `/trips/${t.id}` : `/trips/${t.id}/offers`}
+                to={`/trips/${t.id}`}
                 className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 hover:border-gold/40"
               >
                 <div>
@@ -156,10 +249,11 @@ export default function BoardPage() {
                   <div className="avionic text-xs text-muted">
                     {t.state}
                     {t.quick ? ' · quick dispatch' : ''}
+                    {t.legs.length ? ` · ${t.legs.filter((l) => l.status === 'done').length}/${t.legs.length} legs` : ''}
                   </div>
                 </div>
                 <span className="text-xs text-gold">
-                  {t.quick ? 'Track →' : 'Offers →'}
+                  {t.offers.length && !t.quick ? 'Offers / exec →' : 'Track →'}
                 </span>
               </Link>
             ))
