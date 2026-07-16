@@ -519,32 +519,12 @@ export function TripRequestForm({
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={draft.medivac}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, medivac: e.target.checked }))
-              }
-            />
-            <span className="text-late">⚠</span> Medivac
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
               checked={draft.hazmat}
               onChange={(e) =>
                 setDraft((d) => ({ ...d, hazmat: e.target.checked }))
               }
             />
             <span className="text-late">⚠</span> Hazmat
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.oversize}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, oversize: e.target.checked }))
-              }
-            />
-            Oversize cargo
           </label>
         </div>
         {draft.hazmat && (

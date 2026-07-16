@@ -38,8 +38,6 @@ export type TripRequestDraft = {
   cargo_only: boolean
   pax: PaxRow[]
   hazmat: boolean
-  medivac: boolean
-  oversize: boolean
   cargo_notes: string
   notes: string
 }
@@ -85,8 +83,6 @@ export function emptyTripRequestDraft(): TripRequestDraft {
     cargo_only: true,
     pax: [],
     hazmat: false,
-    medivac: false,
-    oversize: false,
     cargo_notes: '',
     notes: '',
   }
@@ -136,8 +132,6 @@ export function summaryFromDraft(draft: TripRequestDraft): string {
     )
   }
   if (draft.hazmat) bits.push('hazmat')
-  if (draft.medivac) bits.push('medivac')
-  if (draft.oversize) bits.push('oversize')
   return bits.join(' · ')
 }
 
