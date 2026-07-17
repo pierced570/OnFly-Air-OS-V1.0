@@ -13,6 +13,12 @@ import {
   mockParseD085,
   saveOperatorDraft,
 } from '@/lib/operatorDraftStore'
+import {
+  ensureOperatorCompliance,
+  setOperatorDocExpiry,
+  setOperatorDocFile,
+  type OperatorDocKind,
+} from '@/lib/operatorComplianceStore'
 import { watchTailsFromD085 } from '@/lib/watchedTailsStore'
 import { createAccountingAdapter } from '@/adapters/accounting'
 
@@ -24,7 +30,7 @@ const OP_STEPS = [
   'Capabilities',
   'Crew',
   'D085',
-  'Insurance',
+  'Documents',
   'Rates',
   'Summary',
 ]
@@ -113,6 +119,12 @@ function OperatorWizard() {
   const [selectedTails, setSelectedTails] = useState<string[]>([])
   const [rates, setRates] = useState('')
   const [savedId, setSavedId] = useState<string | null>(null)
+  const [docFiles, setDocFiles] = useState<
+    Partial<Record<OperatorDocKind, File | null>>
+  >({})
+  const [docExpiry, setDocExpiry] = useState<
+    Partial<Record<OperatorDocKind, string>>
+  >({})
 
   const completeness = useMemo(() => {
     const checks = [
@@ -121,6 +133,9 @@ function OperatorWizard() {
       contactName.trim() || contactCell.trim(),
       cargo || pax,
       parsed.length > 0 || skipped.includes('d085'),
+      Boolean(docFiles.charter_cert || docFiles.d085 || docFiles.coi) ||
+        skipped.includes('documents') ||
+        skipped.includes('insurance'),
       rates.trim() || skipped.includes('rates'),
     ]
     const filled = checks.filter(Boolean).length
@@ -129,7 +144,18 @@ function OperatorWizard() {
       0,
       Math.min(100, Math.round((filled / checks.length) * 100 - penalty * 100)),
     )
-  }, [name, base, contactName, contactCell, cargo, pax, parsed, rates, skipped])
+  }, [
+    name,
+    base,
+    contactName,
+    contactCell,
+    cargo,
+    pax,
+    parsed,
+    rates,
+    skipped,
+    docFiles,
+  ])
 
   function skip() {
     const field = OP_STEPS[step]!.toLowerCase()
@@ -181,6 +207,42 @@ function OperatorWizard() {
       rates_note: rates,
       completeness,
     })
+
+    // Compliance docs — charter cert / D085 / COI (+ expiry for COI reminders)
+    const compliance = ensureOperatorCompliance({
+      operator_id: draft.id,
+      operator_name: draft.name,
+      contact_email: contactEmail,
+    })
+    for (const kind of ['charter_cert', 'd085', 'coi'] as OperatorDocKind[]) {
+      const file = docFiles[kind]
+      if (file) setOperatorDocFile(compliance.operator_id, kind, file)
+      const exp = docExpiry[kind]
+      if (exp) setOperatorDocExpiry(compliance.operator_id, kind, exp)
+    }
+    for (const kind of ['charter_cert', 'd085', 'coi'] as OperatorDocKind[]) {
+      if (!docFiles[kind]) {
+        addNeedsInfoTask({
+          entity_type: 'operator',
+          entity_id: draft.id,
+          entity_label: draft.name,
+          field: kind,
+          note: `Upload ${kind.replace('_', ' ')}`,
+          wizard: 'operator',
+        })
+      }
+    }
+    if (docFiles.coi && !docExpiry.coi) {
+      addNeedsInfoTask({
+        entity_type: 'operator',
+        entity_id: draft.id,
+        entity_label: draft.name,
+        field: 'coi_expiry',
+        note: 'Set COI expiration date',
+        wizard: 'operator',
+      })
+    }
+
     for (const field of skipped) {
       addNeedsInfoTask({
         entity_type: 'operator',
@@ -369,7 +431,7 @@ function OperatorWizard() {
         <div className="space-y-3">
           <p className="text-sm text-muted">
             Upload D085 → mock parse (edge <span className="avionic">parse-d085</span> later).
-            Review before commit.
+            File is also stored on the Documents step for compliance.
           </p>
           <input
             type="file"
@@ -379,6 +441,7 @@ function OperatorWizard() {
               const f = e.target.files?.[0]
               if (!f) return
               setD085Name(f.name)
+              setDocFiles((d) => ({ ...d, d085: f }))
               const rows = mockParseD085(f.name)
               setParsed(rows)
               setSelectedTails(rows.filter((r) => r.matched).map((r) => r.tail))
@@ -424,10 +487,72 @@ function OperatorWizard() {
         </div>
       )}
       {step === 5 && (
-        <p className="text-sm text-muted">
-          Per-tail liability / hull / expiry — skip creates insurance NEEDS-INFO.
-          Past expiry booking-gates the tail on offers.
-        </p>
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            Upload charter certificate, D085, and certificate of insurance.
+            Track expiry on each — expired COIs trigger an email for an updated copy.
+          </p>
+          {(
+            [
+              ['charter_cert', 'Charter certificate'],
+              ['d085', 'D085'],
+              ['coi', 'Certificate of insurance'],
+            ] as const
+          ).map(([kind, label]) => (
+            <div
+              key={kind}
+              className="rounded-md border border-border bg-surface-2/40 p-3"
+            >
+              <div className="text-sm font-medium text-cream">{label}</div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <label className="block text-xs text-muted">
+                  File
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.txt"
+                    className="mt-1 block w-full text-sm text-muted file:mr-3 file:rounded file:border-0 file:bg-gold/20 file:px-2 file:py-1 file:text-gold"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null
+                      setDocFiles((d) => ({ ...d, [kind]: f }))
+                      if (kind === 'd085' && f) {
+                        setD085Name(f.name)
+                        if (!parsed.length) {
+                          const rows = mockParseD085(f.name)
+                          setParsed(rows)
+                          setSelectedTails(
+                            rows.filter((r) => r.matched).map((r) => r.tail),
+                          )
+                        }
+                      }
+                    }}
+                  />
+                  {docFiles[kind] && (
+                    <span className="mt-1 block text-xs text-cream">
+                      {docFiles[kind]!.name}
+                    </span>
+                  )}
+                </label>
+                <label className="block text-xs text-muted">
+                  Expires
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 text-sm text-cream"
+                    value={docExpiry[kind] ?? ''}
+                    onChange={(e) =>
+                      setDocExpiry((d) => ({ ...d, [kind]: e.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+              {kind === 'coi' && (
+                <p className="mt-2 text-[11px] text-muted">
+                  On expiry we email {contactEmail || 'the ops contact'} for an
+                  updated COI.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
       )}
       {step === 6 && (
         <label className={wizardLabel}>

@@ -9,7 +9,7 @@ Updated as we convert mocks → durable/live paths.
 | 3 | Offers/booking | **PARTIAL** — accept → confirm + stand-down (mock SMS) + ETA sheet/track links to tracker/supply-chain; **no QB invoice on accept** | RingCentral, QBO invoice, offers table writes |
 | 4 | Execution | **PARTIAL** — trip execution UI, one-tap, thread parse | Thread numbers, checkpoints cron, Storage POD |
 | 5 | Portal/money | **PARTIAL** — portal form + track; financials ledger; mock QB | Magic-link RLS, QBO OAuth, manifests/render-doc |
-| 6 | Admin wizards | **PARTIAL** — operator/client/FBO wizards; NEEDS-INFO; FBO addresses; CSV import | D085 real parse edge, persist operators to DB |
+| 6 | Admin wizards | **PARTIAL** — operator docs (charter/D085/COI + expiry); COI expiry email; named-insurer toggle @ 3 trips; FBO CSV | D085 real parse edge; Storage upload; persist operators to DB |
 | 7 | Intelligence | **PARTIAL** — live METAR/TAF; radar watches network + D085 tails (mock ADS-B takeoff/landing); crew-rest chips removed | Live ADS-B poller, NOTAM FAA API, Telnyx, scorecard MV |
 
 ## What went live this pass (no vendor keys)
@@ -32,6 +32,14 @@ Updated as we convert mocks → durable/live paths.
 - Watched-tail store seeded from network import; Admin D085 confirm adds tails
 - Mock ADS-B returns phase + last takeoff / landing; Radar UI filters + logs
 - Crew-rest chips removed (FlightChip = airborne / on ground / no ADS-B)
+
+## Operator compliance docs
+
+- Admin wizard **Documents** step: charter cert, D085, COI uploads + expiry dates
+- Network → **Docs / COI** per operator (session store; Storage later)
+- Expired COI → mock email to ops contact requesting updated copy
+- After **3 completed trips** → flag + **Named insurer** toggle
+- Migration `0006_operator_compliance.sql` — `operators.named_insurer`
 
 ## Next (priority)
 
