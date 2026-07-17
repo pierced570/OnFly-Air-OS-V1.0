@@ -1,7 +1,13 @@
 /**
  * Operator compliance docs — charter cert, D085, COI.
- * Session store until Supabase Storage + documents rows are wired.
+ * Files upload to Supabase Storage (operator-docs) when configured;
+ * always keep a local preview for the session.
  */
+
+import {
+  canUseStorage,
+  uploadOperatorDocToStorage,
+} from '@/lib/storage'
 
 export const OPERATOR_DOC_KINDS = ['charter_cert', 'd085', 'coi'] as const
 export type OperatorDocKind = (typeof OPERATOR_DOC_KINDS)[number]
@@ -20,8 +26,11 @@ export type OperatorDocSlot = {
   uploadedAt: string | null
   /** YYYY-MM-DD */
   expiresOn: string | null
-  /** Session-only object URL for preview */
+  /** Local object URL and/or Storage signed URL */
   previewUrl: string | null
+  /** Path inside operator-docs bucket */
+  storagePath: string | null
+  storageError: string | null
 }
 
 export type OperatorCompliance = {
@@ -46,6 +55,8 @@ function emptyDoc(kind: OperatorDocKind): OperatorDocSlot {
     uploadedAt: null,
     expiresOn: null,
     previewUrl: null,
+    storagePath: null,
+    storageError: null,
   }
 }
 
@@ -151,15 +162,36 @@ export function upsertOperatorCompliance(
   return row
 }
 
-export function setOperatorDocFile(
+export async function setOperatorDocFile(
   operatorId: string,
   kind: OperatorDocKind,
   file: File,
-): OperatorDocSlot {
+): Promise<OperatorDocSlot> {
   const row = byId.get(operatorId)
   if (!row) throw new Error('operator compliance not found')
   const prev = row.docs[kind]
-  if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+  if (prev.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(prev.previewUrl)
+
+  const localUrl = URL.createObjectURL(file)
+  let storagePath: string | null = null
+  let storageError: string | null = null
+  let previewUrl = localUrl
+
+  if (canUseStorage()) {
+    try {
+      const uploaded = await uploadOperatorDocToStorage({
+        operatorId,
+        kind,
+        file,
+      })
+      storagePath = uploaded.path
+      if (uploaded.signedUrl) previewUrl = uploaded.signedUrl
+    } catch (e) {
+      storageError = e instanceof Error ? e.message : String(e)
+      console.warn('[operator-docs] storage upload failed — kept local preview', storageError)
+    }
+  }
+
   const slot: OperatorDocSlot = {
     kind,
     fileName: file.name,
@@ -167,7 +199,9 @@ export function setOperatorDocFile(
     sizeBytes: file.size,
     uploadedAt: new Date().toISOString(),
     expiresOn: prev.expiresOn,
-    previewUrl: URL.createObjectURL(file),
+    previewUrl,
+    storagePath,
+    storageError,
   }
   row.docs[kind] = slot
   // New COI upload clears prior expiry reminder so a future expiry can notify again

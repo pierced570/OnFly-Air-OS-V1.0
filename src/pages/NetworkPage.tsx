@@ -317,9 +317,9 @@ export default function NetworkPage() {
                   </label>
                   <OperatorDocSlots
                     compliance={compliance}
-                    onUpload={(kind: OperatorDocKind, file: File) =>
-                      setOperatorDocFile(op.id, kind, file)
-                    }
+                    onUpload={(kind: OperatorDocKind, file: File) => {
+                      void setOperatorDocFile(op.id, kind, file)
+                    }}
                     onExpiryChange={(kind, expiresOn) =>
                       setOperatorDocExpiry(op.id, kind, expiresOn)
                     }

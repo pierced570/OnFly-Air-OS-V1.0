@@ -163,7 +163,7 @@ function OperatorWizard() {
     setStep((x) => Math.min(x + 1, OP_STEPS.length - 1))
   }
 
-  function save() {
+  async function save() {
     if (!name.trim()) return
     const aircraft = parsed
       .filter((p) => selectedTails.includes(p.tail))
@@ -216,7 +216,7 @@ function OperatorWizard() {
     })
     for (const kind of ['charter_cert', 'd085', 'coi'] as OperatorDocKind[]) {
       const file = docFiles[kind]
-      if (file) setOperatorDocFile(compliance.operator_id, kind, file)
+      if (file) await setOperatorDocFile(compliance.operator_id, kind, file)
       const exp = docExpiry[kind]
       if (exp) setOperatorDocExpiry(compliance.operator_id, kind, exp)
     }
@@ -301,7 +301,7 @@ function OperatorWizard() {
       onSkip={step < OP_STEPS.length - 1 ? skip : undefined}
       onNext={() => {
         if (step === OP_STEPS.length - 1) {
-          if (!savedId) save()
+          if (!savedId) void save()
           return
         }
         if (step === 0 && name.trim().length < 2) return

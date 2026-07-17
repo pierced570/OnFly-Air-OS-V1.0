@@ -27,7 +27,7 @@ describe('COI expiry reminders', () => {
       operator_name: 'Test Air',
       contact_email: 'ops@testair.example',
     })
-    setOperatorDocFile(id, 'coi', makePdf('coi.pdf'))
+    await setOperatorDocFile(id, 'coi', makePdf('coi.pdf'))
     setOperatorDocExpiry(id, 'coi', '2020-01-01')
 
     const due = operatorsNeedingCoiReminder(new Date('2026-07-17T12:00:00Z'))
@@ -43,14 +43,14 @@ describe('COI expiry reminders', () => {
     expect(again.sentTo).not.toContain('ops@testair.example')
   })
 
-  it('skips when already reminded for that expiry', () => {
+  it('skips when already reminded for that expiry', async () => {
     const id = crypto.randomUUID()
     ensureOperatorCompliance({
       operator_id: id,
       operator_name: 'Already Reminded LLC',
       contact_email: 'ops@already.example',
     })
-    setOperatorDocFile(id, 'coi', makePdf('coi.pdf'))
+    await setOperatorDocFile(id, 'coi', makePdf('coi.pdf'))
     setOperatorDocExpiry(id, 'coi', '2021-06-01')
     markCoiReminderSent(id, '2021-06-01')
 

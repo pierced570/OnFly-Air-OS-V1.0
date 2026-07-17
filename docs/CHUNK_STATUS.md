@@ -41,10 +41,18 @@ Updated as we convert mocks → durable/live paths.
 - After **3 completed trips** → flag + **Named insurer** toggle
 - Migration `0006_operator_compliance.sql` — `operators.named_insurer`
 
+## Storage + portal (this pass)
+
+- Migration `0007_storage_buckets.sql` — private `operator-docs` + `trip-docs`
+- Compliance uploads → Storage when Supabase configured (local preview fallback)
+- Portal track: ETA / legs+actuals / contacts / live updates — **no pricing**
+- Full wire order: [`docs/WIRE_ORDER.md`](WIRE_ORDER.md)
+
 ## Next (priority)
 
 1. Persist trips/offers/quotes via `trip_transition` RPC  
-2. Tax rates + pricing priors from DB  
-3. Resend inbound + RingCentral when keys available  
-4. QBO OAuth when keys available  
-5. Live ADS-B poller when provider chosen  
+2. Claude LLM adapter + D085 AI verify  
+3. Domain/Vercel + Resend  
+4. Google Maps, live ADS-B, NOTAM plain-English  
+5. RC → Telnyx → QBO  
+

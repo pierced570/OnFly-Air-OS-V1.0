@@ -79,6 +79,14 @@ export function OperatorDocSlots({
                         · {(slot.sizeBytes / 1024).toFixed(0)} KB
                       </span>
                     )}
+                    {slot.storagePath && (
+                      <span className="ml-1 text-onplan">· stored</span>
+                    )}
+                    {slot.storageError && (
+                      <span className="ml-1 text-late" title={slot.storageError}>
+                        · local only
+                      </span>
+                    )}
                   </span>
                 )}
               </label>
