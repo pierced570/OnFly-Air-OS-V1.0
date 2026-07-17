@@ -1,5 +1,5 @@
 /**
- * On-shift dispatcher window (schema: shifts).
+ * On-shift dispatcher window (schema: shifts) — syncs to Supabase when configured.
  */
 
 export type ShiftRow = {
@@ -34,10 +34,16 @@ export function listShiftHistory(): ShiftRow[] {
   return [...history].reverse()
 }
 
+export function hydrateShiftFromDb(row: ShiftRow): void {
+  current = row
+  bump()
+}
+
 export function startShift(person_name: string, phone: string, notes = ''): ShiftRow {
   if (current) {
     current.ended_at = new Date().toISOString()
     history.push(current)
+    void import('@/lib/db/persist').then((m) => m.persistShiftEnd(current!.id))
   }
   current = {
     id: crypto.randomUUID(),
@@ -48,15 +54,18 @@ export function startShift(person_name: string, phone: string, notes = ''): Shif
     notes: notes.trim(),
   }
   bump()
+  void import('@/lib/db/persist').then((m) => m.persistShiftStart(current!))
   return current
 }
 
 export function endShift(): void {
   if (!current) return
+  const id = current.id
   current.ended_at = new Date().toISOString()
   history.push(current)
   current = null
   bump()
+  void import('@/lib/db/persist').then((m) => m.persistShiftEnd(id))
 }
 
 export function updateShiftNotes(notes: string): void {

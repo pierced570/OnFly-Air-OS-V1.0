@@ -1,15 +1,17 @@
 import { Link, useParams } from 'react-router-dom'
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
   createMockInvoiceForTrip,
   getTrip,
   listTripsStable,
+  mutateTrip,
   postThreadMessage,
   safeTransitionTrip,
   subscribeTrips,
 } from '@/lib/tripStore'
 import { clientRuleChips } from '@/lib/clientStore'
 import { canTransition } from '@/domain/stateMachine'
+import { createWxAdapter, type WxBrief } from '@/adapters/wx'
 
 export default function TripPage() {
   const { id } = useParams()
@@ -17,11 +19,52 @@ export default function TripPage() {
   const trip = id ? getTrip(id) : null
   const [threadBody, setThreadBody] = useState('')
   const [invoiceBusy, setInvoiceBusy] = useState(false)
+  const [wxBriefs, setWxBriefs] = useState<WxBrief[]>([])
 
   const ruleChips = useMemo(
     () => (trip?.client_id ? clientRuleChips(trip.client_id) : []),
     [trip?.client_id],
   )
+
+  const watchIcaos = useMemo(() => {
+    if (!trip) return [] as string[]
+    const s = new Set<string>()
+    for (const leg of trip.legs) {
+      if (leg.origin) s.add(leg.origin.toUpperCase())
+      if (leg.dest) s.add(leg.dest.toUpperCase())
+    }
+    for (const l of trip.quick?.legs ?? []) {
+      if (l.origin_icao) s.add(l.origin_icao.toUpperCase())
+      if (l.dest_icao) s.add(l.dest_icao.toUpperCase())
+    }
+    return [...s].slice(0, 4)
+  }, [trip])
+
+  useEffect(() => {
+    if (!watchIcaos.length) return
+    void (async () => {
+      const wx = createWxAdapter()
+      const rows = await Promise.all(watchIcaos.map((i) => wx.brief(i)))
+      setWxBriefs(rows)
+      if (trip) {
+        mutateTrip(trip.id, (t) => {
+          const already = t.events.some((e) => e.kind === 'wx_brief')
+          if (already) return
+          t.events.push({
+            at: new Date().toISOString(),
+            actor: 'system',
+            kind: 'wx_brief',
+            payload: {
+              icaos: watchIcaos,
+              summaries: rows.map((r) => r.summary),
+              hardFlags: rows.flatMap((r) => r.hardFlags),
+            },
+          })
+        })
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchIcaos.join(',')])
 
   if (!trip) {
     return (
@@ -224,6 +267,22 @@ export default function TripPage() {
               {margin == null ? '—' : `$${margin.toLocaleString()}`}
             </div>
           </div>
+        </section>
+      )}
+
+      {wxBriefs.length > 0 && (
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-xs uppercase tracking-wider text-muted">
+            Weather brief
+          </h2>
+          <ul className="mt-2 space-y-2 text-sm">
+            {wxBriefs.map((b) => (
+              <li key={b.icao}>
+                <span className="avionic text-gold">{b.icao}</span>
+                <span className="ml-2 text-cream">{b.summary}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

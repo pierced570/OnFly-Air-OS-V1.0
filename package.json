@@ -15,7 +15,8 @@
     "import:fleet:fixtures": "tsx scripts/import.ts --fixtures-only",
     "db:migrate": "tsx scripts/apply-migration.ts",
     "seed:demo-client": "tsx scripts/seed-demo-client.ts",
-    "import:financials": "tsx scripts/import-financials-csv.ts"
+    "import:financials": "tsx scripts/import-financials-csv.ts",
+    "import:fbos": "tsx scripts/import-fbos-csv.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.6",

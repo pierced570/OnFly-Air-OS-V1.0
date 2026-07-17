@@ -73,7 +73,20 @@ function rebuild() {
   snapshot = [...clients.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-function bump() {
+function bump(persistId?: string) {
+  rebuild()
+  for (const l of listeners) l()
+  if (persistId) {
+    const row = clients.get(persistId)
+    if (row) void import('@/lib/db/persist').then((m) => m.persistClient(row))
+  }
+}
+
+/** Replace in-memory directory with Supabase rows (keeps financial seed if empty). */
+export function replaceClientsFromDb(rows: ClientProfile[]): void {
+  if (!rows.length) return
+  clients.clear()
+  for (const r of rows) clients.set(r.id, r)
   rebuild()
   for (const l of listeners) l()
 }
@@ -175,7 +188,7 @@ export function addClient(opts: {
     qb_customer_id: opts.qb_customer_id ?? null,
   }
   clients.set(id, row)
-  bump()
+  bump(id)
   return row
 }
 
@@ -199,7 +212,7 @@ export function updateClient(
   const { rules, ...rest } = patch
   Object.assign(row, rest)
   if (rules) row.rules = { ...row.rules, ...rules }
-  bump()
+  bump(id)
   return row
 }
 
@@ -251,7 +264,7 @@ export function addClientContact(
   if (role === 'ap' && contact.email && !row.invoice_email) {
     row.invoice_email = contact.email
   }
-  bump()
+  bump(clientId)
   return contact
 }
 
@@ -282,14 +295,14 @@ export function updateClientContact(
   if (c.role === 'ap' && c.notify_prefs.invoice && c.email) {
     row.invoice_email = c.email
   }
-  bump()
+  bump(clientId)
 }
 
 export function removeClientContact(clientId: string, contactId: string): void {
   const row = clients.get(clientId)
   if (!row) return
   row.contacts = row.contacts.filter((c) => c.id !== contactId)
-  bump()
+  bump(clientId)
 }
 
 /** Emails that should ring dispatch when they send a request. */
@@ -353,7 +366,7 @@ export function rememberEmailsOnClient(
       notify_prefs: defaultPrefs('supply_chain'),
     })
   }
-  bump()
+  bump(clientId)
 }
 
 export function suggestNextPo(lastPo: string | null): string {
@@ -377,5 +390,5 @@ export function recordPoUsed(clientId: string, po: string): void {
   const row = clients.get(clientId)
   if (!row) return
   row.last_po = po.trim()
-  bump()
+  bump(clientId)
 }

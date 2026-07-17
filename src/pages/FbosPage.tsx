@@ -99,6 +99,11 @@ export default function FbosPage() {
                 verified {f.last_verified}
               </div>
             </div>
+            {(f.street || f.city) && (
+              <p className="mt-1 text-xs text-cream">
+                {[f.street, f.city, f.state, f.zip].filter(Boolean).join(', ')}
+              </p>
+            )}
             <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted">
               {f.is_24hr && <span className="text-onplan">24hr</span>}
               {f.forklift && (

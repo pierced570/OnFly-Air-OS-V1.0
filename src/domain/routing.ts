@@ -145,6 +145,8 @@ export async function generateCandidates(
     targetMargin?: number
     /** Optional radar statuses keyed by tail — boosts rested + in-position */
     fleetStatusByTail?: Map<string, FleetStatus>
+    /** Origin/dest FBO handling (+ callout) from directory */
+    fboFees?: { origin: number; dest: number; notes: string[] }
   },
 ): Promise<Candidate[]> {
   const margin = opts?.targetMargin ?? PRICING_CONSTANTS.targetMargin
@@ -155,6 +157,8 @@ export async function generateCandidates(
   const dest = trip.destination
   const results: Candidate[] = []
   const radar = opts?.fleetStatusByTail
+  const fboFeeTotal =
+    (opts?.fboFees?.origin ?? 0) + (opts?.fboFees?.dest ?? 0)
 
   for (const ac of fleet) {
     const needsInfo: string[] = []
@@ -278,7 +282,12 @@ export async function generateCandidates(
         Math.max(PRICING_CONSTANTS.truckMin, m1 * PRICING_CONSTANTS.truckPerMile) +
         Math.max(PRICING_CONSTANTS.truckMin, m2 * PRICING_CONSTANTS.truckPerMile)
     }
-    const cost = Math.round((opCost + truckCost) * 100) / 100
+    if (fboFeeTotal > 0) {
+      reasoning.push(...(opts?.fboFees?.notes ?? [`FBO fees $${fboFeeTotal}`]))
+    }
+    reasoning.push(`circuit ${Math.round(circuitNm)} NM GC (haversine)`)
+
+    const cost = Math.round((opCost + truckCost + fboFeeTotal) * 100) / 100
     const price = Math.round((cost / (1 - margin)) * 100) / 100
 
     if (ac.base_icao) {

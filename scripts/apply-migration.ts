@@ -62,6 +62,8 @@ async function run() {
       await client.query(sql)
       console.log(`OK: ${file}`)
     }
+    // Refresh PostgREST schema cache so new columns are visible immediately.
+    await client.query(`notify pgrst, 'reload schema'`)
   } finally {
     await client.end()
   }

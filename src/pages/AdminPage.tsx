@@ -674,18 +674,29 @@ function FboWizard() {
   const [handling, setHandling] = useState('')
   const [waive, setWaive] = useState(false)
   const [notes, setNotes] = useState('')
+  const [street, setStreet] = useState('')
+  const [city, setCity] = useState('')
+  const [state, setState] = useState('')
+  const [zip, setZip] = useState('')
   const [saved, setSaved] = useState(false)
   const [skipped, setSkipped] = useState<string[]>([])
 
   const completeness = useMemo(() => {
-    const checks = [icao.length >= 3, !!name.trim(), !!phone.trim(), forklift || skipped.includes('forklift')]
+    const checks = [
+      icao.length >= 3,
+      !!name.trim(),
+      !!phone.trim(),
+      !!street.trim() || skipped.includes('airport'),
+      forklift || skipped.includes('forklift'),
+    ]
     return Math.round((checks.filter(Boolean).length / checks.length) * 100)
-  }, [icao, name, phone, forklift, skipped])
+  }, [icao, name, phone, street, forklift, skipped])
 
   function save() {
     if (!icao.trim() || !name.trim()) return
     const needs: string[] = [...skipped]
     if (!ahPhone.trim() && !is24) needs.push('after_hours_phone')
+    if (!street.trim()) needs.push('street')
     const row = addFbo({
       name: name.trim(),
       airport_icao: icao.trim().toUpperCase(),
@@ -701,6 +712,12 @@ function FboWizard() {
       fee_overnight: null,
       fee_callout: null,
       fees_waived_with_fuel: waive,
+      street,
+      city,
+      state,
+      zip,
+      lat: null,
+      lon: null,
       notes,
       needs_info: needs,
     })
@@ -772,6 +789,32 @@ function FboWizard() {
               value={ahPhone}
               onChange={(e) => setAhPhone(e.target.value)}
             />
+          </label>
+          <label className={`${wizardLabel} sm:col-span-2`}>
+            Street address
+            <input
+              className={wizardInput}
+              value={street}
+              onChange={(e) => setStreet(e.target.value)}
+              placeholder="Ramp / FBO street"
+            />
+          </label>
+          <label className={wizardLabel}>
+            City
+            <input className={wizardInput} value={city} onChange={(e) => setCity(e.target.value)} />
+          </label>
+          <label className={wizardLabel}>
+            State
+            <input
+              className={wizardInput}
+              value={state}
+              onChange={(e) => setState(e.target.value.toUpperCase())}
+              placeholder="OH"
+            />
+          </label>
+          <label className={wizardLabel}>
+            ZIP
+            <input className={wizardInput} value={zip} onChange={(e) => setZip(e.target.value)} />
           </label>
         </div>
       )}

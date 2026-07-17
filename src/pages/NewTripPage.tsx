@@ -70,6 +70,11 @@ export default function NewTripPage() {
       const fleet = await loadFleetForRouting()
       const maps = createMapsAdapter()
       const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
+      const { getClient } = await import('@/lib/clientStore')
+      const { fboFeesForAirport } = await import('@/lib/fboStore')
+      const client = request.client_id ? getClient(request.client_id) : undefined
+      const originFees = fboFeesForAirport(originAp.icao)
+      const destFees = fboFeesForAirport(destAp.icao)
       const t0 = performance.now()
       const cands = await generateCandidates(
         {
@@ -79,6 +84,7 @@ export default function NewTripPage() {
           pax_count: paxCount,
           hazmat: request.hazmat,
           ready_at: request.ready_at,
+          client_rules: client?.rules,
           origin: {
             kind: mode === 'a2a' ? 'airport' : 'address',
             text: leg.pickup_address || originAp.icao,
@@ -106,7 +112,14 @@ export default function NewTripPage() {
         },
         fleet,
         maps,
-        { fleetStatusByTail: radar },
+        {
+          fleetStatusByTail: radar,
+          fboFees: {
+            origin: originFees.fee,
+            dest: destFees.fee,
+            notes: [...originFees.reasoning, ...destFees.reasoning],
+          },
+        },
       )
       const ms = performance.now() - t0
       setCandidates(cands)

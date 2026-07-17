@@ -104,3 +104,12 @@ export function openCountByEntity(): Record<string, number> {
   }
   return out
 }
+
+/** Replace open tasks from Supabase (skips if empty so fixture seed remains). */
+export function replaceNeedsInfoFromDb(rows: NeedsInfoTask[]): void {
+  if (!rows.length) return
+  tasks.clear()
+  for (const r of rows) tasks.set(r.id, r)
+  rebuild()
+  for (const l of listeners) l()
+}

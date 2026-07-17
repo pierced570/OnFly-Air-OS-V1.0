@@ -15,6 +15,13 @@ export class MockCommsAdapter implements CommsAdapter {
   async send(msg: CommsMessage) {
     log.push(msg)
     console.info('[MockComms]', msg.channel, msg.to, msg.body.slice(0, 80))
+    void import('@/lib/db/persist').then((m) =>
+      m.persistCommsMessage({
+        channel: msg.channel === 'voice' ? 'voice' : 'sms',
+        to_addr: msg.to,
+        body: msg.body,
+      }),
+    )
     return { id: `mock-sms-${log.length}` }
   }
 }
@@ -24,5 +31,6 @@ export function getMockCommsLog() {
 }
 
 export function createCommsAdapter(): CommsAdapter {
+  // RingCentral real adapter when keys + VITE_COMMS_ADAPTER=real land.
   return new MockCommsAdapter()
 }

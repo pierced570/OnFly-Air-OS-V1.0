@@ -42,6 +42,13 @@ export function listExceptions(): ExceptionCard[] {
 export function raiseException(
   partial: Omit<ExceptionCard, 'id' | 'created_at' | 'acknowledged'>,
 ): ExceptionCard {
+  const dup = [...cards.values()].find(
+    (c) =>
+      !c.acknowledged &&
+      c.title === partial.title &&
+      c.detail === partial.detail,
+  )
+  if (dup) return dup
   const row: ExceptionCard = {
     ...partial,
     id: crypto.randomUUID(),
