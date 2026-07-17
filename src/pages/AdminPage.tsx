@@ -13,6 +13,7 @@ import {
   mockParseD085,
   saveOperatorDraft,
 } from '@/lib/operatorDraftStore'
+import { watchTailsFromD085 } from '@/lib/watchedTailsStore'
 import { createAccountingAdapter } from '@/adapters/accounting'
 
 type WizardKind = 'operator' | 'client' | 'fbo'
@@ -211,6 +212,18 @@ function OperatorWizard() {
           wizard: 'operator',
         })
       }
+    }
+    // Every confirmed D085 tail enters ADS-B watch (takeoff / landing log)
+    if (aircraft.length) {
+      watchTailsFromD085({
+        operator_id: draft.id,
+        operator_name: draft.name,
+        base_icao: draft.base_icao,
+        aircraft: aircraft.map((a) => ({
+          tail: a.tail,
+          type_name: a.type_name,
+        })),
+      })
     }
     setSavedId(draft.id)
     setStep(OP_STEPS.length - 1)

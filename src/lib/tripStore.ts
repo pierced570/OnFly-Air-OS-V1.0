@@ -276,6 +276,7 @@ export function createTripFromCandidates(opts: {
   ready_label: string
   candidates: Candidate[]
   payload_kind: 'cargo' | 'pax' | 'both'
+  client_id?: string
 }): TripStoreRow {
   const id = crypto.randomUUID()
   const row: TripStoreRow = {
@@ -307,6 +308,7 @@ export function createTripFromCandidates(opts: {
       needsInfo: c.needsInfo,
       contact_cell: `+1555000${String(1000 + i).slice(-4)}`,
     })),
+    client_id: opts.client_id,
     legs: [],
     participants: [
       {
@@ -325,7 +327,7 @@ export function createTripFromCandidates(opts: {
         at: new Date().toISOString(),
         actor: 'dispatcher',
         kind: 'created_from_estimate',
-        payload: {},
+        payload: { client_id: opts.client_id ?? null },
       },
       {
         at: new Date().toISOString(),

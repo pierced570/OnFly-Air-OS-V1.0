@@ -19,6 +19,7 @@ type Draft = {
   mode: string
   candidates: Candidate[]
   originatedMs: number
+  client_id?: string | null
 }
 
 export default function QuotePreviewPage() {
@@ -93,6 +94,7 @@ export default function QuotePreviewPage() {
       ready_label: draft!.ready_at,
       candidates: draft!.candidates,
       payload_kind: draft!.payloadKind,
+      client_id: draft!.client_id ?? undefined,
     })
     sessionStorage.setItem('onfly_last_trip_id', trip.id)
   }

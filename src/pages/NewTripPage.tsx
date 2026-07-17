@@ -8,7 +8,7 @@ import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { TEST_TAX_RATES_2026 } from '@/domain/tax'
 import { buildQuoteTotals } from '@/domain/quote'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
-import { RestChip } from '@/components/RestChip'
+import { FlightChip } from '@/components/FlightChip'
 import { TripRequestForm } from '@/components/TripRequestForm'
 import { formatStopLocal } from '@/domain/timeFmt'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
@@ -138,6 +138,7 @@ export default function NewTripPage() {
           originatedMs: ms,
           requestId: request.id,
           requestRef: request.ref,
+          client_id: request.client_id,
         }),
       )
     } catch (e) {
@@ -300,8 +301,8 @@ export default function NewTripPage() {
                   </div>
                 )}
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <RestChip
-                    rest={c.rest}
+                  <FlightChip
+                    phase={c.phase}
                     inPosition={c.inPosition}
                     laddBlocked={c.laddBlocked}
                   />

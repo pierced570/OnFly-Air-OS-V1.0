@@ -8,7 +8,7 @@ import {
   acceptHardQuote,
   simulatorMessagesForTrip,
 } from '@/lib/offerFlow'
-import { RestChip } from '@/components/RestChip'
+import { FlightChip } from '@/components/FlightChip'
 
 export default function OffersPage() {
   const { id } = useParams()
@@ -91,9 +91,9 @@ export default function OffersPage() {
                 <div className="mt-2 text-xs text-late">Booking gated — insurance/compliance</div>
               )}
               <div className="mt-2">
-                <RestChip
-                  rest={
-                    trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.rest
+                <FlightChip
+                  phase={
+                    trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.phase
                   }
                   inPosition={
                     trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.inPosition

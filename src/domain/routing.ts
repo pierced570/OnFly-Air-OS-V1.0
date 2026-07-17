@@ -17,7 +17,7 @@ import type { LatLon } from '@/adapters/maps'
 import {
   radarRankPenalty,
   type FleetStatus,
-  type RestChip,
+  type FlightPhase,
 } from '@/domain/fleetStatus'
 
 export type ClientRules = {
@@ -86,8 +86,8 @@ export type Candidate = {
   label?: 'cheapest' | 'fastest' | 'best'
   eta_end: string
   circuit_nm: number
-  /** Advisory ADS-B rest / position chips */
-  rest?: RestChip
+  /** Advisory ADS-B phase / position chips */
+  phase?: FlightPhase
   inPosition?: boolean
   laddBlocked?: boolean
 }
@@ -143,7 +143,7 @@ export async function generateCandidates(
   maps: MapsAdapter,
   opts?: {
     targetMargin?: number
-    /** Optional radar statuses keyed by tail — boosts rested + in-position */
+    /** Optional radar statuses keyed by tail — boosts on-ground near base */
     fleetStatusByTail?: Map<string, FleetStatus>
     /** Origin/dest FBO handling (+ callout) from directory */
     fboFees?: { origin: number; dest: number; notes: string[] }
@@ -298,20 +298,20 @@ export async function generateCandidates(
     }
 
     if (status) {
-      if (status.laddBlocked) {
-        reasoning.push('ADS-B LADD / no data — rest unknown')
+      if (status.laddBlocked || status.phase === 'no_data') {
+        reasoning.push('ADS-B LADD / no data')
       } else {
-        if (status.rest === 'likely_rested') {
+        if (status.phase === 'on_ground') {
           confidence += 0.05
-          reasoning.push('radar: likely rested (advisory)')
-        } else if (status.rest === 'rest_clock_running') {
+          reasoning.push('radar: on ground (advisory)')
+        } else if (status.phase === 'airborne') {
           confidence -= 0.05
-          reasoning.push('radar: rest clock running (advisory)')
+          reasoning.push('radar: airborne (advisory)')
         }
         if (status.inPositionOfBase) {
           confidence += 0.08
           reasoning.push(
-            `radar: in-position near base${status.nmFromBase != null ? ` (${status.nmFromBase.toFixed(0)} NM)` : ''}`,
+            `radar: near base${status.nmFromBase != null ? ` (${status.nmFromBase.toFixed(0)} NM)` : ''}`,
           )
         }
       }
@@ -345,7 +345,7 @@ export async function generateCandidates(
       reasoning,
       eta_end,
       circuit_nm: Math.round(circuitNm),
-      rest: status?.rest,
+      phase: status?.phase,
       inPosition: status?.inPositionOfBase,
       laddBlocked: status?.laddBlocked,
     })

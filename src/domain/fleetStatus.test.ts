@@ -1,31 +1,54 @@
 import { describe, expect, it } from 'vitest'
 import {
   deriveFleetStatus,
-  deriveRestChip,
+  deriveFlightPhase,
   radarRankPenalty,
 } from './fleetStatus'
 
-describe('fleetStatus rest chips', () => {
-  it('moving aircraft → rest clock running', () => {
+describe('fleetStatus flight phase', () => {
+  it('high groundspeed → airborne', () => {
     expect(
-      deriveRestChip({ gs: 180, lastFlewAt: new Date().toISOString() }),
-    ).toBe('rest_clock_running')
+      deriveFlightPhase({
+        tail: 'N1',
+        lat: 41,
+        lon: -81,
+        alt: 8000,
+        gs: 180,
+        seenAt: new Date().toISOString(),
+      }),
+    ).toBe('airborne')
   })
 
-  it('grounded 12h since last flew → likely rested', () => {
-    const last = new Date(Date.now() - 12 * 3600 * 1000).toISOString()
-    expect(deriveRestChip({ gs: 0, lastFlewAt: last })).toBe('likely_rested')
+  it('parked → on_ground', () => {
+    expect(
+      deriveFlightPhase({
+        tail: 'N1',
+        lat: 41,
+        lon: -81,
+        alt: 0,
+        gs: 0,
+        seenAt: new Date().toISOString(),
+      }),
+    ).toBe('on_ground')
   })
 
-  it('LADD blocked → unknown', () => {
-    expect(deriveRestChip({ gs: 0, lastFlewAt: null, laddBlocked: true })).toBe(
-      'unknown',
-    )
+  it('LADD blocked → no_data', () => {
+    expect(
+      deriveFlightPhase({
+        tail: 'N1',
+        lat: 41,
+        lon: -81,
+        alt: 0,
+        gs: 0,
+        seenAt: new Date().toISOString(),
+        laddBlocked: true,
+      }),
+    ).toBe('no_data')
   })
 
-  it('in-position + rested ranks better than airborne', () => {
+  it('on-ground near base ranks better than airborne', () => {
     const now = new Date()
-    const rested = deriveFleetStatus({
+    const grounded = deriveFleetStatus({
       position: {
         tail: 'N1',
         lat: 41.08,
@@ -33,10 +56,11 @@ describe('fleetStatus rest chips', () => {
         alt: 0,
         gs: 0,
         seenAt: now.toISOString(),
-        lastFlewAt: new Date(now.getTime() - 12 * 3600 * 1000).toISOString(),
+        lastTakeoffAt: new Date(now.getTime() - 12 * 3600 * 1000).toISOString(),
+        lastLandingAt: new Date(now.getTime() - 10 * 3600 * 1000).toISOString(),
+        phase: 'on_ground',
       },
       base: { lat: 41.08, lon: -81.52, icao: 'KCAK' },
-      now,
     })
     const airborne = deriveFleetStatus({
       position: {
@@ -46,13 +70,15 @@ describe('fleetStatus rest chips', () => {
         alt: 9000,
         gs: 200,
         seenAt: now.toISOString(),
-        lastFlewAt: now.toISOString(),
+        lastTakeoffAt: now.toISOString(),
+        lastLandingAt: new Date(now.getTime() - 8 * 3600 * 1000).toISOString(),
+        phase: 'airborne',
       },
       base: { lat: 41.08, lon: -81.52, icao: 'KCAK' },
-      now,
     })
-    expect(rested.inPositionOfBase).toBe(true)
-    expect(rested.rest).toBe('likely_rested')
-    expect(radarRankPenalty(rested)).toBeLessThan(radarRankPenalty(airborne))
+    expect(grounded.inPositionOfBase).toBe(true)
+    expect(grounded.phase).toBe('on_ground')
+    expect(grounded.lastLandingAt).toBeTruthy()
+    expect(radarRankPenalty(grounded)).toBeLessThan(radarRankPenalty(airborne))
   })
 })

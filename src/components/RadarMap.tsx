@@ -4,9 +4,9 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { FleetStatus } from '@/domain/fleetStatus'
 
 const COLOR: Record<string, string> = {
-  likely_rested: '#2E7D32',
-  rest_clock_running: '#C9A227',
-  unknown: '#8a8680',
+  airborne: '#C9A227',
+  on_ground: '#2E7D32',
+  no_data: '#8a8680',
 }
 
 export function RadarMap({
@@ -67,12 +67,12 @@ export function RadarMap({
         if (s.lat === 0 && s.lon === 0) continue
         const el = document.createElement('button')
         el.type = 'button'
-        el.title = `${s.tail} · ${s.rest}${s.laddBlocked ? ' · LADD' : ''}`
+        el.title = `${s.tail} · ${s.phase}${s.laddBlocked ? ' · no ADS-B' : ''}`
         el.style.width = '10px'
         el.style.height = '10px'
         el.style.borderRadius = '999px'
         el.style.border = s.laddBlocked ? '2px solid #C0392B' : '1px solid #0C0C0E'
-        el.style.background = COLOR[s.rest] ?? '#C9A227'
+        el.style.background = COLOR[s.phase] ?? '#C9A227'
         el.style.boxShadow = '0 0 0 1px rgba(201,162,39,0.35)'
         el.style.cursor = 'pointer'
         el.onclick = () => onSelect?.(s.tail)
@@ -81,16 +81,10 @@ export function RadarMap({
           .addTo(map)
         markers.push(marker)
       }
-      if (statuses.length) {
-        const bounds = new maplibregl.LngLatBounds()
-        for (const s of statuses) bounds.extend([s.lon, s.lat])
-        map.fitBounds(bounds, { padding: 48, maxZoom: 7 })
-      }
     }
 
-    if (map.isStyleLoaded()) paint()
+    if (map.loaded()) paint()
     else map.once('load', paint)
-
     return () => {
       for (const m of markers) m.remove()
     }
@@ -99,7 +93,7 @@ export function RadarMap({
   return (
     <div
       ref={containerRef}
-      className="h-[420px] w-full overflow-hidden rounded-lg border border-border"
+      className="h-72 w-full overflow-hidden rounded-lg border border-border bg-surface sm:h-96"
     />
   )
 }

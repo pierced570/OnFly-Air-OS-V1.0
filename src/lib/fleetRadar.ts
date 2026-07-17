@@ -1,48 +1,41 @@
-import type { AdsbPosition } from '@/adapters/adsb'
 import { createAdsbAdapter } from '@/adapters/adsb'
 import { deriveFleetStatus, type FleetStatus } from '@/domain/fleetStatus'
 import { lookupAirport } from '@/domain/airports'
-import { loadNetwork } from '@/lib/networkData'
+import { listWatchedTails } from '@/lib/watchedTailsStore'
 
-export type EnrichedPosition = AdsbPosition & {
-  laddBlocked?: boolean
-  lastFlewAt?: string | null
-}
-
-/** Load trial tails (~20) with bases and derive fleet_status chips. */
-export async function loadFleetStatuses(limit = 20): Promise<FleetStatus[]> {
-  const net = await loadNetwork()
-  const aircraft = net.aircraft
-    .filter((a) => a.active && !a.tail.startsWith('TBD'))
-    .slice(0, limit)
+/** Load all watched tails (network + D085) with ADS-B positions. */
+export async function loadFleetStatuses(_limit = 500): Promise<FleetStatus[]> {
+  const watched = listWatchedTails()
+  if (!watched.length) return []
 
   const adsb = createAdsbAdapter()
-  const positions = (await adsb.positions(
-    aircraft.map((a) => a.tail),
-  )) as EnrichedPosition[]
+  const positions = await adsb.positions(watched.map((w) => w.tail))
+  const byTail = new Map(positions.map((p) => [p.tail.toUpperCase(), p]))
 
-  const byTail = new Map(positions.map((p) => [p.tail, p]))
-  return aircraft.map((a) => {
-    const pos = byTail.get(a.tail)
-    const baseAp = a.base_icao ? lookupAirport(a.base_icao) : null
+  return watched.map((w) => {
+    const pos = byTail.get(w.tail.toUpperCase())
+    const baseAp = w.base_icao ? lookupAirport(w.base_icao) : null
     if (!pos) {
       return deriveFleetStatus({
         position: {
-          tail: a.tail,
+          tail: w.tail,
           lat: baseAp?.lat ?? 0,
           lon: baseAp?.lon ?? 0,
           alt: 0,
           gs: 0,
           seenAt: new Date(0).toISOString(),
           laddBlocked: true,
-          lastFlewAt: null,
+          lastTakeoffAt: null,
+          lastLandingAt: null,
+          phase: 'no_data',
         },
         base: baseAp
           ? { lat: baseAp.lat, lon: baseAp.lon, icao: baseAp.icao }
           : null,
-        operator_name: a.operator_name,
-        type_name: a.type_name,
-        base_icao: a.base_icao,
+        operator_name: w.operator_name,
+        type_name: w.type_name,
+        base_icao: w.base_icao,
+        source: w.source,
       })
     }
     return deriveFleetStatus({
@@ -50,9 +43,10 @@ export async function loadFleetStatuses(limit = 20): Promise<FleetStatus[]> {
       base: baseAp
         ? { lat: baseAp.lat, lon: baseAp.lon, icao: baseAp.icao }
         : null,
-      operator_name: a.operator_name,
-      type_name: a.type_name,
-      base_icao: a.base_icao,
+      operator_name: w.operator_name,
+      type_name: w.type_name,
+      base_icao: w.base_icao,
+      source: w.source,
     })
   })
 }
@@ -60,7 +54,14 @@ export async function loadFleetStatuses(limit = 20): Promise<FleetStatus[]> {
 export async function fleetStatusByTail(
   tails: string[],
 ): Promise<Map<string, FleetStatus>> {
-  const all = await loadFleetStatuses(Math.max(20, tails.length))
+  const all = await loadFleetStatuses()
   const map = new Map(all.map((s) => [s.tail, s]))
+  // ensure requested tails present even if not watched yet
+  for (const t of tails) {
+    if (!map.has(t)) {
+      const hit = all.find((s) => s.tail.toUpperCase() === t.toUpperCase())
+      if (hit) map.set(t, hit)
+    }
+  }
   return map
 }

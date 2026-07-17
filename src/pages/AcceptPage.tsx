@@ -7,6 +7,7 @@ export default function AcceptPage() {
   const { token } = useParams()
   const trip = useMemo(() => (token ? getTripByAcceptToken(token) : null), [token])
   const [accepted, setAccepted] = useState(false)
+  const [etaCount, setEtaCount] = useState(0)
 
   if (!trip || !trip.hard_quote) {
     return (
@@ -37,16 +38,31 @@ export default function AcceptPage() {
         )}
 
         {accepted ? (
-          <div className="rounded-md border border-onplan/40 bg-onplan/10 p-4 text-onplan">
-            Accepted{hq.disclosure_at ? ` · disclosure logged ${hq.disclosure_at}` : ''}.
-            Confirmations are going out.
+          <div className="space-y-2 rounded-md border border-onplan/40 bg-onplan/10 p-4 text-onplan">
+            <p>
+              Accepted{hq.disclosure_at ? ` · disclosure logged ${hq.disclosure_at}` : ''}.
+            </p>
+            <p className="text-sm text-muted">
+              Selected operator confirmed; other offers stood down (SMS).
+              {etaCount > 0
+                ? ` ETA sheet + track link sent to ${etaCount} ops / supply-chain contact${etaCount === 1 ? '' : 's'}.`
+                : ' No tracker emails on file — ETA sheet skipped.'}{' '}
+              Invoice to AP is manual until QuickBooks is wired.
+            </p>
           </div>
         ) : (
           <button
             type="button"
             className="w-full rounded-md bg-gold py-3 font-medium text-ink"
             onClick={() =>
-              void acceptHardQuote(token!).then(() => setAccepted(true))
+              void acceptHardQuote(token!).then((t) => {
+                const sent = t.events.filter((e) => e.kind === 'eta_sheet_sent').at(-1)
+                const n = Array.isArray(sent?.payload?.recipients)
+                  ? (sent!.payload.recipients as string[]).length
+                  : 0
+                setEtaCount(n)
+                setAccepted(true)
+              })
             }
           >
             Accept quote

@@ -156,7 +156,7 @@ export async function acceptHardQuote(token: string) {
   await comms.send({
     channel: 'sms',
     to: '+1555CLIENT',
-    body: `OnFly booked ${fresh.lane}. Tracker coming soon.`,
+    body: `OnFly booked ${fresh.lane}. ETA sheet going to ops contacts.`,
   })
   const selected = fresh.offers.find((o) => o.state === 'selected')
   if (selected) {
@@ -185,9 +185,14 @@ export async function acceptHardQuote(token: string) {
       at: new Date().toISOString(),
       actor: 'system',
       kind: 'create_thread',
-      payload: { queued: true, note: 'Chunk 4' },
+      payload: { queued: true },
     })
   })
+
+  // ETA sheet + portal track links → tracker / supply-chain (no QB invoice here)
+  const { runOnBookedAutomations } = await import('@/lib/onBooked')
+  await runOnBookedAutomations(trip.id)
+
   return getTrip(trip.id)!
 }
 

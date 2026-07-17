@@ -330,6 +330,23 @@ export function listInvoiceEmails(clientId: string): string[] {
   return cl.invoice_email ? [cl.invoice_email.toLowerCase()] : []
 }
 
+/**
+ * Emails that get ETA sheets + portal trackers (supply chain / tracker flag).
+ * Never includes AP-only contacts unless they also have tracker on.
+ */
+export function listTrackerEmails(clientId: string): string[] {
+  const cl = clients.get(clientId)
+  if (!cl) return []
+  const out = cl.contacts
+    .filter(
+      (c) =>
+        c.email &&
+        (c.notify_prefs.tracker || c.role === 'supply_chain'),
+    )
+    .map((c) => c.email.toLowerCase())
+  return [...new Set(out)]
+}
+
 export function rememberEmailsOnClient(
   clientId: string,
   invoiceEmail: string,

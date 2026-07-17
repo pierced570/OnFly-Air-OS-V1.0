@@ -183,8 +183,10 @@ export default function QuickDispatchPage() {
         })),
       })
 
-      // Draft ETA sheet + portal tracking links + CC contacts (mock email).
-      const recipients = [invoiceEmail, ...ccList]
+      // ETA + track links → tracker / supply-chain / CC (not AP invoice email).
+      const { listTrackerEmails } = await import('@/lib/clientStore')
+      const trackerFromClient = listTrackerEmails(client.id)
+      const recipients = [...trackerFromClient, ...ccList]
       if (recipients.some((r) => r.trim().includes('@'))) {
         await sendQuickDispatchEtaSheetAndPortalLinks({ trip, recipients })
       }

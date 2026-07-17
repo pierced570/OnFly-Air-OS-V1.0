@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
-import { RestChip } from '@/components/RestChip'
+import { FlightChip } from '@/components/FlightChip'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
 import { loadNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
@@ -120,8 +120,8 @@ export default function NetworkPage() {
                         <td className="avionic px-4 py-2 text-muted">{a.base_icao ?? '—'}</td>
                         <td className="px-4 py-2">
                           {st ? (
-                            <RestChip
-                              rest={st.rest}
+                            <FlightChip
+                              phase={st.phase}
                               inPosition={st.inPositionOfBase}
                               laddBlocked={st.laddBlocked}
                             />

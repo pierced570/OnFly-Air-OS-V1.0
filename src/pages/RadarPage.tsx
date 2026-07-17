@@ -1,28 +1,53 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { createWxAdapter } from '@/adapters/wx'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
 import type { FleetStatus } from '@/domain/fleetStatus'
-import { RestChip } from '@/components/RestChip'
+import { FlightChip } from '@/components/FlightChip'
 import { RadarMap } from '@/components/RadarMap'
-import { scorecards } from '@/lib/scorecards'
+import {
+  listWatchedTails,
+  subscribeWatchedTails,
+} from '@/lib/watchedTailsStore'
 
-type Filter = 'all' | 'rested' | 'airborne' | 'in_position' | 'ladd'
+type Filter = 'all' | 'airborne' | 'on_ground' | 'no_data' | 'd085'
+
+function fmtWhen(iso: string | null): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toISOString().replace('.000Z', 'Z')
+  } catch {
+    return '—'
+  }
+}
 
 export default function RadarPage() {
+  const watched = useSyncExternalStore(
+    subscribeWatchedTails,
+    listWatchedTails,
+    () => [],
+  )
   const [statuses, setStatuses] = useState<FleetStatus[]>([])
   const [wx, setWx] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<string | null>(null)
   const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    void (async () => {
-      setStatuses(await loadFleetStatuses(20))
+  async function refresh() {
+    setBusy(true)
+    try {
+      setStatuses(await loadFleetStatuses())
       const brief = await createWxAdapter().brief('KCAK')
       setWx(brief.summary)
-    })()
-  }, [])
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [watched.length])
 
   const filtered = useMemo(() => {
     return statuses.filter((s) => {
@@ -34,15 +59,16 @@ export default function RadarPage() {
           (s.type_name ?? '').toLowerCase().includes(needle)
         if (!hit) return false
       }
-      if (filter === 'rested') return s.rest === 'likely_rested'
-      if (filter === 'airborne') return s.rest === 'rest_clock_running' && s.gs > 50
-      if (filter === 'in_position') return s.inPositionOfBase
-      if (filter === 'ladd') return s.laddBlocked
+      if (filter === 'airborne') return s.phase === 'airborne'
+      if (filter === 'on_ground') return s.phase === 'on_ground'
+      if (filter === 'no_data') return s.phase === 'no_data' || s.laddBlocked
+      if (filter === 'd085') return s.source === 'd085'
       return true
     })
   }, [statuses, filter, q])
 
   const selectedStatus = statuses.find((s) => s.tail === selected) ?? null
+  const d085Count = watched.filter((w) => w.source === 'd085').length
 
   return (
     <div className="flex flex-col gap-6 p-8">
@@ -50,22 +76,35 @@ export default function RadarPage() {
         <div>
           <h1 className="text-2xl font-semibold text-cream">Fleet Radar</h1>
           <p className="mt-1 text-sm text-muted">
-            {statuses.length} tails · rest chips are advisory (not a 135.267 determination)
+            {watched.length} watched tails
+            {d085Count ? ` · ${d085Count} from D085 uploads` : ''}
+            {' · '}
+            last takeoff / landing from ADS-B
           </p>
         </div>
-        <Link to="/briefing" className="text-sm text-gold hover:text-gold-lt">
-          Shift briefing →
-        </Link>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            className="text-sm text-gold"
+            disabled={busy}
+            onClick={() => void refresh()}
+          >
+            {busy ? 'Refreshing…' : 'Refresh ADS-B'}
+          </button>
+          <Link to="/admin" className="text-sm text-muted hover:text-cream">
+            Upload D085 →
+          </Link>
+        </div>
       </header>
 
       <div className="flex flex-wrap items-center gap-2">
         {(
           [
             ['all', 'All'],
-            ['rested', 'Rested'],
             ['airborne', 'Airborne'],
-            ['in_position', 'In position'],
-            ['ladd', 'LADD'],
+            ['on_ground', 'On ground'],
+            ['no_data', 'No ADS-B'],
+            ['d085', 'D085 watch'],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -99,39 +138,41 @@ export default function RadarPage() {
               <div className="avionic text-gold">{selectedStatus.tail}</div>
               <div className="text-muted">{selectedStatus.operator_name}</div>
               <div className="mt-2">
-                <RestChip
-                  rest={selectedStatus.rest}
+                <FlightChip
+                  phase={selectedStatus.phase}
                   inPosition={selectedStatus.inPositionOfBase}
                   laddBlocked={selectedStatus.laddBlocked}
                 />
               </div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <dt className="text-muted">Last takeoff</dt>
+                  <dd className="avionic text-cream">
+                    {fmtWhen(selectedStatus.lastTakeoffAt)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Last landing</dt>
+                  <dd className="avionic text-cream">
+                    {fmtWhen(selectedStatus.lastLandingAt)}
+                  </dd>
+                </div>
+              </dl>
             </div>
           )}
         </section>
 
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">
-            Operator scorecards
+            Watch sources
           </h2>
-          {scorecards.operators.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">
-              No response history yet — fills in as you run offers.
-            </p>
-          ) : (
-            <ul className="mt-2 space-y-2 text-sm">
-              {scorecards.operators.slice(0, 5).map((o) => (
-                <li
-                  key={o.name}
-                  className="flex items-center justify-between border-b border-border/40 pb-2"
-                >
-                  <span className="text-cream">{o.name}</span>
-                  <span className="avionic text-xs text-muted">
-                    {o.median_response_min}m · {o.response_rate_pct}% reply
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <p className="mt-2 text-sm text-muted">
+            Network import tails are watched automatically. Confirming a D085 in
+            Admin adds those N-numbers to this radar and keeps takeoff/landing logs.
+          </p>
+          <Link to="/admin" className="mt-3 inline-block text-xs text-gold">
+            Add operator / D085 →
+          </Link>
         </section>
       </div>
 
@@ -152,12 +193,16 @@ export default function RadarPage() {
               <span className="avionic text-gold">{p.tail}</span>
               <span className="ml-2 text-muted">
                 {p.type_name} · {p.operator_name}
+                {p.source === 'd085' ? ' · D085' : ''}
               </span>
+              <div className="mt-0.5 text-[11px] text-muted">
+                TO {fmtWhen(p.lastTakeoffAt)} · LDG {fmtWhen(p.lastLandingAt)}
+              </div>
             </button>
             <div className="flex items-center gap-3">
               <span className="avionic text-xs text-muted">{p.gs} kt</span>
-              <RestChip
-                rest={p.rest}
+              <FlightChip
+                phase={p.phase}
                 inPosition={p.inPositionOfBase}
                 laddBlocked={p.laddBlocked}
               />
