@@ -29,11 +29,14 @@ export type IntakeDraft = {
 const drafts = new Map<string, IntakeDraft>()
 const listeners = new Set<() => void>()
 let snapshot: IntakeDraft[] = []
+/** Stable filtered view for useSyncExternalStore */
+let pendingSnapshot: IntakeDraft[] = []
 
 function rebuild() {
   snapshot = [...drafts.values()].sort((a, b) =>
     b.created_at.localeCompare(a.created_at),
   )
+  pendingSnapshot = snapshot.filter((d) => d.status === 'pending_review')
 }
 
 function bump() {
@@ -53,7 +56,7 @@ export function listIntakeDrafts(): IntakeDraft[] {
 }
 
 export function listPendingIntake(): IntakeDraft[] {
-  return snapshot.filter((d) => d.status === 'pending_review')
+  return pendingSnapshot
 }
 
 export function getIntakeDraft(id: string): IntakeDraft | undefined {

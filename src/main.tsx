@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import { App } from './App'
+import { AppErrorBoundary } from '@/components/AppErrorBoundary'
 import { hydrateOperatingData } from '@/lib/db/hydrate'
 
 void hydrateOperatingData().then((r) => {
@@ -15,8 +16,10 @@ void hydrateOperatingData().then((r) => {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <AppErrorBoundary>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </AppErrorBoundary>
   </StrictMode>,
 )

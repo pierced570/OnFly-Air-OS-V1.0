@@ -20,12 +20,15 @@ export type NeedsInfoTask = {
 const tasks = new Map<string, NeedsInfoTask>()
 const listeners = new Set<() => void>()
 let snapshot: NeedsInfoTask[] = []
+/** Stable filtered view for useSyncExternalStore */
+let openSnapshot: NeedsInfoTask[] = []
 
 function rebuild() {
   snapshot = [...tasks.values()].sort((a, b) => {
     if (a.status !== b.status) return a.status === 'open' ? -1 : 1
     return b.created_at.localeCompare(a.created_at)
   })
+  openSnapshot = snapshot.filter((t) => t.status === 'open')
 }
 
 function bump() {
@@ -70,7 +73,7 @@ export function listNeedsInfoTasks(): NeedsInfoTask[] {
 }
 
 export function listOpenNeedsInfo(): NeedsInfoTask[] {
-  return snapshot.filter((t) => t.status === 'open')
+  return openSnapshot
 }
 
 export function addNeedsInfoTask(
