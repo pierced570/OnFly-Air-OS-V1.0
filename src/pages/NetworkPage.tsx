@@ -38,6 +38,9 @@ import {
 import { subscribeTrips, listTripsStable } from '@/lib/tripStore'
 import { lookupAirport } from '@/domain/airports'
 import { haversineNm } from '@/domain/geo'
+import { parseDims } from '@/domain/dimsParser'
+import { rankOperatorsForMission } from '@/domain/missionFit'
+import { loadFleetForMissionFit } from '@/lib/fleetRouting'
 import {
   VERTICAL_IDS,
   VERTICAL_LABELS,
@@ -68,12 +71,16 @@ export default function NetworkPage() {
   )
   const [q, setQ] = useState('')
   const [originIcao, setOriginIcao] = useState('')
+  const [cargoDims, setCargoDims] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [expandedDocs, setExpandedDocs] = useState<string | null>(null)
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null)
   const [coiNote, setCoiNote] = useState<string | null>(null)
   const [view, setView] = useState<ViewMode>('board')
   const [adsbBusy, setAdsbBusy] = useState(false)
+  const [missionFleet, setMissionFleet] = useState<
+    Awaited<ReturnType<typeof loadFleetForMissionFit>>
+  >([])
   const [visibleVerticals, setVisibleVerticals] = useState<Set<VerticalId>>(
     () => new Set(VERTICAL_IDS),
   )
@@ -115,6 +122,7 @@ export default function NetworkPage() {
         setError(e instanceof Error ? e.message : String(e)),
       )
     void refreshAdsb()
+    void loadFleetForMissionFit().then(setMissionFleet)
     void runCoiExpiryReminders().then((r) => {
       if (r.sentTo.length) {
         setCoiNote(
@@ -199,6 +207,42 @@ export default function NetworkPage() {
     return lookupAirport(code)
   }, [originIcao])
 
+  const dimsParsed = useMemo(() => parseDims(cargoDims), [cargoDims])
+  const missionPieces = dimsParsed.pieces
+
+  const missionRank = useMemo(() => {
+    if (!missionPieces.length || !missionFleet.length) return []
+    const origin = originAp
+      ? { lat: originAp.lat, lon: originAp.lon }
+      : null
+    return rankOperatorsForMission(missionFleet, missionPieces, origin)
+  }, [missionPieces, missionFleet, originAp])
+
+  const fitByOperator = useMemo(() => {
+    const m = new Map<
+      string,
+      {
+        score: number
+        door: 'fits' | 'no_fit' | 'unknown'
+        hard_fail: boolean
+        label?: 'best_fit' | 'closest' | 'best_payload'
+        reasons: string[]
+        nm_from_origin: number | null
+      }
+    >()
+    for (const r of missionRank) {
+      m.set(r.operator_id, {
+        score: r.best.score,
+        door: r.best.door,
+        hard_fail: r.best.hard_fail,
+        label: r.label,
+        reasons: r.best.reasons,
+        nm_from_origin: r.nm_from_origin,
+      })
+    }
+    return m
+  }, [missionRank])
+
   const board = useMemo(() => {
     return buildVerticalBoard({
       operators: bundles.map((b) => b.op),
@@ -211,8 +255,14 @@ export default function NetworkPage() {
         const ap = lookupAirport(icao)
         return ap ? { lat: ap.lat, lon: ap.lon } : null
       },
+      fitByOperator: missionPieces.length ? fitByOperator : undefined,
     })
-  }, [bundles, originAp])
+  }, [bundles, originAp, fitByOperator, missionPieces.length])
+
+  const topPicks = useMemo(
+    () => missionRank.filter((r) => !r.best.hard_fail).slice(0, 5),
+    [missionRank],
+  )
 
   const visibleColumns = useMemo(
     () => board.filter((c) => visibleVerticals.has(c.id)),
@@ -296,27 +346,84 @@ export default function NetworkPage() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          value={originIcao}
-          onChange={(e) => setOriginIcao(e.target.value.toUpperCase())}
-          placeholder="Origin ICAO — rank every vertical by distance"
-          className="min-w-[280px] flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-cream placeholder:text-muted outline-none focus:border-gold avionic"
-        />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Filter operator / tail / type…"
-          className="w-56 rounded-md border border-border bg-surface px-3 py-2 text-sm text-cream placeholder:text-muted outline-none focus:border-gold"
-        />
-        <button
-          type="button"
-          disabled={adsbBusy}
-          onClick={() => void refreshAdsb()}
-          className="rounded-md border border-gold/40 px-3 py-2 text-xs text-gold hover:bg-gold/10 disabled:opacity-50"
-        >
-          {adsbBusy ? 'Refreshing…' : 'Refresh ADS-B'}
-        </button>
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+        <div className="text-xs uppercase tracking-wider text-muted">
+          Mission fit
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            value={originIcao}
+            onChange={(e) => setOriginIcao(e.target.value.toUpperCase())}
+            placeholder="Origin ICAO (e.g. KCAK)"
+            className="w-40 rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream placeholder:text-muted outline-none focus:border-gold avionic"
+          />
+          <input
+            value={cargoDims}
+            onChange={(e) => setCargoDims(e.target.value)}
+            placeholder='Cargo dims — e.g. 3 skids 48x40x60 @ 800ea'
+            className="min-w-[280px] flex-1 rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream placeholder:text-muted outline-none focus:border-gold"
+          />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Filter name / tail…"
+            className="w-48 rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream placeholder:text-muted outline-none focus:border-gold"
+          />
+          <button
+            type="button"
+            disabled={adsbBusy}
+            onClick={() => void refreshAdsb()}
+            className="rounded-md border border-gold/40 px-3 py-2 text-xs text-gold hover:bg-gold/10 disabled:opacity-50"
+          >
+            {adsbBusy ? 'Refreshing…' : 'Refresh ADS-B'}
+          </button>
+        </div>
+        {cargoDims.trim() && (
+          <p className="text-xs text-muted">
+            Parsed {missionPieces.length} piece line
+            {missionPieces.length === 1 ? '' : 's'}
+            {dimsParsed.confidence !== 'high'
+              ? ` · confidence ${dimsParsed.confidence}`
+              : ''}
+            {originAp
+              ? ` · ranking from ${originAp.icao}`
+              : ' · add origin ICAO to score closest'}
+            . Door dims from type specs; missing door = flagged, not dropped.
+          </p>
+        )}
+        {topPicks.length > 0 && (
+          <ol className="flex flex-wrap gap-2">
+            {topPicks.map((p, i) => (
+              <li key={p.operator_id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedOpId(p.operator_id)
+                    setView('board')
+                  }}
+                  className="rounded-md border border-gold/40 bg-gold/10 px-3 py-1.5 text-left text-xs text-cream hover:bg-gold/20"
+                >
+                  <span className="avionic text-gold">{i + 1}.</span>{' '}
+                  {p.operator_name}
+                  {p.label === 'best_fit' && (
+                    <span className="ml-1 text-gold">best fit</span>
+                  )}
+                  {p.label === 'closest' && (
+                    <span className="ml-1 text-gold">closest</span>
+                  )}
+                  {p.nm_from_origin != null && (
+                    <span className="ml-1 avionic text-muted">
+                      {p.nm_from_origin} NM
+                    </span>
+                  )}
+                  <span className="ml-1 text-muted">
+                    · {p.best.type_name ?? p.best.tail}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
 
       {view === 'board' && (
@@ -449,16 +556,20 @@ function VerticalCard({
   selected: boolean
   onSelect: () => void
 }) {
+  const fail = Boolean(card.fit_hard_fail)
   return (
     <li>
       <button
         type="button"
         onClick={onSelect}
+        title={card.fit_reasons?.join(' · ') || undefined}
         className={[
           'w-full rounded-md border px-3 py-3 text-left transition-colors',
           selected
             ? 'border-gold bg-gold/10'
-            : 'border-border/80 bg-ink/40 hover:border-gold/40',
+            : fail
+              ? 'border-border/50 bg-ink/20 opacity-60 hover:opacity-90'
+              : 'border-border/80 bg-ink/40 hover:border-gold/40',
         ].join(' ')}
       >
         <div className="flex items-start gap-2.5">
@@ -466,8 +577,30 @@ function VerticalCard({
             {rank}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium text-cream">
-              {card.operator_name}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="truncate text-sm font-medium text-cream">
+                {card.operator_name}
+              </span>
+              {card.fit_label === 'best_fit' && (
+                <span className="rounded border border-gold/40 bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gold">
+                  best fit
+                </span>
+              )}
+              {card.fit_label === 'closest' && (
+                <span className="rounded border border-onplan/40 bg-onplan/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-onplan">
+                  closest
+                </span>
+              )}
+              {card.fit_door === 'unknown' && !fail && (
+                <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">
+                  door?
+                </span>
+              )}
+              {fail && (
+                <span className="rounded border border-late/40 bg-late/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-late">
+                  no fit
+                </span>
+              )}
             </div>
             <div className="mt-0.5 truncate text-xs text-muted">
               {typesLine(card.types)}

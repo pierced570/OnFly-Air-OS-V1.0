@@ -99,6 +99,12 @@ export type OperatorVerticalCard = {
   aircraft_count: number
   nm_from_origin: number | null
   vertical: VerticalId
+  /** Mission fit (lower better) when cargo dims provided */
+  fit_score?: number | null
+  fit_door?: 'fits' | 'no_fit' | 'unknown' | null
+  fit_hard_fail?: boolean
+  fit_label?: 'best_fit' | 'closest' | 'best_payload' | null
+  fit_reasons?: string[]
 }
 
 export type VerticalColumn = {
@@ -136,6 +142,18 @@ export function buildVerticalBoard(opts: {
     lon2: number,
   ) => number
   lookupBase?: (icao: string) => { lat: number; lon: number } | null
+  /** Optional mission-fit rows keyed by operator_id */
+  fitByOperator?: Map<
+    string,
+    {
+      score: number
+      door: 'fits' | 'no_fit' | 'unknown'
+      hard_fail: boolean
+      label?: 'best_fit' | 'closest' | 'best_payload'
+      reasons: string[]
+      nm_from_origin: number | null
+    }
+  >
 }): VerticalColumn[] {
   const byOp = new Map(opts.operators.map((o) => [o.id, o]))
   const buckets = new Map<
@@ -143,6 +161,7 @@ export function buildVerticalBoard(opts: {
     Map<string, OperatorVerticalCard>
   >()
   for (const id of VERTICAL_IDS) buckets.set(id, new Map())
+  const fitMap = opts.fitByOperator
 
   for (const ac of opts.aircraft) {
     const op = byOp.get(ac.operator_id)
@@ -160,6 +179,7 @@ export function buildVerticalBoard(opts: {
           )
         }
       }
+      const fit = fitMap?.get(op.id)
       card = {
         operator_id: op.id,
         operator_name: op.name,
@@ -167,8 +187,13 @@ export function buildVerticalBoard(opts: {
         types: [],
         tails: [],
         aircraft_count: 0,
-        nm_from_origin: nm,
+        nm_from_origin: fit?.nm_from_origin ?? nm,
         vertical: vid,
+        fit_score: fit?.score ?? null,
+        fit_door: fit?.door ?? null,
+        fit_hard_fail: fit?.hard_fail ?? false,
+        fit_label: fit?.label ?? null,
+        fit_reasons: fit?.reasons ?? [],
       }
       col.set(op.id, card)
     }
@@ -178,8 +203,18 @@ export function buildVerticalBoard(opts: {
     if (t && !card.types.includes(t)) card.types.push(t)
   }
 
+  const useFit = Boolean(fitMap?.size)
+
   return VERTICAL_IDS.map((id) => {
     const ops = [...(buckets.get(id)?.values() ?? [])].sort((a, b) => {
+      if (useFit) {
+        const ah = a.fit_hard_fail ? 1 : 0
+        const bh = b.fit_hard_fail ? 1 : 0
+        if (ah !== bh) return ah - bh
+        const as = a.fit_score ?? 999
+        const bs = b.fit_score ?? 999
+        if (as !== bs) return as - bs
+      }
       const an = a.nm_from_origin
       const bn = b.nm_from_origin
       if (an != null && bn != null && an !== bn) return an - bn
