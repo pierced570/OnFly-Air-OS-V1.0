@@ -34,7 +34,7 @@ export default function BoardPage() {
   }, [trips])
 
   return (
-    <div className="flex min-h-full flex-col gap-6 p-8 lg:flex-row">
+    <div className="flex min-h-full flex-col gap-6 p-4 sm:p-6 lg:flex-row lg:p-8">
       <aside className="w-full shrink-0 space-y-3 lg:w-80">
         <h2 className="text-xs uppercase tracking-wider text-gold">Exception queue</h2>
         {exceptions.length === 0 && (

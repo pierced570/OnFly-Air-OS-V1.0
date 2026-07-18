@@ -149,7 +149,7 @@ export default function NewTripPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-8">
+    <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
       <header className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-gold">Intake</div>

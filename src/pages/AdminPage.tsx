@@ -49,7 +49,7 @@ export default function AdminPage() {
   const [kind, setKind] = useState<WizardKind>('operator')
 
   return (
-    <div className="flex flex-col gap-6 p-8">
+    <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
       <header>
         <h1 className="text-2xl font-semibold text-cream">Admin wizards</h1>
         <p className="mt-1 text-sm text-muted">

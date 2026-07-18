@@ -41,6 +41,13 @@ Updated as we convert mocks → durable/live paths.
 - After **3 completed trips** → flag + **Named insurer** toggle
 - Migration `0006_operator_compliance.sql` — `operators.named_insurer`
 
+## Network vertical board + mission fit + mobile
+
+- `/network` board/list toggle; category column pills; origin NM rank
+- Mission fit from cargo dims + door/payload/distance; top picks strip
+- Mobile: hamburger DispatchShell, snap-scroll board columns, stacked tail cards
+- Page padding tightened across dispatcher routes
+
 ## Storage + portal (this pass)
 
 - Migration `0007_storage_buckets.sql` — private `operator-docs` + `trip-docs`

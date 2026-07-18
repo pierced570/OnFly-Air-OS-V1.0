@@ -57,7 +57,7 @@ export default function IntakeReviewPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 sm:gap-6 sm:p-8">
       <header>
         <div className="text-xs uppercase tracking-[0.2em] text-gold">
           Intake review

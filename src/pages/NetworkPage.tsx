@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type Dispatch,
@@ -84,6 +85,7 @@ export default function NetworkPage() {
   const [visibleVerticals, setVisibleVerticals] = useState<Set<VerticalId>>(
     () => new Set(VERTICAL_IDS),
   )
+  const detailRef = useRef<HTMLDivElement | null>(null)
 
   const complianceRows = useSyncExternalStore(
     subscribeOperatorCompliance,
@@ -278,6 +280,11 @@ export default function NetworkPage() {
 
   const selectedBundle = bundles.find((b) => b.op.id === selectedOpId) ?? null
 
+  useEffect(() => {
+    if (!selectedOpId || !detailRef.current) return
+    detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [selectedOpId])
+
   function toggleVertical(id: VerticalId) {
     setVisibleVerticals((prev) => {
       const next = new Set(prev)
@@ -288,17 +295,17 @@ export default function NetworkPage() {
   }
 
   if (error) {
-    return <div className="p-8 text-late">Failed to load network: {error}</div>
+    return <div className="p-4 text-late sm:p-8">Failed to load network: {error}</div>
   }
   if (!data) {
-    return <div className="p-8 text-muted">Loading network…</div>
+    return <div className="p-4 text-muted sm:p-8">Loading network…</div>
   }
 
   return (
-    <div className="flex flex-col gap-5 p-6 lg:p-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-cream">Network</h1>
+    <div className="flex flex-col gap-4 p-4 sm:gap-5 sm:p-6 lg:p-8">
+      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-cream sm:text-2xl">Network</h1>
           <p className="mt-1 text-sm text-muted">
             <span className="avionic text-cream">{data.counts.operators}</span>{' '}
             operators ·{' '}
@@ -318,26 +325,26 @@ export default function NetworkPage() {
           {coiNote && <p className="mt-1 text-xs text-gold">{coiNote}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-md border border-border bg-surface p-0.5">
+          <div className="flex w-full rounded-md border border-border bg-surface p-0.5 sm:w-auto">
             <button
               type="button"
               onClick={() => setView('board')}
               className={[
-                'rounded px-3 py-1.5 text-xs font-medium',
+                'flex-1 rounded px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
                 view === 'board' ? 'bg-gold text-ink' : 'text-muted hover:text-cream',
               ].join(' ')}
             >
-              Vertical board
+              Board
             </button>
             <button
               type="button"
               onClick={() => setView('list')}
               className={[
-                'rounded px-3 py-1.5 text-xs font-medium',
+                'flex-1 rounded px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
                 view === 'list' ? 'bg-gold text-ink' : 'text-muted hover:text-cream',
               ].join(' ')}
             >
-              Scroll list
+              List
             </button>
           </div>
           <Link to="/admin" className="text-sm text-gold hover:text-gold-lt">
@@ -346,34 +353,36 @@ export default function NetworkPage() {
         </div>
       </header>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:p-4">
         <div className="text-xs uppercase tracking-wider text-muted">
           Mission fit
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_1fr_10rem_auto] lg:items-center lg:gap-3">
           <input
             value={originIcao}
             onChange={(e) => setOriginIcao(e.target.value.toUpperCase())}
-            placeholder="Origin ICAO (e.g. KCAK)"
-            className="w-40 rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream placeholder:text-muted outline-none focus:border-gold avionic"
+            placeholder="Origin ICAO"
+            inputMode="text"
+            autoCapitalize="characters"
+            className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold avionic sm:py-2"
           />
           <input
             value={cargoDims}
             onChange={(e) => setCargoDims(e.target.value)}
-            placeholder='Cargo dims — e.g. 3 skids 48x40x60 @ 800ea'
-            className="min-w-[280px] flex-1 rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream placeholder:text-muted outline-none focus:border-gold"
+            placeholder="Cargo dims — 3 skids 48x40x60 @ 800ea"
+            className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold sm:col-span-2 sm:py-2 lg:col-span-1"
           />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Filter name / tail…"
-            className="w-48 rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream placeholder:text-muted outline-none focus:border-gold"
+            className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold sm:py-2"
           />
           <button
             type="button"
             disabled={adsbBusy}
             onClick={() => void refreshAdsb()}
-            className="rounded-md border border-gold/40 px-3 py-2 text-xs text-gold hover:bg-gold/10 disabled:opacity-50"
+            className="w-full rounded-md border border-gold/40 px-3 py-2.5 text-xs text-gold hover:bg-gold/10 disabled:opacity-50 sm:w-auto sm:py-2"
           >
             {adsbBusy ? 'Refreshing…' : 'Refresh ADS-B'}
           </button>
@@ -392,19 +401,19 @@ export default function NetworkPage() {
           </p>
         )}
         {topPicks.length > 0 && (
-          <ol className="flex flex-wrap gap-2">
+          <ol className="scroll-touch -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
             {topPicks.map((p, i) => (
-              <li key={p.operator_id}>
+              <li key={p.operator_id} className="shrink-0 sm:shrink">
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedOpId(p.operator_id)
                     setView('board')
                   }}
-                  className="rounded-md border border-gold/40 bg-gold/10 px-3 py-1.5 text-left text-xs text-cream hover:bg-gold/20"
+                  className="max-w-[85vw] rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-left text-xs text-cream hover:bg-gold/20 sm:max-w-none sm:py-1.5"
                 >
                   <span className="avionic text-gold">{i + 1}.</span>{' '}
-                  {p.operator_name}
+                  <span className="font-medium">{p.operator_name}</span>
                   {p.label === 'best_fit' && (
                     <span className="ml-1 text-gold">best fit</span>
                   )}
@@ -428,17 +437,17 @@ export default function NetworkPage() {
 
       {view === 'board' && (
         <>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="scroll-touch -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             <button
               type="button"
-              className="rounded-md px-2.5 py-1 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
+              className="shrink-0 rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
               onClick={() => setVisibleVerticals(new Set(VERTICAL_IDS))}
             >
               All
             </button>
             <button
               type="button"
-              className="rounded-md px-2.5 py-1 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
+              className="shrink-0 rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
               onClick={() => setVisibleVerticals(new Set())}
             >
               None
@@ -452,7 +461,7 @@ export default function NetworkPage() {
                   type="button"
                   onClick={() => toggleVertical(id)}
                   className={[
-                    'rounded-md border px-2.5 py-1 text-[11px] transition-colors',
+                    'shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] transition-colors whitespace-nowrap',
                     on
                       ? 'border-gold/50 bg-gold/15 text-gold'
                       : 'border-border bg-surface text-muted',
@@ -474,11 +483,11 @@ export default function NetworkPage() {
               No verticals selected — turn one on above.
             </p>
           ) : (
-            <div className="flex gap-4 overflow-x-auto pb-2">
+            <div className="scroll-touch snap-x-mandatory -mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:gap-4 sm:px-0">
               {visibleColumns.map((col) => (
                 <section
                   key={col.id}
-                  className="flex w-[280px] shrink-0 flex-col rounded-lg border border-border bg-surface"
+                  className="snap-start flex w-[min(85vw,20rem)] shrink-0 flex-col rounded-lg border border-border bg-surface sm:w-[280px]"
                 >
                   <header className="border-b border-border px-4 py-3">
                     <h2 className="text-sm font-medium text-cream">
@@ -495,7 +504,7 @@ export default function NetworkPage() {
                       tails
                     </p>
                   </header>
-                  <ul className="max-h-[62vh] space-y-2 overflow-y-auto p-3">
+                  <ul className="max-h-[55vh] space-y-2 overflow-y-auto p-3 sm:max-h-[62vh]">
                     {col.operators.length === 0 && (
                       <li className="px-1 py-4 text-center text-xs text-muted">
                         No operators in this vertical
@@ -517,13 +526,15 @@ export default function NetworkPage() {
           )}
 
           {selectedBundle && (
-            <OperatorDetail
-              bundle={selectedBundle}
-              statusByTail={statusByTail}
-              expandedDocs={expandedDocs}
-              setExpandedDocs={setExpandedDocs}
-              onClose={() => setSelectedOpId(null)}
-            />
+            <div ref={detailRef}>
+              <OperatorDetail
+                bundle={selectedBundle}
+                statusByTail={statusByTail}
+                expandedDocs={expandedDocs}
+                setExpandedDocs={setExpandedDocs}
+                onClose={() => setSelectedOpId(null)}
+              />
+            </div>
           )}
         </>
       )}
@@ -754,7 +765,40 @@ function OperatorDetail({
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      {/* Mobile: stacked cards */}
+      <ul className="divide-y divide-border/60 sm:hidden">
+        {aircraft.map((a) => {
+          const st = statusByTail.get(a.tail)
+          return (
+            <li key={a.id} className="space-y-1.5 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="avionic text-gold">{a.tail}</span>
+                <NeedsInfoBadge count={a.needs_info.length} />
+              </div>
+              <div className="text-sm text-cream">{a.type_name ?? '—'}</div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                <span className="avionic">{a.base_icao ?? '—'}</span>
+                {a.cruise_kts != null && (
+                  <span className="avionic">{a.cruise_kts} kt</span>
+                )}
+                {a.mtow_lbs != null && (
+                  <span className="avionic">{a.mtow_lbs.toLocaleString()} lb</span>
+                )}
+              </div>
+              {st && (
+                <FlightChip
+                  phase={st.phase}
+                  inPosition={st.inPositionOfBase}
+                  laddBlocked={st.laddBlocked}
+                />
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      {/* Desktop table */}
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-surface-2 text-xs uppercase tracking-wider text-muted">
             <tr>

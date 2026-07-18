@@ -33,7 +33,7 @@ export default function AdminTasksPage() {
   }, [visible])
 
   return (
-    <div className="flex flex-col gap-6 p-8">
+    <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-cream">NEEDS-INFO tasks</h1>

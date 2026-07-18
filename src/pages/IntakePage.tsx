@@ -38,7 +38,7 @@ export default function IntakePage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-8 lg:flex-row">
+    <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:flex-row lg:p-8">
       <section className="w-full space-y-4 lg:w-[420px]">
         <header>
           <h1 className="text-2xl font-semibold text-cream">Intake simulator</h1>
