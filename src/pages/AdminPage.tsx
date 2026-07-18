@@ -71,6 +71,14 @@ export default function AdminPage() {
             NEEDS-INFO tasks
           </Link>
           {' · '}
+          <Link to="/admin/staff" className="text-gold hover:text-gold-lt">
+            Staff access
+          </Link>
+          {' · '}
+          <Link to="/admin/keys" className="text-gold hover:text-gold-lt">
+            Logins &amp; keys
+          </Link>
+          {' · '}
           <Link to="/onboard" className="text-gold hover:text-gold-lt">
             Public onboard form
           </Link>

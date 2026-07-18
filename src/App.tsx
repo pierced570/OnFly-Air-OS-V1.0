@@ -1,12 +1,15 @@
 import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DispatchShell } from '@/components/DispatchShell'
+import { StaffGate } from '@/components/StaffGate'
 
 const BoardPage = lazy(() => import('@/pages/BoardPage'))
 const NetworkPage = lazy(() => import('@/pages/NetworkPage'))
 const TripPage = lazy(() => import('@/pages/TripPage'))
 const AdminPage = lazy(() => import('@/pages/AdminPage'))
 const AdminTasksPage = lazy(() => import('@/pages/AdminTasksPage'))
+const StaffAccessPage = lazy(() => import('@/pages/StaffAccessPage'))
+const VaultKeysPage = lazy(() => import('@/pages/VaultKeysPage'))
 const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
 const QuotePreviewPage = lazy(() => import('@/pages/QuotePreviewPage'))
 const OffersPage = lazy(() => import('@/pages/OffersPage'))
@@ -68,6 +71,8 @@ export function App() {
         <Route path="/briefing" element={<BriefingPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/tasks" element={<AdminTasksPage />} />
+        <Route path="/admin/staff" element={<StaffAccessPage />} />
+        <Route path="/admin/keys" element={<VaultKeysPage />} />
         <Route path="/offer/:token" element={<OfferPublicPage />} />
         <Route path="/accept/:token" element={<AcceptPage />} />
         <Route path="/t/:legToken" element={<OneTapPage />} />
@@ -81,5 +86,9 @@ export function App() {
   )
 
   if (publicRoute) return routes
-  return <DispatchShell>{routes}</DispatchShell>
+  return (
+    <StaffGate>
+      <DispatchShell>{routes}</DispatchShell>
+    </StaffGate>
+  )
 }

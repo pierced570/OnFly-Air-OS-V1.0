@@ -50,11 +50,18 @@ Updated as we convert mocks → durable/live paths.
 
 ## Resend (live email path)
 
-- Edge: `supabase/functions/send-email` → Resend HTTP API
+- Edge: `supabase/functions/send-email` → Resend HTTP API (**deployed**)
 - Client: `VITE_EMAIL_ADAPTER=real` → `ResendEmailAdapter` → `functions.invoke('send-email')`
-- Secrets (Supabase only): `RESEND_API_KEY`, `EMAIL_FROM`
-- Deploy: `npm run deploy:send-email` (needs `SUPABASE_ACCESS_TOKEN` + Resend key in `.env`)
+- Secrets (Supabase only): `RESEND_API_KEY`, `EMAIL_FROM=OnFly Air <info@onflyair.com>`
+- Deploy: `npm run deploy:send-email`
 - Covers: operator invite, ETA sheet, COI expiry, quote preview send
+
+## Staff login + section ACL + Logins & keys
+
+- Gate: name + phone before any dispatcher route (public portal/offer/onboard unchanged)
+- Admin → **Staff access**: set phones + per-section toggles (admins get all)
+- Admin → **Logins & keys**: restricted vault; import `data/private/logins-keys.csv` (gitignored)
+- Seeded admin: Pierce Demetriades / 858-529-7860 — set others' phones after first login
 
 ## Network vertical board + mission fit + mobile
 

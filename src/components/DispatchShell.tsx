@@ -1,25 +1,41 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
+import type { StaffSectionId } from '@/domain/staffAccess'
+import {
+  getSession,
+  logoutStaff,
+  sessionCan,
+  subscribeStaff,
+} from '@/lib/staffStore'
 
-const nav = [
-  { to: '/', label: 'Board', end: true },
-  { to: '/quick-dispatch', label: 'Quick Dispatch' },
-  { to: '/intake', label: 'Intake' },
-  { to: '/financials', label: 'Financials' },
-  { to: '/clients', label: 'Clients' },
-  { to: '/fbos', label: 'FBOs' },
-  { to: '/trips/new', label: 'New trip' },
-  { to: '/network', label: 'Network' },
-  { to: '/radar', label: 'Radar' },
-  { to: '/briefing', label: 'Briefing' },
-  { to: '/admin', label: 'Admin' },
-  { to: '/admin/tasks', label: 'Tasks' },
+const nav: {
+  to: string
+  label: string
+  section: StaffSectionId
+  end?: boolean
+}[] = [
+  { to: '/', label: 'Board', section: 'board', end: true },
+  { to: '/quick-dispatch', label: 'Quick Dispatch', section: 'quick_dispatch' },
+  { to: '/intake', label: 'Intake', section: 'intake' },
+  { to: '/financials', label: 'Financials', section: 'financials' },
+  { to: '/clients', label: 'Clients', section: 'clients' },
+  { to: '/fbos', label: 'FBOs', section: 'fbos' },
+  { to: '/trips/new', label: 'New trip', section: 'trips' },
+  { to: '/network', label: 'Network', section: 'network' },
+  { to: '/radar', label: 'Radar', section: 'radar' },
+  { to: '/briefing', label: 'Briefing', section: 'briefing' },
+  { to: '/admin', label: 'Admin', section: 'admin' },
+  { to: '/admin/tasks', label: 'Tasks', section: 'tasks' },
+  { to: '/admin/staff', label: 'Staff access', section: 'staff_access' },
+  { to: '/admin/keys', label: 'Logins & keys', section: 'vault_keys' },
 ]
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+  useSyncExternalStore(subscribeStaff, getSession, () => null)
+  const visible = nav.filter((item) => sessionCan(item.section))
   return (
     <>
-      {nav.map((item) => (
+      {visible.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
@@ -44,6 +60,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 export function DispatchShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const loc = useLocation()
+  const session = useSyncExternalStore(subscribeStaff, getSession, () => null)
 
   useEffect(() => {
     setOpen(false)
@@ -63,7 +80,6 @@ export function DispatchShell({ children }: { children: ReactNode }) {
       className="flex h-full min-h-screen flex-col bg-ink text-cream md:flex-row"
       data-theme="dispatcher"
     >
-      {/* Mobile top bar */}
       <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-surface px-4 py-3 md:hidden">
         <button
           type="button"
@@ -99,7 +115,7 @@ export function DispatchShell({ children }: { children: ReactNode }) {
             OnFly
           </div>
           <div className="truncate text-sm font-semibold text-cream">
-            Dispatch OS
+            {session?.name ?? 'Dispatch OS'}
           </div>
         </div>
         <Link to="/portal" className="shrink-0 text-xs text-gold">
@@ -107,7 +123,6 @@ export function DispatchShell({ children }: { children: ReactNode }) {
         </Link>
       </header>
 
-      {/* Backdrop */}
       {open && (
         <button
           type="button"
@@ -117,7 +132,6 @@ export function DispatchShell({ children }: { children: ReactNode }) {
         />
       )}
 
-      {/* Sidebar — drawer on mobile, static on md+ */}
       <aside
         className={[
           'fixed inset-y-0 left-0 z-50 flex w-[min(18rem,88vw)] flex-col border-r border-border bg-surface transition-transform duration-200 md:static md:z-0 md:w-56 md:translate-x-0 md:shrink-0',
@@ -127,6 +141,9 @@ export function DispatchShell({ children }: { children: ReactNode }) {
         <div className="hidden border-b border-border px-5 py-5 md:block">
           <div className="text-xs uppercase tracking-[0.2em] text-gold">OnFly</div>
           <div className="mt-1 text-lg font-semibold text-cream">Dispatch OS</div>
+          {session && (
+            <p className="mt-2 truncate text-xs text-muted">{session.name}</p>
+          )}
         </div>
         <div className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
           <div className="text-sm font-semibold text-cream">Menu</div>
@@ -149,7 +166,13 @@ export function DispatchShell({ children }: { children: ReactNode }) {
           >
             Client portal →
           </Link>
-          <p className="text-[11px] text-muted">Share /portal with clients</p>
+          <button
+            type="button"
+            onClick={() => logoutStaff()}
+            className="block text-xs text-muted hover:text-cream"
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 

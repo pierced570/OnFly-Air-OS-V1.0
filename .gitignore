@@ -31,3 +31,6 @@ dist-ssr
 # Supabase local
 supabase/.branches
 supabase/.temp
+
+# Private credentials (never commit)
+data/private/

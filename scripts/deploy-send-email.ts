@@ -43,7 +43,7 @@ function run(cmd: string, args: string[], env: NodeJS.ProcessEnv) {
 const token = requireEnv('SUPABASE_ACCESS_TOKEN')
 const resendKey = requireEnv('RESEND_API_KEY')
 const emailFrom =
-  process.env.EMAIL_FROM?.trim() || 'OnFly Air <onboarding@resend.dev>'
+  process.env.EMAIL_FROM?.trim() || 'OnFly Air <info@onflyair.com>'
 
 const env = {
   ...process.env,
