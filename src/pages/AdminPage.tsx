@@ -21,8 +21,9 @@ import {
 } from '@/lib/operatorComplianceStore'
 import { watchTailsFromD085 } from '@/lib/watchedTailsStore'
 import { createAccountingAdapter } from '@/adapters/accounting'
+import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
 
-type WizardKind = 'operator' | 'client' | 'fbo'
+type WizardKind = 'invite' | 'operator' | 'client' | 'fbo'
 
 const OP_STEPS = [
   'Identity',
@@ -46,14 +47,15 @@ const CLIENT_STEPS = [
 const FBO_STEPS = ['Airport', 'Hours', 'Forklift', 'Fees', 'Summary']
 
 export default function AdminPage() {
-  const [kind, setKind] = useState<WizardKind>('operator')
+  const [kind, setKind] = useState<WizardKind>('invite')
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
       <header>
         <h1 className="text-2xl font-semibold text-cream">Admin wizards</h1>
         <p className="mt-1 text-sm text-muted">
-          Guided interviews — skip writes NEEDS-INFO, never blank tables.
+          Invite operators by email, or run guided interviews — skip writes
+          NEEDS-INFO, never blank tables.
         </p>
         <p className="mt-2 text-sm text-muted">
           Day-to-day contact flags:{' '}
@@ -68,25 +70,37 @@ export default function AdminPage() {
           <Link to="/admin/tasks" className="text-gold hover:text-gold-lt">
             NEEDS-INFO tasks
           </Link>
+          {' · '}
+          <Link to="/onboard" className="text-gold hover:text-gold-lt">
+            Public onboard form
+          </Link>
         </p>
       </header>
 
       <div className="flex flex-wrap gap-2">
-        {(['operator', 'client', 'fbo'] as const).map((k) => (
+        {(
+          [
+            ['invite', 'Invite email'],
+            ['operator', 'Add operator'],
+            ['client', 'Add client'],
+            ['fbo', 'Add FBO'],
+          ] as const
+        ).map(([k, label]) => (
           <button
             key={k}
             type="button"
             onClick={() => setKind(k)}
             className={[
-              'rounded-md px-3 py-1.5 text-sm capitalize',
+              'rounded-md px-3 py-1.5 text-sm',
               kind === k ? 'bg-gold text-ink' : 'bg-surface text-muted',
             ].join(' ')}
           >
-            Add {k}
+            {label}
           </button>
         ))}
       </div>
 
+      {kind === 'invite' && <OperatorInvitePanel key="inv" />}
       {kind === 'operator' && <OperatorWizard key="op" />}
       {kind === 'client' && <ClientWizard key="cl" />}
       {kind === 'fbo' && <FboWizard key="fbo" />}

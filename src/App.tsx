@@ -24,6 +24,7 @@ const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 const FbosPage = lazy(() => import('@/pages/FbosPage'))
 const IntakePage = lazy(() => import('@/pages/IntakePage'))
 const IntakeReviewPage = lazy(() => import('@/pages/IntakeReviewPage'))
+const OnboardPage = lazy(() => import('@/pages/OnboardPage'))
 
 function Fallback() {
   return (
@@ -38,7 +39,9 @@ function isPublic(pathname: string) {
     pathname.startsWith('/offer/') ||
     pathname.startsWith('/accept/') ||
     pathname.startsWith('/t/') ||
-    pathname.startsWith('/portal')
+    pathname.startsWith('/portal') ||
+    pathname === '/onboard' ||
+    pathname.startsWith('/onboard/')
   )
 }
 
@@ -71,6 +74,7 @@ export function App() {
         <Route path="/portal" element={<PortalHomePage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
         <Route path="/portal/track/:token" element={<PortalTrackPage />} />
+        <Route path="/onboard" element={<OnboardPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
