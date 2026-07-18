@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react'
 import {
+  isLiveEmailConfigured,
+  isRealEmailEnabled,
+} from '@/adapters/email'
+import {
   defaultOnboardTemplate,
   LEGACY_ONBOARD_URL,
   renderOperatorOnboardEmailHtml,
@@ -12,6 +16,8 @@ const field =
 const label = 'block text-xs text-muted'
 
 export function OperatorInvitePanel() {
+  const live = isLiveEmailConfigured()
+  const realFlag = isRealEmailEnabled()
   const [to, setTo] = useState('')
   const [company, setCompany] = useState('')
   const [buttonText, setButtonText] = useState('Complete Onboarding Form')
@@ -81,7 +87,11 @@ export function OperatorInvitePanel() {
         companyName: company || undefined,
         template,
       })
-      setStatus(`Invite sent to ${result.to} (mock email id ${result.id}).`)
+      setStatus(
+        live
+          ? `Invite sent via Resend to ${result.to} (id ${result.id}).`
+          : `Invite queued in mock adapter to ${result.to} (id ${result.id}). Set VITE_EMAIL_ADAPTER=real + deploy send-email for live delivery.`,
+      )
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
     } finally {
@@ -107,6 +117,17 @@ export function OperatorInvitePanel() {
           >
             operations.onflyair.com/onboard
           </a>
+        </p>
+        <p
+          className={`mt-2 text-xs ${
+            live ? 'text-onplan' : realFlag ? 'text-late' : 'text-muted'
+          }`}
+        >
+          {live
+            ? 'Email: LIVE (Resend via send-email edge function)'
+            : realFlag
+              ? 'Email: VITE_EMAIL_ADAPTER=real but Supabase URL/anon key missing'
+              : 'Email: MOCK — set VITE_EMAIL_ADAPTER=real after deploying send-email'}
         </p>
       </div>
 

@@ -16,7 +16,8 @@
     "db:migrate": "tsx scripts/apply-migration.ts",
     "seed:demo-client": "tsx scripts/seed-demo-client.ts",
     "import:financials": "tsx scripts/import-financials-csv.ts",
-    "import:fbos": "tsx scripts/import-fbos-csv.ts"
+    "import:fbos": "tsx scripts/import-fbos-csv.ts",
+    "deploy:send-email": "tsx scripts/deploy-send-email.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.6",

@@ -16,7 +16,7 @@ Decisions locked from ops:
 | **1** | **Supabase Storage** + portal track (no price) | Unblocks docs + client visibility; keys already in env | Apply migration |
 | **2** | **Persist trips/operators/docs** to Supabase | Everything else is fake without a system of record | — |
 | **3** | **Domain + Vercel** | Real URLs for portal + email links | DNS + Vercel project |
-| **4** | **Resend** | ETA / COI / quote email that actually sends | API key + from-domain |
+| **4** | **Resend** | ETA / COI / quote / invite email that actually sends | `RESEND_API_KEY` + verified `EMAIL_FROM` → `npm run deploy:send-email`; then `VITE_EMAIL_ADAPTER=real` |
 | **5** | **Claude LLM adapter** | Powers D085 parse, NOTAM plain English, tax assist, intake | Anthropic API key |
 | **6** | **D085 AI parse → verify UI** | Operator onboarding quality | Claude |
 | **7** | **Google Maps / Routes** | Real drive times in ETA chain | Maps key |

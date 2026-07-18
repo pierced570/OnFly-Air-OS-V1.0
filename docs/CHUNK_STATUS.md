@@ -41,6 +41,21 @@ Updated as we convert mocks → durable/live paths.
 - After **3 completed trips** → flag + **Named insurer** toggle
 - Migration `0006_operator_compliance.sql` — `operators.named_insurer`
 
+## Operator invite email + public onboard
+
+- Admin → **Invite email**: preview/send network invite
+- CTA → `/onboard` form (D085 / COI / charter; **no insured-amount field**)
+- SkyIQ footer → `https://info.skyiq.net/`
+- Env: `VITE_ONBOARD_URL`, `VITE_SKYIQ_URL`
+
+## Resend (live email path)
+
+- Edge: `supabase/functions/send-email` → Resend HTTP API
+- Client: `VITE_EMAIL_ADAPTER=real` → `ResendEmailAdapter` → `functions.invoke('send-email')`
+- Secrets (Supabase only): `RESEND_API_KEY`, `EMAIL_FROM`
+- Deploy: `npm run deploy:send-email` (needs `SUPABASE_ACCESS_TOKEN` + Resend key in `.env`)
+- Covers: operator invite, ETA sheet, COI expiry, quote preview send
+
 ## Network vertical board + mission fit + mobile
 
 - `/network` board/list toggle; category column pills; origin NM rank
@@ -57,9 +72,10 @@ Updated as we convert mocks → durable/live paths.
 
 ## Next (priority)
 
-1. Persist trips/offers/quotes via `trip_transition` RPC  
-2. Claude LLM adapter + D085 AI verify  
-3. Domain/Vercel + Resend  
-4. Google Maps, live ADS-B, NOTAM plain-English  
-5. RC → Telnyx → QBO  
+1. Finish Resend go-live: run `deploy:send-email` + set `VITE_EMAIL_ADAPTER=real` on Vercel  
+2. Persist trips/offers/quotes via `trip_transition` RPC  
+3. Claude LLM adapter + D085 AI verify  
+4. Domain/Vercel polish  
+5. Google Maps, live ADS-B, NOTAM plain-English  
+6. RC → Telnyx → QBO  
 
