@@ -34,3 +34,6 @@ supabase/.temp
 
 # Private credentials (never commit)
 data/private/
+
+# Local vault seed (may contain secrets)
+src/lib/vaultBootstrap.local.ts

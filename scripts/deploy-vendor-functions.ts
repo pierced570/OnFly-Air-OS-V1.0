@@ -4,7 +4,8 @@
  * Needs in .env:
  *   SUPABASE_ACCESS_TOKEN
  *   RESEND_API_KEY, EMAIL_FROM
- *   OPENAI_API_KEY
+ *   ANTHROPIC_API_KEY (preferred for llm-extract)
+ *   OPENAI_API_KEY (optional fallback)
  *   ADSB_RAPIDAPI_KEY (optional — function still deploys)
  *
  * Usage: npx tsx scripts/deploy-vendor-functions.ts
@@ -46,6 +47,12 @@ const emailFrom =
 if (process.env.RESEND_API_KEY?.trim()) {
   pairs.push(`RESEND_API_KEY=${process.env.RESEND_API_KEY.trim()}`)
   pairs.push(`EMAIL_FROM=${emailFrom}`)
+}
+if (process.env.ANTHROPIC_API_KEY?.trim()) {
+  pairs.push(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY.trim()}`)
+}
+if (process.env.ANTHROPIC_MODEL?.trim()) {
+  pairs.push(`ANTHROPIC_MODEL=${process.env.ANTHROPIC_MODEL.trim()}`)
 }
 if (process.env.OPENAI_API_KEY?.trim()) {
   pairs.push(`OPENAI_API_KEY=${process.env.OPENAI_API_KEY.trim()}`)

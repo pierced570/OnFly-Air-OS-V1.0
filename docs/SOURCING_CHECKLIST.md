@@ -19,12 +19,10 @@ Vault logins (Adobe, social, Chase, etc.) stay in Logins & keys — they are not
 
 ## Must source next (create these)
 
-### 1. Anthropic Claude — **priority**
-- **What:** API key for OnFly OS (not skyIQ / ChatGPT)
-- **Used for:** Intake extract, D085 parse → human verify, NOTAM plain English, tax assist
-- **Where:** https://console.anthropic.com/ → API keys
-- **Env / secret:** `ANTHROPIC_API_KEY` (Supabase secrets) · `VITE_LLM_ADAPTER=real`
-- **Do not need:** OpenAI for OS (vault ChatGPT key dead; skyIQ key quota’d — leave for skyIQ)
+### 1. Anthropic Claude — **DONE (2026-07-18)**
+- Key saved to vault (Claude API Key) + Supabase secret `ANTHROPIC_API_KEY`
+- Edge `llm-extract` prefers Claude (`claude-sonnet-4-5-20250929`)
+- Flip `VITE_LLM_ADAPTER=real` on Vercel when ready
 
 ### 2. ADS-B provider — **pick one commercial path** (skip RapidAPI ADSBX)
 Blueprint: trial ~20 tails then commit. RapidAPI “ADSBexchange-com1” is a dead end for us.

@@ -239,6 +239,22 @@ export function importVaultCsv(
   return parsed.length
 }
 
+/** Merge optional gitignored local seed (dev/agent machines only). */
+function applyLocalBootstrap(): void {
+  try {
+    const mods = import.meta.glob<{
+      VAULT_BOOTSTRAP_ENTRIES?: Array<Partial<VaultEntry> & { label: string }>
+    }>('./vaultBootstrap.local.ts', { eager: true })
+    for (const mod of Object.values(mods)) {
+      for (const row of mod.VAULT_BOOTSTRAP_ENTRIES ?? []) {
+        if (row.label?.trim()) upsertVaultEntry(row)
+      }
+    }
+  } catch {
+    /* no local seed */
+  }
+}
+
 export function upsertVaultEntry(
   partial: Partial<VaultEntry> & { label: string },
 ): VaultEntry {
@@ -277,3 +293,6 @@ export function upsertVaultEntry(
   bump()
   return { ...next }
 }
+
+// After upsertVaultEntry exists — seed Claude / local secrets if file present
+applyLocalBootstrap()

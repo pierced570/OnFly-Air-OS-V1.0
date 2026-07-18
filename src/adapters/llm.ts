@@ -1,6 +1,6 @@
 /**
- * LLM adapter — mock canned extract or OpenAI via edge `llm-extract`.
- * OPENAI_API_KEY lives in Supabase secrets only (never VITE_*).
+ * LLM adapter — mock canned extract or Claude via edge `llm-extract`.
+ * ANTHROPIC_API_KEY lives in Supabase secrets only (never VITE_*).
  */
 
 import { adapterMode } from '@/adapters/types'
@@ -47,7 +47,8 @@ export class MockLlmAdapter implements LlmAdapter {
   }
 }
 
-export class OpenAiLlmAdapter implements LlmAdapter {
+/** Real path → edge `llm-extract` (Claude when ANTHROPIC_API_KEY is set). */
+export class ClaudeLlmAdapter implements LlmAdapter {
   async extractTripRequest(rawText: string): Promise<ExtractedRequest> {
     if (!supabase || !isSupabaseConfigured) {
       throw new Error(
@@ -77,9 +78,12 @@ export class OpenAiLlmAdapter implements LlmAdapter {
   }
 }
 
+/** @deprecated alias — real LLM is Claude via llm-extract */
+export const OpenAiLlmAdapter = ClaudeLlmAdapter
+
 export function createLlmAdapter(): LlmAdapter {
   const mode = adapterMode('VITE_LLM_ADAPTER', 'mock')
-  if (mode === 'real') return new OpenAiLlmAdapter()
+  if (mode === 'real') return new ClaudeLlmAdapter()
   return new MockLlmAdapter()
 }
 
