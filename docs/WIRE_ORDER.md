@@ -17,11 +17,11 @@ Decisions locked from ops:
 | **2** | **Persist trips/operators/docs** to Supabase | Everything else is fake without a system of record | — |
 | **3** | **Domain + Vercel** | Real URLs for portal + email links | DNS + Vercel project |
 | **4** | **Resend** | ETA / COI / quote / invite email that actually sends | **DONE** edge deployed · `EMAIL_FROM=info@onflyair.com` · flip `VITE_EMAIL_ADAPTER=real` |
-| **5** | **LLM adapter** | Powers intake extract, NOTAM plain English, tax assist | **DONE (OpenAI)** edge `llm-extract` · vault ChatGPT key invalid → using skyIQ OpenAI key interim |
-| **6** | **D085 AI parse → verify UI** | Operator onboarding quality | LLM wired; verify UI next |
-| **7** | **Maps / drive times** | Real drive times in ETA chain | **DONE (Mapbox)** `VITE_MAPBOX_TOKEN` + `VITE_MAPS_ADAPTER=real` |
-| **8** | **Live ADS-B** | Required fleet truth on Radar | Edge `adsb-positions` deployed · RapidAPI key **not subscribed** — renew ADSBexchange-com1 |
-| **9** | **NOTAMs + plain English** | Briefing / hard flags | FAA API (or interim source) + Claude |
+| **5** | **LLM adapter** | Powers intake extract, NOTAM plain English, tax assist | **Re-target to Claude** — OpenAI was interim only; source `ANTHROPIC_API_KEY` |
+| **6** | **D085 AI parse → verify UI** | Operator onboarding quality | Needs Claude |
+| **7** | **Maps / drive times** | Real drive times in ETA chain | **DONE (Mapbox)** — Google Maps not required |
+| **8** | **Live ADS-B** | Required fleet truth on Radar | **Abandon RapidAPI ADSBX** — source FlightAware AeroAPI or ADSBX *direct* (see `SOURCING_CHECKLIST.md`) |
+| **9** | **NOTAMs + plain English** | Briefing / hard flags | METAR/TAF already free · source FAA NOTAM API + Claude |
 | **10** | **RingCentral SMS** | Offer pings / stand-downs on real phones | RC JWT + from numbers |
 | **11** | **Telnyx** | Robocall / escalation layer | Telnyx key |
 | **12** | **QuickBooks** | Invoices / AP — after trip truth is solid | Intuit app + OAuth |
@@ -40,6 +40,8 @@ Decisions locked from ops:
 5. **Domain + Vercel** whenever DNS is ready (parallel, no code blocker)
 
 Harder / wait on vendor: ADS-B provider pick, QB OAuth, FAA NOTAM approval, RC webhooks.
+
+**Full create/buy list:** [`docs/SOURCING_CHECKLIST.md`](SOURCING_CHECKLIST.md)
 
 ---
 
