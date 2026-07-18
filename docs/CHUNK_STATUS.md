@@ -77,12 +77,27 @@ Updated as we convert mocks → durable/live paths.
 - Portal track: ETA / legs+actuals / contacts / live updates — **no pricing**
 - Full wire order: [`docs/WIRE_ORDER.md`](WIRE_ORDER.md)
 
+## Vendor wiring from logins-keys.csv (2026-07-18)
+
+| Vendor | Status | Notes |
+|--------|--------|-------|
+| Supabase | **keys loaded** | Management API → `VITE_SUPABASE_*` in local `.env` |
+| Resend | **live** | `send-email` deployed · From `info@onflyair.com` |
+| Mapbox | **live path** | Directions adapter · `VITE_MAPBOX_TOKEN` (pk.*) |
+| OpenAI | **wired / quota** | `llm-extract` deployed · OnFly ChatGPT key 401 · skyIQ key models-ok but chat **quota exceeded** — add billing or new key |
+| ADS-B Exchange | **wired / unsubscribed** | `adsb-positions` deployed · RapidAPI returns not subscribed — renew ADSBexchange-com1 |
+| QuickBooks | blocked | Vault has login only — need OAuth app ids |
+| RingCentral / Telnyx / Anthropic | missing | Not in CSV |
+| Twilio | login only | Prefer RC for SMS |
+
+Deploy: `npm run deploy:vendors` · toggles in `.env.local` / Vercel.
+
 ## Next (priority)
 
-1. Finish Resend go-live: run `deploy:send-email` + set `VITE_EMAIL_ADAPTER=real` on Vercel  
-2. Persist trips/offers/quotes via `trip_transition` RPC  
-3. Claude LLM adapter + D085 AI verify  
-4. Domain/Vercel polish  
-5. Google Maps, live ADS-B, NOTAM plain-English  
-6. RC → Telnyx → QBO  
+1. Set Vercel envs (`VITE_SUPABASE_*`, `VITE_MAPBOX_TOKEN`, adapter=real)  
+2. Renew ADS-B RapidAPI subscription  
+3. Persist trips/offers/quotes via `trip_transition` RPC  
+4. D085 AI verify UI on `llm-extract`  
+5. Replace skyIQ OpenAI key with dedicated OnFly key  
+6. RC → Telnyx → QBO OAuth  
 

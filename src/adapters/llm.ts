@@ -1,3 +1,11 @@
+/**
+ * LLM adapter — mock canned extract or OpenAI via edge `llm-extract`.
+ * OPENAI_API_KEY lives in Supabase secrets only (never VITE_*).
+ */
+
+import { adapterMode } from '@/adapters/types'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+
 export type ExtractedRequest = {
   pieces_text?: string
   origin_text?: string
@@ -13,11 +21,12 @@ export type ExtractedRequest = {
 
 export interface LlmAdapter {
   extractTripRequest(rawText: string): Promise<ExtractedRequest>
+  /** Plain-English NOTAM / briefing helper */
+  plainEnglish(text: string, context?: string): Promise<string>
 }
 
 export class MockLlmAdapter implements LlmAdapter {
   async extractTripRequest(rawText: string): Promise<ExtractedRequest> {
-    // Canned extraction for demos / tests
     return {
       pieces_text: '3 skids 48x40x60 @ 800ea',
       origin_text: 'Akron, OH',
@@ -29,8 +38,51 @@ export class MockLlmAdapter implements LlmAdapter {
       raw: rawText,
     }
   }
+
+  async plainEnglish(text: string, _context?: string): Promise<string> {
+    const clipped = text.trim().slice(0, 280)
+    return clipped
+      ? `Mock plain English: ${clipped}`
+      : 'Mock plain English: (empty)'
+  }
+}
+
+export class OpenAiLlmAdapter implements LlmAdapter {
+  async extractTripRequest(rawText: string): Promise<ExtractedRequest> {
+    if (!supabase || !isSupabaseConfigured) {
+      throw new Error(
+        'LLM real mode needs VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY',
+      )
+    }
+    const { data, error } = await supabase.functions.invoke('llm-extract', {
+      body: { mode: 'extract_trip', text: rawText },
+    })
+    if (error) throw new Error(error.message || 'llm-extract failed')
+    const body = data as ExtractedRequest & { error?: string }
+    if (body?.error) throw new Error(body.error)
+    return { ...body, raw: rawText }
+  }
+
+  async plainEnglish(text: string, context?: string): Promise<string> {
+    if (!supabase || !isSupabaseConfigured) {
+      return new MockLlmAdapter().plainEnglish(text, context)
+    }
+    const { data, error } = await supabase.functions.invoke('llm-extract', {
+      body: { mode: 'plain_english', text, context },
+    })
+    if (error) throw new Error(error.message || 'llm-extract failed')
+    const body = data as { text?: string; error?: string }
+    if (body?.error) throw new Error(body.error)
+    return body.text ?? ''
+  }
 }
 
 export function createLlmAdapter(): LlmAdapter {
+  const mode = adapterMode('VITE_LLM_ADAPTER', 'mock')
+  if (mode === 'real') return new OpenAiLlmAdapter()
   return new MockLlmAdapter()
+}
+
+export function isRealLlmEnabled(): boolean {
+  return adapterMode('VITE_LLM_ADAPTER', 'mock') === 'real'
 }
