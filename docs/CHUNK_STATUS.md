@@ -27,6 +27,14 @@ Updated as we convert mocks → durable/live paths.
 - ETA sheet + portal track links → client tracker / supply-chain emails (+ QD CC)
 - Invoice → AP / QB **not** on accept (manual later)
 
+## Estimated quote + ETA email (request flow)
+
+- Quote composer → **Approve & send estimated quote + ETA sheet** (`sendEstimatedQuote`)
+- HTML includes totals + domain ETA chain (stop-local + Zulu); carrier unnamed
+- Recipients from request email / client requesters (editable To:)
+- Hard quote select also emails quote + ETA + accept link when a chain exists
+- Resend when `VITE_EMAIL_ADAPTER=real`
+
 ## Radar / D085
 
 - Watched-tail store seeded from network import; Admin D085 confirm adds tails

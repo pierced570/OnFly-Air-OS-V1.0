@@ -446,9 +446,22 @@ export default function NewTripPage() {
                 <button
                   type="button"
                   className="mt-3 text-sm text-gold hover:text-gold-lt"
-                  onClick={() => nav('/quotes/preview')}
+                  onClick={() => {
+                    // Persist selection preference for composer
+                    try {
+                      const raw = sessionStorage.getItem('onfly_quote_draft')
+                      if (raw) {
+                        const d = JSON.parse(raw) as { preferredAircraftId?: string }
+                        d.preferredAircraftId = c.aircraft_id
+                        sessionStorage.setItem('onfly_quote_draft', JSON.stringify(d))
+                      }
+                    } catch {
+                      /* ignore */
+                    }
+                    nav('/quotes/preview')
+                  }}
                 >
-                  Open quote composer →
+                  Compose &amp; send quote + ETA →
                 </button>
               </article>
             )

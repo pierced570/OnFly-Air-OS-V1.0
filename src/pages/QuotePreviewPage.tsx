@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { Candidate } from '@/domain/routing'
 import { TEST_TAX_RATES_2026 } from '@/domain/tax'
 import { buildQuoteTotals, type MarkupMode } from '@/domain/quote'
 import { formatStopLocal } from '@/domain/timeFmt'
-import { createEmailAdapter } from '@/adapters/email'
-import { createTripFromCandidates } from '@/lib/tripStore'
-import { useNavigate } from 'react-router-dom'
+import { getClient } from '@/lib/clientStore'
+import { getRequest } from '@/lib/requestStore'
+import {
+  resolveQuoteRecipients,
+  sendEstimatedQuote,
+} from '@/lib/sendEstimatedQuote'
 
 type Draft = {
   pieces: unknown
@@ -20,6 +23,8 @@ type Draft = {
   candidates: Candidate[]
   originatedMs: number
   client_id?: string | null
+  requestId?: string | null
+  requestRef?: number | null
 }
 
 export default function QuotePreviewPage() {
@@ -32,10 +37,23 @@ export default function QuotePreviewPage() {
     }
   }, [])
 
-  const [selectedId, setSelectedId] = useState(draft?.candidates.find((c) => c.label === 'best')?.aircraft_id)
+  const defaultTo = useMemo(() => {
+    if (!draft) return ''
+    return resolveQuoteRecipients({
+      clientId: draft.client_id,
+      requestId: draft.requestId,
+    }).join(', ')
+  }, [draft])
+
+  const [selectedId, setSelectedId] = useState(
+    draft?.candidates.find((c) => c.label === 'best')?.aircraft_id,
+  )
   const [markupMode, setMarkupMode] = useState<MarkupMode>('percent')
   const [markupValue, setMarkupValue] = useState(0)
+  const [toField, setToField] = useState(defaultTo)
+  const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   if (!draft) {
     return (
@@ -51,17 +69,18 @@ export default function QuotePreviewPage() {
   const selected =
     draft.candidates.find((c) => c.aircraft_id === selectedId) ?? draft.candidates[0]!
   const mtow = selected.type_name?.match(/310/) ? 5500 : 12500
-  const totals = buildQuoteTotals(selected, {
-    markupMode,
-    markupValue: markupValue === 0 ? 0 : markupValue,
-    payloadKind: draft.payloadKind,
-    mtowLbs: mtow,
-    paxCount: draft.paxCount || 0,
-    segments: 1,
-    rates: TEST_TAX_RATES_2026,
-  })
-  // If markup is 0, use engine price (already at 15% margin)
-  const airSubtotal = markupValue === 0 ? selected.price : totals.airSubtotal
+  const airSubtotal =
+    markupValue === 0
+      ? selected.price
+      : buildQuoteTotals(selected, {
+          markupMode,
+          markupValue,
+          payloadKind: draft.payloadKind,
+          mtowLbs: mtow,
+          paxCount: draft.paxCount || 0,
+          segments: 1,
+          rates: TEST_TAX_RATES_2026,
+        }).airSubtotal
   const tax = buildQuoteTotals(selected, {
     markupMode: 'dollars',
     markupValue: airSubtotal - selected.cost,
@@ -72,31 +91,45 @@ export default function QuotePreviewPage() {
     rates: TEST_TAX_RATES_2026,
   })
 
+  const clientName = draft.client_id
+    ? getClient(draft.client_id)?.name
+    : draft.requestId
+      ? getRequest(draft.requestId)?.client_name
+      : null
+
   async function sendEstimate() {
-    const email = createEmailAdapter()
-    const acceptToken = crypto.randomUUID()
-    const r = await email.send({
-      to: 'client@example.com',
-      subject: `OnFly estimated quote — ${draft!.originText} → ${draft!.destText}`,
-      text: `Estimated total $${tax.total.toFixed(2)}. Carrier: a vetted Part 135 carrier. Accept: /accept/${acceptToken}`,
-      html: renderQuoteHtml({
-        draft: draft!,
+    setError(null)
+    setBusy(true)
+    try {
+      const to = toField
+        .split(/[,;\s]+/)
+        .map((s) => s.trim())
+        .filter((s) => s.includes('@'))
+      const result = await sendEstimatedQuote({
+        originLabel: draft!.originText,
+        destLabel: draft!.destText,
+        readyLabel: draft!.ready_at,
+        payloadKind: draft!.payloadKind,
+        candidates: draft!.candidates,
         selected,
         airSubtotal,
-        taxTotal: tax.total,
+        total: tax.total,
         taxLines: tax.tax.lines,
-      }),
-    })
-    setSent(r.id)
-    const trip = createTripFromCandidates({
-      lane: `${draft!.originText} → ${draft!.destText}`,
-      payload_summary: draft!.payloadKind,
-      ready_label: draft!.ready_at,
-      candidates: draft!.candidates,
-      payload_kind: draft!.payloadKind,
-      client_id: draft!.client_id ?? undefined,
-    })
-    sessionStorage.setItem('onfly_last_trip_id', trip.id)
+        to,
+        clientId: draft!.client_id,
+        requestId: draft!.requestId,
+        requestRef: draft!.requestRef,
+        kind: 'estimated',
+      })
+      sessionStorage.setItem('onfly_last_trip_id', result.trip.id)
+      setSent(
+        `Sent to ${result.to.join(', ')} · ${result.emailIds.join(', ')}`,
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -109,6 +142,8 @@ export default function QuotePreviewPage() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             Routed in {Math.round(draft.originatedMs)}ms · carrier unnamed on client docs
+            {clientName ? ` · ${clientName}` : ''}
+            {draft.requestRef != null ? ` · R-${draft.requestRef}` : ''}
           </p>
         </div>
         <Link to="/trips/new" className="text-sm text-muted hover:text-cream">
@@ -177,16 +212,33 @@ export default function QuotePreviewPage() {
               <span className="avionic text-lg">${tax.total.toFixed(2)}</span>
             </div>
           </div>
+
+          <label className="block text-xs text-muted">
+            Send quote + ETA sheet to
+            <input
+              className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream"
+              value={toField}
+              onChange={(e) => setToField(e.target.value)}
+              placeholder="client@company.com"
+            />
+          </label>
+          <p className="text-[11px] text-muted">
+            Includes estimated timeline (stop-local + Zulu). Carrier stays unnamed.
+            Uses Resend when email adapter is live.
+          </p>
+
           <button
             type="button"
+            disabled={busy}
             onClick={() => void sendEstimate()}
-            className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt"
+            className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
           >
-            Approve & send estimated quote
+            {busy ? 'Sending…' : 'Approve & send estimated quote + ETA sheet'}
           </button>
+          {error && <p className="text-sm text-late">{error}</p>}
           {sent && (
             <p className="text-sm text-onplan">
-              Estimate emailed ({sent}).{' '}
+              {sent}.{' '}
               <button
                 type="button"
                 className="text-gold underline"
@@ -237,17 +289,4 @@ export default function QuotePreviewPage() {
       </div>
     </div>
   )
-}
-
-function renderQuoteHtml(args: {
-  draft: Draft
-  selected: Candidate
-  airSubtotal: number
-  taxTotal: number
-  taxLines: Array<{ code: string; amount: number; note: string }>
-}) {
-  return `<h1>OnFly estimated quote</h1>
-<p>${args.draft.originText} → ${args.draft.destText}</p>
-<p>Carrier: a vetted Part 135 carrier</p>
-<p>Total: $${args.taxTotal.toFixed(2)}</p>`
 }
