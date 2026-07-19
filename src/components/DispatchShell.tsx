@@ -19,6 +19,7 @@ const nav: {
   { to: '/intake', label: 'Intake', section: 'intake' },
   { to: '/financials', label: 'Financials', section: 'financials' },
   { to: '/clients', label: 'Clients', section: 'clients' },
+  { to: '/leads', label: 'Leads', section: 'leads' },
   { to: '/fbos', label: 'FBOs', section: 'fbos' },
   { to: '/trips/new', label: 'New trip', section: 'trips' },
   { to: '/network', label: 'Network', section: 'network' },

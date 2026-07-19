@@ -3,6 +3,7 @@
  */
 
 import { lookupAirport } from '@/domain/airports'
+import type { Lead } from '@/domain/leads'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import type { ClientProfile } from '@/lib/clientStore'
 import type { FboRow } from '@/lib/fboStore'
@@ -224,4 +225,35 @@ export async function persistCommsMessage(opts: {
       delivery_status: 'sent',
     }),
   )
+}
+
+export async function persistLead(lead: Lead): Promise<void> {
+  if (!canPersist()) return
+  await safeQuery('leads.upsert', () =>
+    db().from('leads').upsert(
+      {
+        id: lead.id,
+        company: lead.company,
+        contact_name: lead.contact_name,
+        title: lead.title,
+        email: lead.email,
+        phone: lead.phone,
+        kind: lead.kind,
+        status: lead.status,
+        last_contacted_at: lead.last_contacted_at,
+        next_follow_up_at: lead.next_follow_up_at,
+        notes: lead.notes,
+        last_touch_note: lead.last_touch_note,
+        owner: lead.owner,
+        created_at: lead.created_at,
+        updated_at: lead.updated_at,
+      },
+      { onConflict: 'id' },
+    ),
+  )
+}
+
+export async function deleteLead(id: string): Promise<void> {
+  if (!canPersist()) return
+  await safeQuery('leads.delete', () => db().from('leads').delete().eq('id', id))
 }
