@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import PhoneInput from '@/components/PhoneInput'
 import { loginStaff } from '@/lib/staffStore'
 
 export default function StaffLoginPage() {
@@ -47,20 +48,17 @@ export default function StaffLoginPage() {
           </label>
           <label className="block text-xs text-muted">
             Phone
-            <input
+            <PhoneInput
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2.5 font-mono text-sm text-cream outline-none focus:border-gold"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              autoComplete="tel"
+              onChange={setPhone}
               required
-              placeholder="555-555-5555"
-              inputMode="tel"
             />
           </label>
           {error && <p className="text-sm text-late">{error}</p>}
           <button
             type="submit"
-            disabled={busy || !name.trim() || !phone.trim()}
+            disabled={busy || !name.trim() || phone.length < 10}
             className="w-full rounded-md bg-gold py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
           >
             {busy ? 'Checking…' : 'Enter'}
@@ -68,8 +66,8 @@ export default function StaffLoginPage() {
         </form>
 
         <p className="mt-6 text-[11px] leading-relaxed text-muted">
-          Seeded admin: Pierce Demetriades · dispatch line 858-529-7860. Set
-          everyone else&apos;s phone under Staff access after you sign in.
+          Owner: Pierce Demetriades · (610) 509-2031. After you sign in, use
+          Staff access to set phones and choose what each person can see.
         </p>
       </div>
     </div>

@@ -1,16 +1,24 @@
 /**
  * Staff directory + session (name + phone gate).
  * Persists to localStorage until a staff table lands in Supabase.
+ *
+ * Sole owner: Pierce (`OWNER_STAFF_ID`) — full access + grants sections to others.
  */
 
 import {
   ALL_SECTION_IDS,
   DISPATCH_DEFAULT_SECTIONS,
+  enforceOwnerRules,
   findStaffByLogin,
   hasSection,
+  normalizePhone,
+  OWNER_STAFF_ID,
   type StaffMember,
   type StaffSectionId,
 } from '@/domain/staffAccess'
+
+/** Pierce's cell — login seed (not the 858 dispatch line). */
+const PIERCE_PHONE = '6105092031'
 
 const STAFF_KEY = 'onfly.staff.directory.v1'
 const SESSION_KEY = 'onfly.staff.session.v1'
@@ -21,47 +29,76 @@ function storageAvailable(): boolean {
 
 function seedStaff(): StaffMember[] {
   return [
-    {
-      id: 'staff-pierce',
+    enforceOwnerRules({
+      id: OWNER_STAFF_ID,
       name: 'Pierce Demetriades',
-      phone: '858-529-7860',
+      phone: PIERCE_PHONE,
       is_admin: true,
       sections: [...ALL_SECTION_IDS],
       active: true,
-    },
-    {
+    }),
+    enforceOwnerRules({
       id: 'staff-paige',
       name: 'Paige Miller',
       phone: '',
-      is_admin: true,
-      sections: [...ALL_SECTION_IDS],
+      is_admin: false,
+      sections: [...DISPATCH_DEFAULT_SECTIONS, 'financials'],
       active: true,
-    },
-    {
+    }),
+    enforceOwnerRules({
       id: 'staff-ben',
       name: 'Ben Miller',
       phone: '',
       is_admin: false,
-      sections: [...DISPATCH_DEFAULT_SECTIONS, 'admin', 'financials'],
+      sections: [...DISPATCH_DEFAULT_SECTIONS, 'financials'],
       active: true,
-    },
-    {
+    }),
+    enforceOwnerRules({
       id: 'staff-chris',
       name: 'Chris Hewitt',
       phone: '',
       is_admin: false,
       sections: [...DISPATCH_DEFAULT_SECTIONS],
       active: true,
-    },
-    {
+    }),
+    enforceOwnerRules({
       id: 'staff-austin',
       name: 'Austin Ouellette',
       phone: '',
       is_admin: false,
       sections: ['board', 'clients', 'network', 'briefing', 'trips', 'quotes'],
       active: true,
-    },
+    }),
   ]
+}
+
+/**
+ * Migrate cached directory: Pierce phone + sole-owner admin rules.
+ * Demotes anyone else who was seeded as admin (e.g. Paige).
+ */
+function migrateStaff(list: StaffMember[]): StaffMember[] {
+  const next = list.map((s) => {
+    let row = s
+    if (s.id === OWNER_STAFF_ID) {
+      row = { ...s, phone: PIERCE_PHONE }
+    }
+    return enforceOwnerRules(row)
+  })
+
+  // Ensure owner row always exists
+  if (!next.some((s) => s.id === OWNER_STAFF_ID)) {
+    next.unshift(seedStaff()[0])
+  }
+
+  const changed = JSON.stringify(list) !== JSON.stringify(next)
+  if (changed && storageAvailable()) {
+    try {
+      localStorage.setItem(STAFF_KEY, JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }
+  return next
 }
 
 function loadStaff(): StaffMember[] {
@@ -70,7 +107,7 @@ function loadStaff(): StaffMember[] {
     const raw = localStorage.getItem(STAFF_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as StaffMember[]
-      if (Array.isArray(parsed) && parsed.length) return parsed
+      if (Array.isArray(parsed) && parsed.length) return migrateStaff(parsed)
     }
   } catch {
     /* seed */
@@ -95,7 +132,8 @@ function loadSession(): StaffMember | null {
     if (!raw) return null
     const id = JSON.parse(raw) as { id?: string }
     if (!id?.id) return null
-    return staff.find((s) => s.id === id.id && s.active) ?? null
+    const member = staff.find((s) => s.id === id.id && s.active)
+    return member ? enforceOwnerRules(member) : null
   } catch {
     return null
   }
@@ -154,10 +192,10 @@ export function loginStaff(
     return {
       ok: false,
       error:
-        'No match. Use your registered name and phone. Ask an admin to add you under Admin → Staff access.',
+        'No match. Use your registered name and phone. Ask Pierce to add you under Admin → Staff access.',
     }
   }
-  session = member
+  session = enforceOwnerRules(member)
   persistSession()
   bump()
   void import('@/lib/shiftStore').then((m) => {
@@ -166,7 +204,7 @@ export function loginStaff(
       m.startShift(member.name, member.phone)
     }
   })
-  return { ok: true, member }
+  return { ok: true, member: session }
 }
 
 export function logoutStaff(): void {
@@ -179,23 +217,30 @@ export function upsertStaff(input: {
   id?: string
   name: string
   phone: string
-  is_admin: boolean
+  is_admin?: boolean
   sections: StaffSectionId[]
   active?: boolean
 }): StaffMember {
+  if (!session?.is_admin) {
+    throw new Error('Only the owner can edit staff access')
+  }
   const name = input.name.trim()
   if (!name) throw new Error('Name required')
   const id = input.id ?? crypto.randomUUID()
-  const next: StaffMember = {
+
+  // Nobody else can become admin; owner always stays owner.
+  const next = enforceOwnerRules({
     id,
     name,
-    phone: input.phone.trim(),
-    is_admin: input.is_admin,
-    sections: input.is_admin
-      ? [...ALL_SECTION_IDS]
-      : [...new Set(input.sections)],
-    active: input.active ?? true,
-  }
+    phone: normalizePhone(input.phone),
+    is_admin: id === OWNER_STAFF_ID,
+    sections:
+      id === OWNER_STAFF_ID
+        ? [...ALL_SECTION_IDS]
+        : [...new Set(input.sections.filter((s) => s !== 'staff_access'))],
+    active: id === OWNER_STAFF_ID ? true : (input.active ?? true),
+  })
+
   const idx = staff.findIndex((s) => s.id === id)
   if (idx >= 0) staff[idx] = next
   else staff.push(next)
@@ -209,12 +254,19 @@ export function upsertStaff(input: {
 }
 
 export function setStaffSections(id: string, sections: StaffSectionId[]): void {
+  if (!session?.is_admin) {
+    throw new Error('Only the owner can edit staff access')
+  }
   const s = staff.find((x) => x.id === id)
   if (!s) throw new Error('Staff not found')
-  if (s.is_admin) {
+  if (s.id === OWNER_STAFF_ID) {
     s.sections = [...ALL_SECTION_IDS]
+    s.is_admin = true
   } else {
-    s.sections = [...new Set(sections)]
+    s.is_admin = false
+    s.sections = [
+      ...new Set(sections.filter((id) => id !== 'staff_access')),
+    ]
   }
   persistStaff()
   if (session?.id === id) {
@@ -225,6 +277,12 @@ export function setStaffSections(id: string, sections: StaffSectionId[]): void {
 }
 
 export function removeStaff(id: string): void {
+  if (!session?.is_admin) {
+    throw new Error('Only the owner can edit staff access')
+  }
+  if (id === OWNER_STAFF_ID) {
+    throw new Error('Cannot remove the owner account')
+  }
   if (staff.length <= 1) throw new Error('Keep at least one staff member')
   staff = staff.filter((s) => s.id !== id)
   persistStaff()

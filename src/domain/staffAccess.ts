@@ -27,17 +27,70 @@ export type StaffMember = {
   id: string
   name: string
   phone: string
-  /** Can edit other staff section toggles */
+  /**
+   * Sole owner flag. Only Pierce (`OWNER_STAFF_ID`) may be admin —
+   * full access + Staff access grants for everyone else.
+   */
   is_admin: boolean
   sections: StaffSectionId[]
   active: boolean
+}
+
+/** Hard-coded sole owner — only this account manages staff ACL. */
+export const OWNER_STAFF_ID = 'staff-pierce'
+
+export const ALL_SECTION_IDS: StaffSectionId[] = STAFF_SECTIONS.map((s) => s.id)
+
+/** Sections the owner may grant to others (Staff access stays owner-only). */
+export const GRANTABLE_SECTIONS = STAFF_SECTIONS.filter(
+  (s) => s.id !== 'staff_access',
+)
+
+export const GRANTABLE_SECTION_IDS: StaffSectionId[] = GRANTABLE_SECTIONS.map(
+  (s) => s.id,
+)
+
+/** Enforce sole-owner rules on a staff row. */
+export function enforceOwnerRules(member: StaffMember): StaffMember {
+  if (member.id === OWNER_STAFF_ID) {
+    return {
+      ...member,
+      is_admin: true,
+      active: true,
+      sections: [...ALL_SECTION_IDS],
+    }
+  }
+  return {
+    ...member,
+    is_admin: false,
+    sections: [
+      ...new Set(member.sections.filter((id) => id !== 'staff_access')),
+    ],
+  }
 }
 
 /** Digits-only US phone (last 10). */
 export function normalizePhone(phone: string): string {
   const d = phone.replace(/\D/g, '')
   if (d.length === 11 && d.startsWith('1')) return d.slice(1)
-  return d
+  return d.slice(0, 10)
+}
+
+/**
+ * Digits the user may type into a phone field (US, max 10).
+ * Strips spaces, dashes, parens, and a leading country code 1.
+ */
+export function phoneDigitsInput(raw: string): string {
+  return normalizePhone(raw)
+}
+
+/** Display / type-as-you-go format: (XXX) XXX-XXXX */
+export function formatPhoneDisplay(phone: string): string {
+  const d = phoneDigitsInput(phone)
+  if (!d) return ''
+  if (d.length <= 3) return `(${d}`
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`
 }
 
 export function phonesMatch(a: string, b: string): boolean {
@@ -82,6 +135,8 @@ export function hasSection(
   section: StaffSectionId,
 ): boolean {
   if (!member || !member.active) return false
+  // Staff access page: owner/admin only — never via a granted section toggle.
+  if (section === 'staff_access') return member.is_admin
   if (member.is_admin) return true
   return member.sections.includes(section)
 }
@@ -119,5 +174,3 @@ export const DISPATCH_DEFAULT_SECTIONS: StaffSectionId[] = [
   'briefing',
   'tasks',
 ]
-
-export const ALL_SECTION_IDS: StaffSectionId[] = STAFF_SECTIONS.map((s) => s.id)
