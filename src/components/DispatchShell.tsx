@@ -66,6 +66,15 @@ export function DispatchShell({ children }: { children: ReactNode }) {
     setOpen(false)
   }, [loc.pathname])
 
+  // Checkpoint ticker — fires T-minus check-ins into the exception queue
+  useEffect(() => {
+    let stop: (() => void) | undefined
+    void import('@/lib/checkpointStore').then((m) => {
+      stop = m.startCheckpointTicker()
+    })
+    return () => stop?.()
+  }, [])
+
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow

@@ -15,14 +15,34 @@ import { createWxAdapter, type WxBrief } from '@/adapters/wx'
 import { FlightCatBadge } from '@/components/FlightCatBadge'
 import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
 import { PipelineStrip } from '@/components/PipelineStrip'
+import {
+  acknowledgeCheckpoint,
+  listCheckpoints,
+  scheduleCheckpointsForTrip,
+  subscribeCheckpoints,
+} from '@/lib/checkpointStore'
 
 export default function TripPage() {
   const { id } = useParams()
   useSyncExternalStore(subscribeTrips, listTripsStable, () => [])
+  const allChecks = useSyncExternalStore(
+    subscribeCheckpoints,
+    listCheckpoints,
+    () => [],
+  )
   const trip = id ? getTrip(id) : null
   const [threadBody, setThreadBody] = useState('')
   const [invoiceBusy, setInvoiceBusy] = useState(false)
   const [wxBriefs, setWxBriefs] = useState<WxBrief[]>([])
+  const tripChecks = useMemo(
+    () =>
+      allChecks.filter(
+        (c) =>
+          c.trip_id === id &&
+          (c.status === 'scheduled' || c.status === 'fired'),
+      ),
+    [allChecks, id],
+  )
 
   const ruleChips = useMemo(
     () => (trip?.client_id ? clientRuleChips(trip.client_id) : []),
@@ -184,6 +204,12 @@ export default function TripPage() {
                       {leg.origin}→{leg.dest}
                     </span>
                   )}
+                  {(leg.est_start || leg.est_end) && (
+                    <div className="avionic text-[11px] text-muted">
+                      Est {leg.est_start?.slice(11, 16) ?? '—'}Z →{' '}
+                      {leg.est_end?.slice(11, 16) ?? '—'}Z
+                    </div>
+                  )}
                 </div>
                 <Link
                   to={`/t/${leg.one_tap_token}`}
@@ -192,6 +218,72 @@ export default function TripPage() {
                 >
                   One-tap →
                 </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-gold/30 bg-gold/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xs uppercase tracking-wider text-gold">
+            Check-in timers
+          </h2>
+          {(trip.state === 'booked' || trip.state === 'in_progress') &&
+            tripChecks.length === 0 && (
+              <button
+                type="button"
+                className="text-xs text-gold underline"
+                onClick={() => scheduleCheckpointsForTrip(trip.id)}
+              >
+                Schedule check-ins
+              </button>
+            )}
+        </div>
+        <p className="mt-1 text-[11px] text-muted">
+          Auto-scheduled on dispatch: aircraft T-60/T-30/arrival, truck T-30/T-5,
+          overdue watchdogs → Board exception queue + on-shift SMS.
+        </p>
+        {tripChecks.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">No timers yet.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {tripChecks.map((c) => (
+              <li
+                key={c.id}
+                className="flex flex-wrap items-start justify-between gap-2 border-b border-border/40 pb-2 text-sm last:border-0"
+              >
+                <div>
+                  <span
+                    className={
+                      c.status === 'fired' ? 'text-late' : 'text-cream'
+                    }
+                  >
+                    {c.title}
+                  </span>
+                  <div className="avionic text-[11px] text-muted">
+                    {c.fire_at.slice(11, 16)}Z · {c.party} · {c.status}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {c.one_tap_token && (
+                    <Link
+                      to={`/t/${c.one_tap_token}`}
+                      className="text-xs text-gold"
+                    >
+                      One-tap
+                    </Link>
+                  )}
+                  {c.status === 'scheduled' && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted"
+                      onClick={() => acknowledgeCheckpoint(c.id)}
+                    >
+                      Skip
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

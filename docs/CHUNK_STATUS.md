@@ -7,7 +7,7 @@ Updated as we convert mocks → durable/live paths.
 | 1 | Foundation | **DONE** spine, fleet import, network, airports+city/state | Direct state revoke hardening |
 | 2 | Quote engine | **PARTIAL** — client rules + FBO fees wired into candidates; NM GC readout in reasoning; live airports picker | Maps drive times, pricing priors, tax_rates from DB, quote/doc rows |
 | 3 | Offers/booking | **PARTIAL** — accept → confirm + stand-down (mock SMS) + ETA sheet/track links to tracker/supply-chain; **no QB invoice on accept** | RingCentral, QBO invoice, offers table writes |
-| 4 | Execution | **PARTIAL** — trip execution UI, one-tap, thread parse | Thread numbers, checkpoints cron, Storage POD |
+| 4 | Execution | **PARTIAL** — trip execution UI, one-tap, thread parse, **checkpoint timers** on dispatch | Thread numbers, edge cron (client ticker for now), Storage POD |
 | 5 | Portal/money | **PARTIAL** — portal form + track; financials ledger; mock QB | Magic-link RLS, QBO OAuth, manifests/render-doc |
 | 6 | Admin wizards | **PARTIAL** — operator docs (charter/D085/COI + expiry); COI expiry email; named-insurer toggle @ 3 trips; FBO CSV | D085 real parse edge; Storage upload; persist operators to DB |
 | 7 | Intelligence | **PARTIAL** — live METAR/TAF; radar watches network + D085 tails (mock ADS-B takeoff/landing); crew-rest chips removed | Live ADS-B poller, NOTAM FAA API, Telnyx, scorecard MV |
@@ -26,6 +26,13 @@ Updated as we convert mocks → durable/live paths.
 - Hard quote accept → confirm selected operator + stand down others (mock SMS)
 - ETA sheet + portal track links → client tracker / supply-chain emails (+ QD CC)
 - Invoice → AP / QB **not** on accept (manual later)
+
+## Checkpoint timers (on dispatch)
+
+- On book / Quick Dispatch: hydrate leg est times → schedule truck T-30/T-5, air T-60/T-30/arrival, overdue (+20m) watchdogs
+- Dispatcher shell ticks every 30s → fires due check-ins to Board exception queue + on-shift SMS
+- Board “Upcoming check-ins” + Trip “Check-in timers” with one-tap links
+- Domain: `src/domain/checkpoints.ts` · store: `src/lib/checkpointStore.ts`
 
 ## Estimated quote + ETA email (request flow)
 

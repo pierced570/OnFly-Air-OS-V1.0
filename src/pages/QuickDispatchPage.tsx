@@ -183,6 +183,12 @@ export default function QuickDispatchPage() {
         })),
       })
 
+      // Checkpoint timers (T-60/T-30 air, T-30/T-5 ground, overdue watchdogs)
+      const { scheduleCheckpointsForTrip } = await import(
+        '@/lib/checkpointStore'
+      )
+      scheduleCheckpointsForTrip(trip.id)
+
       // ETA + track links → tracker / supply-chain / CC (not AP invoice email).
       const { listTrackerEmails } = await import('@/lib/clientStore')
       const trackerFromClient = listTrackerEmails(client.id)

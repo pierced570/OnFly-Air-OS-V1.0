@@ -18,6 +18,11 @@ import {
   syncExceptionsFromTrips,
 } from '@/lib/exceptionStore'
 import {
+  acknowledgeCheckpoint,
+  listUpcomingCheckpoints,
+  subscribeCheckpoints,
+} from '@/lib/checkpointStore'
+import {
   endShift,
   getOnShift,
   startShift,
@@ -34,6 +39,11 @@ export default function BoardPage() {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTrips)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, () => [])
   const exceptions = useSyncExternalStore(subscribeExceptions, listExceptions, () => [])
+  const upcomingChecks = useSyncExternalStore(
+    subscribeCheckpoints,
+    () => listUpcomingCheckpoints(8),
+    () => [],
+  )
   const onShift = useSyncExternalStore(subscribeShift, getOnShift, () => null)
   const intake = useSyncExternalStore(subscribeIntake, listPendingIntake, () => [])
   const openTasks = useSyncExternalStore(subscribeNeedsInfo, listOpenNeedsInfo, () => [])
@@ -109,6 +119,50 @@ export default function BoardPage() {
             </div>
           </div>
         ))}
+
+        <div className="pt-2">
+          <h2 className="text-xs uppercase tracking-wider text-muted">
+            Upcoming check-ins
+          </h2>
+          {upcomingChecks.length === 0 && (
+            <p className="mt-2 text-xs text-muted">
+              Timers populate when a trip is dispatched (booked / QD).
+            </p>
+          )}
+          <ul className="mt-2 space-y-2">
+            {upcomingChecks.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-md border border-border bg-surface px-3 py-2 text-xs"
+              >
+                <div className="flex justify-between gap-2">
+                  <span className="font-medium text-cream">{c.title}</span>
+                  <span className="avionic text-gold shrink-0">
+                    {fmtFire(c.fire_at)}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-muted">{c.detail}</p>
+                <div className="mt-1.5 flex gap-3">
+                  <Link to={`/trips/${c.trip_id}`} className="text-gold">
+                    T-{c.trip_ref}
+                  </Link>
+                  {c.one_tap_token && (
+                    <Link to={`/t/${c.one_tap_token}`} className="text-muted">
+                      One-tap
+                    </Link>
+                  )}
+                  <button
+                    type="button"
+                    className="text-muted"
+                    onClick={() => acknowledgeCheckpoint(c.id)}
+                  >
+                    Skip
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <div className="rounded-lg border border-border bg-surface p-3">
           <div className="text-xs uppercase tracking-wider text-muted">
@@ -253,6 +307,17 @@ export default function BoardPage() {
       </div>
     </div>
   )
+}
+
+function fmtFire(iso: string): string {
+  try {
+    const d = new Date(iso)
+    const hh = String(d.getUTCHours()).padStart(2, '0')
+    const mm = String(d.getUTCMinutes()).padStart(2, '0')
+    return `${hh}:${mm}Z`
+  } catch {
+    return '—'
+  }
 }
 
 function PipelineColumn({
