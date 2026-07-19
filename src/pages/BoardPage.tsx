@@ -286,8 +286,8 @@ export default function BoardPage() {
           </div>
         </header>
 
-        {/* Mobile: stacked stages. Desktop: horizontal columns. */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:gap-2 lg:overflow-x-auto lg:pb-2">
+        {/* Responsive stage grid — no sideways slide. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 sm:gap-3">
           {PIPELINE_STAGES.map((stage) => (
             <PipelineColumn
               key={stage.id}
@@ -339,15 +339,15 @@ function PipelineColumn({
         : 'text-muted'
 
   return (
-    <section className="flex w-full flex-col rounded-lg border border-border bg-surface/60 lg:w-56 lg:shrink-0">
-      <header className="border-b border-border px-3 py-2">
+    <section className="flex min-h-0 flex-col rounded-lg border border-border bg-surface/60">
+      <header className="border-b border-border px-3 py-2.5">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className={`text-xs uppercase tracking-wider ${head}`}>{label}</h2>
           <span className="avionic text-xs text-muted">{cards.length}</span>
         </div>
         <p className="mt-0.5 text-[11px] leading-snug text-muted">{blurb}</p>
       </header>
-      <div className="flex flex-col gap-2 p-2">
+      <div className="flex max-h-[42vh] flex-col gap-2 overflow-y-auto p-2 sm:max-h-[52vh]">
         {cards.length === 0 ? (
           <p className="px-1 py-4 text-center text-[11px] text-muted">—</p>
         ) : (

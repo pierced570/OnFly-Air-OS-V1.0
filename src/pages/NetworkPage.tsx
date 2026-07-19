@@ -271,10 +271,33 @@ export default function NetworkPage() {
     [missionRank],
   )
 
-  const visibleColumns = useMemo(
-    () => board.filter((c) => visibleVerticals.has(c.id)),
-    [board, visibleVerticals],
+  const visibleColumns = useMemo(() => {
+    const cols = board.filter((c) => visibleVerticals.has(c.id))
+    // Non-empty first so the board isn’t a long slide through blanks.
+    return [...cols].sort((a, b) => {
+      const ae = a.operator_count > 0 ? 0 : 1
+      const be = b.operator_count > 0 ? 0 : 1
+      if (ae !== be) return ae - be
+      return 0
+    })
+  }, [board, visibleVerticals])
+
+  const filledColumns = useMemo(
+    () => visibleColumns.filter((c) => c.operator_count > 0),
+    [visibleColumns],
   )
+
+  // With every vertical on, hide empties so the board isn’t a sideways slog.
+  // Narrower chip selection shows empties so you can inspect a class.
+  const displayColumns = useMemo(() => {
+    if (visibleVerticals.size === VERTICAL_IDS.length) return filledColumns
+    return visibleColumns
+  }, [visibleVerticals, filledColumns, visibleColumns])
+
+  const emptyHiddenCount = useMemo(() => {
+    if (visibleVerticals.size !== VERTICAL_IDS.length) return 0
+    return visibleColumns.length - filledColumns.length
+  }, [visibleVerticals, visibleColumns, filledColumns])
 
   const namedInsurerFlags = useMemo(() => {
     return complianceRows.filter((c) => {
@@ -415,16 +438,16 @@ export default function NetworkPage() {
           </p>
         )}
         {topPicks.length > 0 && (
-          <ol className="scroll-touch -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
+          <ol className="flex flex-wrap gap-2">
             {topPicks.map((p, i) => (
-              <li key={p.operator_id} className="shrink-0 sm:shrink">
+              <li key={p.operator_id}>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedOpId(p.operator_id)
                     setView('board')
                   }}
-                  className="max-w-[85vw] rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-left text-xs text-cream hover:bg-gold/20 sm:max-w-none sm:py-1.5"
+                  className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-left text-xs text-cream hover:bg-gold/20 sm:py-1.5"
                 >
                   <span className="avionic text-gold">{i + 1}.</span>{' '}
                   <span className="font-medium">{p.operator_name}</span>
@@ -451,17 +474,17 @@ export default function NetworkPage() {
 
       {view === 'board' && (
         <>
-          <div className="scroll-touch -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="shrink-0 rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
+              className="rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
               onClick={() => setVisibleVerticals(new Set(VERTICAL_IDS))}
             >
               All
             </button>
             <button
               type="button"
-              className="shrink-0 rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
+              className="rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
               onClick={() => setVisibleVerticals(new Set())}
             >
               None
@@ -469,16 +492,18 @@ export default function NetworkPage() {
             {VERTICAL_IDS.map((id) => {
               const on = visibleVerticals.has(id)
               const col = board.find((c) => c.id === id)
+              const empty = !col || col.operator_count === 0
               return (
                 <button
                   key={id}
                   type="button"
                   onClick={() => toggleVertical(id)}
                   className={[
-                    'shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] transition-colors whitespace-nowrap',
+                    'rounded-md border px-2.5 py-1.5 text-[11px] transition-colors whitespace-nowrap',
                     on
                       ? 'border-gold/50 bg-gold/15 text-gold'
                       : 'border-border bg-surface text-muted',
+                    empty ? 'opacity-50' : '',
                   ].join(' ')}
                 >
                   {VERTICAL_LABELS[id]}
@@ -496,47 +521,61 @@ export default function NetworkPage() {
             <p className="text-sm text-muted">
               No verticals selected — turn one on above.
             </p>
+          ) : displayColumns.length === 0 ? (
+            <p className="text-sm text-muted">
+              No operators in the selected verticals.
+            </p>
           ) : (
-            <div className="scroll-touch snap-x-mandatory -mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:gap-4 sm:px-0">
-              {visibleColumns.map((col) => (
-                <section
-                  key={col.id}
-                  className="snap-start flex w-[min(85vw,20rem)] shrink-0 flex-col rounded-lg border border-border bg-surface sm:w-[280px]"
-                >
-                  <header className="border-b border-border px-4 py-3">
-                    <h2 className="text-sm font-medium text-cream">
-                      {col.label}
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted">
-                      <span className="avionic text-cream">
-                        {col.operator_count}
-                      </span>{' '}
-                      ops ·{' '}
-                      <span className="avionic text-cream">
-                        {col.aircraft_count}
-                      </span>{' '}
-                      tails
-                    </p>
-                  </header>
-                  <ul className="max-h-[55vh] space-y-2 overflow-y-auto p-3 sm:max-h-[62vh]">
-                    {col.operators.length === 0 && (
-                      <li className="px-1 py-4 text-center text-xs text-muted">
-                        No operators in this vertical
-                      </li>
-                    )}
-                    {col.operators.map((card, idx) => (
-                      <VerticalCard
-                        key={`${col.id}:${card.operator_id}`}
-                        rank={idx + 1}
-                        card={card}
-                        selected={selectedOpId === card.operator_id}
-                        onSelect={() => setSelectedOpId(card.operator_id)}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 sm:gap-4">
+                {displayColumns.map((col) => (
+                  <section
+                    key={col.id}
+                    className="flex min-h-0 flex-col rounded-lg border border-border bg-surface"
+                  >
+                    <header className="border-b border-border px-4 py-3">
+                      <h2 className="text-sm font-medium text-cream">
+                        {col.label}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-muted">
+                        <span className="avionic text-cream">
+                          {col.operator_count}
+                        </span>{' '}
+                        ops ·{' '}
+                        <span className="avionic text-cream">
+                          {col.aircraft_count}
+                        </span>{' '}
+                        tails
+                      </p>
+                    </header>
+                    <ul className="max-h-[50vh] space-y-2 overflow-y-auto p-3 sm:max-h-[58vh]">
+                      {col.operators.length === 0 ? (
+                        <li className="px-1 py-4 text-center text-xs text-muted">
+                          No operators in this vertical
+                        </li>
+                      ) : (
+                        col.operators.map((card, idx) => (
+                          <VerticalCard
+                            key={`${col.id}:${card.operator_id}`}
+                            rank={idx + 1}
+                            card={card}
+                            selected={selectedOpId === card.operator_id}
+                            onSelect={() => setSelectedOpId(card.operator_id)}
+                          />
+                        ))
+                      )}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+              {emptyHiddenCount > 0 && (
+                <p className="text-[11px] text-muted">
+                  {emptyHiddenCount} empty vertical
+                  {emptyHiddenCount === 1 ? '' : 's'} hidden — select a chip to
+                  inspect one.
+                </p>
+              )}
+            </>
           )}
 
           {selectedBundle && (
