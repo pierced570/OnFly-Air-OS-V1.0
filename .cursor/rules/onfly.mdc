@@ -1,5 +1,3 @@
-# Save this file's contents as `.cursor/rules/onfly.mdc` in the repo
-
 ---
 description: OnFly OS core constraints — always apply
 alwaysApply: true
@@ -35,3 +33,5 @@ You are building OnFly OS — the operating system for on-demand, time-critical 
 - Feature branches + PRs, small commits, `npm test` + typecheck green before push. Vercel preview per branch; merge to main = production.
 - Schema changes = migration files in `supabase/migrations/` (never dashboard-only edits). Edge functions in `supabase/functions/`. Secrets via `supabase secrets` / Vercel env — never committed; `VITE_*` vars are public, nothing sensitive in them.
 - Finish each chunk by executing its acceptance checklist and reporting results before starting anything else.
+- **Lint audit:** never introduce `update trips set state` or Supabase `.update({ state:` on `trips`. Grep before push: `update trips set state` and `.update(.*state`. All transitions go through `trip_transition` RPC / `src/domain/stateMachine.ts`.
+
