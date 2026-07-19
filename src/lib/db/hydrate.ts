@@ -11,9 +11,13 @@ import {
   DEFAULT_CLIENT_RULES,
 } from '@/lib/clientStore'
 import { replaceFbosFromDb, type FboRow } from '@/lib/fboStore'
+import { hydrateTrips } from '@/lib/db/hydrateTrips'
+import { replaceIntakeFromDb, type IntakeDraft } from '@/lib/intakeStore'
 import { replaceLeadsFromDb } from '@/lib/leadStore'
 import { replaceNeedsInfoFromDb, type NeedsInfoTask } from '@/lib/needsInfoStore'
+import { loadPricingPriors } from '@/lib/pricingPriorsStore'
 import { hydrateShiftFromDb } from '@/lib/shiftStore'
+import { loadTaxRates } from '@/lib/taxRatesStore'
 
 export async function hydrateOperatingData(): Promise<{
   ok: boolean
@@ -21,10 +25,13 @@ export async function hydrateOperatingData(): Promise<{
   fbos: number
   tasks: number
   leads: number
+  trips: number
 }> {
   if (!canPersist()) {
-    return { ok: false, clients: 0, fbos: 0, tasks: 0, leads: 0 }
+    return { ok: false, clients: 0, fbos: 0, tasks: 0, leads: 0, trips: 0 }
   }
+
+  await Promise.all([loadTaxRates(), loadPricingPriors()])
 
   const clientRows = await safeQuery('clients', () =>
     db()
@@ -198,5 +205,31 @@ export async function hydrateOperatingData(): Promise<{
     leads = mapped.length
   }
 
-  return { ok: true, clients, fbos, tasks, leads }
+  const trips = await hydrateTrips()
+
+  const intakeRows = await safeQuery('intake_drafts', () =>
+    db()
+      .from('intake_drafts')
+      .select('*')
+      .eq('status', 'pending_review')
+      .order('created_at', { ascending: false })
+      .limit(100),
+  )
+  if (Array.isArray(intakeRows) && intakeRows.length) {
+    const mapped: IntakeDraft[] = intakeRows.map((r: Record<string, unknown>) => ({
+      id: String(r.id),
+      channel: (String(r.channel) as IntakeDraft['channel']) || 'email',
+      from: String(r.from_addr ?? ''),
+      subject: String(r.subject ?? ''),
+      body: String(r.body ?? ''),
+      created_at: String(r.created_at ?? new Date().toISOString()),
+      status: (String(r.status) as IntakeDraft['status']) || 'pending_review',
+      extracted: (r.extracted as IntakeDraft['extracted']) ?? null,
+      ignore_reason: r.ignore_reason ? String(r.ignore_reason) : undefined,
+      notified_phone: r.notified_phone ? String(r.notified_phone) : undefined,
+    }))
+    replaceIntakeFromDb(mapped)
+  }
+
+  return { ok: true, clients, fbos, tasks, leads, trips }
 }

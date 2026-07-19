@@ -5,10 +5,16 @@
  * and schedules checkpoint check-in timers for the dispatched trip.
  */
 
+import { buildManifestModel, renderManifestHtml } from '@/domain/manifest'
 import { listTrackerEmails } from '@/lib/clientStore'
 import { scheduleCheckpointsForTrip } from '@/lib/checkpointStore'
 import { sendBookedEtaSheetToTrackers } from '@/lib/etaSheetSender'
-import { getTrip, mutateTrip, type TripStoreRow } from '@/lib/tripStore'
+import {
+  addTripDocument,
+  getTrip,
+  mutateTrip,
+  type TripStoreRow,
+} from '@/lib/tripStore'
 
 export async function runOnBookedAutomations(tripId: string): Promise<{
   etaSentTo: string[]
@@ -16,6 +22,8 @@ export async function runOnBookedAutomations(tripId: string): Promise<{
 }> {
   const trip = getTrip(tripId)
   if (!trip) return { etaSentTo: [], checkpoints: 0 }
+
+  attachManifestDocument(trip)
 
   // Timers for T-minus check-ins with pilot / ground / on-shift
   const scheduled = scheduleCheckpointsForTrip(tripId)
@@ -50,4 +58,42 @@ function resolveTrackerRecipients(trip: TripStoreRow): string[] {
   return [...new Set([...fromClient, ...fromQuickCc].map((e) => e.trim().toLowerCase()))].filter(
     (e) => e.includes('@'),
   )
+}
+
+function attachManifestDocument(trip: TripStoreRow): void {
+  if (trip.documents.some((d) => d.kind === 'manifest')) return
+  const selected = trip.offers.find((o) => o.state === 'selected')
+  const model = buildManifestModel({
+    tripRef: trip.ref,
+    lane: trip.lane,
+    po: trip.quick?.po,
+    operatorName:
+      selected?.operator_name || trip.quick?.operator_name || 'TBD',
+    tail: selected?.tail || trip.quick?.tail || 'TBD',
+    typeName:
+      selected?.type_name || trip.quick?.aircraft_type || 'TBD',
+    pieces: [],
+    etaSummary: trip.legs.map((l) => ({
+      label: l.label,
+      est_end: l.est_end,
+    })),
+  })
+  const html = renderManifestHtml(model)
+  const url =
+    typeof URL !== 'undefined' && typeof Blob !== 'undefined'
+      ? URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+      : `/trips/${trip.id}/manifest`
+  addTripDocument(trip.id, {
+    kind: 'manifest',
+    title: `Manifest · T-${trip.ref}`,
+    url,
+  })
+  mutateTrip(trip.id, (t) => {
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'system',
+      kind: 'manifest_created',
+      payload: { trip_ref: trip.ref },
+    })
+  })
 }

@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Candidate } from '@/domain/routing'
-import { TEST_TAX_RATES_2026 } from '@/domain/tax'
 import { buildQuoteTotals, type MarkupMode } from '@/domain/quote'
 import { formatStopLocal } from '@/domain/timeFmt'
 import { getClient } from '@/lib/clientStore'
 import { getRequest } from '@/lib/requestStore'
+import { getTaxRates } from '@/lib/taxRatesStore'
 import {
   resolveQuoteRecipients,
   sendEstimatedQuote,
@@ -81,7 +81,7 @@ export default function QuotePreviewPage() {
           mtowLbs: mtow,
           paxCount: draft.paxCount || 0,
           segments: 1,
-          rates: TEST_TAX_RATES_2026,
+          rates: getTaxRates(),
         }).airSubtotal
   const tax = buildQuoteTotals(selected, {
     markupMode: 'dollars',
@@ -90,7 +90,7 @@ export default function QuotePreviewPage() {
     mtowLbs: mtow,
     paxCount: draft.paxCount || 0,
     segments: 1,
-    rates: TEST_TAX_RATES_2026,
+    rates: getTaxRates(),
   })
 
   const clientName = draft.client_id

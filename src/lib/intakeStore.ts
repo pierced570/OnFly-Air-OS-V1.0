@@ -106,7 +106,36 @@ export async function simulateInboundEmail(opts: {
   }
   drafts.set(id, row)
   bump()
+  void persistIntakeDraft(row)
   return row
+}
+
+export function replaceIntakeFromDb(rows: IntakeDraft[]): void {
+  if (!rows.length) return
+  for (const r of rows) drafts.set(r.id, r)
+  bump()
+}
+
+async function persistIntakeDraft(row: IntakeDraft): Promise<void> {
+  try {
+    const { canPersist, db, safeQuery } = await import('@/lib/db/client')
+    if (!canPersist()) return
+    await safeQuery('intake_drafts.upsert', () =>
+      db().from('intake_drafts').upsert({
+        id: row.id,
+        channel: row.channel,
+        from_addr: row.from,
+        subject: row.subject,
+        body: row.body,
+        status: row.status,
+        extracted: row.extracted,
+        ignore_reason: row.ignore_reason ?? null,
+        notified_phone: row.notified_phone ?? null,
+      }),
+    )
+  } catch (e) {
+    console.warn('[intake] persist failed', e)
+  }
 }
 
 export async function simulateInboundSms(opts: {

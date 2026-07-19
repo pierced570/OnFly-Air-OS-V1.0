@@ -180,10 +180,49 @@ export function scheduleCheckpointsForTrip(tripId: string): ScheduledCheckpoint[
     })
   })
 
+  void persistCheckpoints(tripId, rows)
+
   bump()
-  // Fire anything already due (ASAP / past T-minus)
+  // Fire anything already due (ASAP / past T-minus) — edge cron mirrors this
   void tickCheckpoints()
   return rows
+}
+
+async function persistCheckpoints(
+  tripId: string,
+  rows: ScheduledCheckpoint[],
+): Promise<void> {
+  try {
+    const { canPersist, db, safeQuery } = await import('@/lib/db/client')
+    const { ensureTripRow, persistLegs } = await import('@/lib/db/persistTrip')
+    if (!canPersist()) return
+    const trip = getTrip(tripId)
+    if (trip) {
+      await ensureTripRow(trip)
+      await persistLegs(tripId, trip.legs)
+    }
+    await safeQuery('checkpoints.delete', () =>
+      db().from('checkpoints').delete().eq('trip_id', tripId),
+    )
+    if (!rows.length) return
+    await safeQuery('checkpoints.insert', () =>
+      db().from('checkpoints').insert(
+        rows.map((r) => ({
+          id: r.id,
+          trip_id: tripId,
+          leg_id: r.leg_id || null,
+          key: r.key,
+          kind: r.kind,
+          fire_at: r.fire_at,
+          status: r.status,
+          title: r.title ?? r.kind,
+          detail: r.detail ?? '',
+        })),
+      ),
+    )
+  } catch (e) {
+    console.warn('[checkpoints] persist failed', e)
+  }
 }
 
 export function cancelCheckpointsForTrip(tripId: string): void {

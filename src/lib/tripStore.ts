@@ -1,13 +1,33 @@
 /**
- * In-memory trip/offers store (mock path).
+ * Trip/offers store — session Map with best-effort Supabase sync via trip_transition.
  */
 
 import type { Candidate } from '@/domain/routing'
+import type { ChainLeg } from '@/domain/etaChain'
+import { DEFAULT_LEG_DEFAULTS } from '@/domain/etaChain'
 import type { TripState } from '@/domain/stateMachine'
 import { transition } from '@/domain/stateMachine'
 import { parseThreadActual } from '@/domain/threadParse'
+import {
+  applyParsedActualToLegs,
+  cascadeRecomputeFromActual,
+  materializeChainToLegs,
+  type AppLeg,
+} from '@/domain/tripLegs'
 import { tripInvoiceLines } from '@/domain/qbInvoice'
 import { createAccountingAdapter } from '@/adapters/accounting'
+import { raiseException } from '@/lib/exceptionStore'
+
+function asTripLegs(legs: AppLeg[]): TripLegRow[] {
+  return legs.map((l) => ({ ...l }))
+}
+
+function schedulePersist(tripId: string): void {
+  void import('@/lib/db/persistTrip').then(async (m) => {
+    const row = trips.get(tripId)
+    if (row) await m.persistTripSnapshot(row)
+  })
+}
 
 function tapToken(kind: string): string {
   return `${kind}-${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`
@@ -278,8 +298,15 @@ export function createTripFromCandidates(opts: {
   candidates: Candidate[]
   payload_kind: 'cargo' | 'pax' | 'both'
   client_id?: string
+  /** Prefer this chain when materializing legs (selected option). */
+  selectedChain?: ChainLeg[]
 }): TripStoreRow {
   const id = crypto.randomUUID()
+  const chain =
+    opts.selectedChain ??
+    opts.candidates.find((c) => c.chain?.length)?.chain ??
+    []
+  const legs = chain.length ? asTripLegs(materializeChainToLegs(chain)) : []
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
@@ -310,7 +337,7 @@ export function createTripFromCandidates(opts: {
       contact_cell: `+1555000${String(1000 + i).slice(-4)}`,
     })),
     client_id: opts.client_id,
-    legs: [],
+    legs,
     participants: [
       {
         id: crypto.randomUUID(),
@@ -328,7 +355,10 @@ export function createTripFromCandidates(opts: {
         at: new Date().toISOString(),
         actor: 'dispatcher',
         kind: 'created_from_estimate',
-        payload: { client_id: opts.client_id ?? null },
+        payload: {
+          client_id: opts.client_id ?? null,
+          chain_legs: legs.length,
+        },
       },
       {
         at: new Date().toISOString(),
@@ -340,6 +370,7 @@ export function createTripFromCandidates(opts: {
   }
   trips.set(id, row)
   bump()
+  schedulePersist(id)
   return row
 }
 
@@ -401,11 +432,40 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   }
   trips.set(id, row)
   bump()
+  schedulePersist(id)
   return row
 }
 
 export function getTrip(id: string) {
   return trips.get(id) ?? null
+}
+
+/** Replace session trips from DB hydrate (keeps higher refSeq). */
+export function replaceTripsFromDb(rows: TripStoreRow[]): void {
+  if (!rows.length) return
+  for (const r of rows) {
+    trips.set(r.id, r)
+    if (r.ref >= refSeq) refSeq = r.ref + 1
+  }
+  bump()
+}
+
+/** Attach / replace legs from a quote chain (book / hard-quote select). */
+export function materializeTripLegsFromChain(
+  tripId: string,
+  chain: ChainLeg[],
+): void {
+  if (!chain.length) return
+  mutateTrip(tripId, (t) => {
+    if (t.legs.some((l) => l.actual_start || l.actual_end)) return
+    t.legs = asTripLegs(materializeChainToLegs(chain))
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'system',
+      kind: 'legs_materialized',
+      payload: { count: t.legs.length },
+    })
+  })
 }
 
 export function getTripByOfferToken(token: string) {
@@ -433,6 +493,7 @@ export function mutateTrip(id: string, fn: (t: TripStoreRow) => void) {
   fn(t)
   trips.set(id, t)
   bump()
+  schedulePersist(id)
   return t
 }
 
@@ -442,16 +503,34 @@ export function safeTransitionTrip(
   actor: string,
   payload: Record<string, unknown> = {},
 ) {
-  return mutateTrip(id, (t) => {
-    const result = transition(t.state, to, actor, payload)
-    t.state = result.to
+  const prev = trips.get(id)
+  if (!prev) throw new Error('trip not found')
+  const fromState = prev.state
+  const result = mutateTrip(id, (t) => {
+    const tr = transition(t.state, to, actor, payload)
+    t.state = tr.to
     t.events.push({
       at: new Date().toISOString(),
       actor,
-      kind: result.event.kind,
-      payload: result.event.payload,
+      kind: tr.event.kind,
+      payload: tr.event.payload,
     })
   })
+  void import('@/lib/db/persistTrip').then((m) =>
+    m.syncTripTransition({
+      trip: result,
+      fromState,
+      toState: to,
+      actor,
+      payload,
+    }),
+  )
+  if (to === 'delivered') {
+    void createInvoiceForTrip(id).catch((e) =>
+      console.warn('[invoice] auto on delivered failed', e),
+    )
+  }
+  return result
 }
 
 export function payloadKindOf(t: TripStoreRow): 'cargo' | 'pax' | 'both' {
@@ -478,20 +557,54 @@ export function completeLegCheckIn(
   const hit = getTripByLegToken(token)
   if (!hit) return null
   const now = new Date().toISOString()
+  let wantDelivered = false
+  let wantInProgress = false
   mutateTrip(hit.trip.id, (t) => {
     const leg = t.legs.find((l) => l.id === hit.leg.id)
     if (!leg || leg.status === 'done') return
-    leg.status = 'done'
-    leg.actual_end = now
-    if (!leg.actual_start) leg.actual_start = now
+    const { legs: cascaded, slippedMinutes } = cascadeRecomputeFromActual(
+      t.legs,
+      leg.seq,
+      { actual_start: leg.actual_start ?? now, actual_end: now },
+    )
+    t.legs = asTripLegs(cascaded).map((l) => {
+      if (l.id !== leg.id) return l
+      return {
+        ...l,
+        status: 'done',
+        actual_start: l.actual_start ?? now,
+        actual_end: now,
+      }
+    })
     const next = t.legs.find((l) => l.status === 'pending')
-    if (next) next.status = 'active'
+    if (next) {
+      t.legs = t.legs.map((l) =>
+        l.id === next.id ? { ...l, status: 'active' } : l,
+      )
+    }
     t.events.push({
       at: now,
       actor,
       kind: 'one_tap_checkin',
-      payload: { leg_id: leg.id, label: leg.label, token },
+      payload: {
+        leg_id: leg.id,
+        label: leg.label,
+        token,
+        slipped_min: slippedMinutes,
+      },
     })
+    if (
+      Math.abs(slippedMinutes) >= DEFAULT_LEG_DEFAULTS.slipThresholdMin
+    ) {
+      raiseException({
+        trip_id: t.id,
+        trip_ref: t.ref,
+        title: `ETA slip ${slippedMinutes > 0 ? '+' : ''}${slippedMinutes}m`,
+        detail: `${leg.label} actual moved the chain`,
+        severity: 'late',
+        href: `/trips/${t.id}`,
+      })
+    }
     if (leg.type === 'offload' || token.includes('del')) {
       t.documents.push({
         id: crypto.randomUUID(),
@@ -500,35 +613,30 @@ export function completeLegCheckIn(
         at: now,
         url: `#pod-${leg.id.slice(0, 8)}`,
       })
-      if (t.state === 'booked' || t.state === 'in_progress') {
-        try {
-          const result = transition(t.state, 'delivered', actor, { via: 'one_tap' })
-          t.state = result.to
-          t.events.push({
-            at: now,
-            actor,
-            kind: result.event.kind,
-            payload: result.event.payload,
-          })
-        } catch {
-          /* already past */
-        }
-      }
+      if (t.state === 'booked' || t.state === 'in_progress') wantDelivered = true
     } else if (t.state === 'booked') {
-      try {
-        const result = transition(t.state, 'in_progress', actor, { via: 'one_tap' })
-        t.state = result.to
-        t.events.push({
-          at: now,
-          actor,
-          kind: result.event.kind,
-          payload: result.event.payload,
-        })
-      } catch {
-        /* ignore */
-      }
+      wantInProgress = true
     }
   })
+  if (wantInProgress) {
+    try {
+      safeTransitionTrip(hit.trip.id, 'in_progress', actor, { via: 'one_tap' })
+    } catch {
+      /* ignore */
+    }
+  }
+  if (wantDelivered) {
+    try {
+      // booked → in_progress → delivered when still booked
+      const cur = getTrip(hit.trip.id)
+      if (cur?.state === 'booked') {
+        safeTransitionTrip(hit.trip.id, 'in_progress', actor, { via: 'one_tap' })
+      }
+      safeTransitionTrip(hit.trip.id, 'delivered', actor, { via: 'one_tap' })
+    } catch {
+      /* already past */
+    }
+  }
   return getTripByLegToken(token)
 }
 
@@ -552,8 +660,45 @@ export function postThreadMessage(
       at: msg.at,
       actor: opts.from,
       kind: 'thread_message',
-      payload: { parsed: msg.parsed_kind, channel: opts.channel },
+      payload: {
+        parsed: msg.parsed_kind,
+        channel: opts.channel,
+        confidence: parsed.confidence,
+      },
     })
+
+    if (t.legs.length && parsed.kind !== 'unknown') {
+      const applied = applyParsedActualToLegs(t.legs, parsed, msg.at)
+      if (applied.appliedSeq != null) {
+        t.legs = asTripLegs(applied.legs)
+        t.events.push({
+          at: msg.at,
+          actor: 'system',
+          kind: applied.autoApplied
+            ? 'thread_actual_applied'
+            : 'thread_actual_suggested',
+          payload: {
+            seq: applied.appliedSeq,
+            slipped_min: applied.slippedMinutes,
+            kind: parsed.kind,
+            auto: applied.autoApplied,
+          },
+        })
+        if (
+          Math.abs(applied.slippedMinutes) >=
+          DEFAULT_LEG_DEFAULTS.slipThresholdMin
+        ) {
+          raiseException({
+            trip_id: t.id,
+            trip_ref: t.ref,
+            title: `Thread ETA slip ${applied.slippedMinutes > 0 ? '+' : ''}${applied.slippedMinutes}m`,
+            detail: `${parsed.kind} from ${opts.from}`,
+            severity: 'attn',
+            href: `/trips/${t.id}`,
+          })
+        }
+      }
+    }
   })
   return msg
 }
@@ -623,6 +768,7 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
     url: created.url,
     created_at: new Date().toISOString(),
   }
+  const wasDelivered = t.state === 'delivered'
   mutateTrip(tripId, (row) => {
     row.invoice = inv
     row.documents.push({
@@ -632,35 +778,28 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
       at: inv.created_at,
       url: inv.url,
     })
-    if (row.state === 'delivered') {
-      try {
-        const result = transition(row.state, 'invoiced', 'system', {
-          qb_invoice_id: inv.qb_invoice_id,
-          doc_number: created.qbInvoiceNumber,
-        })
-        row.state = result.to
-        row.events.push({
-          at: inv.created_at,
-          actor: 'system',
-          kind: result.event.kind,
-          payload: result.event.payload,
-        })
-      } catch {
-        /* ignore */
-      }
-    } else {
-      row.events.push({
-        at: inv.created_at,
-        actor: 'system',
-        kind: 'invoice_created',
-        payload: {
-          qb_invoice_id: inv.qb_invoice_id,
-          doc_number: created.qbInvoiceNumber,
-          total,
-        },
-      })
-    }
+    row.events.push({
+      at: inv.created_at,
+      actor: 'system',
+      kind: 'invoice_created',
+      payload: {
+        qb_invoice_id: inv.qb_invoice_id,
+        doc_number: created.qbInvoiceNumber,
+        total,
+        auto: wasDelivered,
+      },
+    })
   })
+  if (wasDelivered) {
+    try {
+      safeTransitionTrip(tripId, 'invoiced', 'system', {
+        qb_invoice_id: inv.qb_invoice_id,
+        doc_number: created.qbInvoiceNumber,
+      })
+    } catch {
+      /* ignore */
+    }
+  }
   return inv
 }
 

@@ -180,6 +180,17 @@ export async function acceptHardQuote(token: string) {
     }
   })
   safeTransitionTrip(trip.id, 'booked', 'client', { accept_token: token })
+  {
+    const { materializeTripLegsFromChain, getTrip: gt } = await import(
+      '@/lib/tripStore'
+    )
+    const booked = gt(trip.id)
+    const selectedOffer = booked?.offers.find((o) => o.state === 'selected')
+    const cand =
+      booked?.candidates.find((c) => c.aircraft_id === selectedOffer?.aircraft_id) ??
+      booked?.candidates.find((c) => c.chain?.length)
+    if (cand?.chain?.length) materializeTripLegsFromChain(trip.id, cand.chain)
+  }
   const comms = createCommsAdapter()
   const fresh = getTrip(trip.id)!
   // confirmations

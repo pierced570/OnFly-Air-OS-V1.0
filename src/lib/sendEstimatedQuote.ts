@@ -165,6 +165,7 @@ export async function sendEstimatedQuote(
       candidates: opts.candidates,
       payload_kind: opts.payloadKind,
       client_id: opts.clientId ?? undefined,
+      selectedChain: opts.selected.chain,
     })
   }
 

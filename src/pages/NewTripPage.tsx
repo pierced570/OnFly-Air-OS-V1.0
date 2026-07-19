@@ -11,7 +11,8 @@ import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import { createMapsAdapter } from '@/adapters/maps'
 import { generateCandidates, type Candidate } from '@/domain/routing'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
-import { TEST_TAX_RATES_2026 } from '@/domain/tax'
+import { getTaxRates } from '@/lib/taxRatesStore'
+import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
 import { buildQuoteTotals } from '@/domain/quote'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
 import { FlightChip } from '@/components/FlightChip'
@@ -134,6 +135,7 @@ export default function NewTripPage() {
       const originFees = fboFeesForAirport(originAp.icao)
       const destFees = fboFeesForAirport(destAp.icao)
       const t0 = performance.now()
+      const priors = await loadPricingPriors()
       const cands = await generateCandidates(
         {
           mode,
@@ -177,6 +179,8 @@ export default function NewTripPage() {
             dest: destFees.fee,
             notes: [...originFees.reasoning, ...destFees.reasoning],
           },
+          priorRatePerNm: (typeName, operatorId) =>
+            priorRatePerNm(typeName, operatorId, priors),
         },
       )
       const ms = performance.now() - t0
@@ -397,7 +401,7 @@ export default function NewTripPage() {
                 mtowLbs: c.type_name?.match(/310/) ? 5500 : 12500,
                 paxCount,
                 segments: 1,
-                rates: TEST_TAX_RATES_2026,
+                rates: getTaxRates(),
               },
             )
             const end = c.chain[c.chain.length - 1]

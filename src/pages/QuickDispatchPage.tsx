@@ -183,18 +183,20 @@ export default function QuickDispatchPage() {
         })),
       })
 
-      // Checkpoint timers (T-60/T-30 air, T-30/T-5 ground, overdue watchdogs)
-      const { scheduleCheckpointsForTrip } = await import(
-        '@/lib/checkpointStore'
-      )
-      scheduleCheckpointsForTrip(trip.id)
+      // Manifest + checkpoint timers + ETA/track links (system of record path)
+      const { runOnBookedAutomations } = await import('@/lib/onBooked')
+      await runOnBookedAutomations(trip.id)
 
-      // ETA + track links → tracker / supply-chain / CC (not AP invoice email).
+      // QD also fans ETA to explicit CC list (onBooked uses client tracker emails)
       const { listTrackerEmails } = await import('@/lib/clientStore')
       const trackerFromClient = listTrackerEmails(client.id)
       const recipients = [...trackerFromClient, ...ccList]
-      if (recipients.some((r) => r.trim().includes('@'))) {
-        await sendQuickDispatchEtaSheetAndPortalLinks({ trip, recipients })
+      const already = new Set(trackerFromClient.map((e) => e.toLowerCase()))
+      const extra = recipients.filter(
+        (r) => r.trim().includes('@') && !already.has(r.trim().toLowerCase()),
+      )
+      if (extra.length) {
+        await sendQuickDispatchEtaSheetAndPortalLinks({ trip, recipients: extra })
       }
 
       nav(`/trips/${trip.id}`)

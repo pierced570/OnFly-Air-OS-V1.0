@@ -17,6 +17,7 @@ const OfferPublicPage = lazy(() => import('@/pages/OfferPublicPage'))
 const AcceptPage = lazy(() => import('@/pages/AcceptPage'))
 const OneTapPage = lazy(() => import('@/pages/OneTapPage'))
 const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
+const PortalLoginPage = lazy(() => import('@/pages/portal/PortalLoginPage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
 const PortalTrackPage = lazy(() => import('@/pages/portal/PortalTrackPage'))
 const RadarPage = lazy(() => import('@/pages/RadarPage'))
@@ -28,6 +29,7 @@ const LeadsPage = lazy(() => import('@/pages/LeadsPage'))
 const FbosPage = lazy(() => import('@/pages/FbosPage'))
 const IntakePage = lazy(() => import('@/pages/IntakePage'))
 const IntakeReviewPage = lazy(() => import('@/pages/IntakeReviewPage'))
+const ManifestPage = lazy(() => import('@/pages/ManifestPage'))
 const OnboardPage = lazy(() => import('@/pages/OnboardPage'))
 const ClientOnboardPage = lazy(() => import('@/pages/ClientOnboardPage'))
 
@@ -45,6 +47,7 @@ function isPublic(pathname: string) {
     pathname.startsWith('/accept/') ||
     pathname.startsWith('/t/') ||
     pathname.startsWith('/portal') ||
+    pathname === '/portal/login' ||
     pathname === '/client' ||
     pathname.startsWith('/client/') ||
     pathname === '/onboard' ||
@@ -69,6 +72,7 @@ export function App() {
         <Route path="/intake" element={<IntakePage />} />
         <Route path="/intake/:id" element={<IntakeReviewPage />} />
         <Route path="/trips/:id/offers" element={<OffersPage />} />
+        <Route path="/trips/:id/manifest" element={<ManifestPage />} />
         <Route path="/trips/:id" element={<TripPage />} />
         <Route path="/quotes/preview" element={<QuotePreviewPage />} />
         <Route path="/network" element={<NetworkPage />} />
@@ -82,6 +86,7 @@ export function App() {
         <Route path="/accept/:token" element={<AcceptPage />} />
         <Route path="/t/:legToken" element={<OneTapPage />} />
         <Route path="/portal" element={<PortalHomePage />} />
+        <Route path="/portal/login" element={<PortalLoginPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
         <Route path="/portal/track/:token" element={<PortalTrackPage />} />
         {/* Public client page — send this link; not part of the portal */}
