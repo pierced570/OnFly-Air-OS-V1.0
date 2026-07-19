@@ -128,34 +128,36 @@ export default function RadarPage() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {(
-          [
-            ['all', 'All'],
-            ['airborne', 'Airborne'],
-            ['on_ground', 'On ground'],
-            ['no_data', 'No ADS-B'],
-            ['d085', 'D085 watch'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setFilter(id)}
-            className={[
-              'rounded-md px-3 py-1.5 text-xs',
-              filter === id ? 'bg-gold text-ink' : 'bg-surface text-muted',
-            ].join(' ')}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex flex-col gap-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Filter tail / operator…"
-          className="ml-auto w-56 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-cream"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-cream sm:max-w-xs sm:py-2"
         />
+        <div className="board-rail flex gap-2 overflow-x-auto pb-1">
+          {(
+            [
+              ['all', 'All'],
+              ['airborne', 'Airborne'],
+              ['on_ground', 'On ground'],
+              ['no_data', 'No ADS-B'],
+              ['d085', 'D085 watch'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setFilter(id)}
+              className={[
+                'shrink-0 rounded-md px-3 py-2.5 text-xs sm:py-2',
+                filter === id ? 'bg-gold text-ink' : 'bg-surface text-muted',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <RadarMap statuses={filtered} onSelect={setSelected} />

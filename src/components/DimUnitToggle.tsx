@@ -2,7 +2,7 @@ import type { DimLengthUnit } from '@/domain/dimsParser'
 
 const seg = (on: boolean) =>
   [
-    'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+    'flex-1 min-h-10 rounded-md px-3 py-2.5 text-xs font-medium transition-colors sm:min-h-0 sm:py-1.5',
     on ? 'bg-gold text-ink' : 'bg-surface-2 text-muted hover:text-cream',
   ].join(' ')
 

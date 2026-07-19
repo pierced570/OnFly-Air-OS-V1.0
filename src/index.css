@@ -87,6 +87,22 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  /* Prefer tap without 300ms delay; keep text selectable in fields */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Comfortable minimum tap target for text actions */
+.tap {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
 .avionic {

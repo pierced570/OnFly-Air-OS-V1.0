@@ -526,38 +526,77 @@ function OperatorWizard() {
             <p className="text-xs text-muted">{d085Meta.note}</p>
           )}
           {parsed.length > 0 && (
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase text-muted">
-                <tr>
-                  <th className="py-1">Use</th>
-                  <th>Tail</th>
-                  <th>Type</th>
-                  <th>Flags</th>
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              <ul className="space-y-2 sm:hidden">
                 {parsed.map((r) => (
-                  <tr key={r.tail} className="border-t border-border/50 text-cream">
-                    <td className="py-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedTails.includes(r.tail)}
-                        onChange={(e) => {
-                          setSelectedTails((prev) =>
-                            e.target.checked
-                              ? [...prev, r.tail]
-                              : prev.filter((t) => t !== r.tail),
-                          )
-                        }}
-                      />
-                    </td>
-                    <td className="avionic">{r.tail}</td>
-                    <td>{r.type_name}</td>
-                    <td className="text-xs text-late">{r.conflict ?? '—'}</td>
-                  </tr>
+                  <li
+                    key={r.tail}
+                    className="flex items-start gap-3 rounded-md border border-border/60 bg-ink px-3 py-2.5"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-5 w-5 shrink-0"
+                      checked={selectedTails.includes(r.tail)}
+                      onChange={(e) => {
+                        setSelectedTails((prev) =>
+                          e.target.checked
+                            ? [...prev, r.tail]
+                            : prev.filter((t) => t !== r.tail),
+                        )
+                      }}
+                      aria-label={`Use ${r.tail}`}
+                    />
+                    <div className="min-w-0">
+                      <div className="avionic text-gold">{r.tail}</div>
+                      <div className="text-sm text-cream">{r.type_name}</div>
+                      {r.conflict && (
+                        <div className="mt-0.5 text-xs text-late">{r.conflict}</div>
+                      )}
+                    </div>
+                  </li>
                 ))}
-              </tbody>
-            </table>
+              </ul>
+              <div className="board-rail hidden overflow-x-auto sm:block">
+                <table className="w-full min-w-[28rem] text-left text-sm">
+                  <thead className="text-xs uppercase text-muted">
+                    <tr>
+                      <th className="py-2 pr-2">Use</th>
+                      <th className="py-2 pr-2">Tail</th>
+                      <th className="py-2 pr-2">Type</th>
+                      <th className="py-2">Flags</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsed.map((r) => (
+                      <tr
+                        key={r.tail}
+                        className="border-t border-border/50 text-cream"
+                      >
+                        <td className="py-2 pr-2">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={selectedTails.includes(r.tail)}
+                            onChange={(e) => {
+                              setSelectedTails((prev) =>
+                                e.target.checked
+                                  ? [...prev, r.tail]
+                                  : prev.filter((t) => t !== r.tail),
+                              )
+                            }}
+                          />
+                        </td>
+                        <td className="avionic py-2 pr-2">{r.tail}</td>
+                        <td className="py-2 pr-2">{r.type_name}</td>
+                        <td className="py-2 text-xs text-late">
+                          {r.conflict ?? '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}

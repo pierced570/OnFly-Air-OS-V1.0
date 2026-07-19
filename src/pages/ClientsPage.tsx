@@ -112,11 +112,11 @@ export default function ClientsPage() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="New client name"
-            className={input}
+            className={`${input} min-w-0 flex-1`}
           />
           <button
             type="button"
-            className="rounded-md bg-gold px-3 text-sm font-medium text-ink"
+            className="shrink-0 rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink"
             onClick={() => {
               if (!newName.trim()) return
               const c = addClient({ name: newName })
@@ -128,7 +128,12 @@ export default function ClientsPage() {
           </button>
         </div>
 
-        <ul className="max-h-[60vh] space-y-1 overflow-auto">
+        <ul
+          className={[
+            'space-y-1 overflow-auto',
+            selected ? 'hidden max-h-[40vh] lg:block lg:max-h-[60vh]' : 'max-h-[60vh]',
+          ].join(' ')}
+        >
           {filtered.map((c) => {
             const ring = c.contacts.filter((x) => x.notify_prefs.request_alert).length
             const inv = c.contacts.filter((x) => x.notify_prefs.invoice).length
@@ -138,7 +143,7 @@ export default function ClientsPage() {
                   type="button"
                   onClick={() => setSelectedId(c.id)}
                   className={[
-                    'w-full rounded-md border px-3 py-2 text-left text-sm',
+                    'w-full rounded-md border px-3 py-3 text-left text-sm sm:py-2',
                     selected?.id === c.id
                       ? 'border-gold bg-gold/10 text-cream'
                       : 'border-border bg-surface text-muted hover:text-cream',
@@ -157,16 +162,28 @@ export default function ClientsPage() {
 
       <main className="min-w-0 flex-1">
         {!selected ? (
-          <p className="text-sm text-muted">Select or add a client.</p>
+          <p className="text-sm text-muted lg:block">
+            <span className="lg:hidden">Tap a client above, or add one.</span>
+            <span className="hidden lg:inline">Select or add a client.</span>
+          </p>
         ) : (
-          <ClientDetail client={selected} />
+          <ClientDetail
+            client={selected}
+            onBack={() => setSelectedId(null)}
+          />
         )}
       </main>
     </div>
   )
 }
 
-function ClientDetail({ client }: { client: ClientProfile }) {
+function ClientDetail({
+  client,
+  onBack,
+}: {
+  client: ClientProfile
+  onBack?: () => void
+}) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [cell, setCell] = useState('')
@@ -185,6 +202,15 @@ function ClientDetail({ client }: { client: ClientProfile }) {
 
   return (
     <div className="space-y-6">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="tap -ml-2 text-sm text-gold lg:hidden"
+        >
+          ← Clients
+        </button>
+      )}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-cream">{client.name}</h2>

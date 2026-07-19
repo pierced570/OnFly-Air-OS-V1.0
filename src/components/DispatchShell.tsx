@@ -43,7 +43,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           onClick={onNavigate}
           className={({ isActive }) =>
             [
-              'rounded-md px-3 py-2.5 text-sm transition-colors',
+              'rounded-md px-3 py-3 text-sm transition-colors',
               isActive
                 ? 'bg-surface-2 text-gold'
                 : 'text-muted hover:bg-surface-2 hover:text-cream',
@@ -89,13 +89,13 @@ export function DispatchShell({ children }: { children: ReactNode }) {
       className="flex h-full min-h-screen flex-col bg-ink text-cream md:flex-row"
       data-theme="dispatcher"
     >
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-surface px-4 py-3 md:hidden">
+      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-surface px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
         <button
           type="button"
           aria-label={open ? 'Close menu' : 'Open menu'}
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          className="flex h-10 w-10 items-center justify-center rounded-md border border-border text-cream"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-cream"
         >
           <span className="sr-only">Menu</span>
           <span aria-hidden className="flex flex-col gap-1.5">
@@ -127,7 +127,10 @@ export function DispatchShell({ children }: { children: ReactNode }) {
             {session?.name ?? 'Dispatch OS'}
           </div>
         </div>
-        <Link to="/portal" className="shrink-0 text-xs text-gold">
+        <Link
+          to="/portal"
+          className="flex h-11 shrink-0 items-center rounded-md px-3 text-sm text-gold"
+        >
           Portal
         </Link>
       </header>
@@ -144,6 +147,7 @@ export function DispatchShell({ children }: { children: ReactNode }) {
       <aside
         className={[
           'fixed inset-y-0 left-0 z-50 flex w-[min(18rem,88vw)] flex-col border-r border-border bg-surface transition-transform duration-200 md:static md:z-0 md:w-56 md:translate-x-0 md:shrink-0',
+          'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
           open ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         ].join(' ')}
       >
@@ -158,34 +162,36 @@ export function DispatchShell({ children }: { children: ReactNode }) {
           <div className="text-sm font-semibold text-cream">Menu</div>
           <button
             type="button"
-            className="text-xs text-muted"
+            className="flex h-11 items-center rounded-md px-3 text-sm text-muted"
             onClick={() => setOpen(false)}
           >
             Close
           </button>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-3">
           <NavLinks onNavigate={() => setOpen(false)} />
         </nav>
-        <div className="space-y-2 border-t border-border px-4 py-3">
+        <div className="safe-bottom space-y-1 border-t border-border px-3 pt-3">
           <Link
             to="/portal"
             onClick={() => setOpen(false)}
-            className="block text-xs text-gold hover:text-gold-lt"
+            className="flex min-h-11 items-center rounded-md px-3 text-sm text-gold hover:bg-surface-2"
           >
             Client portal →
           </Link>
           <button
             type="button"
             onClick={() => logoutStaff()}
-            className="block text-xs text-muted hover:text-cream"
+            className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm text-muted hover:bg-surface-2 hover:text-cream"
           >
             Sign out
           </button>
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-auto">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col overflow-auto overscroll-contain">
+        {children}
+      </main>
     </div>
   )
 }

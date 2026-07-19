@@ -111,20 +111,23 @@ export default function BoardPage() {
           >
             <div className="text-sm font-medium text-cream">{ex.title}</div>
             <p className="mt-1 text-xs text-muted">{ex.detail}</p>
-            <div className="mt-2 flex gap-3">
+            <div className="mt-2 flex flex-wrap gap-1">
               {ex.trip_id && (
-                <Link to={`/trips/${ex.trip_id}`} className="text-xs text-gold">
+                <Link
+                  to={`/trips/${ex.trip_id}`}
+                  className="tap rounded-md text-sm text-gold"
+                >
                   Open trip
                 </Link>
               )}
               {!ex.trip_id && ex.href && (
-                <Link to={ex.href} className="text-xs text-gold">
+                <Link to={ex.href} className="tap rounded-md text-sm text-gold">
                   Open request
                 </Link>
               )}
               <button
                 type="button"
-                className="text-xs text-muted"
+                className="tap rounded-md text-sm text-muted"
                 onClick={() => acknowledgeException(ex.id)}
               >
                 Acknowledge
@@ -155,18 +158,24 @@ export default function BoardPage() {
                   </span>
                 </div>
                 <p className="mt-0.5 text-muted">{c.detail}</p>
-                <div className="mt-1.5 flex gap-3">
-                  <Link to={`/trips/${c.trip_id}`} className="text-gold">
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  <Link
+                    to={`/trips/${c.trip_id}`}
+                    className="tap rounded-md text-sm text-gold"
+                  >
                     T-{c.trip_ref}
                   </Link>
                   {c.one_tap_token && (
-                    <Link to={`/t/${c.one_tap_token}`} className="text-muted">
+                    <Link
+                      to={`/t/${c.one_tap_token}`}
+                      className="tap rounded-md text-sm text-muted"
+                    >
                       One-tap
                     </Link>
                   )}
                   <button
                     type="button"
-                    className="text-muted"
+                    className="tap rounded-md text-sm text-muted"
                     onClick={() => acknowledgeCheckpoint(c.id)}
                   >
                     Skip
@@ -187,7 +196,7 @@ export default function BoardPage() {
               <p className="avionic text-xs text-muted">{onShift.phone}</p>
               <button
                 type="button"
-                className="text-xs text-late"
+                className="tap rounded-md text-sm text-late"
                 onClick={() => endShift()}
               >
                 End shift
@@ -387,14 +396,17 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
           {card.subtitle}
         </div>
       </Link>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        <Link to={card.href} className="text-[11px] text-gold hover:text-gold-lt">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        <Link
+          to={card.href}
+          className="tap rounded-md text-sm text-gold hover:text-gold-lt"
+        >
           Open →
         </Link>
         {card.kind === 'request' && (
           <button
             type="button"
-            className="text-[11px] text-late hover:underline"
+            className="tap rounded-md text-sm text-late"
             onClick={() => {
               if (
                 window.confirm(
@@ -411,7 +423,7 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
         {card.kind === 'intake' && (
           <button
             type="button"
-            className="text-[11px] text-late hover:underline"
+            className="tap rounded-md text-sm text-late"
             onClick={() => {
               if (
                 window.confirm(

@@ -496,17 +496,17 @@ export default function NetworkPage() {
 
       {view === 'board' && (
         <>
-          <div className="flex flex-wrap gap-2">
+          <div className="board-rail flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
             <button
               type="button"
-              className="rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
+              className="shrink-0 rounded-md px-3 py-2.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream sm:py-1.5"
               onClick={() => setVisibleVerticals(new Set(VERTICAL_IDS))}
             >
               All
             </button>
             <button
               type="button"
-              className="rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
+              className="shrink-0 rounded-md px-3 py-2.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream sm:py-1.5"
               onClick={() => setVisibleVerticals(new Set())}
             >
               None
@@ -521,7 +521,7 @@ export default function NetworkPage() {
                   type="button"
                   onClick={() => toggleVertical(id)}
                   className={[
-                    'rounded-md border px-2.5 py-1.5 text-[11px] transition-colors whitespace-nowrap',
+                    'shrink-0 rounded-md border px-3 py-2.5 text-[11px] transition-colors whitespace-nowrap sm:py-1.5',
                     on
                       ? 'border-gold/50 bg-gold/15 text-gold'
                       : 'border-border bg-surface text-muted',

@@ -160,18 +160,18 @@ export default function IntakePage() {
               {d.ignore_reason && (
                 <p className="mt-1 text-xs text-late">{d.ignore_reason}</p>
               )}
-              <div className="mt-2 flex flex-wrap items-center gap-3">
+              <div className="mt-2 flex flex-wrap items-center gap-1">
                 {d.status === 'pending_review' && (
                   <Link
                     to={`/intake/${d.id}`}
-                    className="text-xs text-gold hover:text-gold-lt"
+                    className="tap rounded-md text-sm text-gold hover:text-gold-lt"
                   >
                     Open review →
                   </Link>
                 )}
                 <button
                   type="button"
-                  className="text-xs text-late hover:underline"
+                  className="tap rounded-md text-sm text-late"
                   onClick={() => {
                     if (
                       window.confirm(

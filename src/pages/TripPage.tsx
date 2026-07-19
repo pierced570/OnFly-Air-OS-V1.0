@@ -115,8 +115,8 @@ export default function TripPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <div className="text-xs uppercase tracking-[0.2em] text-gold">
             {q ? 'Quick dispatch · execution' : 'Trip execution'}
           </div>
@@ -153,16 +153,16 @@ export default function TripPage() {
             </div>
           )}
         </div>
-        <div className="space-y-2 text-right">
-          <div className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-gold">
+        <div className="w-full space-y-2 sm:w-auto sm:text-right">
+          <div className="inline-flex rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-gold">
             <span className="avionic font-medium">{trip.state}</span>
           </div>
-          <div className="flex flex-wrap justify-end gap-1">
+          <div className="flex flex-wrap gap-1.5 sm:justify-end">
             {nextStates.map((to) => (
               <button
                 key={to}
                 type="button"
-                className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-cream"
+                className="min-h-10 rounded border border-border px-3 py-2 text-xs text-muted hover:text-cream"
                 onClick={() => {
                   try {
                     safeTransitionTrip(trip.id, to, 'dispatcher')

@@ -246,37 +246,39 @@ export default function FinancialsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search PO#, client, operator, route…"
-          className="min-w-[16rem] flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-cream"
+          className="w-full min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-cream sm:py-2"
         />
-        <label className="text-xs text-muted">
-          From
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="mt-1 block rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-cream"
-          />
-        </label>
-        <label className="text-xs text-muted">
-          To
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="mt-1 block rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-cream"
-          />
-        </label>
-        <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
+          <label className="text-xs text-muted">
+            From
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-border bg-surface px-2 py-2.5 text-sm text-cream sm:py-1.5"
+            />
+          </label>
+          <label className="text-xs text-muted">
+            To
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-border bg-surface px-2 py-2.5 text-sm text-cream sm:py-1.5"
+            />
+          </label>
+        </div>
+        <div className="flex w-full rounded-lg border border-border bg-surface-2 p-0.5 sm:w-auto">
           {(
             [
               ['all', 'All'],
               ['unpaid', 'Unpaid'],
-              ['due_soon', 'Due Next 7d'],
+              ['due_soon', 'Due 7d'],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -284,7 +286,7 @@ export default function FinancialsPage() {
               type="button"
               onClick={() => setStatus(id)}
               className={[
-                'rounded-md px-3 py-1.5 text-xs font-medium',
+                'min-h-10 flex-1 rounded-md px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
                 status === id ? 'bg-gold text-ink' : 'text-muted',
               ].join(' ')}
             >
@@ -294,26 +296,28 @@ export default function FinancialsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <div className="flex flex-wrap items-center gap-2 text-muted">
-          <span className="uppercase tracking-wider">Open all:</span>
+      <div className="flex flex-col gap-2 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="board-rail flex gap-2 overflow-x-auto pb-1 text-muted sm:flex-wrap sm:overflow-visible">
+          <span className="hidden shrink-0 uppercase tracking-wider sm:inline">
+            Open all:
+          </span>
           <button
             type="button"
-            className="rounded border border-border px-2 py-1 hover:text-cream"
+            className="shrink-0 rounded border border-border px-3 py-2 hover:text-cream"
             onClick={() => setOpenAll('op')}
           >
             Open Vendor
           </button>
           <button
             type="button"
-            className="rounded border border-border px-2 py-1 hover:text-cream"
+            className="shrink-0 rounded border border-border px-3 py-2 hover:text-cream"
             onClick={() => setOpenAll('client')}
           >
             Open Client
           </button>
           <button
             type="button"
-            className="rounded border border-border px-2 py-1 hover:text-cream"
+            className="shrink-0 rounded border border-border px-3 py-2 hover:text-cream"
             onClick={() => {
               setOpenAll(null)
               setOpenDrawer({})
@@ -323,11 +327,11 @@ export default function FinancialsPage() {
           </button>
         </div>
         {selected.size > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-muted">{selected.size} selected</span>
             <button
               type="button"
-              className="text-gold"
+              className="tap text-gold"
               onClick={() => setSelected(new Set())}
             >
               Clear
@@ -335,7 +339,7 @@ export default function FinancialsPage() {
             <button
               type="button"
               onClick={markSelectedPaid}
-              className="rounded-md bg-gold px-3 py-1.5 font-medium text-ink"
+              className="min-h-10 rounded-md bg-gold px-3 py-2 font-medium text-ink"
             >
               Mark as paid
             </button>
@@ -343,7 +347,38 @@ export default function FinancialsPage() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      {/* Mobile cards */}
+      <ul className="space-y-3 lg:hidden">
+        {filtered.map((r) => {
+          const d = drawerFor(r.id)
+          const clientOk = r.was_it_paid
+          const opOk = r.vendor_paid && r.bill_logged_in_qb
+          const invOk = r.investor_paid || r.jonny_money_owed <= 0
+          return (
+            <MobileFinancialCard
+              key={r.id}
+              r={r}
+              selected={selected.has(r.id)}
+              onToggle={() => toggleSelect(r.id)}
+              drawer={d}
+              onDrawer={(next) => setDrawer(r.id, next)}
+              clientOk={clientOk}
+              opOk={Boolean(opOk)}
+              invOk={invOk}
+              invoiceBusy={invoiceBusy === r.id}
+              onSendInvoice={() => void sendInvoice(r)}
+            />
+          )
+        })}
+        {filtered.length === 0 && (
+          <li className="rounded-lg border border-border px-4 py-8 text-center text-sm text-muted">
+            No matching rows
+          </li>
+        )}
+      </ul>
+
+      {/* Desktop table */}
+      <div className="board-rail hidden overflow-x-auto rounded-lg border border-border lg:block">
         <table className="w-full min-w-[1280px] text-left text-sm">
           <thead className="sticky top-0 bg-surface-2 text-[11px] uppercase tracking-wider text-muted">
             <tr>
@@ -391,22 +426,22 @@ export default function FinancialsPage() {
       </div>
 
       {selectedRows.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-ink/95 px-4 py-3 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-ink/95 px-4 py-3 safe-bottom backdrop-blur">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
             <span className="text-muted">{selectedRows.length} row(s)</span>
-            <div className="flex flex-wrap gap-4 avionic text-xs sm:text-sm">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 avionic text-xs sm:text-sm">
               <span>
-                Client charged{' '}
+                Client{' '}
                 <span className="text-cream">{usd(selectedSum.revenue)}</span>
               </span>
               <span>
-                Op owed <span className="text-cream">{usd(selectedSum.cost)}</span>
+                Op <span className="text-cream">{usd(selectedSum.cost)}</span>
               </span>
               <span>
                 Margin <span className="text-onplan">{usd(selectedSum.margin)}</span>
               </span>
               <span>
-                Investor owed{' '}
+                Investor{' '}
                 <span className="text-gold">
                   {usd(
                     selectedRows.reduce((s, r) => s + r.jonny_money_owed, 0),
@@ -417,7 +452,6 @@ export default function FinancialsPage() {
                 Profit <span className="text-onplan">{usd(selectedSum.ofa)}</span>
               </span>
             </div>
-            <span className="text-xs text-muted">{filtered.length} visible</span>
           </div>
         </div>
       )}
@@ -478,6 +512,134 @@ function QbConnectBanner({
         )}
       </div>
     </div>
+  )
+}
+
+function MobileFinancialCard({
+  r,
+  selected,
+  onToggle,
+  drawer,
+  onDrawer,
+  clientOk,
+  opOk,
+  invOk,
+  invoiceBusy,
+  onSendInvoice,
+}: {
+  r: ComputedFinancial
+  selected: boolean
+  onToggle: () => void
+  drawer: Drawer
+  onDrawer: (d: Drawer) => void
+  clientOk: boolean
+  opOk: boolean
+  invOk: boolean
+  invoiceBusy: boolean
+  onSendInvoice: () => void
+}) {
+  const alreadyInvoiced = Boolean(r.qb_invoice_id)
+  return (
+    <li
+      className={[
+        'rounded-lg border border-border p-3',
+        selected ? 'border-gold/50 bg-gold/10' : 'bg-surface',
+      ].join(' ')}
+    >
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          className="mt-1 h-5 w-5 shrink-0"
+          checked={selected}
+          onChange={onToggle}
+          aria-label={`Select ${r.operator_po ?? r.id}`}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="avionic text-gold">
+              {r.operator_po ?? '—'}
+            </span>
+            <span className="avionic text-xs text-muted">
+              {r.date_of_flight ?? '—'}
+            </span>
+          </div>
+          <div className="mt-0.5 truncate text-sm font-medium text-cream">
+            {r.client_name ?? '—'}
+          </div>
+          <div className="mt-0.5 avionic text-xs text-muted">
+            {r.route_text ?? '—'}
+            {r.tail_number ? ` · ${r.tail_number}` : ''}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+            <div>
+              <span className="text-muted">Client </span>
+              <span className="avionic text-cream">
+                {usd(r.client_invoiced_amount)}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted">Op </span>
+              <span className="avionic text-cream">{usd(r.vendor_amount)}</span>
+            </div>
+            <div>
+              <span className="text-muted">Margin </span>
+              <span className="avionic text-onplan">{usd(r.margin)}</span>
+            </div>
+            <div>
+              <span className="text-muted">Investor </span>
+              <span className="avionic text-gold">
+                {r.jonny_money_owed > 0 ? usd(r.jonny_money_owed) : '—'}
+              </span>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <StatusPill label="Client" ok={clientOk} tone="onplan" />
+            <StatusPill label="Op" ok={opOk} tone="gold" />
+            <StatusPill label="Inv" ok={invOk} tone="attn" />
+            {alreadyInvoiced && <StatusPill label="QB" ok tone="gold" />}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="min-h-10 rounded-md border border-border px-3 py-2 text-xs text-gold"
+              onClick={() => onDrawer(drawer === 'op' ? null : 'op')}
+            >
+              {drawer === 'op' ? 'Hide Op' : 'Op Pmts'}
+            </button>
+            <button
+              type="button"
+              className="min-h-10 rounded-md border border-border px-3 py-2 text-xs text-gold"
+              onClick={() => onDrawer(drawer === 'client' ? null : 'client')}
+            >
+              {drawer === 'client' ? 'Hide Client' : 'Client Pmts'}
+            </button>
+            <button
+              type="button"
+              disabled={
+                invoiceBusy || alreadyInvoiced || r.client_invoiced_amount <= 0
+              }
+              onClick={onSendInvoice}
+              className="min-h-10 rounded-md border border-gold/40 px-3 py-2 text-xs font-medium text-gold disabled:opacity-40"
+            >
+              {invoiceBusy ? '…' : alreadyInvoiced ? 'Invoiced' : 'Send Invoice'}
+            </button>
+          </div>
+          {drawer && (
+            <div className="mt-3">
+              {drawer === 'op' ? (
+                <OpDrawer r={r} />
+              ) : (
+                <ClientDrawer
+                  r={r}
+                  invoiceBusy={invoiceBusy}
+                  onSendInvoice={onSendInvoice}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </li>
   )
 }
 
@@ -557,14 +719,14 @@ function FragmentRow({
         <td className="px-2 py-2 whitespace-nowrap">
           <button
             type="button"
-            className="mr-2 text-xs text-gold hover:underline"
+            className="mr-2 min-h-9 rounded px-2 py-1.5 text-xs text-gold hover:underline"
             onClick={() => onDrawer('op')}
           >
             {drawer === 'op' ? '▾' : '▸'} Op Pmts
           </button>
           <button
             type="button"
-            className="mr-2 text-xs text-gold hover:underline"
+            className="mr-2 min-h-9 rounded px-2 py-1.5 text-xs text-gold hover:underline"
             onClick={() => onDrawer('client')}
           >
             {drawer === 'client' ? '▾' : '▸'} Client Pmts
@@ -573,7 +735,7 @@ function FragmentRow({
             type="button"
             disabled={invoiceBusy || alreadyInvoiced || r.client_invoiced_amount <= 0}
             onClick={onSendInvoice}
-            className="rounded border border-gold/40 px-2 py-0.5 text-xs font-medium text-gold disabled:opacity-40"
+            className="min-h-9 rounded border border-gold/40 px-2.5 py-1.5 text-xs font-medium text-gold disabled:opacity-40"
             title={
               alreadyInvoiced
                 ? `QB ${r.qb_invoice_number || r.qb_invoice_id}`

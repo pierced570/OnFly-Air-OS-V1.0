@@ -80,15 +80,15 @@ export default function VaultKeysPage() {
             name. Stored in this browser until a server vault lands.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <button
             type="button"
             onClick={downloadCsv}
-            className="rounded-md border border-border px-3 py-2 text-sm text-cream hover:border-gold"
+            className="min-h-11 rounded-md border border-border px-3 py-2.5 text-sm text-cream hover:border-gold sm:min-h-0 sm:py-2"
           >
             Export CSV
           </button>
-          <label className="cursor-pointer rounded-md border border-border px-3 py-2 text-sm text-cream hover:border-gold">
+          <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-md border border-border px-3 py-2.5 text-sm text-cream hover:border-gold sm:min-h-0 sm:py-2">
             Import CSV
             <input
               type="file"
@@ -99,7 +99,7 @@ export default function VaultKeysPage() {
           </label>
           <button
             type="button"
-            className="rounded-md bg-gold px-3 py-2 text-sm font-medium text-ink hover:bg-gold-lt"
+            className="min-h-11 rounded-md bg-gold px-3 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt sm:min-h-0 sm:py-2"
             onClick={() =>
               setEditor({
                 label: '',
@@ -117,8 +117,8 @@ export default function VaultKeysPage() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className={`${labelCls} min-w-[12rem] flex-1`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <label className={`${labelCls} w-full min-w-0 flex-1`}>
           Search
           <input
             className={field}
@@ -127,19 +127,21 @@ export default function VaultKeysPage() {
             placeholder="Supabase, Resend…"
           />
         </label>
-        <button
-          type="button"
-          className="rounded-md border border-border px-3 py-2 text-sm text-late"
-          onClick={() => {
-            if (confirm('Clear all vault rows on this device?')) {
-              clearVault()
-              setStatus('Vault cleared')
-            }
-          }}
-        >
-          Clear
-        </button>
-        <span className="pb-2 text-xs text-muted">{entries.length} entries</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="min-h-10 rounded-md border border-border px-3 py-2 text-sm text-late"
+            onClick={() => {
+              if (confirm('Clear all vault rows on this device?')) {
+                clearVault()
+                setStatus('Vault cleared')
+              }
+            }}
+          >
+            Clear
+          </button>
+          <span className="text-xs text-muted">{entries.length} entries</span>
+        </div>
       </div>
       {status && <p className="text-xs text-muted">{status}</p>}
 
