@@ -1,8 +1,10 @@
 import { useSyncExternalStore, useState } from 'react'
 import PhoneInput from '@/components/PhoneInput'
 import {
-  ALL_SECTION_IDS,
   formatPhoneDisplay,
+  GRANTABLE_SECTION_IDS,
+  GRANTABLE_SECTIONS,
+  OWNER_STAFF_ID,
   STAFF_SECTIONS,
   type StaffMember,
   type StaffSectionId,
@@ -27,7 +29,7 @@ export default function StaffAccessPage() {
   if (!session?.is_admin) {
     return (
       <div className="p-6 text-sm text-late">
-        Admin only — you don&apos;t have Staff access.
+        Owner only — Staff access is limited to Pierce&apos;s account.
       </div>
     )
   }
@@ -37,8 +39,9 @@ export default function StaffAccessPage() {
       <header>
         <h1 className="text-2xl font-semibold text-cream">Staff access</h1>
         <p className="mt-1 text-sm text-muted">
-          Register each dispatcher with name + phone. Toggle which sections they
-          can open. Admins always get every section, including Logins &amp; keys.
+          You&apos;re the only owner with full access. Set each person&apos;s
+          phone so they can log in, then toggle exactly which sections they can
+          see. Nobody else can open this page or change grants.
         </p>
       </header>
 
@@ -62,61 +65,74 @@ export default function StaffAccessPage() {
       </div>
 
       <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-        {staff.map((s) => (
-          <li
-            key={s.id}
-            className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0">
-              <div className="font-medium text-cream">
-                {s.name}
-                {s.is_admin && (
-                  <span className="ml-2 text-[10px] uppercase tracking-wider text-gold">
-                    admin
-                  </span>
+        {staff.map((s) => {
+          const isOwner = s.id === OWNER_STAFF_ID
+          return (
+            <li
+              key={s.id}
+              className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <div className="font-medium text-cream">
+                  {s.name}
+                  {isOwner && (
+                    <span className="ml-2 text-[10px] uppercase tracking-wider text-gold">
+                      owner
+                    </span>
+                  )}
+                  {!s.active && (
+                    <span className="ml-2 text-[10px] uppercase text-late">
+                      inactive
+                    </span>
+                  )}
+                </div>
+                <div className="avionic text-xs text-muted">
+                  {s.phone
+                    ? formatPhoneDisplay(s.phone)
+                    : 'phone not set — cannot log in'}
+                </div>
+                <div className="mt-1 text-[11px] text-muted">
+                  {isOwner
+                    ? 'All sections (cannot be limited)'
+                    : s.sections.length
+                      ? s.sections
+                          .map(
+                            (id) =>
+                              STAFF_SECTIONS.find((x) => x.id === id)?.label ??
+                              id,
+                          )
+                          .join(' · ')
+                      : 'No sections — cannot open the desk'}
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold"
+                  onClick={() => setEditing(s)}
+                >
+                  {isOwner ? 'Edit phone' : 'Edit access'}
+                </button>
+                {!isOwner && (
+                  <button
+                    type="button"
+                    className="rounded-md border border-border px-3 py-1.5 text-xs text-late hover:border-late"
+                    onClick={() => {
+                      try {
+                        removeStaff(s.id)
+                        setStatus(`Removed ${s.name}`)
+                      } catch (e) {
+                        setStatus(e instanceof Error ? e.message : String(e))
+                      }
+                    }}
+                  >
+                    Remove
+                  </button>
                 )}
-                {!s.active && (
-                  <span className="ml-2 text-[10px] uppercase text-late">
-                    inactive
-                  </span>
-                )}
               </div>
-              <div className="avionic text-xs text-muted">
-                {s.phone
-                  ? formatPhoneDisplay(s.phone)
-                  : 'phone not set — cannot log in'}
-              </div>
-              <div className="mt-1 text-[11px] text-muted">
-                {s.is_admin
-                  ? 'All sections'
-                  : s.sections.map((id) => STAFF_SECTIONS.find((x) => x.id === id)?.label ?? id).join(' · ')}
-              </div>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold"
-                onClick={() => setEditing(s)}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-border px-3 py-1.5 text-xs text-late hover:border-late"
-                onClick={() => {
-                  try {
-                    removeStaff(s.id)
-                    setStatus(`Removed ${s.name}`)
-                  } catch (e) {
-                    setStatus(e instanceof Error ? e.message : String(e))
-                  }
-                }}
-              >
-                Remove
-              </button>
-            </div>
-          </li>
-        ))}
+            </li>
+          )
+        })}
       </ul>
 
       {status && <p className="text-xs text-muted">{status}</p>}
@@ -126,9 +142,13 @@ export default function StaffAccessPage() {
           initial={editing}
           onClose={() => setEditing(null)}
           onSave={(input) => {
-            upsertStaff(input)
-            setEditing(null)
-            setStatus(`Saved ${input.name}`)
+            try {
+              upsertStaff(input)
+              setEditing(null)
+              setStatus(`Saved ${input.name}`)
+            } catch (e) {
+              setStatus(e instanceof Error ? e.message : String(e))
+            }
           }}
         />
       )}
@@ -147,17 +167,16 @@ function StaffEditor({
     id?: string
     name: string
     phone: string
-    is_admin: boolean
     sections: StaffSectionId[]
     active: boolean
   }) => void
 }) {
+  const isOwner = initial.id === OWNER_STAFF_ID
   const [name, setName] = useState(initial.name)
   const [phone, setPhone] = useState(initial.phone)
-  const [isAdmin, setIsAdmin] = useState(initial.is_admin)
   const [active, setActive] = useState(initial.active)
   const [sections, setSections] = useState<StaffSectionId[]>([
-    ...initial.sections,
+    ...initial.sections.filter((id) => id !== 'staff_access'),
   ])
 
   function toggle(id: StaffSectionId) {
@@ -171,7 +190,11 @@ function StaffEditor({
       <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-xl border border-border bg-surface p-4 sm:rounded-xl sm:p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-cream">
-            {initial.id ? 'Edit staff' : 'Add staff'}
+            {initial.id
+              ? isOwner
+                ? 'Owner account'
+                : 'Edit access'
+              : 'Add staff'}
           </h2>
           <button type="button" className="text-sm text-muted" onClick={onClose}>
             Close
@@ -185,6 +208,7 @@ function StaffEditor({
               className={field}
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={isOwner}
             />
           </label>
           <label className="block text-xs text-muted">
@@ -195,49 +219,60 @@ function StaffEditor({
               onChange={setPhone}
             />
           </label>
-          <label className="flex items-center gap-2 text-sm text-cream">
-            <input
-              type="checkbox"
-              checked={isAdmin}
-              onChange={(e) => setIsAdmin(e.target.checked)}
-            />
-            Admin (all sections + manage staff)
-          </label>
-          <label className="flex items-center gap-2 text-sm text-cream">
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(e) => setActive(e.target.checked)}
-            />
-            Active
-          </label>
 
-          {!isAdmin && (
-            <fieldset>
-              <legend className="text-xs text-muted">Sections</legend>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {STAFF_SECTIONS.map((s) => (
-                  <label
-                    key={s.id}
-                    className="flex items-center gap-2 text-xs text-cream"
+          {isOwner ? (
+            <p className="rounded-md border border-border bg-ink px-3 py-2 text-xs text-muted">
+              Owner — full access to every section, including Staff access and
+              Logins &amp; keys. This cannot be limited or removed.
+            </p>
+          ) : (
+            <>
+              <label className="flex items-center gap-2 text-sm text-cream">
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={(e) => setActive(e.target.checked)}
+                />
+                Active (can log in)
+              </label>
+
+              <fieldset>
+                <legend className="text-xs text-muted">
+                  Sections they can see
+                </legend>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {GRANTABLE_SECTIONS.map((s) => (
+                    <label
+                      key={s.id}
+                      className="flex items-center gap-2 text-xs text-cream"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={sections.includes(s.id)}
+                        onChange={() => toggle(s.id)}
+                      />
+                      {s.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-3">
+                  <button
+                    type="button"
+                    className="text-xs text-gold"
+                    onClick={() => setSections([...GRANTABLE_SECTION_IDS])}
                   >
-                    <input
-                      type="checkbox"
-                      checked={sections.includes(s.id)}
-                      onChange={() => toggle(s.id)}
-                    />
-                    {s.label}
-                  </label>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="mt-2 text-xs text-gold"
-                onClick={() => setSections([...ALL_SECTION_IDS])}
-              >
-                Select all
-              </button>
-            </fieldset>
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs text-muted hover:text-cream"
+                    onClick={() => setSections([])}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </fieldset>
+            </>
           )}
         </div>
 
@@ -257,7 +292,6 @@ function StaffEditor({
                 id: initial.id || undefined,
                 name,
                 phone,
-                is_admin: isAdmin,
                 sections,
                 active,
               })

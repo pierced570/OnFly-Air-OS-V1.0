@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  enforceOwnerRules,
   findStaffByLogin,
   formatPhoneDisplay,
   hasSection,
   normalizePhone,
+  OWNER_STAFF_ID,
   phoneDigitsInput,
   phonesMatch,
   sectionForPath,
@@ -59,6 +61,41 @@ describe('staffAccess', () => {
     expect(hasSection(pierce, 'vault_keys')).toBe(true)
     expect(hasSection(chris, 'vault_keys')).toBe(false)
     expect(hasSection(chris, 'radar')).toBe(true)
+  })
+
+  it('staff_access is owner/admin only — never via section grant', () => {
+    const granted: StaffMember = {
+      ...chris,
+      sections: [...chris.sections, 'staff_access'],
+    }
+    expect(hasSection(granted, 'staff_access')).toBe(false)
+    expect(hasSection(pierce, 'staff_access')).toBe(true)
+  })
+
+  it('enforceOwnerRules keeps sole owner; demotes everyone else', () => {
+    const owner = enforceOwnerRules({
+      id: OWNER_STAFF_ID,
+      name: 'Pierce',
+      phone: '6105092031',
+      is_admin: false,
+      sections: ['board'],
+      active: false,
+    })
+    expect(owner.is_admin).toBe(true)
+    expect(owner.active).toBe(true)
+    expect(owner.sections).toContain('staff_access')
+
+    const other = enforceOwnerRules({
+      id: 'staff-paige',
+      name: 'Paige',
+      phone: '',
+      is_admin: true,
+      sections: ['board', 'staff_access', 'vault_keys'],
+      active: true,
+    })
+    expect(other.is_admin).toBe(false)
+    expect(other.sections).not.toContain('staff_access')
+    expect(other.sections).toContain('vault_keys')
   })
 
   it('maps admin subpaths before generic /admin', () => {

@@ -61,7 +61,7 @@ Updated as we convert mocks → durable/live paths.
 - Gate: name + phone before any dispatcher route (public portal/offer/onboard unchanged)
 - Admin → **Staff access**: set phones + per-section toggles (admins get all)
 - Admin → **Logins & keys**: restricted vault; import `data/private/logins-keys.csv` (gitignored)
-- Seeded admin: Pierce Demetriades / (610) 509-2031 — set others' phones after first login
+- Sole owner: Pierce Demetriades / (610) 509-2031 — only he manages Staff access grants; others get section toggles he sets
 
 ## Network vertical board + mission fit + mobile
 

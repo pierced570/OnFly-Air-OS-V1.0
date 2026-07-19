@@ -66,8 +66,8 @@ export default function StaffLoginPage() {
         </form>
 
         <p className="mt-6 text-[11px] leading-relaxed text-muted">
-          Seeded admin: Pierce Demetriades · (610) 509-2031. Set everyone
-          else&apos;s phone under Staff access after you sign in.
+          Owner: Pierce Demetriades · (610) 509-2031. After you sign in, use
+          Staff access to set phones and choose what each person can see.
         </p>
       </div>
     </div>
