@@ -125,6 +125,17 @@ let staff: StaffMember[] = loadStaff()
 let session: StaffMember | null = null
 const listeners = new Set<() => void>()
 
+/** Cached snapshots — useSyncExternalStore requires referential stability. */
+let cachedStaff: StaffMember[] = []
+let cachedSession: StaffMember | null = null
+
+function rebuildCache() {
+  cachedStaff = staff.map((s) => ({ ...s, sections: [...s.sections] }))
+  cachedSession = session
+    ? { ...session, sections: [...session.sections] }
+    : null
+}
+
 function loadSession(): StaffMember | null {
   if (!storageAvailable()) return null
   try {
@@ -132,16 +143,18 @@ function loadSession(): StaffMember | null {
     if (!raw) return null
     const id = JSON.parse(raw) as { id?: string }
     if (!id?.id) return null
-    const member = staff.find((s) => s.id === id.id && s.active)
-    return member ? enforceOwnerRules(member) : null
+    // Directory already ran enforceOwnerRules in migrate/seed.
+    return staff.find((s) => s.id === id.id && s.active) ?? null
   } catch {
     return null
   }
 }
 
 session = loadSession()
+rebuildCache()
 
 function bump() {
+  rebuildCache()
   for (const l of listeners) l()
 }
 
@@ -172,11 +185,11 @@ export function subscribeStaff(fn: () => void): () => void {
 }
 
 export function listStaff(): StaffMember[] {
-  return staff.map((s) => ({ ...s, sections: [...s.sections] }))
+  return cachedStaff
 }
 
 export function getSession(): StaffMember | null {
-  return session ? { ...session, sections: [...session.sections] } : null
+  return cachedSession
 }
 
 export function sessionCan(section: StaffSectionId): boolean {
