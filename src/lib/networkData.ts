@@ -4,9 +4,18 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
 export type { OperatorRow, AircraftRow }
 
-let cached: NetworkFixture | null = null
+export type NetworkLoadSource = 'live' | 'fixture'
 
-export async function loadNetwork(): Promise<NetworkFixture> {
+export type LoadedNetwork = NetworkFixture & { source: NetworkLoadSource }
+
+let cached: LoadedNetwork | null = null
+
+/** Clear in-module cache (e.g. after fleet import). */
+export function clearNetworkCache() {
+  cached = null
+}
+
+export async function loadNetwork(): Promise<LoadedNetwork> {
   if (cached) return cached
 
   if (isSupabaseConfigured && supabase) {
@@ -60,11 +69,12 @@ export async function loadNetwork(): Promise<NetworkFixture> {
           airports: 0,
           needs_info_tasks: acs.reduce((n, a) => n + a.needs_info.length, 0),
         },
+        source: 'live',
       }
       return cached
     }
   }
 
-  cached = networkFixture as NetworkFixture
+  cached = { ...(networkFixture as NetworkFixture), source: 'fixture' }
   return cached
 }

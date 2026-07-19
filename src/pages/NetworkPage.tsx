@@ -12,9 +12,9 @@ import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
 import { FlightChip } from '@/components/FlightChip'
 import { OperatorDocSlots } from '@/components/OperatorDocSlots'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
-import { loadNetwork } from '@/lib/networkData'
+import { loadNetwork, type LoadedNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
-import type { AircraftRow, NetworkFixture, OperatorRow } from '@/lib/types'
+import type { AircraftRow, OperatorRow } from '@/lib/types'
 import {
   ensureOperatorCompliance,
   getOperatorCompliance,
@@ -67,7 +67,7 @@ function typesLine(types: string[], max = 2): string {
 }
 
 export default function NetworkPage() {
-  const [data, setData] = useState<NetworkFixture | null>(null)
+  const [data, setData] = useState<LoadedNetwork | null>(null)
   const [statusByTail, setStatusByTail] = useState<Map<string, FleetStatus>>(
     () => new Map(),
   )
@@ -316,6 +316,10 @@ export default function NetworkPage() {
             operators ·{' '}
             <span className="avionic text-cream">{data.counts.aircraft}</span>{' '}
             aircraft
+            {' · '}
+            <span className="text-muted">
+              {data.source === 'live' ? 'live DB' : 'bundled fixture'}
+            </span>
             {namedInsurerFlags > 0 && (
               <>
                 {' '}
