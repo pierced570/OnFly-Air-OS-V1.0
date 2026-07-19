@@ -94,6 +94,11 @@ export default function BoardPage() {
                   Open trip
                 </Link>
               )}
+              {!ex.trip_id && ex.href && (
+                <Link to={ex.href} className="text-xs text-gold">
+                  Open request
+                </Link>
+              )}
               <button
                 type="button"
                 className="text-xs text-muted"

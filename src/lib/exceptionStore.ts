@@ -9,6 +9,8 @@ export type ExceptionCard = {
   title: string
   detail: string
   severity: 'late' | 'attn'
+  /** Deep link when the card is not tied to a trip yet (e.g. portal request). */
+  href: string | null
   created_at: string
   acknowledged: boolean
 }
@@ -40,7 +42,9 @@ export function listExceptions(): ExceptionCard[] {
 }
 
 export function raiseException(
-  partial: Omit<ExceptionCard, 'id' | 'created_at' | 'acknowledged'>,
+  partial: Omit<ExceptionCard, 'id' | 'created_at' | 'acknowledged' | 'href'> & {
+    href?: string | null
+  },
 ): ExceptionCard {
   const dup = [...cards.values()].find(
     (c) =>
@@ -51,6 +55,7 @@ export function raiseException(
   if (dup) return dup
   const row: ExceptionCard = {
     ...partial,
+    href: partial.href ?? null,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
     acknowledged: false,
@@ -92,6 +97,7 @@ export function syncExceptionsFromTrips(
         detail:
           'Checkpoint: confirm positioning / pickup within slip threshold.',
         severity: 'attn',
+        href: null,
         created_at: new Date().toISOString(),
         acknowledged: false,
       })
