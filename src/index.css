@@ -13,6 +13,11 @@
   --attn: var(--gold);
   --late: #c0392b;
   --onplan: #2e7d32;
+  /* Flight categories (FAA METAR/TAF chips) */
+  --vfr: #2e7d32;
+  --mvfr: #1e88e5;
+  --ifr: #c0392b;
+  --lifr: #8e24aa;
   --text: var(--cream);
   --bg: var(--ink);
   color-scheme: dark;
@@ -30,6 +35,10 @@
   --attn: var(--gold);
   --late: #c0392b;
   --onplan: #2e7d32;
+  --vfr: #2e7d32;
+  --mvfr: #1e88e5;
+  --ifr: #c0392b;
+  --lifr: #8e24aa;
   --text: var(--ink);
   --bg: var(--cream);
   color-scheme: light;
@@ -47,6 +56,10 @@
   --color-attn: var(--attn);
   --color-late: var(--late);
   --color-onplan: var(--onplan);
+  --color-vfr: var(--vfr);
+  --color-mvfr: var(--mvfr);
+  --color-ifr: var(--ifr);
+  --color-lifr: var(--lifr);
   --font-avionic: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 

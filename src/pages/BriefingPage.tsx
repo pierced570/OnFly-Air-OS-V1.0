@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createWxAdapter, type WxBrief } from '@/adapters/wx'
+import { FlightCatBadge } from '@/components/FlightCatBadge'
+import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
 import { listTrips } from '@/lib/tripStore'
 import { getOnShift, updateShiftNotes } from '@/lib/shiftStore'
 import { raiseException } from '@/lib/exceptionStore'
@@ -131,33 +133,22 @@ export default function BriefingPage() {
             WX watch list
           </h2>
           <p className="mt-1 text-xs text-muted">
-            METAR/TAF live · NOTAMs stub until FAA API approval · source{' '}
-            {briefs[0]?.source ?? '…'}
+            Live METAR/TAF ·{' '}
+            <span className="text-vfr">VFR</span>
+            {' · '}
+            <span className="text-mvfr">MVFR</span>
+            {' · '}
+            <span className="text-ifr">IFR</span>
+            {' · '}
+            <span className="text-lifr">LIFR</span>
+            {' · '}NOTAMs stub · source {briefs[0]?.source ?? '…'}
           </p>
           {briefs.length === 0 ? (
             <p className="mt-2 text-sm text-muted">Loading…</p>
           ) : (
             <ul className="mt-3 space-y-3">
               {briefs.map((b) => (
-                <li
-                  key={b.icao}
-                  className="rounded border border-border/60 bg-ink px-3 py-2 text-sm"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="avionic text-gold">{b.icao}</span>
-                    <span className="text-[11px] text-muted">
-                      {new Date(b.fetchedAt).toISOString().slice(11, 19)}Z
-                    </span>
-                  </div>
-                  <p className="mt-1 text-cream">{b.summary}</p>
-                  {b.hardFlags.length > 0 && (
-                    <ul className="mt-1 text-xs text-late">
-                      {b.hardFlags.map((f) => (
-                        <li key={f}>{f}</li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
+                <WxBriefCard key={b.icao} brief={b} />
               ))}
             </ul>
           )}
@@ -188,5 +179,67 @@ export default function BriefingPage() {
         />
       </section>
     </div>
+  )
+}
+
+function WxBriefCard({ brief: b }: { brief: WxBrief }) {
+  return (
+    <li className="rounded border border-border/60 bg-ink px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="avionic text-gold">{b.icao}</span>
+          <FlightCatBadge
+            cat={b.flightCat}
+            title={
+              b.flightCat
+                ? `METAR · ${FLIGHT_CATEGORY_LABELS[b.flightCat]}`
+                : 'METAR category unavailable'
+            }
+          />
+          {b.tafWorstCat && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+              TAF
+              <FlightCatBadge
+                cat={b.tafWorstCat}
+                size="sm"
+                title={`Worst in TAF · ${FLIGHT_CATEGORY_LABELS[b.tafWorstCat]}`}
+              />
+            </span>
+          )}
+        </div>
+        <span className="text-[11px] text-muted">
+          {new Date(b.fetchedAt).toISOString().slice(11, 19)}Z
+        </span>
+      </div>
+      {b.metar && (
+        <p className="avionic mt-2 text-xs text-cream/90">{b.metar}</p>
+      )}
+      {b.tafPeriods.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {b.tafPeriods.slice(0, 8).map((p, i) => (
+            <li
+              key={`${p.timeFrom}-${i}`}
+              className="inline-flex items-center gap-1 rounded border border-border/50 px-1.5 py-0.5 text-[10px] text-muted"
+              title={`${p.label} ${p.timeFrom.slice(11, 16)}–${p.timeTo.slice(11, 16)}Z${
+                p.wxString ? ` · ${p.wxString}` : ''
+              }`}
+            >
+              <span className="avionic">{p.label}</span>
+              <FlightCatBadge cat={p.flightCat} size="sm" />
+            </li>
+          ))}
+        </ul>
+      )}
+      {b.taf && (
+        <p className="mt-2 text-xs text-muted line-clamp-2">{b.taf}</p>
+      )}
+      {b.hardFlags.length > 0 && (
+        <ul className="mt-1 text-xs text-late">
+          {b.hardFlags.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      )}
+    </li>
   )
 }

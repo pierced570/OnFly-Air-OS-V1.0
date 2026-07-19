@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { createWxAdapter } from '@/adapters/wx'
+import { createWxAdapter, type WxBrief } from '@/adapters/wx'
+import { FlightCatBadge } from '@/components/FlightCatBadge'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
 import type { FleetStatus } from '@/domain/fleetStatus'
 import { FlightChip } from '@/components/FlightChip'
@@ -28,7 +29,7 @@ export default function RadarPage() {
     () => [],
   )
   const [statuses, setStatuses] = useState<FleetStatus[]>([])
-  const [wx, setWx] = useState('')
+  const [wx, setWx] = useState<WxBrief | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<string | null>(null)
   const [q, setQ] = useState('')
@@ -38,8 +39,7 @@ export default function RadarPage() {
     setBusy(true)
     try {
       setStatuses(await loadFleetStatuses())
-      const brief = await createWxAdapter().brief('KCAK')
-      setWx(brief.summary)
+      setWx(await createWxAdapter().brief('KCAK'))
     } finally {
       setBusy(false)
     }
@@ -81,6 +81,18 @@ export default function RadarPage() {
             {' · '}
             last takeoff / landing from ADS-B
           </p>
+          {wx && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+              <span className="avionic text-gold">{wx.icao}</span>
+              <FlightCatBadge cat={wx.flightCat} />
+              {wx.tafWorstCat && (
+                <span className="inline-flex items-center gap-1">
+                  TAF <FlightCatBadge cat={wx.tafWorstCat} size="sm" />
+                </span>
+              )}
+              <span className="text-muted/80">live METAR/TAF</span>
+            </p>
+          )}
         </div>
         <div className="flex gap-3">
           <button
@@ -132,7 +144,37 @@ export default function RadarPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">WX brief</h2>
-          <p className="mt-2 text-sm text-cream">{wx || '…'}</p>
+          {wx ? (
+            <div className="mt-2 space-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="avionic text-gold">{wx.icao}</span>
+                <FlightCatBadge cat={wx.flightCat} />
+                {wx.tafWorstCat && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                    TAF <FlightCatBadge cat={wx.tafWorstCat} size="sm" />
+                  </span>
+                )}
+              </div>
+              {wx.metar && (
+                <p className="avionic text-xs text-cream/90">{wx.metar}</p>
+              )}
+              {wx.tafPeriods.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5">
+                  {wx.tafPeriods.slice(0, 6).map((p, i) => (
+                    <li
+                      key={`${p.timeFrom}-${i}`}
+                      className="inline-flex items-center gap-1 text-[10px] text-muted"
+                    >
+                      <span className="avionic">{p.label}</span>
+                      <FlightCatBadge cat={p.flightCat} size="sm" />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-muted">…</p>
+          )}
           {selectedStatus && (
             <div className="mt-4 border-t border-border pt-3 text-sm">
               <div className="avionic text-gold">{selectedStatus.tail}</div>

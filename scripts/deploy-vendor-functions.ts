@@ -79,7 +79,7 @@ run('npx', [
   PROJECT_REF,
 ])
 
-for (const fn of ['send-email', 'llm-extract', 'adsb-positions']) {
+for (const fn of ['send-email', 'llm-extract', 'adsb-positions', 'wx-brief']) {
   console.log(`Deploying ${fn}…`)
   run('npx', [
     'supabase',

@@ -12,6 +12,8 @@ import {
 import { clientRuleChips } from '@/lib/clientStore'
 import { canTransition } from '@/domain/stateMachine'
 import { createWxAdapter, type WxBrief } from '@/adapters/wx'
+import { FlightCatBadge } from '@/components/FlightCatBadge'
+import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
 import { PipelineStrip } from '@/components/PipelineStrip'
 
 export default function TripPage() {
@@ -280,11 +282,52 @@ export default function TripPage() {
           <h2 className="text-xs uppercase tracking-wider text-muted">
             Weather brief
           </h2>
-          <ul className="mt-2 space-y-2 text-sm">
+          <p className="mt-1 text-[11px] text-muted">
+            <span className="text-vfr">VFR</span>
+            {' · '}
+            <span className="text-mvfr">MVFR</span>
+            {' · '}
+            <span className="text-ifr">IFR</span>
+            {' · '}
+            <span className="text-lifr">LIFR</span>
+            {' · '}live METAR/TAF
+          </p>
+          <ul className="mt-3 space-y-3 text-sm">
             {wxBriefs.map((b) => (
-              <li key={b.icao}>
-                <span className="avionic text-gold">{b.icao}</span>
-                <span className="ml-2 text-cream">{b.summary}</span>
+              <li key={b.icao} className="rounded border border-border/50 bg-ink/40 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="avionic text-gold">{b.icao}</span>
+                  <FlightCatBadge
+                    cat={b.flightCat}
+                    title={
+                      b.flightCat
+                        ? `METAR · ${FLIGHT_CATEGORY_LABELS[b.flightCat]}`
+                        : undefined
+                    }
+                  />
+                  {b.tafWorstCat && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                      TAF
+                      <FlightCatBadge cat={b.tafWorstCat} size="sm" />
+                    </span>
+                  )}
+                </div>
+                {b.metar && (
+                  <p className="avionic mt-1.5 text-xs text-cream/90">{b.metar}</p>
+                )}
+                {b.tafPeriods.length > 0 && (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {b.tafPeriods.slice(0, 6).map((p, i) => (
+                      <li
+                        key={`${b.icao}-${i}`}
+                        className="inline-flex items-center gap-1 text-[10px] text-muted"
+                      >
+                        <span className="avionic">{p.label}</span>
+                        <FlightCatBadge cat={p.flightCat} size="sm" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
