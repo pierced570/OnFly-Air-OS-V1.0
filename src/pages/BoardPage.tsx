@@ -1,5 +1,10 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  buildPipeline,
+  PIPELINE_STAGES,
+  type PipelineCard,
+} from '@/domain/pipelineStages'
 import { listTrips, listTripsStable, subscribeTrips } from '@/lib/tripStore'
 import {
   deleteRequest,
@@ -33,7 +38,6 @@ export default function BoardPage() {
   const intake = useSyncExternalStore(subscribeIntake, listPendingIntake, () => [])
   const openTasks = useSyncExternalStore(subscribeNeedsInfo, listOpenNeedsInfo, () => [])
 
-  const pendingRequests = requests.filter((r) => r.status === 'submitted')
   const [shiftName, setShiftName] = useState('')
   const [shiftPhone, setShiftPhone] = useState('+15555550100')
 
@@ -41,10 +45,34 @@ export default function BoardPage() {
     syncExceptionsFromTrips(trips)
   }, [trips])
 
+  const columns = useMemo(
+    () =>
+      buildPipeline({
+        intake,
+        requests,
+        trips: trips.map((t) => ({
+          id: t.id,
+          ref: t.ref,
+          lane: t.lane,
+          state: t.state,
+          quick: t.quick,
+          legs: t.legs,
+        })),
+      }),
+    [intake, requests, trips],
+  )
+
+  const activeCount = PIPELINE_STAGES.reduce(
+    (n, s) => n + columns[s.id].length,
+    0,
+  )
+
   return (
     <div className="flex min-h-full flex-col gap-6 p-4 sm:p-6 lg:flex-row lg:p-8">
       <aside className="w-full shrink-0 space-y-3 lg:w-80">
-        <h2 className="text-xs uppercase tracking-wider text-gold">Exception queue</h2>
+        <h2 className="text-xs uppercase tracking-wider text-gold">
+          Exception queue
+        </h2>
         {exceptions.length === 0 && (
           <p className="text-sm text-muted">Quiet — no exceptions</p>
         )}
@@ -53,7 +81,9 @@ export default function BoardPage() {
             key={ex.id}
             className={[
               'rounded-lg border p-3',
-              ex.severity === 'late' ? 'border-late/50 bg-late/10' : 'border-gold/40 bg-gold/10',
+              ex.severity === 'late'
+                ? 'border-late/50 bg-late/10'
+                : 'border-gold/40 bg-gold/10',
             ].join(' ')}
           >
             <div className="text-sm font-medium text-cream">{ex.title}</div>
@@ -76,7 +106,9 @@ export default function BoardPage() {
         ))}
 
         <div className="rounded-lg border border-border bg-surface p-3">
-          <div className="text-xs uppercase tracking-wider text-muted">On shift</div>
+          <div className="text-xs uppercase tracking-wider text-muted">
+            On shift
+          </div>
           {onShift ? (
             <div className="mt-2 space-y-2">
               <p className="text-sm text-cream">{onShift.person_name}</p>
@@ -118,7 +150,9 @@ export default function BoardPage() {
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-3 text-sm">
-          <div className="text-xs uppercase tracking-wider text-muted">Queues</div>
+          <div className="text-xs uppercase tracking-wider text-muted">
+            Queues
+          </div>
           <ul className="mt-2 space-y-1 text-xs">
             <li>
               <Link to="/intake" className="text-gold">
@@ -133,20 +167,42 @@ export default function BoardPage() {
               <span className="ml-2 avionic text-muted">{openTasks.length}</span>
             </li>
             <li>
+              <span className="text-muted">Pipeline active</span>
+              <span className="ml-2 avionic text-cream">{activeCount}</span>
+            </li>
+            <li>
               <Link to="/portal" className="text-gold">
                 Client portal
               </Link>
             </li>
           </ul>
         </div>
+
+        {columns.out.length > 0 && (
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="text-xs uppercase tracking-wider text-muted">
+              Lost / cancelled ({columns.out.length})
+            </div>
+            <ul className="mt-2 space-y-2">
+              {columns.out.map((c) => (
+                <li key={`${c.kind}-${c.id}`}>
+                  <Link to={c.href} className="text-xs text-muted hover:text-cream">
+                    {c.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </aside>
 
-      <div className="min-w-0 flex-1 space-y-6">
+      <div className="min-w-0 flex-1 space-y-4">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-cream">Dispatch Board</h1>
             <p className="mt-1 text-sm text-muted">
-              Incoming requests, intake review, active trips, exceptions.
+              Pipeline: inbound → quote → booked/ETA → tracking → invoice → done.
+              Same Trip spine — stages are a view, not a second status.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -171,143 +227,121 @@ export default function BoardPage() {
           </div>
         </header>
 
-        {intake.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-xs uppercase tracking-wider text-late">
-              Email / SMS intake ({intake.length})
-            </h2>
-            {intake.map((d) => (
-              <div
-                key={d.id}
-                className="rounded-lg border border-late/40 bg-late/10 px-4 py-3"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <Link
-                    to={`/intake/${d.id}`}
-                    className="min-w-0 flex-1 hover:opacity-90"
-                  >
-                    <div className="font-medium text-cream">
-                      {d.channel.toUpperCase()} · {d.from}
-                    </div>
-                    <div className="text-xs text-muted">
-                      {d.extracted
-                        ? `${String(d.extracted.origin_text ?? '?')} → ${String(d.extracted.destination_text ?? '?')}`
-                        : d.subject}
-                    </div>
-                  </Link>
-                  <button
-                    type="button"
-                    className="shrink-0 text-xs text-late hover:underline"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Delete intake from ${d.from}? This cannot be undone.`,
-                        )
-                      ) {
-                        deleteIntakeDraft(d.id)
-                      }
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </section>
+        {/* Mobile: stacked stages. Desktop: horizontal columns. */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:gap-2 lg:overflow-x-auto lg:pb-2">
+          {PIPELINE_STAGES.map((stage) => (
+            <PipelineColumn
+              key={stage.id}
+              label={stage.label}
+              blurb={stage.blurb}
+              cards={columns[stage.id]}
+              accent={
+                stage.id === 'inbound'
+                  ? 'gold'
+                  : stage.id === 'tracking'
+                    ? 'onplan'
+                    : 'muted'
+              }
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PipelineColumn({
+  label,
+  blurb,
+  cards,
+  accent,
+}: {
+  label: string
+  blurb: string
+  cards: PipelineCard[]
+  accent: 'gold' | 'onplan' | 'muted'
+}) {
+  const head =
+    accent === 'gold'
+      ? 'text-gold'
+      : accent === 'onplan'
+        ? 'text-onplan'
+        : 'text-muted'
+
+  return (
+    <section className="flex w-full flex-col rounded-lg border border-border bg-surface/60 lg:w-56 lg:shrink-0">
+      <header className="border-b border-border px-3 py-2">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className={`text-xs uppercase tracking-wider ${head}`}>{label}</h2>
+          <span className="avionic text-xs text-muted">{cards.length}</span>
+        </div>
+        <p className="mt-0.5 text-[11px] leading-snug text-muted">{blurb}</p>
+      </header>
+      <div className="flex flex-col gap-2 p-2">
+        {cards.length === 0 ? (
+          <p className="px-1 py-4 text-center text-[11px] text-muted">—</p>
+        ) : (
+          cards.map((c) => <PipelineCardView key={`${c.kind}-${c.id}`} card={c} />)
         )}
+      </div>
+    </section>
+  )
+}
 
-        <section className="space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-gold">
-            Incoming requests
-            {pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ''}
-          </h2>
-          {pendingRequests.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-sm text-muted">
-              No portal requests yet. Clients submit at{' '}
-              <Link to="/portal/request" className="text-gold hover:text-gold-lt">
-                /portal/request
-              </Link>
-              , or simulate email under Intake.
-            </p>
-          ) : (
-            pendingRequests.map((r) => (
-              <div
-                key={r.id}
-                className="rounded-lg border border-gold/40 bg-gold/10 px-4 py-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="font-medium text-cream">
-                      R-{r.ref} · {r.lane}
-                    </div>
-                    <div className="text-xs text-muted">
-                      {r.source === 'portal' ? 'Portal' : 'Dispatch'} · {r.summary}
-                      {r.email ? ` · ${r.email}` : ''}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <Link
-                      to={`/trips/new?request=${r.id}`}
-                      className="text-xs text-gold hover:text-gold-lt"
-                    >
-                      Open →
-                    </Link>
-                    <button
-                      type="button"
-                      className="text-xs text-late hover:underline"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Delete request R-${r.ref}? This cannot be undone.`,
-                          )
-                        ) {
-                          deleteRequest(r.id)
-                        }
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </section>
+function PipelineCardView({ card }: { card: PipelineCard }) {
+  const border =
+    card.kind === 'intake'
+      ? 'border-late/40 bg-late/10'
+      : card.kind === 'request'
+        ? 'border-gold/40 bg-gold/10'
+        : 'border-border bg-ink/50'
 
-        <section className="space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Active trips</h2>
-          {trips.length === 0 ? (
-            <p className="text-sm text-muted">
-              No active trips yet. Use Quick Dispatch for instant book+track, or New
-              trip for the full quote path.
-            </p>
-          ) : (
-            trips.map((t) => (
-              <Link
-                key={t.id}
-                to={`/trips/${t.id}`}
-                className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 hover:border-gold/40"
-              >
-                <div>
-                  <div className="font-medium text-cream">
-                    T-{t.ref} · {t.lane}
-                    {t.quick?.po ? (
-                      <span className="ml-2 text-xs text-muted">PO {t.quick.po}</span>
-                    ) : null}
-                  </div>
-                  <div className="avionic text-xs text-muted">
-                    {t.state}
-                    {t.quick ? ' · quick dispatch' : ''}
-                    {t.legs.length ? ` · ${t.legs.filter((l) => l.status === 'done').length}/${t.legs.length} legs` : ''}
-                  </div>
-                </div>
-                <span className="text-xs text-gold">
-                  {t.offers.length && !t.quick ? 'Offers / exec →' : 'Track →'}
-                </span>
-              </Link>
-            ))
-          )}
-        </section>
+  return (
+    <div className={`rounded-md border px-2.5 py-2 ${border}`}>
+      <Link to={card.href} className="block min-w-0 hover:opacity-90">
+        <div className="truncate text-sm font-medium text-cream">{card.title}</div>
+        <div className="mt-0.5 line-clamp-2 text-[11px] text-muted">
+          {card.subtitle}
+        </div>
+      </Link>
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <Link to={card.href} className="text-[11px] text-gold hover:text-gold-lt">
+          Open →
+        </Link>
+        {card.kind === 'request' && (
+          <button
+            type="button"
+            className="text-[11px] text-late hover:underline"
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Delete request R-${card.ref}? This cannot be undone.`,
+                )
+              ) {
+                deleteRequest(card.id)
+              }
+            }}
+          >
+            Delete
+          </button>
+        )}
+        {card.kind === 'intake' && (
+          <button
+            type="button"
+            className="text-[11px] text-late hover:underline"
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Delete intake “${card.title}”? This cannot be undone.`,
+                )
+              ) {
+                deleteIntakeDraft(card.id)
+              }
+            }}
+          >
+            Delete
+          </button>
+        )}
       </div>
     </div>
   )

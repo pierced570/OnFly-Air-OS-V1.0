@@ -12,6 +12,7 @@ import {
 import { clientRuleChips } from '@/lib/clientStore'
 import { canTransition } from '@/domain/stateMachine'
 import { createWxAdapter, type WxBrief } from '@/adapters/wx'
+import { PipelineStrip } from '@/components/PipelineStrip'
 
 export default function TripPage() {
   const { id } = useParams()
@@ -154,6 +155,10 @@ export default function TripPage() {
           </div>
         </div>
       </header>
+
+      <div className="rounded-lg border border-border bg-surface p-3">
+        <PipelineStrip state={trip.state} />
+      </div>
 
       <section className="rounded-lg border border-border bg-surface p-4">
         <h2 className="text-xs uppercase tracking-wider text-muted">ETA chain / legs</h2>
