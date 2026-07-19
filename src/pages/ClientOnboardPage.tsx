@@ -1,6 +1,6 @@
 /**
- * Public customer onboarding — cream client theme.
- * Creates a ClientProfile on submit and binds the portal session.
+ * Public client page — shareable onboarding link (not inside the portal).
+ * Creates a ClientProfile on submit and binds the portal session for later requests.
  */
 
 import { useState, type FormEvent } from 'react'
@@ -22,7 +22,7 @@ const labelCls = 'block text-xs font-medium text-muted'
 const sectionCls =
   'rounded-lg border border-border bg-surface-2/40 p-4 sm:p-5 space-y-3'
 
-export default function PortalOnboardPage() {
+export default function ClientOnboardPage() {
   const [draft, setDraft] = useState<ClientOnboardDraft>(() =>
     emptyClientOnboardDraft(),
   )
@@ -95,10 +95,10 @@ export default function PortalOnboardPage() {
         <div className="text-xs uppercase tracking-[0.2em] text-gold">
           OnFly Air
         </div>
-        <h1 className="text-xl font-semibold">Customer onboarding</h1>
+        <h1 className="text-xl font-semibold">Client setup</h1>
         <p className="mt-1 text-sm text-muted">
           About 3 minutes. We never ask for card numbers here — billing setup is
-          handled securely after.
+          handled securely after. After this, you can request trips in the portal.
         </p>
       </header>
 

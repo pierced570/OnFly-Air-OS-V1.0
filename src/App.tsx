@@ -28,7 +28,7 @@ const FbosPage = lazy(() => import('@/pages/FbosPage'))
 const IntakePage = lazy(() => import('@/pages/IntakePage'))
 const IntakeReviewPage = lazy(() => import('@/pages/IntakeReviewPage'))
 const OnboardPage = lazy(() => import('@/pages/OnboardPage'))
-const PortalOnboardPage = lazy(() => import('@/pages/portal/PortalOnboardPage'))
+const ClientOnboardPage = lazy(() => import('@/pages/ClientOnboardPage'))
 
 function Fallback() {
   return (
@@ -44,6 +44,8 @@ function isPublic(pathname: string) {
     pathname.startsWith('/accept/') ||
     pathname.startsWith('/t/') ||
     pathname.startsWith('/portal') ||
+    pathname === '/client' ||
+    pathname.startsWith('/client/') ||
     pathname === '/onboard' ||
     pathname.startsWith('/onboard/')
   )
@@ -78,9 +80,13 @@ export function App() {
         <Route path="/accept/:token" element={<AcceptPage />} />
         <Route path="/t/:legToken" element={<OneTapPage />} />
         <Route path="/portal" element={<PortalHomePage />} />
-        <Route path="/portal/onboard" element={<PortalOnboardPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
         <Route path="/portal/track/:token" element={<PortalTrackPage />} />
+        {/* Public client page — send this link; not part of the portal */}
+        <Route path="/client" element={<ClientOnboardPage />} />
+        <Route path="/client/onboard" element={<Navigate to="/client" replace />} />
+        {/* Legacy portal onboard URL */}
+        <Route path="/portal/onboard" element={<Navigate to="/client" replace />} />
         <Route path="/onboard" element={<OnboardPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -164,12 +164,8 @@ export default function PortalRequestPage() {
         </Link>
         {!client && (
           <p className="mt-3 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-sm text-ink">
-            Tip:{' '}
-            <Link to="/portal/onboard" className="text-gold underline">
-              complete onboarding
-            </Link>{' '}
-            first so we know who gets tracking and invoices. You can still request
-            a trip now.
+            You can request a trip now. Tracking and invoice contacts come from the
+            client setup link OnFly sends (not this portal).
           </p>
         )}
         {client && client.profile.frequent_lanes && client.profile.frequent_lanes.length > 1 && (
