@@ -2,9 +2,12 @@
  * Shared trip-request model for client portal + dispatcher intake.
  */
 
+import type { DimLengthUnit } from '@/domain/dimsParser'
+
 export type TimingMode = 'asap' | 'scheduled'
 export type TripDirection = 'one_way' | 'round_trip'
 export type ServiceMode = 'a2a' | 'd2d' | 'mixed'
+export type { DimLengthUnit }
 
 export type PaxRow = {
   name: string
@@ -39,6 +42,8 @@ export type TripRequestDraft = {
   pax: PaxRow[]
   hazmat: boolean
   cargo_notes: string
+  /** Length unit for cargo_notes L×W×H (stored pieces always convert to inches). */
+  dim_unit: DimLengthUnit
   notes: string
 }
 
@@ -84,6 +89,7 @@ export function emptyTripRequestDraft(): TripRequestDraft {
     pax: [],
     hazmat: false,
     cargo_notes: '',
+    dim_unit: 'in',
     notes: '',
   }
 }

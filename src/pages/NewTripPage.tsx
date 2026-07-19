@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { parseDims, type Piece } from '@/domain/dimsParser'
+import {
+  formatPieceDims,
+  parseDims,
+  type DimLengthUnit,
+  type Piece,
+} from '@/domain/dimsParser'
+import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import { createMapsAdapter } from '@/adapters/maps'
 import { generateCandidates, type Candidate } from '@/domain/routing'
@@ -25,6 +31,7 @@ export default function NewTripPage() {
   const [params] = useSearchParams()
   const [request, setRequest] = useState<TripRequestRecord | null>(null)
   const [dimsText, setDimsText] = useState('')
+  const [dimUnit, setDimUnit] = useState<DimLengthUnit>('in')
   const [piecesApproved, setPiecesApproved] = useState<Piece[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,6 +45,7 @@ export default function NewTripPage() {
       if (row) {
         setRequest(row)
         if (row.cargo_notes.trim()) setDimsText(row.cargo_notes)
+        if (row.dim_unit) setDimUnit(row.dim_unit)
       }
     }
     try {
@@ -57,7 +65,10 @@ export default function NewTripPage() {
     }
   }, [params])
 
-  const parsed = useMemo(() => parseDims(dimsText), [dimsText])
+  const parsed = useMemo(
+    () => parseDims(dimsText, { unit: dimUnit }),
+    [dimsText, dimUnit],
+  )
 
   const payloadKind =
     request && !request.cargo_only
@@ -74,6 +85,7 @@ export default function NewTripPage() {
       setDimsText(draft.cargo_notes)
       setPiecesApproved(null)
     }
+    if (draft.dim_unit) setDimUnit(draft.dim_unit)
     setCandidates(null)
   }
 
@@ -265,6 +277,14 @@ export default function NewTripPage() {
 
               {payloadKind !== 'pax' && (
                 <>
+                  <DimUnitToggle
+                    value={dimUnit}
+                    onChange={(u) => {
+                      setDimUnit(u)
+                      setPiecesApproved(null)
+                      setCandidates(null)
+                    }}
+                  />
                   <label className="block text-xs uppercase tracking-wider text-muted">
                     Pieces (dims parser)
                     <textarea
@@ -275,9 +295,21 @@ export default function NewTripPage() {
                         setCandidates(null)
                       }}
                       rows={2}
+                      placeholder={
+                        dimUnit === 'ft'
+                          ? '3 skids 4x3.5x5 @ 800ea'
+                          : '3 skids 48x40x60 @ 800ea'
+                      }
                       className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
                     />
                   </label>
+                  <p className="text-[11px] text-muted">
+                    Entering{' '}
+                    <span className="text-cream">
+                      {dimUnit === 'ft' ? 'feet' : 'inches'}
+                    </span>
+                    . Preview shows both when feet are used (door fit = inches).
+                  </p>
                   <div className="rounded-md border border-border/60 bg-ink/40 p-3 text-sm">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs uppercase tracking-wider text-muted">
@@ -289,13 +321,15 @@ export default function NewTripPage() {
                       <p className="text-xs text-muted">
                         No pieces parsed yet — use e.g.{' '}
                         <span className="avionic text-cream">
-                          3 skids 48x40x60 @ 800ea
+                          {dimUnit === 'ft'
+                            ? '3 skids 4x3.5x5 @ 800ea'
+                            : '3 skids 48x40x60 @ 800ea'}
                         </span>
                       </p>
                     ) : (
                       parsed.pieces.map((p, i) => (
                         <div key={i} className="avionic text-cream">
-                          {p.count}× {p.l_in}×{p.w_in}×{p.h_in} in @{' '}
+                          {p.count}× {formatPieceDims(p, dimUnit)} @{' '}
                           {p.weight_lbs} lb
                         </div>
                       ))

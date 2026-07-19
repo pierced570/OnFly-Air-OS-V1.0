@@ -39,7 +39,8 @@ import {
 import { subscribeTrips, listTripsStable } from '@/lib/tripStore'
 import { lookupAirport } from '@/domain/airports'
 import { haversineNm } from '@/domain/geo'
-import { parseDims } from '@/domain/dimsParser'
+import { parseDims, type DimLengthUnit } from '@/domain/dimsParser'
+import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { rankOperatorsForMission } from '@/domain/missionFit'
 import { loadFleetForMissionFit } from '@/lib/fleetRouting'
 import {
@@ -73,6 +74,7 @@ export default function NetworkPage() {
   const [q, setQ] = useState('')
   const [originIcao, setOriginIcao] = useState('')
   const [cargoDims, setCargoDims] = useState('')
+  const [dimUnit, setDimUnit] = useState<DimLengthUnit>('in')
   const [error, setError] = useState<string | null>(null)
   const [expandedDocs, setExpandedDocs] = useState<string | null>(null)
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null)
@@ -209,7 +211,10 @@ export default function NetworkPage() {
     return lookupAirport(code)
   }, [originIcao])
 
-  const dimsParsed = useMemo(() => parseDims(cargoDims), [cargoDims])
+  const dimsParsed = useMemo(
+    () => parseDims(cargoDims, { unit: dimUnit }),
+    [cargoDims, dimUnit],
+  )
   const missionPieces = dimsParsed.pieces
 
   const missionRank = useMemo(() => {
@@ -357,7 +362,7 @@ export default function NetworkPage() {
         <div className="text-xs uppercase tracking-wider text-muted">
           Mission fit
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_1fr_10rem_auto] lg:items-center lg:gap-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_9rem_1fr_10rem_auto] lg:items-end lg:gap-3">
           <input
             value={originIcao}
             onChange={(e) => setOriginIcao(e.target.value.toUpperCase())}
@@ -366,10 +371,15 @@ export default function NetworkPage() {
             autoCapitalize="characters"
             className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold avionic sm:py-2"
           />
+          <DimUnitToggle value={dimUnit} onChange={setDimUnit} />
           <input
             value={cargoDims}
             onChange={(e) => setCargoDims(e.target.value)}
-            placeholder="Cargo dims — 3 skids 48x40x60 @ 800ea"
+            placeholder={
+              dimUnit === 'ft'
+                ? 'Cargo dims — 3 skids 4x3.5x5 @ 800ea (ft)'
+                : 'Cargo dims — 3 skids 48x40x60 @ 800ea (in)'
+            }
             className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold sm:col-span-2 sm:py-2 lg:col-span-1"
           />
           <input

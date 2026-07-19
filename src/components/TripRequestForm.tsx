@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
+import { DimUnitToggle } from '@/components/DimUnitToggle'
 import {
   ASAP_MAX_HOURS,
   emptyTripRequestDraft,
@@ -653,18 +654,37 @@ export function TripRequestForm({
         )}
 
         {draft.cargo_only && (
-          <label className={labelCls}>
-            Cargo description / dims
-            <textarea
-              value={draft.cargo_notes}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, cargo_notes: e.target.value }))
-              }
-              rows={2}
-              placeholder="e.g. 3 skids 48x40x60 @ 800ea"
-              className={inputCls}
+          <div className="space-y-2">
+            <DimUnitToggle
+              value={draft.dim_unit ?? 'in'}
+              onChange={(dim_unit) => setDraft((d) => ({ ...d, dim_unit }))}
             />
-          </label>
+            <label className={labelCls}>
+              Cargo description / dims
+              <textarea
+                value={draft.cargo_notes}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, cargo_notes: e.target.value }))
+                }
+                rows={2}
+                placeholder={
+                  (draft.dim_unit ?? 'in') === 'ft'
+                    ? 'e.g. 3 skids 4x3.5x5 @ 800ea (feet)'
+                    : 'e.g. 3 skids 48x40x60 @ 800ea (inches)'
+                }
+                className={inputCls}
+              />
+            </label>
+            <p className="text-[11px] text-muted">
+              L×W×H are in{' '}
+              <span className="text-[var(--text)]">
+                {(draft.dim_unit ?? 'in') === 'ft' ? 'feet' : 'inches'}
+              </span>
+              . You can also write <span className="avionic">ft</span> or{' '}
+              <span className="avionic">in</span> after the dims. Door fit always
+              uses inches.
+            </p>
+          </div>
         )}
       </section>
 
