@@ -80,7 +80,11 @@ export default function AdminPage() {
           </Link>
           {' · '}
           <Link to="/onboard" className="text-gold hover:text-gold-lt">
-            Public onboard form
+            Operator onboard
+          </Link>
+          {' · '}
+          <Link to="/portal/onboard" className="text-gold hover:text-gold-lt">
+            Customer onboard
           </Link>
         </p>
       </header>

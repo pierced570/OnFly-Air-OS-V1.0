@@ -50,6 +50,38 @@ export const DEFAULT_CLIENT_RULES: ClientRules = {
   other_rules: [],
 }
 
+/** Extended profile from public customer onboarding (also in clients.profile jsonb). */
+export type ClientExtendedProfile = {
+  dba?: string
+  website?: string
+  address?: {
+    street: string
+    city: string
+    state: string
+    zip: string
+  }
+  front_desk_phone?: string
+  emergency?: { name: string; email: string; phone: string }
+  frequent_lanes?: Array<{
+    origin: string
+    destination: string
+    origin_city?: string
+    destination_city?: string
+  }>
+  no_frequent_lanes?: boolean
+  requires_po?: boolean
+  card_on_file?: boolean | null
+  vendor_packet_to?: string
+  update_channel?: 'email' | 'sms' | 'both'
+  shipping_flags?: {
+    hazmat_sometimes?: boolean
+    temp_control?: boolean
+    oversized?: boolean
+    high_declared_value?: boolean
+  }
+  source?: 'portal_onboard' | 'admin' | 'import'
+}
+
 export type ClientProfile = {
   id: string
   name: string
@@ -63,6 +95,7 @@ export type ClientProfile = {
   notes: string
   rules: ClientRules
   qb_customer_id: string | null
+  profile: ClientExtendedProfile
 }
 
 const clients = new Map<string, ClientProfile>()
@@ -126,6 +159,7 @@ function seedFromFinancials() {
       notes: '',
       rules: { ...DEFAULT_CLIENT_RULES },
       qb_customer_id: null,
+      profile: { source: 'import' },
     })
   }
   rebuild()
@@ -153,8 +187,10 @@ export function addClient(opts: {
   email?: string
   invoice_email?: string
   pay_terms?: string
+  notes?: string
   rules?: Partial<ClientRules>
   qb_customer_id?: string | null
+  profile?: ClientExtendedProfile
   contacts?: Array<{
     name: string
     email: string
@@ -183,9 +219,10 @@ export function addClient(opts: {
     }),
     last_po: null,
     pay_terms: opts.pay_terms?.trim() || 'Net 30',
-    notes: '',
+    notes: opts.notes?.trim() ?? '',
     rules: { ...DEFAULT_CLIENT_RULES, ...opts.rules },
     qb_customer_id: opts.qb_customer_id ?? null,
+    profile: { ...(opts.profile ?? {}) },
   }
   clients.set(id, row)
   bump(id)
@@ -204,14 +241,17 @@ export function updateClient(
       | 'notes'
       | 'last_po'
       | 'qb_customer_id'
+      | 'profile'
     > & { rules: Partial<ClientRules> }
   >,
 ): ClientProfile | undefined {
   const row = clients.get(id)
   if (!row) return undefined
-  const { rules, ...rest } = patch
+  const { rules, profile, ...rest } = patch
   Object.assign(row, rest)
   if (rules) row.rules = { ...row.rules, ...rules }
+  if (profile) row.profile = { ...row.profile, ...profile }
+  if (!row.profile) row.profile = {}
   bump(id)
   return row
 }

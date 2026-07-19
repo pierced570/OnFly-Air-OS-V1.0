@@ -28,6 +28,7 @@ const FbosPage = lazy(() => import('@/pages/FbosPage'))
 const IntakePage = lazy(() => import('@/pages/IntakePage'))
 const IntakeReviewPage = lazy(() => import('@/pages/IntakeReviewPage'))
 const OnboardPage = lazy(() => import('@/pages/OnboardPage'))
+const PortalOnboardPage = lazy(() => import('@/pages/portal/PortalOnboardPage'))
 
 function Fallback() {
   return (
@@ -77,6 +78,7 @@ export function App() {
         <Route path="/accept/:token" element={<AcceptPage />} />
         <Route path="/t/:legToken" element={<OneTapPage />} />
         <Route path="/portal" element={<PortalHomePage />} />
+        <Route path="/portal/onboard" element={<PortalOnboardPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
         <Route path="/portal/track/:token" element={<PortalTrackPage />} />
         <Route path="/onboard" element={<OnboardPage />} />

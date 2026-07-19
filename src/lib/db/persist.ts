@@ -67,6 +67,7 @@ async function resolveClientDbId(client: ClientProfile): Promise<string | null> 
         notes: client.notes,
         invoice_email: client.invoice_email,
         last_po: client.last_po,
+        profile: client.profile ?? {},
       })
       .select('id')
       .maybeSingle(),
@@ -89,6 +90,7 @@ export async function persistClient(client: ClientProfile): Promise<void> {
         notes: client.notes,
         invoice_email: client.invoice_email,
         last_po: client.last_po,
+        profile: client.profile ?? {},
       })
       .eq('id', dbId),
   )
