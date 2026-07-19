@@ -77,18 +77,36 @@ export default function NewTripPage() {
     setCandidates(null)
   }
 
-  async function runQuote() {
+  async function runQuote(approvedPieces?: Piece[]) {
     if (!request) return
+    const pieces =
+      approvedPieces ??
+      piecesApproved ??
+      (payloadKind === 'pax' ? [] : parsed.pieces)
+    if (payloadKind !== 'pax' && !pieces.length) {
+      setError('Add cargo dims (e.g. 3 skids 48x40x60 @ 800ea), then approve')
+      return
+    }
+    if (payloadKind !== 'pax' && !approvedPieces && !piecesApproved) {
+      setError('Approve the parsed pieces first — then estimates run')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      const pieces = piecesApproved ?? parsed.pieces
-      if (payloadKind !== 'pax' && !pieces.length) {
-        throw new Error('Approve parsed pieces first (or describe cargo above)')
-      }
       const leg = request.legs[0]!
+      if (!leg.origin_icao?.trim() || !leg.dest_icao?.trim()) {
+        throw new Error(
+          'Origin and destination ICAO are required before quoting — edit the request and pick airports',
+        )
+      }
       const originAp = resolveAirport(leg.origin_icao)
       const destAp = resolveAirport(leg.dest_icao)
+      if (originAp.icao === destAp.icao && leg.origin_icao !== leg.dest_icao) {
+        throw new Error(
+          `Could not resolve airports (“${leg.origin_icao}” / “${leg.dest_icao}”). Pick ICAOs from the catalog.`,
+        )
+      }
       const mode =
         request.service_mode === 'mixed'
           ? 'mixed'
@@ -151,6 +169,18 @@ export default function NewTripPage() {
       )
       const ms = performance.now() - t0
       setCandidates(cands)
+      if (!cands.length) {
+        setError(
+          'No aircraft cleared hard filters for this cargo/route — check door dims, payload, or fleet data',
+        )
+      } else {
+        // Bring estimates into view (esp. mobile / short viewports).
+        requestAnimationFrame(() => {
+          document
+            .getElementById('quote-candidates')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+      }
       sessionStorage.setItem(
         'onfly_quote_draft',
         JSON.stringify({
@@ -170,10 +200,21 @@ export default function NewTripPage() {
         }),
       )
     } catch (e) {
+      setCandidates(null)
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
+  }
+
+  function approvePiecesAndQuote() {
+    if (!parsed.pieces.length) {
+      setError('Nothing parsed yet — enter dims like “3 skids 48x40x60 @ 800ea”')
+      return
+    }
+    setPiecesApproved(parsed.pieces)
+    setError(null)
+    void runQuote(parsed.pieces)
   }
 
   return (
@@ -231,6 +272,7 @@ export default function NewTripPage() {
                       onChange={(e) => {
                         setDimsText(e.target.value)
                         setPiecesApproved(null)
+                        setCandidates(null)
                       }}
                       rows={2}
                       className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
@@ -243,41 +285,72 @@ export default function NewTripPage() {
                       </span>
                       <span className="text-xs text-gold">{parsed.confidence}</span>
                     </div>
-                    {parsed.pieces.map((p, i) => (
-                      <div key={i} className="avionic text-cream">
-                        {p.count}× {p.l_in}×{p.w_in}×{p.h_in} in @ {p.weight_lbs} lb
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className="mt-2 rounded-md border border-gold/40 px-3 py-1 text-xs text-gold hover:bg-gold/10"
-                      onClick={() => setPiecesApproved(parsed.pieces)}
-                    >
-                      {piecesApproved ? 'Pieces approved ✓' : 'Approve pieces'}
-                    </button>
+                    {parsed.pieces.length === 0 ? (
+                      <p className="text-xs text-muted">
+                        No pieces parsed yet — use e.g.{' '}
+                        <span className="avionic text-cream">
+                          3 skids 48x40x60 @ 800ea
+                        </span>
+                      </p>
+                    ) : (
+                      parsed.pieces.map((p, i) => (
+                        <div key={i} className="avionic text-cream">
+                          {p.count}× {p.l_in}×{p.w_in}×{p.h_in} in @{' '}
+                          {p.weight_lbs} lb
+                        </div>
+                      ))
+                    )}
                   </div>
                 </>
               )}
 
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void runQuote()}
-                className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
-              >
-                {busy ? 'Routing…' : 'Generate estimated quote'}
-              </button>
+              {payloadKind !== 'pax' ? (
+                <button
+                  type="button"
+                  disabled={busy || !parsed.pieces.length}
+                  onClick={approvePiecesAndQuote}
+                  className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
+                >
+                  {busy
+                    ? 'Routing fleet…'
+                    : piecesApproved
+                      ? 'Re-run estimates'
+                      : 'Approve pieces & get estimates'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void runQuote([])}
+                  className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
+                >
+                  {busy ? 'Routing…' : 'Generate estimated quote'}
+                </button>
+              )}
               {error && <p className="text-sm text-late">{error}</p>}
+              {piecesApproved && busy && (
+                <p className="text-xs text-muted">
+                  Pieces approved — scoring operators…
+                </p>
+              )}
             </div>
           )}
         </section>
 
-        <section className="space-y-3">
-          {!candidates && (
+        <section id="quote-candidates" className="space-y-3">
+          {candidates === null && (
             <div className="rounded-lg border border-border border-dashed bg-surface p-8 text-center text-sm text-muted">
               {request
-                ? 'Approve pieces (if cargo), then generate — Cheapest / Fastest / Best from the fleet.'
+                ? payloadKind === 'pax'
+                  ? 'Generate an estimate — Cheapest / Fastest / Best from the fleet.'
+                  : 'Approve pieces to score the fleet and show operator options here.'
                 : 'Complete the trip request form to continue to estimates.'}
+            </div>
+          )}
+          {candidates && candidates.length === 0 && (
+            <div className="rounded-lg border border-late/40 bg-late/10 p-6 text-sm text-late">
+              No operator options returned. Fix cargo dims / airports and try
+              again.
             </div>
           )}
           {candidates?.map((c) => {
