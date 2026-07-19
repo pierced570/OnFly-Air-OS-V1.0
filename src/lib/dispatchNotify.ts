@@ -140,6 +140,29 @@ export async function notifyPortalRequest(
   })
 }
 
+export async function notifyHardQuoteRequest(
+  row: TripRequestRecord,
+): Promise<DispatchNotifyResult> {
+  const href = portalRequestReviewPath(row.id)
+  const who = row.email?.trim() || row.client_name?.trim() || 'client'
+  const detail = `HARD QUOTE · R-${row.ref} · ${row.lane} · ${who}`
+  const path = portalRequestReviewPath(row.id)
+  const base = (import.meta.env.VITE_APP_URL as string | undefined)?.replace(
+    /\/$/,
+    '',
+  )
+  const link = base ? `${base}${path}` : path
+  return notifyDispatch({
+    title: 'Hard quote requested',
+    detail,
+    smsBody: `OnFly: client wants HARD QUOTE on R-${row.ref} · ${row.lane} — real times/numbers · ${link}`,
+    emailSubject: `OnFly HARD QUOTE R-${row.ref} · ${row.lane}`,
+    href,
+    trip_id: null,
+    trip_ref: row.ref,
+  })
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

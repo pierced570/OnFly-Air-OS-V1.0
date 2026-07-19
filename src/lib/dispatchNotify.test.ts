@@ -50,6 +50,7 @@ describe('dispatchNotify', () => {
       lane: 'KHPN→KTEB',
       summary: '1 skid · ASAP',
       email: 'aog@client.com',
+      hard_quote_requested_at: null,
     }
     const result = await notifyPortalRequest(row)
     expect(result.phone).toBe('+16105092031')

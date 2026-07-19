@@ -15,7 +15,10 @@ import {
   subscribeClients,
   type ClientProfile,
 } from '@/lib/clientStore'
-import { notifyPortalRequest } from '@/lib/dispatchNotify'
+import {
+  notifyHardQuoteRequest,
+  notifyPortalRequest,
+} from '@/lib/dispatchNotify'
 
 const requests = new Map<string, TripRequestRecord>()
 let refSeq = 9000
@@ -65,12 +68,26 @@ export function submitTripRequest(
     ready_at: deriveReadyAt(draft),
     lane: laneFromDraft(draft),
     summary: summaryFromDraft(draft),
+    hard_quote_requested_at: null,
   }
   requests.set(id, row)
   bump()
   // Portal door: SMS/email the on-shift desk + Board exception — approve, don't auto-book.
   if (source === 'portal') {
     void notifyPortalRequest(row)
+  }
+  return row
+}
+
+/** Client portal: escalate from estimated to hard quote (operator-confirmed numbers). */
+export function requestHardQuote(id: string): TripRequestRecord | undefined {
+  const row = requests.get(id)
+  if (!row) return undefined
+  if (!row.hard_quote_requested_at) {
+    row.hard_quote_requested_at = new Date().toISOString()
+    row.status = row.status === 'submitted' ? 'in_review' : row.status
+    bump()
+    void notifyHardQuoteRequest(row)
   }
   return row
 }

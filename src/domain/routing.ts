@@ -147,6 +147,11 @@ export async function generateCandidates(
     fleetStatusByTail?: Map<string, FleetStatus>
     /** Origin/dest FBO handling (+ callout) from directory */
     fboFees?: { origin: number; dest: number; notes: string[] }
+    /**
+     * `labeled` (default): cheapest / fastest / best + fill to 5.
+     * `all`: every aircraft that cleared hard filters (portal category guestimate).
+     */
+    pickMode?: 'labeled' | 'all'
   },
 ): Promise<Candidate[]> {
   const margin = opts?.targetMargin ?? PRICING_CONSTANTS.targetMargin
@@ -349,6 +354,10 @@ export async function generateCandidates(
       inPosition: status?.inPositionOfBase,
       laddBlocked: status?.laddBlocked,
     })
+  }
+
+  if (opts?.pickMode === 'all') {
+    return [...results].sort((a, b) => a.price - b.price)
   }
 
   // Rank + label top options

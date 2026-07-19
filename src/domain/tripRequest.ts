@@ -56,6 +56,8 @@ export type TripRequestRecord = TripRequestDraft & {
   ready_at: string
   lane: string
   summary: string
+  /** Client asked for operator-confirmed hard quote times/numbers. */
+  hard_quote_requested_at: string | null
 }
 
 export const ASAP_MAX_HOURS = 4

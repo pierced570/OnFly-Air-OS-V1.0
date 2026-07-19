@@ -137,6 +137,7 @@ export function buildPipeline(input: {
     source: string
     status: string
     email?: string
+    hard_quote_requested_at?: string | null
   }>
   trips: Array<{
     id: string
@@ -180,8 +181,8 @@ export function buildPipeline(input: {
       stage: 'inbound',
       title: `R-${r.ref} · ${r.lane}`,
       subtitle: `${r.source === 'portal' ? 'Portal' : 'Dispatch'} · ${r.summary}${
-        r.email ? ` · ${r.email}` : ''
-      }`,
+        r.hard_quote_requested_at ? ' · HARD QUOTE' : ''
+      }${r.email ? ` · ${r.email}` : ''}`,
       href: `/trips/new?request=${r.id}`,
       ref: r.ref,
     })
