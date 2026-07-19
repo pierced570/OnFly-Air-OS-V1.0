@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import {
   clearPortalClient,
@@ -12,6 +12,15 @@ import {
   signOutPortal,
 } from '@/lib/portalAuth'
 import type { PortalSession, PortalTripCard } from '@/domain/portalAuth'
+import {
+  getTrip,
+  listTripsStable,
+  subscribeTrips,
+} from '@/lib/tripStore'
+import {
+  buildPortalTrackingView,
+  tripToTrackingInput,
+} from '@/domain/portalTracking'
 
 function useRequests() {
   return useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -22,12 +31,23 @@ function usePortalClient() {
   return getPortalClient()
 }
 
+function useLocalTrips() {
+  return useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
+}
+
+type LiveCard = PortalTripCard & {
+  trackHref: string
+  etaHint: string | null
+  nextLabel: string | null
+}
+
 /** Client-facing portal — request & track. Onboarding lives at /client (shareable). */
 export default function PortalHomePage() {
   const requests = useRequests().filter((r) => r.source === 'portal')
   const client = usePortalClient()
+  const localTrips = useLocalTrips()
   const [session, setSession] = useState<PortalSession | null>(null)
-  const [trips, setTrips] = useState<PortalTripCard[]>([])
+  const [remoteTrips, setRemoteTrips] = useState<PortalTripCard[]>([])
   const [loadingAuth, setLoadingAuth] = useState(true)
 
   useEffect(() => {
@@ -38,7 +58,7 @@ export default function PortalHomePage() {
       setSession(s)
       if (s?.clientId) {
         const rows = await listPortalTripsForSession()
-        if (!cancelled) setTrips(rows)
+        if (!cancelled) setRemoteTrips(rows)
       }
       setLoadingAuth(false)
     })()
@@ -46,6 +66,60 @@ export default function PortalHomePage() {
       cancelled = true
     }
   }, [])
+
+  const liveCards: LiveCard[] = useMemo(() => {
+    const byId = new Map<string, LiveCard>()
+
+    const enrich = (card: PortalTripCard, href: string): LiveCard => {
+      const trip = getTrip(card.id)
+      if (!trip) {
+        return {
+          ...card,
+          trackHref: href,
+          etaHint: null,
+          nextLabel: null,
+        }
+      }
+      const view = buildPortalTrackingView(tripToTrackingInput(trip))
+      return {
+        ...card,
+        trackHref: href,
+        etaHint: view.projectedDisplay,
+        nextLabel: view.nextMilestoneLabel,
+      }
+    }
+
+    for (const t of remoteTrips) {
+      byId.set(t.id, enrich(t, `/portal/trips/${t.id}`))
+    }
+
+    // Session-local trips for this client (demo / pre-hydrate)
+    const clientKey = client?.id || session?.clientId
+    for (const t of localTrips) {
+      if (clientKey && t.client_id && t.client_id !== clientKey) continue
+      if (['closed', 'lost', 'cancelled'].includes(t.state)) continue
+      if (byId.has(t.id)) continue
+      // Prefer in-app trip page when we have the full session trip
+      byId.set(
+        t.id,
+        enrich(
+          {
+            id: t.id,
+            ref: t.ref,
+            state: t.state,
+            lane: t.lane,
+            ready_label: t.ready_label,
+            payload_summary: t.payload_summary,
+          },
+          `/portal/trips/${t.id}`,
+        ),
+      )
+    }
+
+    return [...byId.values()].sort((a, b) => b.ref - a.ref)
+  }, [remoteTrips, localTrips, client?.id, session?.clientId, session?.email])
+
+  const showTrips = Boolean(session?.clientId || client || liveCards.length)
 
   return (
     <div className="min-h-screen bg-cream text-ink" data-theme="client">
@@ -67,7 +141,7 @@ export default function PortalHomePage() {
                   onClick={() => {
                     void signOutPortal().then(() => {
                       setSession(null)
-                      setTrips([])
+                      setRemoteTrips([])
                     })
                   }}
                 >
@@ -97,22 +171,24 @@ export default function PortalHomePage() {
           </section>
         )}
 
-        {session?.clientId && (
-          <section className="rounded-lg border border-border bg-surface-2 p-5">
-            <h2 className="font-medium">Your trips</h2>
+        {showTrips && (
+          <section className="rounded-lg border border-border bg-white p-5">
+            <h2 className="font-medium">Live trips</h2>
             <p className="mt-1 text-sm text-muted">
-              Live status for your company only — no pricing or carrier details.
+              Full visibility — ETAs, quote milestones, aircraft position. No
+              pricing or carrier names.
             </p>
-            {trips.length === 0 ? (
+            {liveCards.length === 0 ? (
               <div className="mt-4 rounded-md border border-dashed border-border p-4 text-sm text-muted">
-                No active trips yet.
+                No active trips yet. After booking you’ll get a magic tracking
+                link by email.
               </div>
             ) : (
-              <ul className="mt-4 space-y-2">
-                {trips.map((t) => (
+              <ul className="mt-4 space-y-3">
+                {liveCards.map((t) => (
                   <li
                     key={t.id}
-                    className="rounded-md border border-border bg-white px-4 py-3"
+                    className="rounded-md border border-border bg-[#F7F2E3]/50 px-4 py-3"
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <span className="font-medium">T-{t.ref}</span>
@@ -120,11 +196,27 @@ export default function PortalHomePage() {
                         {t.state.replace(/_/g, ' ')}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-ink">{t.lane || '—'}</p>
+                    <p className="mt-1 avionic text-sm text-ink">{t.lane || '—'}</p>
                     <p className="mt-0.5 text-xs text-muted">
                       {t.ready_label}
                       {t.payload_summary ? ` · ${t.payload_summary}` : ''}
                     </p>
+                    {t.etaHint ? (
+                      <p className="avionic mt-2 text-sm text-ink">
+                        ETA {t.etaHint}
+                        {t.nextLabel ? (
+                          <span className="ml-2 text-xs text-muted">
+                            · next {t.nextLabel}
+                          </span>
+                        ) : null}
+                      </p>
+                    ) : null}
+                    <Link
+                      to={t.trackHref}
+                      className="mt-3 inline-flex rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
+                    >
+                      Open live tracking →
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -158,7 +250,8 @@ export default function PortalHomePage() {
             <h2 className="font-medium">Welcome</h2>
             <p className="mt-1 text-sm text-muted">
               Sign in with the email OnFly has on file to see your trips, or
-              request a new trip below.
+              request a new trip below. Tracking links from ETA emails work
+              without signing in.
             </p>
             <Link
               to="/portal/login"
