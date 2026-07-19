@@ -192,7 +192,7 @@ export default function IntakeReviewPage() {
         )}
         {draft.notified_phone && (
           <p className="mt-3 text-xs text-muted">
-            Mock SMS pinged on-shift:{' '}
+            On-shift SMS (mock until RingCentral):{' '}
             <span className="avionic">{draft.notified_phone}</span>
           </p>
         )}

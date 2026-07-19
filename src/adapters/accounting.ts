@@ -24,5 +24,13 @@ export class MockAccountingAdapter implements AccountingAdapter {
 }
 
 export function createAccountingAdapter(): AccountingAdapter {
+  // BLOCKED: QuickBooks OAuth app IDs not sourced (vault has login only).
+  const mode = (import.meta.env.VITE_QB_ADAPTER as string | undefined)
+    ?.toLowerCase()
+  if (mode === 'real') {
+    console.warn(
+      '[qb] VITE_QB_ADAPTER=real but QuickBooks adapter not wired — mock invoices',
+    )
+  }
   return new MockAccountingAdapter()
 }

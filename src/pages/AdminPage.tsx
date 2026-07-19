@@ -9,10 +9,11 @@ import {
 import { addClient, type ContactRole } from '@/lib/clientStore'
 import { addFbo } from '@/lib/fboStore'
 import { addNeedsInfoTask } from '@/lib/needsInfoStore'
+import { saveOperatorDraft } from '@/lib/operatorDraftStore'
 import {
-  mockParseD085,
-  saveOperatorDraft,
-} from '@/lib/operatorDraftStore'
+  parseD085File,
+  type D085ParseResult,
+} from '@/lib/parseD085File'
 import {
   ensureOperatorCompliance,
   setOperatorDocExpiry,
@@ -22,6 +23,8 @@ import {
 import { watchTailsFromD085 } from '@/lib/watchedTailsStore'
 import { createAccountingAdapter } from '@/adapters/accounting'
 import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
+import { listAdapterDoorStatus } from '@/lib/adapterStatus'
+import type { D085AircraftRow } from '@/domain/d085Parse'
 
 type WizardKind = 'invite' | 'operator' | 'client' | 'fbo'
 
@@ -48,6 +51,7 @@ const FBO_STEPS = ['Airport', 'Hours', 'Forklift', 'Fees', 'Summary']
 
 export default function AdminPage() {
   const [kind, setKind] = useState<WizardKind>('invite')
+  const doors = useMemo(() => listAdapterDoorStatus(), [])
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
@@ -87,6 +91,27 @@ export default function AdminPage() {
             Client page (send link)
           </Link>
         </p>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {doors.map((d) => (
+            <li
+              key={d.id}
+              title={d.detail}
+              className={[
+                'rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide',
+                d.state === 'live'
+                  ? 'border-onplan/40 text-onplan'
+                  : d.state === 'blocked'
+                    ? 'border-late/40 text-late'
+                    : 'border-border text-muted',
+              ].join(' ')}
+            >
+              {d.label}
+              <span className="ml-1 opacity-70">
+                {d.state === 'live' ? 'live' : d.state === 'blocked' ? 'wire' : 'mock'}
+              </span>
+            </li>
+          ))}
+        </ul>
       </header>
 
       <div className="flex flex-wrap gap-2">
@@ -141,10 +166,27 @@ function OperatorWizard() {
   const [dual, setDual] = useState(false)
   const [night, setNight] = useState('Case-by-case')
   const [d085Name, setD085Name] = useState('')
-  const [parsed, setParsed] = useState<ReturnType<typeof mockParseD085>>([])
+  const [parsed, setParsed] = useState<D085AircraftRow[]>([])
+  const [d085Meta, setD085Meta] = useState<Pick<D085ParseResult, 'source' | 'note'> | null>(
+    null,
+  )
+  const [d085Busy, setD085Busy] = useState(false)
   const [selectedTails, setSelectedTails] = useState<string[]>([])
   const [rates, setRates] = useState('')
   const [savedId, setSavedId] = useState<string | null>(null)
+
+  async function runD085Parse(file: File) {
+    setD085Busy(true)
+    setD085Name(file.name)
+    try {
+      const result = await parseD085File(file)
+      setParsed(result.rows)
+      setD085Meta({ source: result.source, note: result.note })
+      setSelectedTails(result.rows.filter((r) => r.matched).map((r) => r.tail))
+    } finally {
+      setD085Busy(false)
+    }
+  }
   const [docFiles, setDocFiles] = useState<
     Partial<Record<OperatorDocKind, File | null>>
   >({})
@@ -456,25 +498,32 @@ function OperatorWizard() {
       {step === 4 && (
         <div className="space-y-3">
           <p className="text-sm text-muted">
-            Upload D085 → mock parse (edge <span className="avionic">parse-d085</span> later).
-            File is also stored on the Documents step for compliance.
+            Upload D085 → Claude extract (verify every tail before save). Prefer a
+            text export when the PDF is a scan. File is also kept on Documents.
           </p>
           <input
             type="file"
-            accept=".pdf,.txt"
+            accept=".pdf,.txt,.csv"
             className="text-sm text-muted"
+            disabled={d085Busy}
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (!f) return
-              setD085Name(f.name)
               setDocFiles((d) => ({ ...d, d085: f }))
-              const rows = mockParseD085(f.name)
-              setParsed(rows)
-              setSelectedTails(rows.filter((r) => r.matched).map((r) => r.tail))
+              void runD085Parse(f)
             }}
           />
-          {d085Name && (
-            <p className="text-xs text-gold">Parsed: {d085Name}</p>
+          {d085Busy && (
+            <p className="text-xs text-gold">Extracting aircraft…</p>
+          )}
+          {d085Name && !d085Busy && (
+            <p className="text-xs text-gold">
+              Parsed: {d085Name}
+              {d085Meta ? ` · ${d085Meta.source}` : ''}
+            </p>
+          )}
+          {d085Meta?.note && (
+            <p className="text-xs text-muted">{d085Meta.note}</p>
           )}
           {parsed.length > 0 && (
             <table className="w-full text-left text-sm">
@@ -540,15 +589,8 @@ function OperatorWizard() {
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null
                       setDocFiles((d) => ({ ...d, [kind]: f }))
-                      if (kind === 'd085' && f) {
-                        setD085Name(f.name)
-                        if (!parsed.length) {
-                          const rows = mockParseD085(f.name)
-                          setParsed(rows)
-                          setSelectedTails(
-                            rows.filter((r) => r.matched).map((r) => r.tail),
-                          )
-                        }
+                      if (kind === 'd085' && f && !parsed.length) {
+                        void runD085Parse(f)
                       }
                     }}
                   />
@@ -716,7 +758,7 @@ function ClientWizard() {
             <input className={wizardInput} value={pay} onChange={(e) => setPay(e.target.value)} />
           </label>
           <p className="sm:col-span-2 text-xs text-muted">
-            QB customer is created via mock AccountingAdapter on save.
+            QB customer stays mock until Intuit OAuth is wired.
           </p>
         </div>
       )}

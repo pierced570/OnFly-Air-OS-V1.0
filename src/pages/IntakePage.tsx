@@ -44,8 +44,8 @@ export default function IntakePage() {
         <header>
           <h1 className="text-2xl font-semibold text-cream">Intake simulator</h1>
           <p className="mt-1 text-sm text-muted">
-            Mock email/SMS → LLM extract → ring on-shift → review queue. Live Resend /
-            RC webhooks later.
+            Simulate inbound → Claude extract → ring on-shift → review. Desk SMS mock
+            until RingCentral; Resend inbound webhook still to wire.
           </p>
         </header>
 

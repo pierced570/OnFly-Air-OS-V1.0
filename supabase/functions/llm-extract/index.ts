@@ -13,7 +13,7 @@ const corsHeaders = {
 }
 
 type Body = {
-  mode: 'extract_trip' | 'plain_english'
+  mode: 'extract_trip' | 'plain_english' | 'extract_d085'
   text: string
   context?: string
 }
@@ -52,6 +52,39 @@ Deno.serve(async (req) => {
         false,
       )
       return json({ text: out, provider: anthropicKey ? 'anthropic' : 'openai' })
+    }
+
+    if (mode === 'extract_d085') {
+      const raw = await complete(
+        `Extract aircraft from an FAA D085 / ops specs listing.
+Return JSON: { "aircraft": [ { "tail": "N123AB", "type_name": "King Air 200" } ] }
+Rules: US N-numbers only; type_name = make/model as written; skip duplicates; omit rows without a tail.
+Reply JSON only.`,
+        text.slice(0, 20000),
+        true,
+      )
+      let parsed: { aircraft?: unknown }
+      try {
+        parsed = JSON.parse(raw)
+      } catch {
+        const m = raw.match(/\{[\s\S]*\}/)
+        parsed = m ? JSON.parse(m[0]) : { aircraft: [] }
+      }
+      const aircraft = Array.isArray(parsed.aircraft)
+        ? parsed.aircraft
+            .map((row) => {
+              const r = row as { tail?: string; type_name?: string; type?: string }
+              return {
+                tail: String(r.tail ?? '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+                type_name: String(r.type_name ?? r.type ?? '').trim(),
+              }
+            })
+            .filter((r) => r.tail.startsWith('N'))
+        : []
+      return json({
+        aircraft,
+        provider: anthropicKey ? 'anthropic' : 'openai',
+      })
     }
 
     const raw = await complete(

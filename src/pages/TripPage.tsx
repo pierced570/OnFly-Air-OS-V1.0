@@ -237,12 +237,13 @@ export default function TripPage() {
               className="mt-3 rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
               onClick={() => {
                 setInvoiceBusy(true)
+                // QB OAuth blocked — mock invoice until Intuit app is wired
                 void createMockInvoiceForTrip(trip.id).finally(() =>
                   setInvoiceBusy(false),
                 )
               }}
             >
-              {invoiceBusy ? 'Creating…' : 'Create mock QB invoice'}
+              {invoiceBusy ? 'Creating…' : 'Create invoice (QB mock)'}
             </button>
           )}
           {trip.invoice && (

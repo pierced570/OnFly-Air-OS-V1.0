@@ -186,7 +186,7 @@ export default function QuotePreviewPage() {
           </button>
           {sent && (
             <p className="text-sm text-onplan">
-              Mock email sent ({sent}).{' '}
+              Estimate emailed ({sent}).{' '}
               <button
                 type="button"
                 className="text-gold underline"
@@ -195,7 +195,7 @@ export default function QuotePreviewPage() {
                   if (id) nav(`/trips/${id}/offers`)
                 }}
               >
-                Open offers / phone simulator →
+                Open offers →
               </button>
             </p>
           )}

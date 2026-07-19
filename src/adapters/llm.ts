@@ -19,10 +19,17 @@ export type ExtractedRequest = {
   raw: string
 }
 
+export type D085ExtractRow = {
+  tail: string
+  type_name: string
+}
+
 export interface LlmAdapter {
   extractTripRequest(rawText: string): Promise<ExtractedRequest>
   /** Plain-English NOTAM / briefing helper */
   plainEnglish(text: string, context?: string): Promise<string>
+  /** Parse D085 / ops specs listing → aircraft rows for human verify */
+  extractD085(rawText: string): Promise<D085ExtractRow[]>
 }
 
 export class MockLlmAdapter implements LlmAdapter {
@@ -56,6 +63,18 @@ export class MockLlmAdapter implements LlmAdapter {
       ? `Mock plain English: ${clipped}`
       : 'Mock plain English: (empty)'
   }
+
+  async extractD085(rawText: string): Promise<D085ExtractRow[]> {
+    const tails =
+      rawText.match(/\bN[0-9]{1,5}[A-Z]{0,2}\b/gi) ??
+      ['N123AB', 'N456CD', 'N789EF']
+    const uniq = [...new Set(tails.map((t) => t.toUpperCase()))]
+    return uniq.slice(0, 12).map((tail, i) => ({
+      tail,
+      type_name:
+        i === 0 ? 'King Air 200' : i === 1 ? 'Cessna 208' : 'Unknown Type',
+    }))
+  }
 }
 
 /** Real path → edge `llm-extract` (Claude when ANTHROPIC_API_KEY is set). */
@@ -87,17 +106,38 @@ export class ClaudeLlmAdapter implements LlmAdapter {
     if (body?.error) throw new Error(body.error)
     return body.text ?? ''
   }
+
+  async extractD085(rawText: string): Promise<D085ExtractRow[]> {
+    if (!supabase || !isSupabaseConfigured) {
+      throw new Error(
+        'LLM real mode needs VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY',
+      )
+    }
+    const { data, error } = await supabase.functions.invoke('llm-extract', {
+      body: { mode: 'extract_d085', text: rawText },
+    })
+    if (error) throw new Error(error.message || 'llm-extract failed')
+    const body = data as {
+      aircraft?: D085ExtractRow[]
+      error?: string
+    }
+    if (body?.error) throw new Error(body.error)
+    return Array.isArray(body?.aircraft) ? body.aircraft : []
+  }
 }
 
 /** @deprecated alias — real LLM is Claude via llm-extract */
 export const OpenAiLlmAdapter = ClaudeLlmAdapter
 
 export function createLlmAdapter(): LlmAdapter {
-  const mode = adapterMode('VITE_LLM_ADAPTER', 'mock')
-  if (mode === 'real') return new ClaudeLlmAdapter()
+  const mode = adapterMode('VITE_LLM_ADAPTER', 'real')
+  if (mode === 'real' && isSupabaseConfigured) return new ClaudeLlmAdapter()
+  if (mode === 'real' && !isSupabaseConfigured) {
+    console.warn('[llm] real mode needs Supabase — using mock extract')
+  }
   return new MockLlmAdapter()
 }
 
 export function isRealLlmEnabled(): boolean {
-  return adapterMode('VITE_LLM_ADAPTER', 'mock') === 'real'
+  return adapterMode('VITE_LLM_ADAPTER', 'real') === 'real'
 }

@@ -87,27 +87,31 @@ Updated as we convert mocks → durable/live paths.
 - NEEDS-INFO tasks for review / vendor packet / card-on-file link (never collect cards)
 - Migration `0008_client_profile.sql`
 
-## Vendor wiring from logins-keys.csv (2026-07-18)
+## Vendor wiring from logins-keys.csv (2026-07-18) — live flip pass
 
 | Vendor | Status | Notes |
 |--------|--------|-------|
-| Supabase | **keys loaded** | Management API → `VITE_SUPABASE_*` in local `.env` |
-| Resend | **live** | `send-email` deployed · From `info@onflyair.com` |
-| Mapbox | **live path** | Directions adapter · `VITE_MAPBOX_TOKEN` (pk.*) |
-| OpenAI | **wired / quota** | `llm-extract` deployed · OnFly ChatGPT key 401 · skyIQ key models-ok but chat **quota exceeded** — add billing or new key |
-| ADS-B Exchange | **wired / unsubscribed** | `adsb-positions` deployed · RapidAPI returns not subscribed — renew ADSBexchange-com1 |
-| QuickBooks | blocked | Vault has login only — need OAuth app ids |
-| RingCentral / Telnyx / Anthropic | missing | Not in CSV |
+| Supabase | **live** | `VITE_SUPABASE_*` in `.env` |
+| Resend | **live** | default `VITE_EMAIL_ADAPTER=real` · `send-email` |
+| Mapbox | **live** | default `VITE_MAPS_ADAPTER=real` · Directions |
+| Claude / Anthropic | **live** | default `VITE_LLM_ADAPTER=real` · `llm-extract` (trip + D085) |
+| WX METAR/TAF | **live** | `wx-brief` + aviationweather.gov · flight-cat colors |
+| OpenAI | fallback only | Claude preferred |
+| ADS-B | **blocked** | RapidAPI dead — leave `VITE_ADSB_ADAPTER=mock` until FlightAware/ADSBX direct |
+| QuickBooks | **blocked** | Vault login only — need Intuit OAuth app |
+| RingCentral / Telnyx | **blocked** | Not sourced — SMS/voice stay mock |
+| NOTAMs | **blocked** | FAA API enrollment |
 | Twilio | login only | Prefer RC for SMS |
 
-Deploy: `npm run deploy:vendors` · toggles in `.env.local` / Vercel.
+Deploy: `npm run deploy:vendors` · Admin chip strip shows live / wire / mock.
 
-## Next (priority)
+## Next (still to wire)
 
-1. Set Vercel envs (`VITE_SUPABASE_*`, `VITE_MAPBOX_TOKEN`, adapter=real)  
-2. Renew ADS-B RapidAPI subscription  
-3. Persist trips/offers/quotes via `trip_transition` RPC  
-4. D085 AI verify UI on `llm-extract`  
-5. Replace skyIQ OpenAI key with dedicated OnFly key  
-6. RC → Telnyx → QBO OAuth  
+1. ADS-B provider swap (FlightAware or ADSBX direct)  
+2. RingCentral SMS adapter  
+3. QuickBooks OAuth  
+4. FAA NOTAM API  
+5. Persist trips/offers via `trip_transition`  
+6. Resend inbound webhook for intake-email  
+7. Vercel env parity (`VITE_*` real toggles + tokens)  
 
