@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
+import { isRealAdsbEnabled } from '@/adapters/adsb'
 import { createWxAdapter, type WxBrief } from '@/adapters/wx'
 import { FlightCatBadge } from '@/components/FlightCatBadge'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
+import { loadNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
 import { FlightChip } from '@/components/FlightChip'
 import { RadarMap } from '@/components/RadarMap'
@@ -35,9 +37,14 @@ export default function RadarPage() {
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const adsbLive = isRealAdsbEnabled()
+
   async function refresh() {
     setBusy(true)
     try {
+      // Ensure watch list matches Network fleet (live DB or fixture).
+      await loadNetwork()
+      // Mock adapter returns no_data only — never invents airborne tracks.
       setStatuses(await loadFleetStatuses())
       setWx(await createWxAdapter().brief('KCAK'))
     } finally {
@@ -78,9 +85,16 @@ export default function RadarPage() {
           <p className="mt-1 text-sm text-muted">
             {watched.length} watched tails
             {d085Count ? ` · ${d085Count} from D085 uploads` : ''}
-            {' · '}
-            last takeoff / landing from ADS-B
+            {adsbLive
+              ? ' · last takeoff / landing from ADS-B'
+              : ' · ADS-B API not connected yet'}
           </p>
+          {!adsbLive && (
+            <p className="mt-2 text-xs text-gold">
+              Positions are off until the live ADS-B provider is wired — no mock
+              tracks. Tails below are from Network.
+            </p>
+          )}
           {wx && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
               <span className="avionic text-gold">{wx.icao}</span>
@@ -97,11 +111,16 @@ export default function RadarPage() {
         <div className="flex gap-3">
           <button
             type="button"
-            className="text-sm text-gold"
-            disabled={busy}
+            className="text-sm text-gold disabled:opacity-50"
+            disabled={busy || !adsbLive}
             onClick={() => void refresh()}
+            title={
+              adsbLive
+                ? 'Refresh live positions'
+                : 'Enable when VITE_ADSB_ADAPTER=real + provider key'
+            }
           >
-            {busy ? 'Refreshing…' : 'Refresh ADS-B'}
+            {busy ? 'Refreshing…' : adsbLive ? 'Refresh ADS-B' : 'ADS-B pending'}
           </button>
           <Link to="/admin" className="text-sm text-muted hover:text-cream">
             Upload D085 →

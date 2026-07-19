@@ -1,6 +1,7 @@
 import networkFixture from '@/fixtures/network.json'
 import type { AircraftRow, NetworkFixture, OperatorRow } from '@/lib/types'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { syncWatchedFromFleet } from '@/lib/watchedTailsStore'
 
 export type { OperatorRow, AircraftRow }
 
@@ -71,10 +72,13 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
         },
         source: 'live',
       }
+      syncWatchedFromFleet(acs)
       return cached
     }
   }
 
-  cached = { ...(networkFixture as NetworkFixture), source: 'fixture' }
+  const fixture = networkFixture as NetworkFixture
+  cached = { ...fixture, source: 'fixture' }
+  syncWatchedFromFleet(fixture.aircraft)
   return cached
 }

@@ -80,8 +80,8 @@ export function listAdapterDoorStatus(): AdapterDoorStatus[] {
       label: 'ADS-B',
       state: 'blocked',
       detail: isRealAdsbEnabled()
-        ? 'RapidAPI unsubscribed — source FlightAware / ADSBX direct'
-        : 'Leave mock until new ADS-B provider',
+        ? 'Provider key / edge not returning tracks yet'
+        : 'Stub only (no fake tracks) — wire provider API, then VITE_ADSB_ADAPTER=real',
     },
     {
       id: 'comms',

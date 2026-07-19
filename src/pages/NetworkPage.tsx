@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
 import { FlightChip } from '@/components/FlightChip'
 import { OperatorDocSlots } from '@/components/OperatorDocSlots'
+import { isRealAdsbEnabled } from '@/adapters/adsb'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
 import { loadNetwork, type LoadedNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
@@ -66,6 +67,12 @@ function typesLine(types: string[], max = 2): string {
   return extra > 0 ? `${shown.join(' · ')} +${extra}` : shown.join(' · ')
 }
 
+/** Real N-numbers for board cards (skip TBD placeholders). */
+function displayTails(tails: string[], max = 4): { shown: string[]; extra: number } {
+  const real = tails.filter((t) => t && !t.toUpperCase().startsWith('TBD'))
+  return { shown: real.slice(0, max), extra: Math.max(0, real.length - max) }
+}
+
 export default function NetworkPage() {
   const [data, setData] = useState<LoadedNetwork | null>(null)
   const [statusByTail, setStatusByTail] = useState<Map<string, FleetStatus>>(
@@ -101,7 +108,13 @@ export default function NetworkPage() {
   )
   useSyncExternalStore(subscribeTrips, listTripsStable, () => [])
 
+  const adsbLive = isRealAdsbEnabled()
+
   async function refreshAdsb() {
+    if (!isRealAdsbEnabled()) {
+      setStatusByTail(new Map())
+      return
+    }
     setAdsbBusy(true)
     try {
       const rows = await loadFleetStatuses(500)
@@ -415,14 +428,23 @@ export default function NetworkPage() {
             placeholder="Filter name / tail…"
             className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold sm:py-2"
           />
-          <button
-            type="button"
-            disabled={adsbBusy}
-            onClick={() => void refreshAdsb()}
-            className="w-full rounded-md border border-gold/40 px-3 py-2.5 text-xs text-gold hover:bg-gold/10 disabled:opacity-50 sm:w-auto sm:py-2"
-          >
-            {adsbBusy ? 'Refreshing…' : 'Refresh ADS-B'}
-          </button>
+          {adsbLive ? (
+            <button
+              type="button"
+              disabled={adsbBusy}
+              onClick={() => void refreshAdsb()}
+              className="w-full rounded-md border border-gold/40 px-3 py-2.5 text-xs text-gold hover:bg-gold/10 disabled:opacity-50 sm:w-auto sm:py-2"
+            >
+              {adsbBusy ? 'Refreshing…' : 'Refresh ADS-B'}
+            </button>
+          ) : (
+            <span
+              className="w-full rounded-md border border-border px-3 py-2.5 text-xs text-muted sm:w-auto sm:py-2"
+              title="Set VITE_ADSB_ADAPTER=real when the provider API is ready"
+            >
+              ADS-B pending API
+            </span>
+          )}
         </div>
         {cargoDims.trim() && (
           <p className="text-xs text-muted">
@@ -621,6 +643,7 @@ function VerticalCard({
   onSelect: () => void
 }) {
   const fail = Boolean(card.fit_hard_fail)
+  const { shown: tailsShown, extra: tailsExtra } = displayTails(card.tails)
   return (
     <li>
       <button
@@ -669,7 +692,19 @@ function VerticalCard({
             <div className="mt-0.5 truncate text-xs text-muted">
               {typesLine(card.types)}
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted">
+            {tailsShown.length > 0 ? (
+              <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 avionic text-[11px] text-gold">
+                {tailsShown.map((t) => (
+                  <span key={t}>{t}</span>
+                ))}
+                {tailsExtra > 0 && (
+                  <span className="text-muted">+{tailsExtra}</span>
+                )}
+              </div>
+            ) : (
+              <div className="mt-1.5 text-[11px] text-muted">No N-numbers yet</div>
+            )}
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted">
               <span className="avionic text-cream">
                 {card.base_icao ?? '—'}
               </span>
@@ -678,7 +713,7 @@ function VerticalCard({
                   {card.nm_from_origin} NM
                 </span>
               )}
-              <span className="avionic">{card.aircraft_count} tails</span>
+              <span className="avionic">{card.aircraft_count} ac</span>
             </div>
           </div>
         </div>
@@ -838,12 +873,14 @@ function OperatorDetail({
                   <span className="avionic">{a.mtow_lbs.toLocaleString()} lb</span>
                 )}
               </div>
-              {st && (
+              {st && isRealAdsbEnabled() ? (
                 <FlightChip
                   phase={st.phase}
                   inPosition={st.inPositionOfBase}
                   laddBlocked={st.laddBlocked}
                 />
+              ) : (
+                <span className="text-[11px] text-muted">ADS-B pending</span>
               )}
             </li>
           )
@@ -875,14 +912,16 @@ function OperatorDetail({
                     {a.base_icao ?? '—'}
                   </td>
                   <td className="px-4 py-2">
-                    {st ? (
+                    {st && isRealAdsbEnabled() ? (
                       <FlightChip
                         phase={st.phase}
                         inPosition={st.inPositionOfBase}
                         laddBlocked={st.laddBlocked}
                       />
                     ) : (
-                      <span className="text-xs text-muted">—</span>
+                      <span className="text-xs text-muted">
+                        {isRealAdsbEnabled() ? '—' : 'pending'}
+                      </span>
                     )}
                   </td>
                   <td className="avionic px-4 py-2 text-muted">
