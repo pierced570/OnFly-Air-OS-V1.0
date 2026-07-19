@@ -45,6 +45,34 @@ export async function hydrateTrips(): Promise<number> {
   const etaNodeRows = await safeQuery('trip_eta_nodes.hydrate', () =>
     db().from('trip_eta_nodes').select('*').in('trip_id', ids).order('seq'),
   )
+  const eventRows = await safeQuery('trip_events.hydrate', () =>
+    db()
+      .from('trip_events')
+      .select('trip_id,at,actor,kind,payload')
+      .in('trip_id', ids)
+      .order('at', { ascending: true }),
+  )
+
+  const eventsByTrip = new Map<
+    string,
+    Array<{ at: string; actor: string; kind: string; payload: Record<string, unknown> }>
+  >()
+  if (Array.isArray(eventRows)) {
+    for (const r of eventRows as Record<string, unknown>[]) {
+      const tripId = String(r.trip_id)
+      const list = eventsByTrip.get(tripId) ?? []
+      list.push({
+        at: String(r.at),
+        actor: String(r.actor || 'system'),
+        kind: String(r.kind),
+        payload:
+          r.payload && typeof r.payload === 'object'
+            ? (r.payload as Record<string, unknown>)
+            : {},
+      })
+      eventsByTrip.set(tripId, list)
+    }
+  }
 
   const etaByTrip = new Map<string, ChainLeg[]>()
   if (Array.isArray(etaNodeRows)) {
@@ -188,7 +216,7 @@ export async function hydrateTrips(): Promise<number> {
         ? (meta.candidates as TripStoreRow['candidates'])
         : [],
       offers: offersByTrip.get(String(r.id)) ?? [],
-      events: [],
+      events: eventsByTrip.get(String(r.id)) ?? [],
       hard_quote: hard
         ? { ...hard, accept_token: String(r.accept_token || hard.accept_token) }
         : r.accept_token

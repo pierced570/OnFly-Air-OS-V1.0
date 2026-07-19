@@ -1,6 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getTrip, type TripStoreRow } from '@/lib/tripStore'
+import {
+  getTrip,
+  listTripsStable,
+  subscribeTrips,
+  type TripStoreRow,
+} from '@/lib/tripStore'
 import {
   sendAvailabilityPings,
   simulateOperatorReply,
@@ -10,22 +15,26 @@ import {
 } from '@/lib/offerFlow'
 import { FlightChip } from '@/components/FlightChip'
 
+function useTrip(id: string | undefined): TripStoreRow | null {
+  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
+  return id ? trips.find((t) => t.id === id) ?? getTrip(id) : null
+}
+
 export default function OffersPage() {
   const { id } = useParams()
-  const [trip, setTrip] = useState<TripStoreRow | null>(null)
+  const trip = useTrip(id)
   const [msgs, setMsgs] = useState(simulatorMessagesForTrip(id ?? ''))
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
 
   function refresh() {
     if (!id) return
-    setTrip(getTrip(id))
     setMsgs(simulatorMessagesForTrip(id))
   }
 
   useEffect(() => {
     refresh()
-  }, [id])
+  }, [id, trip?.offers.length, trip?.state])
 
   if (!trip) {
     return (

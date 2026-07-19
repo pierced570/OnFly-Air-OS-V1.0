@@ -1,19 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getTripByOfferToken } from '@/lib/tripStore'
+import {
+  getTripByOfferToken,
+  listTripsStable,
+  subscribeTrips,
+} from '@/lib/tripStore'
 import { submitOperatorQuote } from '@/lib/offerFlow'
 import { applyQuotedTtp, projectedDeliveryUtc } from '@/domain/etaChain'
 import { formatZuluLocal } from '@/domain/timeFmt'
 
 export default function OfferPublicPage() {
   const { token } = useParams()
-  const found = useMemo(() => (token ? getTripByOfferToken(token) : null), [token])
+  useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
+  const found = token ? getTripByOfferToken(token) : null
   const [ttp, setTtp] = useState(90)
   const [live, setLive] = useState(75)
   const [price, setPrice] = useState(4500)
   const [waitOk, setWaitOk] = useState(true)
   const [maxWait, setMaxWait] = useState(2)
   const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const implied = useMemo(() => {
     if (!found) return null
@@ -72,15 +78,21 @@ export default function OfferPublicPage() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault()
+              setError(null)
               void submitOperatorQuote(token!, {
                 time_to_position_min: ttp,
                 live_leg_min: live,
                 price_net: price,
                 wait_ok: waitOk,
                 max_wait_hrs: waitOk ? maxWait : null,
-              }).then(() => setDone(true))
+              })
+                .then(() => setDone(true))
+                .catch((err) =>
+                  setError(err instanceof Error ? err.message : String(err)),
+                )
             }}
           >
+            {error && <p className="text-sm text-late">{error}</p>}
             <label className="block text-sm">
               Time to position (min)
               <input

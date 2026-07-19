@@ -40,6 +40,7 @@ function cand(
     aircraft_id,
     tail: 'N000XX',
     type_name: 'Test',
+    mtow_lbs: null,
     cost: price * 0.85,
     price,
     chain: [

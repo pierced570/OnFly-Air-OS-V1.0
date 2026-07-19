@@ -118,6 +118,14 @@ function eventAt(
   return hit?.at ?? null
 }
 
+function isStateTransitionKind(kind: string): boolean {
+  return (
+    kind === 'state_transition' ||
+    kind === 'state_change' ||
+    kind === 'transition'
+  )
+}
+
 function stateEnteredAt(
   events: PortalTrackingTripInput['events'],
   state: string,
@@ -126,7 +134,7 @@ function stateEnteredAt(
     .reverse()
     .find(
       (e) =>
-        (e.kind === 'state_change' || e.kind === 'transition') &&
+        isStateTransitionKind(e.kind) &&
         (e.payload.to === state || e.payload.to_state === state),
     )
   return hit?.at ?? null
@@ -180,8 +188,8 @@ export function buildMilestones(
 
   const quoteApprovedAt =
     trip.hard_quote?.disclosure_at ??
-    eventAt(events, ['estimated_quote_sent']) ??
     stateEnteredAt(events, 'quoted_hard') ??
+    eventAt(events, ['hard_quote_sent', 'quote_approved']) ??
     (['quoted_hard', 'booked', 'in_progress', 'delivered', 'invoiced', 'closed'].includes(
       trip.state,
     )
@@ -478,7 +486,7 @@ function clientTimeline(
       pod: 'Proof of delivery captured',
     }
     if (map[kind]) return map[kind]
-    if (kind === 'state_change' || kind === 'transition') return 'Status change'
+    if (isStateTransitionKind(kind)) return 'Status change'
     if (kind.startsWith('leg_')) return 'Leg update'
     return null
   }
@@ -488,7 +496,7 @@ function clientTimeline(
     const label = labelFor(e.kind)
     if (!label) continue
     let detail = ''
-    if (e.kind === 'state_change' || e.kind === 'transition') {
+    if (isStateTransitionKind(e.kind)) {
       const to = String(e.payload.to ?? e.payload.to_state ?? '')
       if (to) detail = to.replace(/_/g, ' ')
     }

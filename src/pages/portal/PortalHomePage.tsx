@@ -93,33 +93,36 @@ export default function PortalHomePage() {
       byId.set(t.id, enrich(t, `/portal/trips/${t.id}`))
     }
 
-    // Session-local trips for this client (demo / pre-hydrate)
+    // Session-local trips only when we know the client — never list every
+    // dispatcher trip to an anonymous portal visitor.
     const clientKey = client?.id || session?.clientId
-    for (const t of localTrips) {
-      if (clientKey && t.client_id && t.client_id !== clientKey) continue
-      if (['closed', 'lost', 'cancelled'].includes(t.state)) continue
-      if (byId.has(t.id)) continue
-      // Prefer in-app trip page when we have the full session trip
-      byId.set(
-        t.id,
-        enrich(
-          {
-            id: t.id,
-            ref: t.ref,
-            state: t.state,
-            lane: t.lane,
-            ready_label: t.ready_label,
-            payload_summary: t.payload_summary,
-          },
-          `/portal/trips/${t.id}`,
-        ),
-      )
+    if (clientKey) {
+      for (const t of localTrips) {
+        if (t.client_id && t.client_id !== clientKey) continue
+        if (!t.client_id) continue
+        if (['closed', 'lost', 'cancelled'].includes(t.state)) continue
+        if (byId.has(t.id)) continue
+        byId.set(
+          t.id,
+          enrich(
+            {
+              id: t.id,
+              ref: t.ref,
+              state: t.state,
+              lane: t.lane,
+              ready_label: t.ready_label,
+              payload_summary: t.payload_summary,
+            },
+            `/portal/trips/${t.id}`,
+          ),
+        )
+      }
     }
 
     return [...byId.values()].sort((a, b) => b.ref - a.ref)
   }, [remoteTrips, localTrips, client?.id, session?.clientId, session?.email])
 
-  const showTrips = Boolean(session?.clientId || client || liveCards.length)
+  const showTrips = Boolean(session?.clientId || client)
 
   return (
     <div className="min-h-screen bg-cream text-ink" data-theme="client">

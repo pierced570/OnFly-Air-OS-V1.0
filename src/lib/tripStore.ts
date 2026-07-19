@@ -571,12 +571,45 @@ export function getTrip(id: string) {
 export function replaceTripsFromDb(rows: TripStoreRow[]): void {
   if (!rows.length) return
   for (const r of rows) {
+    const existing = trips.get(r.id)
+    if (existing) {
+      // Preserve richer session overlays until DB catches up.
+      if (!r.events.length && existing.events.length) r.events = existing.events
+      else if (r.events.length && existing.events.length) {
+        r.events = mergeTripEvents(r.events, existing.events)
+      }
+      if (!r.thread.length && existing.thread.length) r.thread = existing.thread
+      if (!r.documents.length && existing.documents.length) {
+        r.documents = existing.documents
+      }
+      if (!r.eta_chain.length && existing.eta_chain.length) {
+        r.eta_chain = existing.eta_chain
+        r.service_pattern = r.service_pattern ?? existing.service_pattern
+        r.promised_delivery = r.promised_delivery ?? existing.promised_delivery
+      }
+    }
     trips.set(r.id, r)
     if (r.ref >= refSeq) refSeq = r.ref + 1
   }
   bump()
   // Push any local-only trips that never made it to DB
   void flushLocalOnlyTrips(new Set(rows.map((r) => r.id)))
+}
+
+function mergeTripEvents(
+  dbEvents: TripStoreRow['events'],
+  localEvents: TripStoreRow['events'],
+): TripStoreRow['events'] {
+  const keyOf = (e: TripStoreRow['events'][number]) =>
+    `${e.at}|${e.kind}|${e.actor}|${JSON.stringify(e.payload ?? {})}`
+  const seen = new Set(dbEvents.map(keyOf))
+  const merged = [...dbEvents]
+  for (const e of localEvents) {
+    if (seen.has(keyOf(e))) continue
+    seen.add(keyOf(e))
+    merged.push(e)
+  }
+  return merged.sort((a, b) => a.at.localeCompare(b.at))
 }
 
 async function flushLocalOnlyTrips(knownDbIds: Set<string>): Promise<void> {
@@ -740,6 +773,8 @@ export function safeTransitionTrip(
   const prev = trips.get(id)
   if (!prev) throw new Error('trip not found')
   const fromState = prev.state
+  // Validate before mutating so illegal edges never touch local state.
+  transition(fromState, to, actor, payload)
   const result = mutateTrip(id, (t) => {
     const tr = transition(t.state, to, actor, payload)
     t.state = tr.to
@@ -751,13 +786,34 @@ export function safeTransitionTrip(
     })
   })
   void import('@/lib/db/persistTrip').then((m) =>
-    m.syncTripTransition({
-      trip: result,
-      fromState,
-      toState: to,
-      actor,
-      payload,
-    }),
+    m
+      .syncTripTransition({
+        trip: result,
+        fromState,
+        toState: to,
+        actor,
+        payload,
+      })
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (/already in state/i.test(msg)) return
+        console.warn('[trips] transition RPC failed — rolling back local state', msg)
+        const cur = trips.get(id)
+        if (!cur || cur.state !== to) return
+        mutateTrip(id, (t) => {
+          t.state = fromState
+          for (let i = t.events.length - 1; i >= 0; i--) {
+            const ev = t.events[i]
+            if (
+              ev?.kind === 'state_transition' &&
+              (ev.payload.to === to || ev.payload.to_state === to)
+            ) {
+              t.events.splice(i, 1)
+              break
+            }
+          }
+        })
+      }),
   )
   if (to === 'delivered') {
     void createInvoiceForTrip(id).catch((e) =>
@@ -776,7 +832,9 @@ export function getTripByLegToken(token: string): {
   trip: TripStoreRow
   leg: TripLegRow
 } | null {
+  if (!token || token.startsWith('expired-')) return null
   for (const t of trips.values()) {
+    if (t.thread_disbanded_at) continue
     const leg = t.legs.find((l) => l.one_tap_token === token)
     if (leg) return { trip: t, leg }
   }
@@ -969,6 +1027,8 @@ export function postThreadMessage(
 }
 
 /** Create QB invoice for a trip (mock or live). Does not use QBO email. */
+const invoiceInFlight = new Set<string>()
+
 export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
   return createInvoiceForTrip(tripId)
 }
@@ -977,6 +1037,9 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   const t = trips.get(tripId)
   if (!t) return null
   if (t.invoice) return t.invoice
+  if (invoiceInFlight.has(tripId)) return t.invoice
+  invoiceInFlight.add(tripId)
+  try {
   const total = t.quick?.client_price ?? t.hard_quote?.total ?? 0
   if (!(total > 0)) return null
   const { createAccountingAdapter } = await import('@/adapters/accounting')
@@ -1067,6 +1130,9 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
     }
   }
   return inv
+  } finally {
+    invoiceInFlight.delete(tripId)
+  }
 }
 
 export function addTripDocument(

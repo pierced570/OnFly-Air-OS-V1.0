@@ -17,6 +17,7 @@ function stubCand(): Candidate {
     aircraft_id: 'ac1',
     tail: 'N100AA',
     type_name: 'Citation',
+    mtow_lbs: 12500,
     cost: 1,
     price: 2,
     chain: [],

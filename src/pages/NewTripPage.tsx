@@ -398,7 +398,7 @@ export default function NewTripPage() {
                 markupMode: 'dollars',
                 markupValue: c.price - c.cost,
                 payloadKind,
-                mtowLbs: c.type_name?.match(/310/) ? 5500 : 12500,
+                mtowLbs: c.mtow_lbs,
                 paxCount,
                 segments: 1,
                 rates: getTaxRates(),

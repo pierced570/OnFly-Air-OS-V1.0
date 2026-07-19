@@ -127,6 +127,39 @@ describe('portalTracking', () => {
     expect(booked?.done).toBe(true)
   })
 
+  it('reads state_transition events for milestones and timeline', () => {
+    const trip = sampleD2d({
+      state: 'booked',
+      events: [
+        {
+          at: '2026-07-15T12:00:00.000Z',
+          actor: 'dispatcher',
+          kind: 'estimated_quote_sent',
+          payload: {},
+        },
+        {
+          at: '2026-07-15T12:10:00.000Z',
+          actor: 'system',
+          kind: 'state_transition',
+          payload: { from: 'quoted_estimated', to: 'quoted_hard' },
+        },
+        {
+          at: '2026-07-15T12:20:00.000Z',
+          actor: 'client',
+          kind: 'state_transition',
+          payload: { from: 'quoted_hard', to: 'booked' },
+        },
+      ],
+    })
+    const ms = buildMilestones(trip)
+    expect(ms.find((m) => m.kind === 'quote_approved')?.at).toBe(
+      '2026-07-15T12:10:00.000Z',
+    )
+    expect(ms.find((m) => m.kind === 'booked')?.at).toBe('2026-07-15T12:20:00.000Z')
+    const view = buildPortalTrackingView(trip)
+    expect(view.timeline.some((t) => t.label === 'Status change')).toBe(true)
+  })
+
   it('infers en-route position from ETA when mid-air', () => {
     const trip = sampleD2d({
       state: 'in_progress',

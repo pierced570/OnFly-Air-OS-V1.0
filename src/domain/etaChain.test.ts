@@ -6,6 +6,7 @@ import {
   buildTripChain,
   buildChain,
   editDuration,
+  resetDurationToDefault,
   recompute,
   applyActual,
   mileageBlock,
@@ -174,6 +175,36 @@ describe('etaChain merge rule + patterns', () => {
       DateTime.fromISO(afterDelivery).diff(DateTime.fromISO(beforeDelivery), 'minutes')
         .minutes,
     ).toBe(15)
+  })
+
+  it('does not overwrite manual duration with assumed unless allowReset', async () => {
+    const maps = new MockMapsAdapter()
+    const legs = await buildChain(
+      {
+        originAirport: { ...kcak, icao: 'KCAK', tz: kcak.tz },
+        destAirport: kmdw,
+        aircraftBase: { ...kcak, icao: 'KCAK', tz: kcak.tz },
+        cruiseKts: 270,
+        readyAtUtc: '2026-07-15T13:00:00.000Z',
+        mode: 'A2A',
+      },
+      maps,
+      BUILTIN_ETA_DEFAULTS,
+    )
+    const turn = legs.find((l) => l.duration_key === 'acft_turn')!
+    const { chain: manual } = editDuration(legs, turn.seq, 45, 'manual')
+    const { chain: blocked } = editDuration(manual, turn.seq, 60, 'assumed')
+    expect(blocked.find((l) => l.seq === turn.seq)!.duration_min).toBe(45)
+    expect(blocked.find((l) => l.seq === turn.seq)!.source).toBe('manual')
+    const { chain: reset } = resetDurationToDefault(
+      manual,
+      turn.seq,
+      BUILTIN_ETA_DEFAULTS,
+    )
+    expect(reset.find((l) => l.seq === turn.seq)!.duration_min).toBe(
+      BUILTIN_ETA_DEFAULTS.acft_turn,
+    )
+    expect(reset.find((l) => l.seq === turn.seq)!.source).toBe('assumed')
   })
 
   it('wheels-up actual ripples downstream', async () => {

@@ -653,14 +653,16 @@ export function editDuration(
   seq: number,
   durationMin: number,
   source: EtaSource = 'manual',
+  opts?: { allowReset?: boolean },
 ): { chain: ChainLeg[]; slippedMinutes: number } {
   const next = chain.map((l) => ({ ...l }))
   const idx = next.findIndex((l) => l.seq === seq)
   if (idx < 0) return { chain: next, slippedMinutes: 0 }
   const leg = next[idx]!
   if (leg.source === 'actual') return { chain: next, slippedMinutes: 0 }
-  if (leg.source === 'manual' && source === 'assumed') {
-    // Reset-to-default may pass assumed; allow only if explicitly resetting
+  // Manual edits stick until an explicit reset-to-default.
+  if (leg.source === 'manual' && source === 'assumed' && !opts?.allowReset) {
+    return { chain: next, slippedMinutes: 0 }
   }
   const oldEnd = leg.est_end
   leg.duration_min = durationMin
@@ -693,7 +695,7 @@ export function resetDurationToDefault(
     return { chain, slippedMinutes: 0 }
   }
   const val = defaults[key]
-  return editDuration(chain, seq, val, 'assumed')
+  return editDuration(chain, seq, val, 'assumed', { allowReset: true })
 }
 
 export function applyActual(

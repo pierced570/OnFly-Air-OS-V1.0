@@ -14,6 +14,7 @@ function stubCandidate(opId: string, name: string): Candidate {
     aircraft_id: 'ac-1',
     tail: 'NTEST1',
     type_name: 'King Air',
+    mtow_lbs: 12500,
     cost: 1000,
     price: 1200,
     chain: [],

@@ -131,10 +131,7 @@ async function persistEtaNodes(trip: TripStoreRow): Promise<void> {
       })
       .eq('id', trip.id),
   )
-  // Replace nodes for this trip
-  await safeQuery('trip_eta_nodes.delete', () =>
-    db().from('trip_eta_nodes').delete().eq('trip_id', trip.id),
-  )
+  // Upsert nodes first, then drop orphans — avoids empty-chain window if insert fails.
   const rows = trip.eta_chain.map((l) => ({
     trip_id: trip.id,
     seq: l.seq,
@@ -161,9 +158,21 @@ async function persistEtaNodes(trip: TripStoreRow): Promise<void> {
     distance_nm: l.distance_nm ?? null,
     slack_min: l.slack_min ?? null,
   }))
-  await safeQuery('trip_eta_nodes.insert', () =>
-    db().from('trip_eta_nodes').insert(rows),
+  await safeQuery('trip_eta_nodes.upsert', () =>
+    db()
+      .from('trip_eta_nodes')
+      .upsert(rows, { onConflict: 'trip_id,seq' }),
   )
+  const keepSeqs = trip.eta_chain.map((l) => l.seq)
+  if (keepSeqs.length) {
+    await safeQuery('trip_eta_nodes.delete_orphans', () =>
+      db()
+        .from('trip_eta_nodes')
+        .delete()
+        .eq('trip_id', trip.id)
+        .not('seq', 'in', `(${keepSeqs.join(',')})`),
+    )
+  }
 }
 
 export async function persistLegs(
@@ -171,6 +180,17 @@ export async function persistLegs(
   legs: TripLegRow[],
 ): Promise<void> {
   if (!canPersist() || !legs.length) return
+  const keepIds = legs.map((l) => l.id).filter(Boolean)
+  if (keepIds.length) {
+    // Drop orphaned legs left behind after rematerialize (new UUIDs).
+    await safeQuery('trip_legs.delete_orphans', () =>
+      db()
+        .from('trip_legs')
+        .delete()
+        .eq('trip_id', tripId)
+        .not('id', 'in', `(${keepIds.join(',')})`),
+    )
+  }
   const rows = legs.map((l) => ({
     id: l.id,
     trip_id: tripId,
@@ -309,10 +329,10 @@ export async function syncTripTransition(opts: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/already in state/i.test(msg)) {
-      /* ok */
-    } else {
-      console.warn('[db] trip_transition failed', msg)
+      await persistTripSnapshot(trip)
+      return
     }
+    throw e instanceof Error ? e : new Error(msg)
   }
   await persistTripSnapshot(trip)
 }

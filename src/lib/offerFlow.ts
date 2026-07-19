@@ -176,6 +176,12 @@ export async function selectOfferAndHardQuote(tripId: string, offerId: string, c
 export async function acceptHardQuote(token: string) {
   const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
   if (!trip) throw new Error('invalid accept token')
+  if (trip.state === 'booked' || trip.state === 'in_progress' || trip.state === 'delivered') {
+    return getTrip(trip.id)!
+  }
+  if (trip.state !== 'quoted_hard') {
+    throw new Error(`cannot accept from state ${trip.state}`)
+  }
   const kind = payloadKindOf(trip)
   mutateTrip(trip.id, (t) => {
     if (t.hard_quote && (kind === 'pax' || kind === 'both')) {
