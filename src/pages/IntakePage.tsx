@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  deleteIntakeDraft,
   listIntakeDrafts,
   simulateInboundEmail,
   simulateInboundSms,
@@ -159,14 +160,31 @@ export default function IntakePage() {
               {d.ignore_reason && (
                 <p className="mt-1 text-xs text-late">{d.ignore_reason}</p>
               )}
-              {d.status === 'pending_review' && (
-                <Link
-                  to={`/intake/${d.id}`}
-                  className="mt-2 inline-block text-xs text-gold hover:text-gold-lt"
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                {d.status === 'pending_review' && (
+                  <Link
+                    to={`/intake/${d.id}`}
+                    className="text-xs text-gold hover:text-gold-lt"
+                  >
+                    Open review →
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  className="text-xs text-late hover:underline"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Delete this ${d.channel} from ${d.from}?`,
+                      )
+                    ) {
+                      deleteIntakeDraft(d.id)
+                    }
+                  }}
                 >
-                  Open review →
-                </Link>
-              )}
+                  Delete
+                </button>
+              </div>
             </div>
           ))
         )}

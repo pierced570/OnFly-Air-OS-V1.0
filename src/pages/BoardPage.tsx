@@ -1,7 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { listTrips, listTripsStable, subscribeTrips } from '@/lib/tripStore'
-import { listRequests, subscribeRequests } from '@/lib/requestStore'
+import {
+  deleteRequest,
+  listRequests,
+  subscribeRequests,
+} from '@/lib/requestStore'
 import {
   acknowledgeException,
   listExceptions,
@@ -14,7 +18,11 @@ import {
   startShift,
   subscribeShift,
 } from '@/lib/shiftStore'
-import { listPendingIntake, subscribeIntake } from '@/lib/intakeStore'
+import {
+  deleteIntakeDraft,
+  listPendingIntake,
+  subscribeIntake,
+} from '@/lib/intakeStore'
 import { listOpenNeedsInfo, subscribeNeedsInfo } from '@/lib/needsInfoStore'
 
 export default function BoardPage() {
@@ -169,20 +177,41 @@ export default function BoardPage() {
               Email / SMS intake ({intake.length})
             </h2>
             {intake.map((d) => (
-              <Link
+              <div
                 key={d.id}
-                to={`/intake/${d.id}`}
-                className="block rounded-lg border border-late/40 bg-late/10 px-4 py-3 hover:border-late"
+                className="rounded-lg border border-late/40 bg-late/10 px-4 py-3"
               >
-                <div className="font-medium text-cream">
-                  {d.channel.toUpperCase()} · {d.from}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <Link
+                    to={`/intake/${d.id}`}
+                    className="min-w-0 flex-1 hover:opacity-90"
+                  >
+                    <div className="font-medium text-cream">
+                      {d.channel.toUpperCase()} · {d.from}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {d.extracted
+                        ? `${String(d.extracted.origin_text ?? '?')} → ${String(d.extracted.destination_text ?? '?')}`
+                        : d.subject}
+                    </div>
+                  </Link>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs text-late hover:underline"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Delete intake from ${d.from}? This cannot be undone.`,
+                        )
+                      ) {
+                        deleteIntakeDraft(d.id)
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
-                <div className="text-xs text-muted">
-                  {d.extracted
-                    ? `${String(d.extracted.origin_text ?? '?')} → ${String(d.extracted.destination_text ?? '?')}`
-                    : d.subject}
-                </div>
-              </Link>
+              </div>
             ))}
           </section>
         )}
@@ -216,9 +245,29 @@ export default function BoardPage() {
                       {r.email ? ` · ${r.email}` : ''}
                     </div>
                   </div>
-                  <Link to="/trips/new" className="text-xs text-gold hover:text-gold-lt">
-                    Open intake →
-                  </Link>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <Link
+                      to={`/trips/new?request=${r.id}`}
+                      className="text-xs text-gold hover:text-gold-lt"
+                    >
+                      Open →
+                    </Link>
+                    <button
+                      type="button"
+                      className="text-xs text-late hover:underline"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Delete request R-${r.ref}? This cannot be undone.`,
+                          )
+                        ) {
+                          deleteRequest(r.id)
+                        }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))

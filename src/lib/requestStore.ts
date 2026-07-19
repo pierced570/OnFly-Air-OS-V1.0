@@ -80,6 +80,13 @@ export function updateRequestStatus(
   bump()
 }
 
+/** Remove an incoming / board request entirely. */
+export function deleteRequest(id: string): boolean {
+  const ok = requests.delete(id)
+  if (ok) bump()
+  return ok
+}
+
 /** Re-export client helpers used by TripRequestForm. */
 export { subscribeClients, listClients as listSessionClients }
 

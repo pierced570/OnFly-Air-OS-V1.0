@@ -5,6 +5,7 @@ import { emptyTripRequestDraft } from '@/domain/tripRequest'
 import type { Candidate } from '@/domain/routing'
 import {
   acceptIntakeDraft,
+  deleteIntakeDraft,
   getIntakeDraft,
   ignoreIntakeDraft,
 } from '@/lib/intakeStore'
@@ -250,7 +251,37 @@ export default function IntakeReviewPage() {
             >
               Ignore
             </button>
+            <button
+              type="button"
+              className="rounded-md border border-border px-4 py-2 text-sm text-late hover:border-late"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Delete intake from ${draft.from}? This cannot be undone.`,
+                  )
+                ) {
+                  deleteIntakeDraft(draft.id)
+                  nav('/intake')
+                }
+              }}
+            >
+              Delete
+            </button>
           </>
+        )}
+        {draft.status !== 'pending_review' && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-4 py-2 text-sm text-late hover:border-late"
+            onClick={() => {
+              if (window.confirm('Delete this intake item?')) {
+                deleteIntakeDraft(draft.id)
+                nav('/intake')
+              }
+            }}
+          >
+            Delete
+          </button>
         )}
         <Link to="/intake" className="px-4 py-2 text-sm text-gold">
           ← Intake queue

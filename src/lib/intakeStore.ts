@@ -135,3 +135,10 @@ export function ignoreIntakeDraft(id: string, reason = 'dispatcher ignored'): vo
   row.ignore_reason = reason
   bump()
 }
+
+/** Remove an intake draft from the queue (pending, accepted, or ignored). */
+export function deleteIntakeDraft(id: string): boolean {
+  const ok = drafts.delete(id)
+  if (ok) bump()
+  return ok
+}
