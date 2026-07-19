@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getTripByOfferToken } from '@/lib/tripStore'
 import { submitOperatorQuote } from '@/lib/offerFlow'
-import { DateTime } from 'luxon'
+import { applyQuotedTtp, projectedDeliveryUtc } from '@/domain/etaChain'
+import { formatZuluLocal } from '@/domain/timeFmt'
 
 export default function OfferPublicPage() {
   const { token } = useParams()
@@ -14,6 +15,30 @@ export default function OfferPublicPage() {
   const [maxWait, setMaxWait] = useState(2)
   const [done, setDone] = useState(false)
 
+  const implied = useMemo(() => {
+    if (!found) return null
+    const cand =
+      found.trip.candidates.find((c) => c.aircraft_id === found.offer.aircraft_id) ??
+      found.trip.candidates.find((c) => c.chain?.length)
+    const base = found.trip.eta_chain.length
+      ? found.trip.eta_chain
+      : cand?.chain
+    if (!base?.length) return null
+    const { chain } = applyQuotedTtp(base, ttp)
+    const air = chain.find((l) => l.type === 'air_leg')
+    const delivery = projectedDeliveryUtc(chain)
+    const wuTz = air?.from.tz || 'UTC'
+    const delTz = chain[chain.length - 1]?.to.tz || wuTz
+    return {
+      wheelsUp: air
+        ? formatZuluLocal(air.est_start, wuTz).display
+        : null,
+      delivery: delivery
+        ? formatZuluLocal(delivery, delTz).display
+        : null,
+    }
+  }, [found, ttp])
+
   if (!found) {
     return (
       <div className="min-h-screen bg-ink p-6 text-cream">
@@ -23,7 +48,6 @@ export default function OfferPublicPage() {
   }
 
   const { trip, offer } = found
-  const impliedEta = DateTime.utc().plus({ minutes: ttp + live }).toFormat("HH:mm 'Z'")
 
   return (
     <div className="min-h-screen bg-ink px-4 py-8 text-cream" data-theme="dispatcher">
@@ -67,7 +91,23 @@ export default function OfferPublicPage() {
               />
             </label>
             <div className="rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-sm text-gold">
-              Implied wheels-up / ETA ≈ <span className="avionic">{impliedEta}</span> (live updates)
+              {implied?.wheelsUp ? (
+                <>
+                  Implied wheels-up{' '}
+                  <span className="avionic">{implied.wheelsUp}</span>
+                  {implied.delivery ? (
+                    <>
+                      {' '}
+                      · delivery <span className="avionic">{implied.delivery}</span>
+                    </>
+                  ) : null}
+                  <span className="block text-[11px] text-gold/80">
+                    Same chain the dispatcher sees — TTP replaces the 2:00 assumption.
+                  </span>
+                </>
+              ) : (
+                <>Enter TTP to preview ETA from the trip chain.</>
+              )}
             </div>
             <label className="block text-sm">
               Live leg (min)

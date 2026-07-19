@@ -3,12 +3,24 @@
  */
 
 import type { Candidate } from '@/domain/routing'
-import type { ChainLeg } from '@/domain/etaChain'
-import { DEFAULT_LEG_DEFAULTS } from '@/domain/etaChain'
+import type { ChainLeg, ServicePattern } from '@/domain/etaChain'
+import {
+  applyActual,
+  applyQuotedTtp,
+  BUILTIN_ETA_DEFAULTS,
+  copyChainToTrip,
+  DEFAULT_LEG_DEFAULTS,
+  editDuration,
+  projectedDeliveryUtc,
+  resetDurationToDefault,
+  type EtaDefaults,
+  type EtaSource,
+} from '@/domain/etaChain'
 import type { TripState } from '@/domain/stateMachine'
 import { transition } from '@/domain/stateMachine'
 import { parseThreadActual } from '@/domain/threadParse'
 import {
+  applyChainToLegs,
   applyParsedActualToLegs,
   cascadeRecomputeFromActual,
   materializeChainToLegs,
@@ -17,6 +29,7 @@ import {
 import { tripInvoiceLines } from '@/domain/qbInvoice'
 import { createAccountingAdapter } from '@/adapters/accounting'
 import { raiseException } from '@/lib/exceptionStore'
+import { getEtaDefaults } from '@/lib/etaDefaultsStore'
 
 const STORAGE_KEY = 'onfly.trips.v1'
 
@@ -275,12 +288,26 @@ export type TripStoreRow = {
   }
   lost_reason?: string
   quick?: QuickDispatchMeta
+  /** Single ETA chain SoT — copied onto the trip at estimate/book. */
+  eta_chain: ChainLeg[]
+  service_pattern: ServicePattern | null
+  promised_delivery: string | null
+  eta_defaults_snapshot: EtaDefaults | null
   legs: TripLegRow[]
   participants: TripParticipant[]
   thread: ThreadMessage[]
   documents: TripDocument[]
   invoice: TripInvoice | null
   client_id?: string
+}
+
+function syncLegsFromChain(t: TripStoreRow, chain: ChainLeg[]): void {
+  t.eta_chain = chain
+  if (!t.legs.length) {
+    t.legs = asTripLegs(materializeChainToLegs(chain))
+    return
+  }
+  t.legs = asTripLegs(applyChainToLegs(t.legs, chain))
 }
 
 const trips = new Map<string, TripStoreRow>()
@@ -310,6 +337,12 @@ function loadLocal(): void {
     if (!Array.isArray(parsed)) return
     for (const row of parsed) {
       if (!row?.id || !row.state) continue
+      // Backfill ETA spine fields for older localStorage snapshots
+      if (!Array.isArray(row.eta_chain)) row.eta_chain = []
+      if (row.service_pattern === undefined) row.service_pattern = null
+      if (row.promised_delivery === undefined) row.promised_delivery = null
+      if (row.eta_defaults_snapshot === undefined) row.eta_defaults_snapshot = null
+      if (!Array.isArray(row.legs)) row.legs = []
       trips.set(row.id, row)
       if (typeof row.ref === 'number' && row.ref >= refSeq) refSeq = row.ref + 1
     }
@@ -347,12 +380,15 @@ export function createTripFromCandidates(opts: {
   client_id?: string
   /** Prefer this chain when materializing legs (selected option). */
   selectedChain?: ChainLeg[]
+  service_pattern?: ServicePattern | null
 }): TripStoreRow {
   const id = crypto.randomUUID()
-  const chain =
+  const chain = copyChainToTrip(
     opts.selectedChain ??
-    opts.candidates.find((c) => c.chain?.length)?.chain ??
-    []
+      opts.candidates.find((c) => c.chain?.length)?.chain ??
+      [],
+  )
+  const defaults = getEtaDefaults()
   const legs = chain.length ? asTripLegs(materializeChainToLegs(chain)) : []
   const row: TripStoreRow = {
     id,
@@ -384,6 +420,10 @@ export function createTripFromCandidates(opts: {
       contact_cell: `+1555000${String(1000 + i).slice(-4)}`,
     })),
     client_id: opts.client_id,
+    eta_chain: chain,
+    service_pattern: opts.service_pattern ?? null,
+    promised_delivery: projectedDeliveryUtc(chain),
+    eta_defaults_snapshot: { ...defaults },
     legs,
     participants: [
       {
@@ -439,6 +479,10 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
     offers: [],
     quick: structuredClone(meta),
     client_id: meta.client_id,
+    eta_chain: [],
+    service_pattern: 'A2A',
+    promised_delivery: null,
+    eta_defaults_snapshot: { ...getEtaDefaults() },
     legs: buildQuickLegs(meta),
     participants: buildQuickParticipants(meta),
     thread: [],
@@ -505,20 +549,119 @@ async function flushLocalOnlyTrips(knownDbIds: Set<string>): Promise<void> {
   }
 }
 
-/** Attach / replace legs from a quote chain (book / hard-quote select). */
+/** Attach / replace legs + eta_chain from a quote chain (book / hard-quote select). */
 export function materializeTripLegsFromChain(
   tripId: string,
   chain: ChainLeg[],
+  opts?: { pattern?: ServicePattern | null; lockPromised?: boolean },
 ): void {
   if (!chain.length) return
+  const copied = copyChainToTrip(chain)
   mutateTrip(tripId, (t) => {
     if (t.legs.some((l) => l.actual_start || l.actual_end)) return
-    t.legs = asTripLegs(materializeChainToLegs(chain))
+    t.eta_chain = copied
+    t.legs = asTripLegs(materializeChainToLegs(copied))
+    if (opts?.pattern) t.service_pattern = opts.pattern
+    if (opts?.lockPromised !== false) {
+      t.promised_delivery = projectedDeliveryUtc(copied)
+    }
+    if (!t.eta_defaults_snapshot) {
+      t.eta_defaults_snapshot = { ...getEtaDefaults() }
+    }
     t.events.push({
       at: new Date().toISOString(),
       actor: 'system',
-      kind: 'legs_materialized',
-      payload: { count: t.legs.length },
+      kind: 'eta_chain_copied_to_trip',
+      payload: { count: copied.length, pattern: t.service_pattern },
+    })
+  })
+}
+
+/** Apply operator-quoted TTP onto trip chain + matching candidate → recompute. */
+export function applyOfferTtpToTrip(
+  tripId: string,
+  offerId: string,
+  ttpMin: number,
+): void {
+  mutateTrip(tripId, (t) => {
+    const offer = t.offers.find((o) => o.id === offerId)
+    if (!offer) return
+
+    // Update candidate chain (offer board / magic link same numbers)
+    const cand =
+      t.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
+      t.candidates.find((c) => c.tail === offer.tail)
+    if (cand?.chain?.length) {
+      const { chain } = applyQuotedTtp(cand.chain, ttpMin)
+      cand.chain = chain
+      cand.eta_end = projectedDeliveryUtc(chain) ?? cand.eta_end
+    }
+
+    if (t.eta_chain.length) {
+      const { chain, slippedMinutes } = applyQuotedTtp(t.eta_chain, ttpMin)
+      syncLegsFromChain(t, chain)
+      t.events.push({
+        at: new Date().toISOString(),
+        actor: offer.operator_name,
+        kind: 'eta_ttp_quoted',
+        payload: { offer_id: offerId, ttp_min: ttpMin, slipped_min: slippedMinutes },
+      })
+    }
+  })
+}
+
+/** Dispatcher edits an assumption cell on the trip sheet. */
+export function editTripEtaDuration(
+  tripId: string,
+  seq: number,
+  durationMin: number,
+  source: EtaSource = 'manual',
+): void {
+  mutateTrip(tripId, (t) => {
+    if (!t.eta_chain.length) return
+    const { chain, slippedMinutes } = editDuration(
+      t.eta_chain,
+      seq,
+      durationMin,
+      source,
+    )
+    syncLegsFromChain(t, chain)
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'eta_duration_edited',
+      payload: { seq, duration_min: durationMin, source, slipped_min: slippedMinutes },
+    })
+    const threshold =
+      t.eta_defaults_snapshot?.slip_threshold ?? BUILTIN_ETA_DEFAULTS.slip_threshold
+    if (Math.abs(slippedMinutes) >= threshold) {
+      raiseException({
+        trip_id: t.id,
+        trip_ref: t.ref,
+        title: `ETA slip ${slippedMinutes > 0 ? '+' : ''}${slippedMinutes}m`,
+        detail: `Dispatcher edit on node #${seq}`,
+        severity: 'late',
+        href: `/trips/${t.id}`,
+      })
+    }
+  })
+}
+
+export function resetTripEtaDuration(tripId: string, seq: number): void {
+  mutateTrip(tripId, (t) => {
+    if (!t.eta_chain.length) return
+    const defaults = t.eta_defaults_snapshot ?? getEtaDefaults()
+    const { chain, slippedMinutes } = resetDurationToDefault(
+      t.eta_chain,
+      seq,
+      defaults,
+    )
+    syncLegsFromChain(t, chain)
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'eta_duration_reset',
+      payload: { seq, slipped_min: slippedMinutes },
     })
   })
 }
@@ -631,6 +774,14 @@ export function completeLegCheckIn(
         actual_end: now,
       }
     })
+    if (t.eta_chain.length) {
+      const { chain } = applyActual(t.eta_chain, {
+        seq: leg.seq,
+        actual_start: leg.actual_start ?? now,
+        actual_end: now,
+      })
+      t.eta_chain = chain
+    }
     const next = t.legs.find((l) => l.status === 'pending')
     if (next) {
       t.legs = t.legs.map((l) =>
@@ -726,6 +877,29 @@ export function postThreadMessage(
       const applied = applyParsedActualToLegs(t.legs, parsed, msg.at)
       if (applied.appliedSeq != null) {
         t.legs = asTripLegs(applied.legs)
+        // Keep trip eta_chain in lockstep (SoT) via the same recompute path
+        if (t.eta_chain.length) {
+          if (applied.autoApplied) {
+            const endKinds = new Set(['wheels_down', 'delivered', 'arrived'])
+            const { chain } = applyActual(t.eta_chain, {
+              seq: applied.appliedSeq,
+              actual_start: msg.at,
+              actual_end: endKinds.has(parsed.kind) ? msg.at : undefined,
+            })
+            t.eta_chain = chain
+          } else {
+            const bySeq = new Map(t.legs.map((l) => [l.seq, l]))
+            t.eta_chain = t.eta_chain.map((c) => {
+              const l = bySeq.get(c.seq)
+              if (!l) return c
+              return {
+                ...c,
+                est_start: l.est_start ?? c.est_start,
+                est_end: l.est_end ?? c.est_end,
+              }
+            })
+          }
+        }
         t.events.push({
           at: msg.at,
           actor: 'system',
@@ -739,10 +913,10 @@ export function postThreadMessage(
             auto: applied.autoApplied,
           },
         })
-        if (
-          Math.abs(applied.slippedMinutes) >=
+        const threshold =
+          t.eta_defaults_snapshot?.slip_threshold ??
           DEFAULT_LEG_DEFAULTS.slipThresholdMin
-        ) {
+        if (Math.abs(applied.slippedMinutes) >= threshold) {
           raiseException({
             trip_id: t.id,
             trip_ref: t.ref,

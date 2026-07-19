@@ -58,10 +58,12 @@ function roleLabel(role: string): string {
 }
 
 function clientSafeTripView(trip: TripStoreRow) {
-  const sheet = computeEtaSheetFromBookedTrip(trip)
-  const quickLines = trip.quick
-    ? computeEtaSheetLinesFromQuick(trip.quick)
-    : sheet?.lines ?? []
+  const sheet = computeEtaSheetFromBookedTrip(trip, new Date(), { clientFacing: true })
+  const quickLines = sheet?.lines?.length
+    ? sheet.lines
+    : trip.quick
+      ? computeEtaSheetLinesFromQuick(trip.quick)
+      : []
   const updates = [...trip.events]
     .filter((e) => CLIENT_SAFE_EVENTS.has(e.kind) || e.kind.startsWith('leg_'))
     .filter((e) => {
@@ -80,8 +82,12 @@ function clientSafeTripView(trip: TripStoreRow) {
     payload_summary: trip.payload_summary,
     etaLines: quickLines,
     tail: sheet?.tail ?? trip.quick?.tail ?? null,
-    operator_name: sheet?.operator_name ?? trip.quick?.operator_name ?? null,
+    // Carrier unnamed on client tracker by default
+    operator_name: null as string | null,
     aircraft_type: sheet?.aircraft_type ?? trip.quick?.aircraft_type ?? null,
+    pattern: sheet?.pattern ?? trip.service_pattern,
+    promised: sheet?.promised_delivery_display,
+    projected: sheet?.projected_delivery_display,
     legs: trip.legs.map((l) => ({
       id: l.id,
       seq: l.seq,
@@ -168,6 +174,10 @@ export default function PortalTrackPage() {
           candidates: [],
           offers: [],
           events: [],
+          eta_chain: [],
+          service_pattern: null,
+          promised_delivery: null,
+          eta_defaults_snapshot: null,
           legs,
           participants: [],
           thread: [],
@@ -251,13 +261,16 @@ export default function PortalTrackPage() {
                   className="flex flex-wrap items-baseline justify-between gap-3 border-b border-border/40 pb-2 last:border-b-0"
                 >
                   <div>
-                    <div className="font-medium">{l.leg_label}</div>
+                    <div className="font-medium">{l.event || l.leg_label}</div>
                     <div className="text-xs text-muted">
                       {l.pickup_location} → {l.where_going}
                     </div>
                   </div>
-                  <div className="text-xs text-muted">
-                    Pickup {l.pickup_time_zulu} · Arrive {l.arrive_time_zulu}
+                  <div className="text-right text-xs">
+                    <div className="avionic text-ink">{l.est_display}</div>
+                    {l.actual_display ? (
+                      <div className="avionic text-green-700">Act {l.actual_display}</div>
+                    ) : null}
                   </div>
                 </li>
               ))}

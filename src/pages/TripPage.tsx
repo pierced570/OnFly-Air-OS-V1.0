@@ -15,6 +15,7 @@ import { createWxAdapter, type WxBrief } from '@/adapters/wx'
 import { FlightCatBadge } from '@/components/FlightCatBadge'
 import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
 import { PipelineStrip } from '@/components/PipelineStrip'
+import { EtaSheetPanel } from '@/components/EtaSheetPanel'
 import {
   acknowledgeCheckpoint,
   listCheckpoints,
@@ -182,8 +183,10 @@ export default function TripPage() {
         <PipelineStrip state={trip.state} />
       </div>
 
+      <EtaSheetPanel trip={trip} />
+
       <section className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-xs uppercase tracking-wider text-muted">ETA chain / legs</h2>
+        <h2 className="text-xs uppercase tracking-wider text-muted">One-tap legs</h2>
         {trip.legs.length === 0 ? (
           <p className="mt-3 text-sm text-muted">
             No execution legs yet — book via Quick Dispatch or accept an offer.
@@ -203,12 +206,6 @@ export default function TripPage() {
                     <span className="ml-2 avionic text-xs text-muted">
                       {leg.origin}→{leg.dest}
                     </span>
-                  )}
-                  {(leg.est_start || leg.est_end) && (
-                    <div className="avionic text-[11px] text-muted">
-                      Est {leg.est_start?.slice(11, 16) ?? '—'}Z →{' '}
-                      {leg.est_end?.slice(11, 16) ?? '—'}Z
-                    </div>
                   )}
                 </div>
                 <Link

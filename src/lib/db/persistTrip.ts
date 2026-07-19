@@ -111,9 +111,57 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
   )
 
   await persistLegs(trip.id, trip.legs)
+  await persistEtaNodes(trip)
   await persistOffers(trip.id, trip.offers)
   await persistParticipants(trip)
   await persistDocuments(trip)
+}
+
+async function persistEtaNodes(trip: TripStoreRow): Promise<void> {
+  if (!canPersist() || !trip.eta_chain?.length) return
+  await safeQuery('trips.eta_meta', () =>
+    db()
+      .from('trips')
+      .update({
+        service_pattern: trip.service_pattern,
+        promised_delivery: trip.promised_delivery,
+        eta_defaults_snapshot: trip.eta_defaults_snapshot,
+      })
+      .eq('id', trip.id),
+  )
+  // Replace nodes for this trip
+  await safeQuery('trip_eta_nodes.delete', () =>
+    db().from('trip_eta_nodes').delete().eq('trip_id', trip.id),
+  )
+  const rows = trip.eta_chain.map((l) => ({
+    trip_id: trip.id,
+    seq: l.seq,
+    type: l.type,
+    branch: l.branch,
+    label: l.label,
+    event: l.event,
+    from_icao: l.from.icao ?? null,
+    to_icao: l.to.icao ?? null,
+    from_tz: l.from.tz ?? null,
+    to_tz: l.to.tz ?? null,
+    from_lat: l.from.lat,
+    from_lon: l.from.lon,
+    to_lat: l.to.lat,
+    to_lon: l.to.lon,
+    est_start: l.est_start,
+    est_end: l.est_end,
+    actual_start: l.actual_start ?? null,
+    actual_end: l.actual_end ?? null,
+    duration_min: l.duration_min,
+    duration_key: l.duration_key ?? null,
+    source: l.source,
+    distance_mi: l.distance_mi ?? null,
+    distance_nm: l.distance_nm ?? null,
+    slack_min: l.slack_min ?? null,
+  }))
+  await safeQuery('trip_eta_nodes.insert', () =>
+    db().from('trip_eta_nodes').insert(rows),
+  )
 }
 
 export async function persistLegs(
