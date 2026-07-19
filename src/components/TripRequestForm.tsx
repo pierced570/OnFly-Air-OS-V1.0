@@ -264,22 +264,71 @@ export function TripRequestForm({
 
       {/* Legs */}
       <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
-            <button
-              type="button"
-              className={segBtn(draft.timing === 'asap')}
-              onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
-            >
-              ASAP
-            </button>
-            <button
-              type="button"
-              className={segBtn(draft.timing === 'scheduled')}
-              onClick={() => setDraft((d) => ({ ...d, timing: 'scheduled' }))}
-            >
-              Scheduled
-            </button>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+              <button
+                type="button"
+                className={segBtn(draft.timing === 'asap')}
+                onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
+              >
+                ASAP
+              </button>
+              <button
+                type="button"
+                className={segBtn(draft.timing === 'scheduled')}
+                onClick={() => setDraft((d) => ({ ...d, timing: 'scheduled' }))}
+              >
+                Scheduled
+              </button>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-[var(--text)]">
+              <span>Roundtrip</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={draft.direction === 'round_trip'}
+                onClick={() =>
+                  setDraft((d) => ({
+                    ...d,
+                    direction:
+                      d.direction === 'round_trip' ? 'one_way' : 'round_trip',
+                  }))
+                }
+                className={[
+                  'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+                  draft.direction === 'round_trip' ? 'bg-gold' : 'bg-border',
+                ].join(' ')}
+              >
+                <span
+                  className={[
+                    'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-surface-2 shadow transition-transform',
+                    draft.direction === 'round_trip'
+                      ? 'translate-x-5'
+                      : 'translate-x-0',
+                  ].join(' ')}
+                />
+              </button>
+            </label>
+            {draft.direction === 'round_trip' && (
+              <label className={`${labelCls} w-36`}>
+                Hours on ground
+                <input
+                  type="number"
+                  min={1}
+                  step={0.5}
+                  value={draft.hours_on_ground}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      hours_on_ground:
+                        e.target.value === '' ? '' : Number(e.target.value),
+                    }))
+                  }
+                  className={inputCls}
+                />
+              </label>
+            )}
           </div>
           <button
             type="button"
@@ -484,56 +533,6 @@ export function TripRequestForm({
               </div>
             </div>
           ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-          <label className="flex items-center gap-3 text-sm text-[var(--text)]">
-            <span>Roundtrip</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={draft.direction === 'round_trip'}
-              onClick={() =>
-                setDraft((d) => ({
-                  ...d,
-                  direction:
-                    d.direction === 'round_trip' ? 'one_way' : 'round_trip',
-                }))
-              }
-              className={[
-                'relative h-6 w-11 rounded-full transition-colors',
-                draft.direction === 'round_trip' ? 'bg-gold' : 'bg-border',
-              ].join(' ')}
-            >
-              <span
-                className={[
-                  'absolute top-0.5 h-5 w-5 rounded-full bg-surface-2 shadow transition-transform',
-                  draft.direction === 'round_trip'
-                    ? 'translate-x-5'
-                    : 'translate-x-0.5',
-                ].join(' ')}
-              />
-            </button>
-          </label>
-          {draft.direction === 'round_trip' && (
-            <label className={`${labelCls} w-40`}>
-              Hours on ground
-              <input
-                type="number"
-                min={1}
-                step={0.5}
-                value={draft.hours_on_ground}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    hours_on_ground:
-                      e.target.value === '' ? '' : Number(e.target.value),
-                  }))
-                }
-                className={inputCls}
-              />
-            </label>
-          )}
         </div>
       </section>
 
