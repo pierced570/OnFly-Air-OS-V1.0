@@ -238,6 +238,31 @@ export async function acceptHardQuote(token: string) {
     })
   })
 
+  // Spin up SMS thread pool number + intro path
+  {
+    const { ensureTripThread, getTrip: gt } = await import('@/lib/tripStore')
+    await ensureTripThread(trip.id)
+    const booked = gt(trip.id)
+    const selected = booked?.offers.find((o) => o.state === 'selected')
+    if (selected && booked) {
+      const { addTripParticipant, inviteTripParticipant } = await import(
+        '@/lib/tripStore'
+      )
+      const already = booked.participants.some(
+        (p) => p.role === 'operator_ops' && p.name === selected.operator_name,
+      )
+      if (!already) {
+        const p = addTripParticipant(trip.id, {
+          name: selected.operator_name,
+          role: 'operator_ops',
+          cell: selected.contact_cell,
+          in_thread: true,
+        })
+        await inviteTripParticipant(trip.id, p.id)
+      }
+    }
+  }
+
   // ETA sheet + portal track links → tracker / supply-chain (no QB invoice here)
   const { runOnBookedAutomations } = await import('@/lib/onBooked')
   await runOnBookedAutomations(trip.id)

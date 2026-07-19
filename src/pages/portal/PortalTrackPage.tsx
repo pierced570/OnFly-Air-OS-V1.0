@@ -444,6 +444,8 @@ export default function PortalTrackPage() {
           service_pattern: null,
           promised_delivery: null,
           eta_defaults_snapshot: null,
+          thread_number: null,
+          thread_disbanded_at: null,
           legs,
           participants: [],
           thread: [],
@@ -586,6 +588,8 @@ export function PortalTripTrackPage() {
           ? String(tripRow.promised_delivery)
           : null,
         eta_defaults_snapshot: null,
+        thread_number: null,
+        thread_disbanded_at: null,
         legs,
         participants: [],
         thread: [],

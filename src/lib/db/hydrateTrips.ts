@@ -19,7 +19,7 @@ export async function hydrateTrips(): Promise<number> {
     db()
       .from('trips')
       .select(
-        'id,ref,state,client_id,lane_label,payload_summary,ready_label,accept_token,session_meta,po_number,created_at,service_pattern,promised_delivery,eta_defaults_snapshot',
+        'id,ref,state,client_id,lane_label,payload_summary,ready_label,accept_token,session_meta,po_number,created_at,service_pattern,promised_delivery,eta_defaults_snapshot,thread_number,thread_disbanded_at',
       )
       .not('state', 'in', '("closed","lost","cancelled")')
       .order('ref', { ascending: false })
@@ -166,6 +166,9 @@ export async function hydrateTrips(): Promise<number> {
         name: String(r.name || ''),
         cell: String(r.cell || ''),
         email: String(r.email || ''),
+        in_thread: r.in_thread !== false,
+        released_at: r.released_at ? String(r.released_at) : null,
+        invite_sent_at: null,
       })
       partsByTrip.set(tripId, list)
     }
@@ -200,6 +203,10 @@ export async function hydrateTrips(): Promise<number> {
       service_pattern: (r.service_pattern as ServicePattern | null) ?? null,
       promised_delivery: r.promised_delivery ? String(r.promised_delivery) : null,
       eta_defaults_snapshot: (r.eta_defaults_snapshot as EtaDefaults | null) ?? null,
+      thread_number: r.thread_number ? String(r.thread_number) : null,
+      thread_disbanded_at: r.thread_disbanded_at
+        ? String(r.thread_disbanded_at)
+        : null,
       legs: legsByTrip.get(String(r.id)) ?? [],
       participants: partsByTrip.get(String(r.id)) ?? [],
       thread: [],

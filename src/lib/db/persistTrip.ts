@@ -99,6 +99,8 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
         ready_label: trip.ready_label,
         accept_token: trip.hard_quote?.accept_token ?? null,
         po_number: trip.quick?.po || null,
+        thread_number: trip.thread_number,
+        thread_disbanded_at: trip.thread_disbanded_at,
         session_meta: {
           ref: trip.ref,
           quick: trip.quick ?? null,
@@ -237,7 +239,8 @@ async function persistParticipants(trip: TripStoreRow): Promise<void> {
     name: p.name,
     cell: p.cell || null,
     email: p.email || null,
-    in_thread: true,
+    in_thread: p.in_thread !== false,
+    released_at: p.released_at,
   }))
   await safeQuery('trip_participants.upsert', () =>
     db().from('trip_participants').upsert(rows, { onConflict: 'id' }),

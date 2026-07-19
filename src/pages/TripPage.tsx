@@ -16,6 +16,7 @@ import { FlightCatBadge } from '@/components/FlightCatBadge'
 import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
 import { PipelineStrip } from '@/components/PipelineStrip'
 import { EtaSheetPanel } from '@/components/EtaSheetPanel'
+import { ParticipantsPanel } from '@/components/ParticipantsPanel'
 import {
   acknowledgeCheckpoint,
   listCheckpoints,
@@ -288,23 +289,7 @@ export default function TripPage() {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Participants</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {trip.participants.map((p) => (
-              <li key={p.id} className="flex justify-between gap-2">
-                <span className="text-cream">{p.name}</span>
-                <span className="text-xs text-muted">
-                  {p.role}
-                  {p.email ? ` · ${p.email}` : ''}
-                </span>
-              </li>
-            ))}
-            {trip.participants.length === 0 && (
-              <li className="text-muted">No participants yet.</li>
-            )}
-          </ul>
-        </section>
+        <ParticipantsPanel trip={trip} />
 
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">Documents</h2>
