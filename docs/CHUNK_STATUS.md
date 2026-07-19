@@ -77,6 +77,14 @@ Updated as we convert mocks → durable/live paths.
 - Portal track: ETA / legs+actuals / contacts / live updates — **no pricing**
 - Full wire order: [`docs/WIRE_ORDER.md`](WIRE_ORDER.md)
 
+## Customer onboarding (portal)
+
+- Public form: `/portal/onboard` (company, people roles, billing, lanes, prefs)
+- Submit → `addClient` + contacts (ops/AP/supervisors) + `clients.profile` jsonb
+- Binds browser portal session → home shows company; request form seeds frequent lane
+- NEEDS-INFO tasks for review / vendor packet / card-on-file link (never collect cards)
+- Migration `0008_client_profile.sql`
+
 ## Vendor wiring from logins-keys.csv (2026-07-18)
 
 | Vendor | Status | Notes |

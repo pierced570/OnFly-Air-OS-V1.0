@@ -1,14 +1,27 @@
 import { useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  clearPortalClient,
+  getPortalClient,
+  getPortalClientId,
+} from '@/lib/clientOnboardStore'
+import { listClients, subscribeClients } from '@/lib/clientStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
 
 function useRequests() {
   return useSyncExternalStore(subscribeRequests, listRequests, () => [])
 }
 
-/** Client-facing portal — magic-link auth later; open for now. */
+function usePortalClient() {
+  useSyncExternalStore(subscribeClients, listClients, listClients)
+  return getPortalClient()
+}
+
+/** Client-facing portal — magic-link auth later; onboard binds this browser. */
 export default function PortalHomePage() {
   const requests = useRequests().filter((r) => r.source === 'portal')
+  const client = usePortalClient()
+  const clientId = getPortalClientId()
 
   return (
     <div className="min-h-screen bg-cream text-ink" data-theme="client">
@@ -17,6 +30,52 @@ export default function PortalHomePage() {
         <h1 className="text-xl font-semibold">Client portal</h1>
       </header>
       <main className="mx-auto max-w-3xl space-y-6 p-6">
+        {!client ? (
+          <section className="rounded-lg border border-border bg-surface-2 p-5">
+            <h2 className="font-medium">New here?</h2>
+            <p className="mt-1 text-sm text-muted">
+              Complete a short onboarding so we know who gets tracking, invoices,
+              and emergency calls — then request trips from this portal.
+            </p>
+            <Link
+              to="/portal/onboard"
+              className="mt-4 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
+            >
+              Start customer onboarding
+            </Link>
+          </section>
+        ) : (
+          <section className="rounded-lg border border-border bg-surface-2 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="font-medium">{client.name}</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Ops {client.email || '—'} · Invoices {client.invoice_email || '—'}
+                  {client.profile.front_desk_phone
+                    ? ` · Desk ${client.profile.front_desk_phone}`
+                    : ''}
+                </p>
+                {client.profile.frequent_lanes &&
+                  client.profile.frequent_lanes.length > 0 && (
+                    <p className="avionic mt-2 text-xs text-muted">
+                      Frequent:{' '}
+                      {client.profile.frequent_lanes
+                        .map((l) => `${l.origin}→${l.destination}`)
+                        .join(' · ')}
+                    </p>
+                  )}
+              </div>
+              <button
+                type="button"
+                className="text-xs text-muted hover:text-ink"
+                onClick={() => clearPortalClient()}
+              >
+                Switch company
+              </button>
+            </div>
+          </section>
+        )}
+
         <section className="rounded-lg border border-border bg-surface-2 p-5">
           <h2 className="font-medium">Your requests</h2>
           <p className="mt-1 text-sm text-muted">
@@ -46,12 +105,23 @@ export default function PortalHomePage() {
             </ul>
           )}
         </section>
-        <Link
-          to="/portal/request"
-          className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
-        >
-          Request a trip
-        </Link>
+
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/portal/request"
+            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
+          >
+            Request a trip
+          </Link>
+          {clientId && (
+            <Link
+              to="/portal/onboard"
+              className="inline-flex rounded-md border border-border px-4 py-2 text-sm text-ink"
+            >
+              Update onboarding
+            </Link>
+          )}
+        </div>
       </main>
     </div>
   )

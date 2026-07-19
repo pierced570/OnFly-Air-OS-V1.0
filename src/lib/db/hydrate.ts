@@ -27,7 +27,7 @@ export async function hydrateOperatingData(): Promise<{
     db()
       .from('clients')
       .select(
-        'id,name,billing_terms,qb_customer_id,notes,invoice_email,last_po,legacy_key,client_contacts(id,name,role,email,cell,notify_prefs),client_rules(*)',
+        'id,name,billing_terms,qb_customer_id,notes,invoice_email,last_po,legacy_key,profile,client_contacts(id,name,role,email,cell,notify_prefs),client_rules(*)',
       )
       .order('name'),
   )
@@ -75,6 +75,10 @@ export async function hydrateOperatingData(): Promise<{
             : '',
         },
         qb_customer_id: r.qb_customer_id ? String(r.qb_customer_id) : null,
+        profile:
+          r.profile && typeof r.profile === 'object'
+            ? (r.profile as ClientProfile['profile'])
+            : {},
       }
     })
     replaceClientsFromDb(mapped)
