@@ -5,10 +5,8 @@ import {
 } from '@/adapters/email'
 import {
   defaultOnboardTemplate,
-  LEGACY_ONBOARD_URL,
   renderOperatorOnboardEmailHtml,
   sendOperatorOnboardInvite,
-  type OperatorOnboardTemplate,
 } from '@/lib/operatorOnboardEmail'
 
 const field =
@@ -20,59 +18,11 @@ export function OperatorInvitePanel() {
   const realFlag = isRealEmailEnabled()
   const [to, setTo] = useState('')
   const [company, setCompany] = useState('')
-  const [buttonText, setButtonText] = useState('Complete Onboarding Form')
-  const [closing, setClosing] = useState(
-    'Please fill out our onboarding form — we would love to have you in our network.',
-  )
-  const [skyiqPitch, setSkyiqPitch] = useState(
-    'With fuel prices on the rise, please consider checking out our sister company SkyIQ — your fuel intelligence partner.',
-  )
-  const [skyiqUrl, setSkyiqUrl] = useState('https://info.skyiq.net/')
-  const [skyiqLink, setSkyiqLink] = useState('Learn more about SkyIQ →')
-  const [onboardUrl, setOnboardUrl] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/onboard`
-    }
-    return '/onboard'
-  })
-  const [refsText, setRefsText] = useState(
-    'Sonrise Aviation — (260) 766-4548\nAxio — (864) 397-5082\nAmeristar — (972) 248-2478',
-  )
   const [previewOpen, setPreviewOpen] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const template: OperatorOnboardTemplate = useMemo(() => {
-    const references = refsText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [name, phone] = line.split('—').map((s) => s.trim())
-        return {
-          name: name || line,
-          phone: phone || '',
-        }
-      })
-    return defaultOnboardTemplate({
-      buttonText,
-      closingMessage: closing,
-      skyiqPitch,
-      skyiqUrl,
-      skyiqLinkText: skyiqLink,
-      onboardUrl,
-      references,
-    })
-  }, [
-    buttonText,
-    closing,
-    skyiqPitch,
-    skyiqUrl,
-    skyiqLink,
-    onboardUrl,
-    refsText,
-  ])
-
+  const template = useMemo(() => defaultOnboardTemplate(), [])
   const html = useMemo(
     () => renderOperatorOnboardEmailHtml(template),
     [template],
@@ -89,8 +39,8 @@ export function OperatorInvitePanel() {
       })
       setStatus(
         live
-          ? `Invite sent via Resend to ${result.to} (id ${result.id}).`
-          : `Invite queued in mock adapter to ${result.to} (id ${result.id}). Set VITE_EMAIL_ADAPTER=real + deploy send-email for live delivery.`,
+          ? `Sent to ${result.to}.`
+          : `Mock-sent to ${result.to}. Set VITE_EMAIL_ADAPTER=real for live delivery.`,
       )
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
@@ -102,123 +52,43 @@ export function OperatorInvitePanel() {
   return (
     <div className="space-y-4 rounded-lg border border-border bg-surface p-4 sm:p-5">
       <div>
-        <h2 className="text-lg font-semibold text-cream">
-          Invite operator (email)
-        </h2>
+        <h2 className="text-lg font-semibold text-cream">Invite operator</h2>
         <p className="mt-1 text-sm text-muted">
-          Sends the network invite with onboarding form + SkyIQ footer. Form is{' '}
-          <span className="avionic text-cream">/onboard</span> (no insured-amount
-          field — that comes from COI). Legacy ops link:{' '}
-          <a
-            href={LEGACY_ONBOARD_URL}
-            className="text-gold hover:text-gold-lt"
-            target="_blank"
-            rel="noreferrer"
-          >
-            operations.onflyair.com/onboard
-          </a>
-        </p>
-        <p
-          className={`mt-2 text-xs ${
-            live ? 'text-onplan' : realFlag ? 'text-late' : 'text-muted'
-          }`}
-        >
+          Sends the network invite with onboarding link (
+          <span className="avionic text-cream">/onboard</span>
+          ).
           {live
-            ? 'Email: LIVE (Resend via send-email edge function)'
+            ? ' Email is live.'
             : realFlag
-              ? 'Email: VITE_EMAIL_ADAPTER=real but Supabase URL/anon key missing'
-              : 'Email: MOCK — set VITE_EMAIL_ADAPTER=real after deploying send-email'}
+              ? ' Email adapter is real but Supabase keys are missing.'
+              : ' Email is mock until Resend is wired.'}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={label}>
-          Operator email *
+          Operator email
           <input
             type="email"
             className={field}
             value={to}
             onChange={(e) => setTo(e.target.value)}
             placeholder="ops@operator.com"
+            autoComplete="email"
           />
         </label>
         <label className={label}>
-          Company (optional)
+          Company <span className="normal-case text-muted/70">(optional)</span>
           <input
             className={field}
             value={company}
             onChange={(e) => setCompany(e.target.value)}
-          />
-        </label>
-        <label className={`${label} sm:col-span-2`}>
-          Onboarding form URL
-          <input
-            className={field}
-            value={onboardUrl}
-            onChange={(e) => setOnboardUrl(e.target.value)}
-          />
-        </label>
-        <label className={label}>
-          Button text
-          <input
-            className={field}
-            value={buttonText}
-            onChange={(e) => setButtonText(e.target.value)}
-          />
-        </label>
-        <label className={label}>
-          SkyIQ link text
-          <input
-            className={field}
-            value={skyiqLink}
-            onChange={(e) => setSkyiqLink(e.target.value)}
-          />
-        </label>
-        <label className={`${label} sm:col-span-2`}>
-          Closing message
-          <textarea
-            className={field}
-            rows={2}
-            value={closing}
-            onChange={(e) => setClosing(e.target.value)}
-          />
-        </label>
-        <label className={`${label} sm:col-span-2`}>
-          SkyIQ pitch
-          <textarea
-            className={field}
-            rows={2}
-            value={skyiqPitch}
-            onChange={(e) => setSkyiqPitch(e.target.value)}
-          />
-        </label>
-        <label className={`${label} sm:col-span-2`}>
-          SkyIQ website
-          <input
-            className={field}
-            value={skyiqUrl}
-            onChange={(e) => setSkyiqUrl(e.target.value)}
-          />
-        </label>
-        <label className={`${label} sm:col-span-2`}>
-          References (one per line: Name — phone)
-          <textarea
-            className={field}
-            rows={3}
-            value={refsText}
-            onChange={(e) => setRefsText(e.target.value)}
+            placeholder="Acme Air"
           />
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setPreviewOpen(true)}
-          className="rounded-md border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10"
-        >
-          Preview email
-        </button>
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           disabled={busy || !to.includes('@')}
@@ -226,6 +96,13 @@ export function OperatorInvitePanel() {
           className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
         >
           {busy ? 'Sending…' : 'Send invite'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="rounded-md border border-border px-4 py-2 text-sm text-cream hover:border-gold/40"
+        >
+          Preview
         </button>
       </div>
       {status && <p className="text-xs text-muted">{status}</p>}

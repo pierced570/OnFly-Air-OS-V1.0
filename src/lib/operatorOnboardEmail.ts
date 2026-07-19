@@ -68,46 +68,37 @@ export function renderOperatorOnboardEmailHtml(
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f0e8;padding:24px 12px">
     <tr><td align="center">
       <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5dfd0">
-        <tr><td style="background:#0c0c0e;padding:28px 24px;text-align:center">
-          <div style="font-size:22px;letter-spacing:0.12em;color:#c9a227;font-weight:700">ONFLY AIR</div>
-          <div style="margin-top:6px;font-size:12px;color:#f7f2e3;letter-spacing:0.08em">Operator Network</div>
+        <tr><td style="background:#0c0c0e;padding:22px 24px;text-align:center">
+          <div style="font-size:20px;letter-spacing:0.14em;color:#c9a227;font-weight:700">ONFLY AIR</div>
         </td></tr>
-        <tr><td style="padding:28px 28px 8px;text-align:center">
-          <h1 style="margin:0 0 18px;font-size:26px;line-height:1.25;color:#0c0c0e">Join the OnFly Air Network</h1>
-          <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#2a2a2e;text-align:left">
-            OnFly Air is a nationwide charter brokerage. Our background is primarily in AOG and logistics support for large MROs, airlines, and manufacturers, with a growing presence in the VIP and luxury space.
+        <tr><td style="padding:28px 28px 8px">
+          <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#0c0c0e;font-weight:600">Join our operator network</h1>
+          <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#2a2a2e">
+            OnFly Air is a nationwide charter brokerage — AOG and logistics for MROs, airlines, and manufacturers, plus VIP charter. Most of our trips are ASAP airline recovery; our dispatchers are professional pilots (Part 135 / 91K / 121) who set realistic expectations and keep ops smooth for your crew.
           </p>
-          <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#2a2a2e;text-align:left">
-            A majority of our trips are ASAP for airline AOG recovery and we perform hundreds of these every year alongside the standard private aircraft charters for our VIP clients. All of our dispatchers are professional pilots with part 135, 91k, or 121 experience. With thousands of hours of flight experience we set realistic customer expectations and ensure seamless operations for your crew.
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#2a2a2e">
+            We aim to be your preferred broker: fast payments, transparency, and operators who already work with us as references.
           </p>
-          <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#2a2a2e;text-align:left">
-            Our goal is to be your preferred broker to work with. As many of our current operators will tell you, we prioritize fast payments, understand the industry from both sides, and operate with transparency, sound business practices, and integrity.
-          </p>
+          <p style="margin:0 0 6px;font-size:13px;color:#6b6560">References</p>
+          ${refs}
         </td></tr>
-        <tr><td style="padding:0 28px 20px">
-          <div style="background:#f7f2e3;border-left:3px solid #c9a227;padding:14px 16px;border-radius:0 6px 6px 0">
-            <div style="font-size:11px;letter-spacing:0.12em;font-weight:700;color:#0c0c0e;margin-bottom:8px">REFERENCES</div>
-            ${refs}
-          </div>
-        </td></tr>
-        <tr><td style="padding:8px 28px 20px;text-align:center">
+        <tr><td style="padding:20px 28px;text-align:center">
           <a href="${escapeAttr(tpl.onboardUrl)}"
              style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-weight:600;font-size:15px;padding:14px 28px;border-radius:6px">
             ${escapeHtml(tpl.buttonText)}
           </a>
           <p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:#4a4540">
-            ${escapeHtml(tpl.closingMessage)}
-            If you have any questions, reply directly to this email or call us at ${escapeHtml(tpl.phone)}.
+            ${escapeHtml(tpl.closingMessage)} Questions? Reply or call ${escapeHtml(tpl.phone)}.
           </p>
         </td></tr>
-        <tr><td style="padding:0 28px 24px">
-          <div style="background:#f7f2e3;border-left:3px solid #c9a227;padding:14px 16px;border-radius:0 6px 6px 0">
-            <p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#2a2a2e">${escapeHtml(tpl.skyiqPitch)}</p>
-            <a href="${escapeAttr(tpl.skyiqUrl)}" style="color:#c9a227;font-size:14px;font-weight:600;text-decoration:none">${escapeHtml(tpl.skyiqLinkText)}</a>
-          </div>
+        <tr><td style="padding:0 28px 20px;border-top:1px solid #ebe4d4">
+          <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#6b6560">
+            ${escapeHtml(tpl.skyiqPitch)}
+            <a href="${escapeAttr(tpl.skyiqUrl)}" style="color:#c9a227;font-weight:600;text-decoration:none">${escapeHtml(tpl.skyiqLinkText)}</a>
+          </p>
         </td></tr>
-        <tr><td style="background:#f0ebe0;padding:14px;text-align:center;font-size:12px;color:#6b6560">
-          OnFly Air LLC — Charter Brokerage
+        <tr><td style="padding:12px 28px 18px;text-align:center;font-size:12px;color:#6b6560">
+          OnFly Air LLC
         </td></tr>
       </table>
     </td></tr>
@@ -123,24 +114,20 @@ export function renderOperatorOnboardEmailText(
     .map((r) => `• ${r.name} — ${r.phone}`)
     .join('\n')
   return [
-    'Join the OnFly Air Network',
+    'Join our operator network',
     '',
-    'OnFly Air is a nationwide charter brokerage. Our background is primarily in AOG and logistics support for large MROs, airlines, and manufacturers, with a growing presence in the VIP and luxury space.',
+    'OnFly Air is a nationwide charter brokerage — AOG and logistics for MROs, airlines, and manufacturers, plus VIP charter. Fast payments, transparent ops; references below.',
     '',
-    'A majority of our trips are ASAP for airline AOG recovery…',
-    '',
-    'REFERENCES',
+    'References',
     refs,
     '',
     `${tpl.buttonText}: ${tpl.onboardUrl}`,
     '',
-    tpl.closingMessage,
-    `Questions? Reply or call ${tpl.phone}.`,
+    `${tpl.closingMessage} Questions? Reply or call ${tpl.phone}.`,
     '',
-    tpl.skyiqPitch,
-    `${tpl.skyiqLinkText} ${tpl.skyiqUrl}`,
+    `${tpl.skyiqPitch} ${tpl.skyiqLinkText} ${tpl.skyiqUrl}`,
     '',
-    'OnFly Air LLC — Charter Brokerage',
+    'OnFly Air LLC',
   ].join('\n')
 }
 
