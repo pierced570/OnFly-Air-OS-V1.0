@@ -9,7 +9,7 @@ import { hydrateOperatingData } from '@/lib/db/hydrate'
 void hydrateOperatingData().then((r) => {
   if (r.ok) {
     console.info(
-      `[onfly] hydrated operating data — clients ${r.clients}, fbos ${r.fbos}, tasks ${r.tasks}, leads ${r.leads}`,
+      `[onfly] hydrated operating data — clients ${r.clients}, fbos ${r.fbos}, tasks ${r.tasks}, leads ${r.leads}, trips ${r.trips}`,
     )
   }
 })

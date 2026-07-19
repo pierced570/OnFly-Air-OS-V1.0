@@ -152,6 +152,14 @@ export async function generateCandidates(
      * `all`: every aircraft that cleared hard filters (portal category guestimate).
      */
     pickMode?: 'labeled' | 'all'
+    /**
+     * Median $/NM from pricing_priors (type / operator+type).
+     * When present, preferred over hardcoded type assumptions.
+     */
+    priorRatePerNm?: (
+      typeName: string | null,
+      operatorId: string,
+    ) => number | null
   },
 ): Promise<Candidate[]> {
   const margin = opts?.targetMargin ?? PRICING_CONSTANTS.targetMargin
@@ -267,15 +275,22 @@ export async function generateCandidates(
 
     if (hardFail) continue
 
+    const prior =
+      ac.rate_per_nm == null
+        ? opts?.priorRatePerNm?.(ac.type_name, ac.operator_id) ?? null
+        : null
     const rate =
       ac.rate_per_nm ??
+      prior ??
       (ac.type_name?.match(/King Air/i) ? 12 : ac.type_name?.match(/310/i) ? 9 : 11)
-    if (ac.rate_per_nm == null) {
+    if (ac.rate_per_nm != null) {
+      reasoning.push(`rate $${rate}/NM (${ac.rate_source ?? 'file'})`)
+    } else if (prior != null) {
+      reasoning.push(`rate $${Number(rate).toFixed(2)}/NM (pricing_priors)`)
+    } else {
       needsInfo.push('rate assumption')
       confidence -= 0.05
       reasoning.push(`assumed $${rate}/NM (${ac.rate_source ?? 'assumption'})`)
-    } else {
-      reasoning.push(`rate $${rate}/NM (${ac.rate_source ?? 'file'})`)
     }
 
     const opCost = circuitNm * rate

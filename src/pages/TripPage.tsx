@@ -322,6 +322,12 @@ export default function TripPage() {
               <li className="text-muted">No documents yet.</li>
             )}
           </ul>
+          <Link
+            to={`/trips/${trip.id}/manifest`}
+            className="mt-3 inline-flex rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          >
+            Open load manifest
+          </Link>
           {trip.state === 'delivered' && !trip.invoice && (
             <button
               type="button"

@@ -11,7 +11,8 @@ import {
   type PortalEstimateBundle,
 } from '@/domain/portalEstimate'
 import { generateCandidates } from '@/domain/routing'
-import { TEST_TAX_RATES_2026 } from '@/domain/tax'
+import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
+import { getTaxRates, loadTaxRates } from '@/lib/taxRatesStore'
 import type { TripRequestRecord } from '@/domain/tripRequest'
 import { getClient } from '@/lib/clientStore'
 import { fboFeesForAirport } from '@/lib/fboStore'
@@ -79,6 +80,7 @@ export async function estimatePortalRequest(
   const destFees = fboFeesForAirport(destAp.icao)
 
   try {
+    const [priors] = await Promise.all([loadPricingPriors(), loadTaxRates()])
     const candidates = await generateCandidates(
       {
         mode,
@@ -123,6 +125,8 @@ export async function estimatePortalRequest(
           notes: [...originFees.reasoning, ...destFees.reasoning],
         },
         pickMode: 'all',
+        priorRatePerNm: (typeName, operatorId) =>
+          priorRatePerNm(typeName, operatorId, priors),
       },
     )
 
@@ -144,7 +148,7 @@ export async function estimatePortalRequest(
     const bundle = buildPortalEstimates(candidates, meta, {
       payloadKind,
       paxCount: row.pax.length,
-      rates: TEST_TAX_RATES_2026,
+      rates: getTaxRates(),
     })
 
     return {

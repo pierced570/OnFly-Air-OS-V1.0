@@ -1,0 +1,286 @@
+/**
+ * Persist trips / legs / offers through Supabase.
+ * State changes go through trip_transition RPC — never UPDATE trips.state.
+ */
+
+import type { TripState } from '@/domain/stateMachine'
+import { toDbLegType } from '@/domain/tripLegs'
+import { canPersist, db, safeQuery } from '@/lib/db/client'
+import { tripTransition } from '@/lib/supabase'
+import type { OfferRow, TripLegRow, TripStoreRow } from '@/lib/tripStore'
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isUuid(v: string | undefined | null): v is string {
+  return Boolean(v && UUID_RE.test(v))
+}
+
+async function resolveClientUuid(
+  clientId: string | undefined,
+): Promise<string | null> {
+  if (!clientId) return null
+  if (isUuid(clientId)) {
+    const byId = await safeQuery<{ id: string }>('clients.by_id', () =>
+      db().from('clients').select('id').eq('id', clientId).maybeSingle(),
+    )
+    if (byId && typeof byId === 'object' && 'id' in byId) return String(byId.id)
+  }
+  const byKey = await safeQuery<{ id: string }>('clients.by_legacy', () =>
+    db().from('clients').select('id').eq('legacy_key', clientId).maybeSingle(),
+  )
+  if (byKey && typeof byKey === 'object' && 'id' in byKey) return String(byKey.id)
+  return null
+}
+
+function partyRole(role: string): string {
+  const allowed = new Set([
+    'dispatcher',
+    'pilot',
+    'operator_ops',
+    'fbo',
+    'driver',
+    'client',
+    'client_ap',
+    'client_supply',
+    'other',
+  ])
+  return allowed.has(role) ? role : 'other'
+}
+
+/** Insert trip shell if missing. Does not overwrite state on conflict. */
+export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
+  if (!canPersist()) return false
+  const existing = await safeQuery<{ id: string; state: string }>('trips.by_id', () =>
+    db().from('trips').select('id,state').eq('id', trip.id).maybeSingle(),
+  )
+  if (existing && typeof existing === 'object' && 'id' in existing) return true
+
+  const clientUuid = await resolveClientUuid(trip.client_id)
+  const payloadKind =
+    [...trip.events].reverse().find((e) => e.kind === 'payload_kind')?.payload
+      .payload_kind ?? 'cargo'
+
+  const inserted = await safeQuery('trips.insert', () =>
+    db().from('trips').insert({
+      id: trip.id,
+      state: trip.state,
+      client_id: clientUuid,
+      payload_kind: payloadKind,
+      lane_label: trip.lane,
+      payload_summary: trip.payload_summary,
+      ready_label: trip.ready_label,
+      accept_token: trip.hard_quote?.accept_token ?? null,
+      po_number: trip.quick?.po || null,
+      session_meta: {
+        ref: trip.ref,
+        quick: trip.quick ?? null,
+        hard_quote: trip.hard_quote ?? null,
+        candidates: trip.candidates.slice(0, 8),
+      },
+    }),
+  )
+  return inserted !== null
+}
+
+/** Upsert non-state trip fields + children. */
+export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
+  if (!canPersist()) return
+  await ensureTripRow(trip)
+
+  const clientUuid = await resolveClientUuid(trip.client_id)
+  await safeQuery('trips.shell', () =>
+    db()
+      .from('trips')
+      .update({
+        client_id: clientUuid,
+        lane_label: trip.lane,
+        payload_summary: trip.payload_summary,
+        ready_label: trip.ready_label,
+        accept_token: trip.hard_quote?.accept_token ?? null,
+        po_number: trip.quick?.po || null,
+        session_meta: {
+          ref: trip.ref,
+          quick: trip.quick ?? null,
+          hard_quote: trip.hard_quote ?? null,
+          candidates: trip.candidates.slice(0, 8),
+          invoice: trip.invoice,
+        },
+      })
+      .eq('id', trip.id),
+  )
+
+  await persistLegs(trip.id, trip.legs)
+  await persistOffers(trip.id, trip.offers)
+  await persistParticipants(trip)
+  await persistDocuments(trip)
+}
+
+export async function persistLegs(
+  tripId: string,
+  legs: TripLegRow[],
+): Promise<void> {
+  if (!canPersist() || !legs.length) return
+  const rows = legs.map((l) => ({
+    id: l.id,
+    trip_id: tripId,
+    seq: l.seq,
+    type: toDbLegType(l.type),
+    status: l.status === 'done' ? 'done' : l.status === 'active' ? 'active' : 'pending',
+    party: partyRole(l.party),
+    label: l.label,
+    from_ref: l.origin ? { icao: l.origin } : null,
+    to_ref: l.dest ? { icao: l.dest } : null,
+    est_start: l.est_start,
+    est_end: l.est_end,
+    actual_start: l.actual_start,
+    actual_end: l.actual_end,
+    one_tap_token: l.one_tap_token,
+    duration_source: 'session',
+  }))
+  await safeQuery('trip_legs.upsert', () =>
+    db().from('trip_legs').upsert(rows, { onConflict: 'id' }),
+  )
+}
+
+async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> {
+  if (!canPersist() || !offers.length) return
+  for (const o of offers) {
+    const opId = isUuid(o.operator_id) ? o.operator_id : null
+    const acId = isUuid(o.aircraft_id) ? o.aircraft_id : null
+    // Skip if operator uuid missing from DB would violate FK — try insert with null op
+    await safeQuery(`offers.upsert.${o.id}`, () =>
+      db().from('offers').upsert(
+        {
+          id: o.id,
+          trip_id: tripId,
+          operator_id: opId,
+          aircraft_id: acId,
+          state: o.state,
+          ping_sent_at: o.ping_sent_at,
+          replied_at: o.replied_at,
+          time_to_position_min: o.time_to_position_min,
+          live_leg_min: o.live_leg_min,
+          wait_ok: o.wait_ok,
+          max_wait_hrs: o.max_wait_hrs,
+          price_net: o.price_net,
+          magic_token: o.magic_token,
+          notes: JSON.stringify({
+            operator_name: o.operator_name,
+            tail: o.tail,
+            type_name: o.type_name,
+            contact_cell: o.contact_cell,
+            bookingGated: o.bookingGated,
+            needsInfo: o.needsInfo,
+          }),
+        },
+        { onConflict: 'id' },
+      ),
+    )
+  }
+}
+
+async function persistParticipants(trip: TripStoreRow): Promise<void> {
+  if (!canPersist() || !trip.participants.length) return
+  const rows = trip.participants.map((p) => ({
+    id: p.id,
+    trip_id: trip.id,
+    role: partyRole(p.role),
+    name: p.name,
+    cell: p.cell || null,
+    email: p.email || null,
+    in_thread: true,
+  }))
+  await safeQuery('trip_participants.upsert', () =>
+    db().from('trip_participants').upsert(rows, { onConflict: 'id' }),
+  )
+}
+
+async function persistDocuments(trip: TripStoreRow): Promise<void> {
+  if (!canPersist() || !trip.documents.length) return
+  for (const d of trip.documents) {
+    if (!isUuid(d.id)) continue
+    await safeQuery(`documents.upsert.${d.id}`, () =>
+      db().from('documents').upsert(
+        {
+          id: d.id,
+          trip_id: trip.id,
+          kind: d.kind,
+          storage_path: d.url,
+          parsed: { title: d.title },
+          rendered_at: d.at,
+        },
+        { onConflict: 'id' },
+      ),
+    )
+  }
+}
+
+/**
+ * Sync a local state transition to the DB via trip_transition RPC.
+ * Inserts the trip at `fromState` first when missing.
+ */
+export async function syncTripTransition(opts: {
+  trip: TripStoreRow
+  fromState: TripState
+  toState: TripState
+  actor: string
+  payload?: Record<string, unknown>
+}): Promise<void> {
+  if (!canPersist()) return
+  const { trip, fromState, toState, actor, payload = {} } = opts
+
+  const existing = await safeQuery<{ id: string; state: string }>('trips.by_id', () =>
+    db().from('trips').select('id,state').eq('id', trip.id).maybeSingle(),
+  )
+
+  if (!existing || typeof existing !== 'object' || !('id' in existing)) {
+    const clientUuid = await resolveClientUuid(trip.client_id)
+    await safeQuery('trips.insert_from', () =>
+      db().from('trips').insert({
+        id: trip.id,
+        state: fromState,
+        client_id: clientUuid,
+        lane_label: trip.lane,
+        payload_summary: trip.payload_summary,
+        ready_label: trip.ready_label,
+        accept_token: trip.hard_quote?.accept_token ?? null,
+        session_meta: { ref: trip.ref },
+      }),
+    )
+  } else if (String((existing as { state: string }).state) === toState) {
+    await persistTripSnapshot(trip)
+    return
+  }
+
+  try {
+    await tripTransition(trip.id, toState, actor, payload)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/already in state/i.test(msg)) {
+      /* ok */
+    } else {
+      console.warn('[db] trip_transition failed', msg)
+    }
+  }
+  await persistTripSnapshot(trip)
+}
+
+export async function persistPortalTrackToken(opts: {
+  token: string
+  tripId: string
+  email: string
+}): Promise<void> {
+  if (!canPersist()) return
+  const { getTrip } = await import('@/lib/tripStore')
+  const trip = getTrip(opts.tripId)
+  if (!trip) return
+  await ensureTripRow(trip)
+  await safeQuery('portal_track_tokens.upsert', () =>
+    db().from('portal_track_tokens').upsert({
+      token: opts.token,
+      trip_id: opts.tripId,
+      email: opts.email.trim().toLowerCase(),
+    }),
+  )
+}

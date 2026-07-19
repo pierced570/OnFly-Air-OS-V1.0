@@ -4,7 +4,7 @@
  */
 
 import { Link, useParams } from 'react-router-dom'
-import { useMemo, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
   getTrip,
   listTripsStable,
@@ -15,7 +15,11 @@ import {
   computeEtaSheetFromBookedTrip,
   computeEtaSheetLinesFromQuick,
 } from '@/lib/etaSheet'
-import { getPortalTrackRow } from '@/lib/portalTrackStore'
+import {
+  getPortalTrackRow,
+  resolvePortalTrackTripId,
+} from '@/lib/portalTrackStore'
+import { canPersist, db, safeQuery } from '@/lib/db/client'
 
 const CLIENT_SAFE_EVENTS = new Set([
   'offer_ping',
@@ -107,26 +111,100 @@ export default function PortalTrackPage() {
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
 
   const { token } = useParams()
-  const row = useMemo(() => {
-    if (!token) return null
-    return getPortalTrackRow(token)
+  const [tripId, setTripId] = useState<string | null>(() =>
+    token ? getPortalTrackRow(token)?.tripId ?? null : null,
+  )
+  const [resolving, setResolving] = useState(Boolean(token && !tripId))
+  const [remoteView, setRemoteView] = useState<ReturnType<
+    typeof clientSafeTripView
+  > | null>(null)
+
+  useEffect(() => {
+    if (!token) return
+    let cancelled = false
+    setResolving(true)
+    void (async () => {
+      const id = await resolvePortalTrackTripId(token)
+      if (cancelled) return
+      setTripId(id)
+      if (id && !getTrip(id) && canPersist()) {
+        const [tripRows, legRows] = await Promise.all([
+          safeQuery<Record<string, unknown>[]>('portal_trip_by_token', () =>
+            db().rpc('portal_trip_by_token', { p_token: token }),
+          ),
+          safeQuery<Record<string, unknown>[]>('portal_legs_by_token', () =>
+            db().rpc('portal_legs_by_token', { p_token: token }),
+          ),
+        ])
+        const tripRow = Array.isArray(tripRows) ? tripRows[0] : null
+        if (cancelled || !tripRow) {
+          setResolving(false)
+          return
+        }
+        const legs = Array.isArray(legRows)
+          ? legRows.map((l, i) => ({
+              id: String(l.id),
+              seq: Number(l.seq ?? i + 1),
+              label: String(l.label || l.type || `Leg ${i + 1}`),
+              status: String(l.status || 'pending') as TripStoreRow['legs'][0]['status'],
+              origin: (l.from_ref as { icao?: string } | null)?.icao,
+              dest: (l.to_ref as { icao?: string } | null)?.icao,
+              est_start: l.est_start ? String(l.est_start) : null,
+              est_end: l.est_end ? String(l.est_end) : null,
+              actual_start: l.actual_start ? String(l.actual_start) : null,
+              actual_end: l.actual_end ? String(l.actual_end) : null,
+              party: 'dispatcher',
+              type: String(l.type || ''),
+              one_tap_token: '',
+            }))
+          : []
+        const synthetic: TripStoreRow = {
+          id: String(tripRow.id),
+          ref: Number(tripRow.ref ?? 0),
+          state: tripRow.state as TripStoreRow['state'],
+          lane: String(tripRow.lane_label || ''),
+          payload_summary: String(tripRow.payload_summary || ''),
+          ready_label: String(tripRow.ready_label || ''),
+          candidates: [],
+          offers: [],
+          events: [],
+          legs,
+          participants: [],
+          thread: [],
+          documents: [],
+          invoice: null,
+        }
+        setRemoteView(clientSafeTripView(synthetic))
+      }
+      setResolving(false)
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [token])
 
   const view = useMemo(() => {
-    if (!row) return null
-    const trip = getTrip(row.tripId)
-    if (!trip) return null
-    return clientSafeTripView(trip)
-  }, [row])
+    if (!tripId) return remoteView
+    const trip = getTrip(tripId)
+    if (trip) return clientSafeTripView(trip)
+    return remoteView
+  }, [tripId, remoteView])
 
-  if (!row || !view) {
+  if (resolving) {
+    return (
+      <div className="min-h-screen bg-cream p-6 text-ink" data-theme="client">
+        <p className="text-sm text-muted">Loading tracking…</p>
+      </div>
+    )
+  }
+
+  if (!view) {
     return (
       <div className="min-h-screen bg-cream p-6 text-ink" data-theme="client">
         <div className="mx-auto max-w-xl space-y-3">
           <h1 className="text-2xl font-semibold">Tracking link expired</h1>
           <p className="text-sm text-muted">
-            This magic link isn’t recognized in the current session. Ask
-            dispatch for a fresh link.
+            This magic link isn’t recognized. Ask dispatch for a fresh link.
           </p>
           <Link
             to="/portal"
