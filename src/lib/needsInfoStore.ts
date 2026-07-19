@@ -1,8 +1,7 @@
 /**
- * Session NEEDS-INFO tasks — seeded from network import gaps + wizard skips.
+ * Session NEEDS-INFO tasks — filled from DB hydrate / wizard skips.
+ * Does not import the large network.json fixture (keeps Board boot light).
  */
-
-import network from '@/fixtures/network.json'
 
 export type NeedsInfoTask = {
   id: string
@@ -36,30 +35,7 @@ function bump() {
   for (const l of listeners) l()
 }
 
-function seed() {
-  if (tasks.size) return
-  const now = new Date().toISOString()
-  for (const op of network.operators.slice(0, 40)) {
-    for (const gap of op.needs_info ?? []) {
-      const id = crypto.randomUUID()
-      tasks.set(id, {
-        id,
-        entity_type: 'operator',
-        entity_id: op.id,
-        entity_label: op.name,
-        field: gap.field,
-        note: gap.note,
-        status: 'open',
-        wizard: 'operator',
-        created_at: now,
-        resolved_at: null,
-      })
-    }
-  }
-  rebuild()
-}
-
-seed()
+rebuild()
 
 export function subscribeNeedsInfo(fn: () => void): () => void {
   listeners.add(fn)
@@ -108,11 +84,10 @@ export function openCountByEntity(): Record<string, number> {
   return out
 }
 
-/** Replace open tasks from Supabase (skips if empty so fixture seed remains). */
+/** Replace tasks from Supabase (empty keeps current — usually empty until hydrate). */
 export function replaceNeedsInfoFromDb(rows: NeedsInfoTask[]): void {
   if (!rows.length) return
   tasks.clear()
   for (const r of rows) tasks.set(r.id, r)
-  rebuild()
-  for (const l of listeners) l()
+  bump()
 }

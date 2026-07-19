@@ -81,6 +81,3 @@ export function saveOperatorDraft(
   bump()
   return row
 }
-
-/** @deprecated use parseD085File — kept for tests / offline fixture */
-export { fixtureD085Rows as mockParseD085 } from '@/domain/d085Parse'

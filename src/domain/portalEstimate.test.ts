@@ -19,11 +19,13 @@ function leg(
     type,
     branch: type.startsWith('truck') ? 'truck' : 'air',
     label: type,
+    event: type,
     from: { lat: 0, lon: 0, tz: 'UTC' },
     to: { lat: 1, lon: 1, tz: 'UTC' },
     est_start: t0,
     est_end: t0,
     duration_min,
+    source: 'assumed',
     duration_source: 'test',
   }
 }

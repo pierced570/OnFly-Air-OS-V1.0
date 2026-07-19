@@ -103,7 +103,7 @@ export function legsToChain(legs: AppLeg[]): ChainLeg[] {
     actual_start: l.actual_start,
     actual_end: l.actual_end,
     duration_min: 0,
-    source: (l.actual_end || l.actual_start ? 'actual' : 'assumed') as const,
+    source: l.actual_end || l.actual_start ? 'actual' : 'assumed',
     duration_source: l.actual_end || l.actual_start ? 'actual' : 'booked',
   }))
 }

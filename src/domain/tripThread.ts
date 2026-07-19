@@ -100,16 +100,6 @@ export function trackLinkSmsBody(opts: {
   )
 }
 
-export function oneTapInviteSmsBody(opts: {
-  tripRef: number
-  label: string
-  tapUrl: string
-}): string {
-  return (
-    `OnFly Trip #${opts.tripRef}: tap to confirm ${opts.label} — ${opts.tapUrl}`
-  )
-}
-
 /**
  * Pick a free pool number: not assigned to another active trip that shares
  * any cell with the candidate participants.

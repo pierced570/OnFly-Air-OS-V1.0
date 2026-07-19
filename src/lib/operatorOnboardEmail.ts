@@ -5,8 +5,6 @@
 import { createEmailAdapter } from '@/adapters/email'
 
 export const DEFAULT_SKYIQ_URL = 'https://info.skyiq.net/'
-/** External ops form (legacy). Prefer in-app /onboard (no insured-amount field). */
-export const LEGACY_ONBOARD_URL = 'https://operations.onflyair.com/onboard'
 
 export const DEFAULT_REFERENCES = [
   { name: 'Sonrise Aviation', phone: '(260) 766-4548' },

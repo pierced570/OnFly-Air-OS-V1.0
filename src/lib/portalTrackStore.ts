@@ -36,14 +36,8 @@ export function createPortalTrackToken(opts: {
   return token
 }
 
-export function getOrCreatePortalTrackToken(opts: {
-  tripId: string
-  email: string
-}): string {
-  for (const row of byToken.values()) {
-    if (row.tripId === opts.tripId) return row.token
-  }
-  return createPortalTrackToken(opts)
+export function getPortalTrackTripId(token: string): string | null {
+  return byToken.get(token)?.tripId ?? null
 }
 
 export function getPortalTrackRow(token: string): PortalTrackRow | null {

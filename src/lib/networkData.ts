@@ -1,4 +1,3 @@
-import networkFixture from '@/fixtures/network.json'
 import type { AircraftRow, NetworkFixture, OperatorRow } from '@/lib/types'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { syncWatchedFromFleet } from '@/lib/watchedTailsStore'
@@ -11,23 +10,19 @@ export type LoadedNetwork = NetworkFixture & { source: NetworkLoadSource }
 
 let cached: LoadedNetwork | null = null
 
-/** Clear in-module cache (e.g. after fleet import). */
-export function clearNetworkCache() {
-  cached = null
-}
-
 export async function loadNetwork(): Promise<LoadedNetwork> {
   if (cached) return cached
 
   if (isSupabaseConfigured && supabase) {
-    const [{ data: operators, error: oErr }, { data: aircraft, error: aErr }] = await Promise.all([
-      supabase.from('operators').select('id,name,base_icao,needs_info'),
-      supabase
-        .from('aircraft')
-        .select(
-          'id,operator_id,tail,type_name,category,engines,base_icao,cruise_kts,mtow_lbs,max_payload_lbs,seats,needs_info,active,operators(name)',
-        ),
-    ])
+    const [{ data: operators, error: oErr }, { data: aircraft, error: aErr }] =
+      await Promise.all([
+        supabase.from('operators').select('id,name,base_icao,needs_info'),
+        supabase
+          .from('aircraft')
+          .select(
+            'id,operator_id,tail,type_name,category,engines,base_icao,cruise_kts,mtow_lbs,max_payload_lbs,seats,needs_info,active,operators(name)',
+          ),
+      ])
     // Only use live DB when it actually has fleet rows — empty project
     // must fall through to the bundled fixture or intake/quote recommend nothing.
     if (!oErr && !aErr && operators && aircraft && aircraft.length > 0) {
@@ -77,7 +72,9 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
     }
   }
 
-  const fixture = networkFixture as NetworkFixture
+  // Lazy-load fixture only when DB is empty / unavailable (~400KB)
+  const mod = await import('@/fixtures/network.json')
+  const fixture = mod.default as NetworkFixture
   cached = { ...fixture, source: 'fixture' }
   syncWatchedFromFleet(fixture.aircraft)
   return cached

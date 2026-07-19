@@ -2,7 +2,6 @@
  * Inbound email/SMS intake → draft trips awaiting dispatcher review.
  */
 
-import { handleInboundEmail } from '@/domain/intakeEmail'
 import { listRequestAlertEmails } from '@/lib/clientStore'
 import {
   FALLBACK_DISPATCH_PHONE,
@@ -80,6 +79,7 @@ export async function simulateInboundEmail(opts: {
       : alerts.includes(from)
 
   const notifyPhone = resolveDispatchPhone()
+  const { handleInboundEmail } = await import('@/domain/intakeEmail')
   const result = await handleInboundEmail({
     from: opts.from,
     subject: opts.subject,

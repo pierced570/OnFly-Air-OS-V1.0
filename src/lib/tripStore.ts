@@ -27,7 +27,6 @@ import {
   type AppLeg,
 } from '@/domain/tripLegs'
 import { tripInvoiceLines } from '@/domain/qbInvoice'
-import { createAccountingAdapter } from '@/adapters/accounting'
 import { raiseException } from '@/lib/exceptionStore'
 import { getEtaDefaults } from '@/lib/etaDefaultsStore'
 import { roleOnOpsThread } from '@/domain/tripThread'
@@ -980,6 +979,7 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   if (t.invoice) return t.invoice
   const total = t.quick?.client_price ?? t.hard_quote?.total ?? 0
   if (!(total > 0)) return null
+  const { createAccountingAdapter } = await import('@/adapters/accounting')
   const acct = createAccountingAdapter()
   const clientName = t.quick?.client_name ?? 'Client'
   const po = t.quick?.po?.trim() || `T-${t.ref}`
