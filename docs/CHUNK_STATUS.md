@@ -98,7 +98,7 @@ Updated as we convert mocks → durable/live paths.
 | WX METAR/TAF | **live** | `wx-brief` + aviationweather.gov · flight-cat colors |
 | OpenAI | fallback only | Claude preferred |
 | ADS-B | **blocked** | RapidAPI dead — leave `VITE_ADSB_ADAPTER=mock` until FlightAware/ADSBX direct |
-| QuickBooks | **blocked** | Vault login only — need Intuit OAuth app |
+| QuickBooks | **wired (mock default)** | Edge `quickbooks-auth` / `quickbooks-api` / `send-invoice-email`; Financials Connect + Send Invoice; flip `VITE_QB_ADAPTER=real` after Intuit OAuth app secrets |
 | RingCentral / Telnyx | **blocked** | Not sourced — SMS/voice stay mock |
 | NOTAMs | **blocked** | FAA API enrollment |
 | Twilio | login only | Prefer RC for SMS |
@@ -109,7 +109,7 @@ Deploy: `npm run deploy:vendors` · Admin chip strip shows live / wire / mock.
 
 1. ADS-B provider swap (FlightAware or ADSBX direct)  
 2. RingCentral SMS adapter  
-3. QuickBooks OAuth  
+3. QuickBooks OAuth app secrets (`QB_CLIENT_ID`/`SECRET`) + Connect on Financials → sandbox invoice smoke test  
 4. FAA NOTAM API  
 5. Persist trips/offers via `trip_transition`  
 6. Resend inbound webhook for intake-email  

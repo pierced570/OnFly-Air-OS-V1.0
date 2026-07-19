@@ -187,7 +187,7 @@ function ClientDetail({ client }: { client: ClientProfile }) {
         </div>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-3">
         <label className={label}>
           Default invoice email
           <input
@@ -205,6 +205,19 @@ function ClientDetail({ client }: { client: ClientProfile }) {
             className={input}
             value={client.pay_terms}
             onChange={(e) => updateClient(client.id, { pay_terms: e.target.value })}
+          />
+        </label>
+        <label className={label}>
+          PO prefix
+          <input
+            className={`${input} avionic uppercase`}
+            value={client.po_prefix ?? ''}
+            onChange={(e) =>
+              updateClient(client.id, {
+                po_prefix: e.target.value.trim().toUpperCase() || null,
+              })
+            }
+            placeholder="PSA"
           />
         </label>
       </section>

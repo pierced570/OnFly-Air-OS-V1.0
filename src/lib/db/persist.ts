@@ -67,6 +67,7 @@ async function resolveClientDbId(client: ClientProfile): Promise<string | null> 
         notes: client.notes,
         invoice_email: client.invoice_email,
         last_po: client.last_po,
+        po_prefix: client.po_prefix,
         profile: client.profile ?? {},
       })
       .select('id')
@@ -90,6 +91,7 @@ export async function persistClient(client: ClientProfile): Promise<void> {
         notes: client.notes,
         invoice_email: client.invoice_email,
         last_po: client.last_po,
+        po_prefix: client.po_prefix,
         profile: client.profile ?? {},
       })
       .eq('id', dbId),

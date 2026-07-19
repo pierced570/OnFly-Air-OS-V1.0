@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
   listFinancials,
   subscribeFinancials,
@@ -9,6 +9,9 @@ import {
   summarize,
   type ComputedFinancial,
 } from '@/domain/financials'
+import { sendFinancialInvoice } from '@/lib/invoiceFlow'
+import { useQuickBooksDashboard } from '@/lib/useQuickBooksDashboard'
+import { isRealQbEnabled } from '@/adapters/accounting'
 
 function usd(n: number, digits = 2) {
   return n.toLocaleString(undefined, {
@@ -89,6 +92,21 @@ export default function FinancialsPage() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [openDrawer, setOpenDrawer] = useState<Record<string, Drawer>>({})
   const [openAll, setOpenAll] = useState<Drawer>(null)
+  const [invoiceBusy, setInvoiceBusy] = useState<string | null>(null)
+  const [invoiceMsg, setInvoiceMsg] = useState<string | null>(null)
+  const qb = useQuickBooksDashboard()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const flag = params.get('qb')
+    if (flag === 'connected') {
+      setInvoiceMsg('QuickBooks connected.')
+      void qb.refresh()
+    } else if (flag === 'token_failed' || flag === 'error') {
+      setInvoiceMsg('QuickBooks connect failed — check QB secrets / redirect URI.')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -156,16 +174,52 @@ export default function FinancialsPage() {
     setOpenDrawer((m) => ({ ...m, [id]: m[id] === d ? null : d }))
   }
 
+  async function sendInvoice(r: ComputedFinancial) {
+    setInvoiceBusy(r.id)
+    setInvoiceMsg(null)
+    try {
+      const result = await sendFinancialInvoice(r)
+      setInvoiceMsg(
+        result.emailed
+          ? `Invoice ${result.poNumber} created + emailed to ${result.to.join(', ')}`
+          : `Invoice ${result.poNumber} created in ${result.created.mock ? 'mock' : 'QuickBooks'}${
+              result.to.length ? '' : ' — no AP email on file'
+            }`,
+      )
+      void qb.refresh()
+    } catch (e) {
+      setInvoiceMsg(e instanceof Error ? e.message : String(e))
+    } finally {
+      setInvoiceBusy(null)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5 p-4 pb-28 sm:p-6">
       <header>
         <div className="text-xs uppercase tracking-[0.2em] text-gold">Money</div>
         <h1 className="mt-1 text-2xl font-semibold text-cream">Financials</h1>
         <p className="mt-1 text-sm text-muted">
-          {rows.length} records from OFA export · tax column ready (historical rows
-          blank until FET split)
+          {rows.length} records · QBO create with EmailStatus=NotSet · branded Resend
+          delivery (never Intuit email)
         </p>
       </header>
+
+      <QbConnectBanner
+        connected={qb.connection?.connected ?? false}
+        environment={qb.connection?.environment ?? null}
+        realMode={isRealQbEnabled()}
+        busy={qb.busy}
+        error={qb.error}
+        onConnect={() => void qb.connect()}
+        onRefresh={() => void qb.refresh()}
+      />
+
+      {invoiceMsg && (
+        <p className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-cream">
+          {invoiceMsg}
+        </p>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Kpi label="Total revenue" value={usd(stats.revenue, 0)} tone="onplan" />
@@ -174,6 +228,23 @@ export default function FinancialsPage() {
         <Kpi label="Unpaid" value={String(stats.unpaid)} tone="late" />
         <Kpi label="Records" value={String(stats.trips)} />
       </div>
+
+      {qb.stats && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Kpi
+            label={`QBO revenue (${qb.stats.source})`}
+            value={usd(qb.stats.lifetime_revenue, 0)}
+            tone="onplan"
+          />
+          <Kpi
+            label="QBO outstanding"
+            value={usd(qb.stats.total_outstanding, 0)}
+            tone="late"
+          />
+          <Kpi label="QBO open" value={String(qb.stats.open_count)} />
+          <Kpi label="QBO overdue" value={String(qb.stats.overdue_count)} tone="late" />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end gap-2">
         <input
@@ -310,6 +381,8 @@ export default function FinancialsPage() {
                   clientOk={clientOk}
                   opOk={Boolean(opOk)}
                   invOk={invOk}
+                  invoiceBusy={invoiceBusy === r.id}
+                  onSendInvoice={() => void sendInvoice(r)}
                 />
               )
             })}
@@ -352,6 +425,62 @@ export default function FinancialsPage() {
   )
 }
 
+function QbConnectBanner({
+  connected,
+  environment,
+  realMode,
+  busy,
+  error,
+  onConnect,
+  onRefresh,
+}: {
+  connected: boolean
+  environment: string | null
+  realMode: boolean
+  busy: boolean
+  error: string | null
+  onConnect: () => void
+  onRefresh: () => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+      <div className="min-w-0">
+        <div className="text-xs uppercase tracking-wider text-muted">
+          QuickBooks Online
+        </div>
+        <p className="mt-0.5 text-sm text-cream">
+          {!realMode
+            ? 'Mock mode — invoices stay local until VITE_QB_ADAPTER=real + OAuth secrets'
+            : connected
+              ? `Connected${environment ? ` · ${environment}` : ''}`
+              : 'Not connected — Connect to create QBO invoices (EmailStatus=NotSet)'}
+        </p>
+        {error && <p className="mt-1 text-xs text-late">{error}</p>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onRefresh}
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-muted hover:text-cream"
+        >
+          Refresh
+        </button>
+        {realMode && !connected && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConnect}
+            className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
+          >
+            Connect QuickBooks
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function FragmentRow({
   r,
   selected,
@@ -361,6 +490,8 @@ function FragmentRow({
   clientOk,
   opOk,
   invOk,
+  invoiceBusy,
+  onSendInvoice,
 }: {
   r: ComputedFinancial
   selected: boolean
@@ -370,7 +501,10 @@ function FragmentRow({
   clientOk: boolean
   opOk: boolean
   invOk: boolean
+  invoiceBusy: boolean
+  onSendInvoice: () => void
 }) {
+  const alreadyInvoiced = Boolean(r.qb_invoice_id)
   return (
     <>
       <tr
@@ -415,6 +549,9 @@ function FragmentRow({
             <StatusPill label="Client" ok={clientOk} tone="onplan" />
             <StatusPill label="Op" ok={opOk} tone="gold" />
             <StatusPill label="Inv" ok={invOk} tone="attn" />
+            {alreadyInvoiced && (
+              <StatusPill label="QB" ok tone="gold" />
+            )}
           </div>
         </td>
         <td className="px-2 py-2 whitespace-nowrap">
@@ -427,17 +564,38 @@ function FragmentRow({
           </button>
           <button
             type="button"
-            className="text-xs text-gold hover:underline"
+            className="mr-2 text-xs text-gold hover:underline"
             onClick={() => onDrawer('client')}
           >
             {drawer === 'client' ? '▾' : '▸'} Client Pmts
+          </button>
+          <button
+            type="button"
+            disabled={invoiceBusy || alreadyInvoiced || r.client_invoiced_amount <= 0}
+            onClick={onSendInvoice}
+            className="rounded border border-gold/40 px-2 py-0.5 text-xs font-medium text-gold disabled:opacity-40"
+            title={
+              alreadyInvoiced
+                ? `QB ${r.qb_invoice_number || r.qb_invoice_id}`
+                : 'Create QBO invoice + branded email'
+            }
+          >
+            {invoiceBusy ? '…' : alreadyInvoiced ? 'Invoiced' : 'Send Invoice'}
           </button>
         </td>
       </tr>
       {drawer && (
         <tr className="border-t border-border/40 bg-ink/60">
           <td colSpan={15} className="px-3 py-3">
-            {drawer === 'op' ? <OpDrawer r={r} /> : <ClientDrawer r={r} />}
+            {drawer === 'op' ? (
+              <OpDrawer r={r} />
+            ) : (
+              <ClientDrawer
+                r={r}
+                invoiceBusy={invoiceBusy}
+                onSendInvoice={onSendInvoice}
+              />
+            )}
           </td>
         </tr>
       )}
@@ -518,11 +676,37 @@ function OpDrawer({ r }: { r: ComputedFinancial }) {
   )
 }
 
-function ClientDrawer({ r }: { r: ComputedFinancial }) {
+function ClientDrawer({
+  r,
+  invoiceBusy,
+  onSendInvoice,
+}: {
+  r: ComputedFinancial
+  invoiceBusy: boolean
+  onSendInvoice: () => void
+}) {
   return (
     <div className="rounded-lg border border-onplan/30 bg-onplan/5 p-3">
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-onplan">
-        Client Pmts
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold uppercase tracking-wider text-onplan">
+          Client Pmts
+        </div>
+        <button
+          type="button"
+          disabled={
+            invoiceBusy ||
+            Boolean(r.qb_invoice_id) ||
+            r.client_invoiced_amount <= 0
+          }
+          onClick={onSendInvoice}
+          className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink disabled:opacity-40"
+        >
+          {invoiceBusy
+            ? 'Sending…'
+            : r.qb_invoice_id
+              ? `QB ${r.qb_invoice_number || r.qb_invoice_id}`
+              : 'Send Invoice'}
+        </button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-xs text-muted">

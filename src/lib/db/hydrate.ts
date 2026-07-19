@@ -27,7 +27,7 @@ export async function hydrateOperatingData(): Promise<{
     db()
       .from('clients')
       .select(
-        'id,name,billing_terms,qb_customer_id,notes,invoice_email,last_po,legacy_key,profile,client_contacts(id,name,role,email,cell,notify_prefs),client_rules(*)',
+        'id,name,billing_terms,qb_customer_id,notes,invoice_email,last_po,po_prefix,legacy_key,profile,client_contacts(id,name,role,email,cell,notify_prefs),client_rules(*)',
       )
       .order('name'),
   )
@@ -58,6 +58,11 @@ export async function hydrateOperatingData(): Promise<{
           }
         }),
         last_po: r.last_po ? String(r.last_po) : null,
+        po_prefix: r.po_prefix
+          ? String(r.po_prefix)
+          : r.last_po
+            ? String(r.last_po).match(/^([A-Za-z]+)/)?.[1]?.toUpperCase() ?? null
+            : null,
         pay_terms: String(r.billing_terms ?? 'Net 30'),
         notes: String(r.notes ?? ''),
         rules: {

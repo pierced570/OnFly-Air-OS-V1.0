@@ -6,6 +6,7 @@ import { isLiveEmailConfigured, isRealEmailEnabled } from '@/adapters/email'
 import { isRealLlmEnabled } from '@/adapters/llm'
 import { isRealMapsEnabled } from '@/adapters/maps'
 import { isRealAdsbEnabled } from '@/adapters/adsb'
+import { isRealQbEnabled } from '@/adapters/accounting'
 import { adapterMode } from '@/adapters/types'
 import { isSupabaseConfigured } from '@/lib/supabase'
 
@@ -91,8 +92,15 @@ export function listAdapterDoorStatus(): AdapterDoorStatus[] {
     {
       id: 'qb',
       label: 'QuickBooks',
-      state: 'blocked',
-      detail: 'Need Intuit OAuth app (vault has login only)',
+      state: isRealQbEnabled() && isSupabaseConfigured
+        ? 'live'
+        : isRealQbEnabled()
+          ? 'blocked'
+          : 'mock',
+      detail:
+        isRealQbEnabled() && isSupabaseConfigured
+          ? 'quickbooks-api · OAuth + branded Resend PDF'
+          : 'Set VITE_QB_ADAPTER=real + QB_CLIENT_ID/SECRET on edge',
     },
     {
       id: 'notam',

@@ -7,6 +7,8 @@
  *   ANTHROPIC_API_KEY (preferred for llm-extract)
  *   OPENAI_API_KEY (optional fallback)
  *   ADSB_RAPIDAPI_KEY (optional — function still deploys)
+ *   QB_CLIENT_ID, QB_CLIENT_SECRET (optional — QuickBooks OAuth)
+ *   QB_ENVIRONMENT, QB_REDIRECT_URI, INVOICE_EMAIL_FROM (optional)
  *
  * Usage: npx tsx scripts/deploy-vendor-functions.ts
  */
@@ -63,6 +65,20 @@ if (process.env.ADSB_RAPIDAPI_KEY?.trim()) {
 if (process.env.OPENAI_MODEL?.trim()) {
   pairs.push(`OPENAI_MODEL=${process.env.OPENAI_MODEL.trim()}`)
 }
+if (process.env.QB_CLIENT_ID?.trim() && process.env.QB_CLIENT_SECRET?.trim()) {
+  pairs.push(`QB_CLIENT_ID=${process.env.QB_CLIENT_ID.trim()}`)
+  pairs.push(`QB_CLIENT_SECRET=${process.env.QB_CLIENT_SECRET.trim()}`)
+  pairs.push(
+    `QB_ENVIRONMENT=${(process.env.QB_ENVIRONMENT ?? 'sandbox').trim()}`,
+  )
+  if (process.env.QB_REDIRECT_URI?.trim()) {
+    pairs.push(`QB_REDIRECT_URI=${process.env.QB_REDIRECT_URI.trim()}`)
+  }
+  const invFrom =
+    process.env.INVOICE_EMAIL_FROM?.trim() ||
+    'OnFly Air <invoices@onflyair.com>'
+  pairs.push(`INVOICE_EMAIL_FROM=${invFrom}`)
+}
 
 if (!pairs.length) {
   console.error('No vendor secrets found in .env')
@@ -79,16 +95,31 @@ run('npx', [
   PROJECT_REF,
 ])
 
-for (const fn of ['send-email', 'llm-extract', 'adsb-positions', 'wx-brief']) {
+const noJwt = new Set([
+  'quickbooks-auth',
+  'quickbooks-api',
+  'send-invoice-email',
+])
+for (const fn of [
+  'send-email',
+  'llm-extract',
+  'adsb-positions',
+  'wx-brief',
+  'quickbooks-auth',
+  'quickbooks-api',
+  'send-invoice-email',
+]) {
   console.log(`Deploying ${fn}…`)
-  run('npx', [
+  const args = [
     'supabase',
     'functions',
     'deploy',
     fn,
     '--project-ref',
     PROJECT_REF,
-  ])
+  ]
+  if (noJwt.has(fn)) args.push('--no-verify-jwt')
+  run('npx', args)
 }
 
 console.log(`
@@ -101,6 +132,10 @@ Deployed. Enable on Vercel / .env.local:
   VITE_MAPS_ADAPTER=real
   VITE_LLM_ADAPTER=real
   VITE_ADSB_ADAPTER=real
+  VITE_QB_ADAPTER=real   # after Intuit OAuth app + Connect on Financials
+
+QuickBooks redirect URI (Intuit developer app):
+  https://${PROJECT_REF}.supabase.co/functions/v1/quickbooks-auth/callback
 
 Note: ADS-B RapidAPI returned "not subscribed" when probed — renew
 ADSBexchange-com1 on RapidAPI; until then Radar shows no_data flags.
