@@ -81,11 +81,15 @@ export class MapboxMapsAdapter implements MapsAdapter {
 }
 
 export function createMapsAdapter(): MapsAdapter {
-  const mode = adapterMode('VITE_MAPS_ADAPTER', 'mock')
-  if (mode === 'real') return new MapboxMapsAdapter()
+  const mode = adapterMode('VITE_MAPS_ADAPTER', 'real')
+  const token = (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined)?.trim()
+  if (mode === 'real' && token) return new MapboxMapsAdapter()
+  if (mode === 'real' && !token) {
+    console.warn('[maps] real mode needs VITE_MAPBOX_TOKEN — using mock GC')
+  }
   return new MockMapsAdapter()
 }
 
 export function isRealMapsEnabled(): boolean {
-  return adapterMode('VITE_MAPS_ADAPTER', 'mock') === 'real'
+  return adapterMode('VITE_MAPS_ADAPTER', 'real') === 'real'
 }

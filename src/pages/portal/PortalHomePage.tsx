@@ -3,13 +3,12 @@ import { Link } from 'react-router-dom'
 import {
   clearPortalClient,
   getPortalClient,
-  getPortalClientId,
 } from '@/lib/clientOnboardStore'
 import { listClients, subscribeClients } from '@/lib/clientStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
 
 function useRequests() {
-  return useSyncExternalStore(subscribeRequests, listRequests, () => [])
+  return useSyncExternalStore(subscribeRequests, listRequests, listRequests)
 }
 
 function usePortalClient() {
@@ -17,11 +16,10 @@ function usePortalClient() {
   return getPortalClient()
 }
 
-/** Client-facing portal — magic-link auth later; onboard binds this browser. */
+/** Client-facing portal — request & track. Onboarding lives at /client (shareable). */
 export default function PortalHomePage() {
   const requests = useRequests().filter((r) => r.source === 'portal')
   const client = usePortalClient()
-  const clientId = getPortalClientId()
 
   return (
     <div className="min-h-screen bg-cream text-ink" data-theme="client">
@@ -30,21 +28,7 @@ export default function PortalHomePage() {
         <h1 className="text-xl font-semibold">Client portal</h1>
       </header>
       <main className="mx-auto max-w-3xl space-y-6 p-6">
-        {!client ? (
-          <section className="rounded-lg border border-border bg-surface-2 p-5">
-            <h2 className="font-medium">New here?</h2>
-            <p className="mt-1 text-sm text-muted">
-              Complete a short onboarding so we know who gets tracking, invoices,
-              and emergency calls — then request trips from this portal.
-            </p>
-            <Link
-              to="/portal/onboard"
-              className="mt-4 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
-            >
-              Start customer onboarding
-            </Link>
-          </section>
-        ) : (
+        {client ? (
           <section className="rounded-lg border border-border bg-surface-2 p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
@@ -73,6 +57,14 @@ export default function PortalHomePage() {
                 Switch company
               </button>
             </div>
+          </section>
+        ) : (
+          <section className="rounded-lg border border-border bg-surface-2 p-5">
+            <h2 className="font-medium">Welcome</h2>
+            <p className="mt-1 text-sm text-muted">
+              Request trips and watch status here. If OnFly sent you a setup link,
+              use that first — it is separate from this portal.
+            </p>
           </section>
         )}
 
@@ -113,14 +105,6 @@ export default function PortalHomePage() {
           >
             Request a trip
           </Link>
-          {clientId && (
-            <Link
-              to="/portal/onboard"
-              className="inline-flex rounded-md border border-border px-4 py-2 text-sm text-ink"
-            >
-              Update onboarding
-            </Link>
-          )}
         </div>
       </main>
     </div>

@@ -168,7 +168,9 @@ export default function OffersPage() {
 
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">Phone simulator</h2>
-          <p className="mt-1 text-xs text-muted">Mock SMS in/out — zero API keys</p>
+          <p className="mt-1 text-xs text-muted">
+            SMS via mock until RingCentral is wired
+          </p>
           <ul className="mt-3 max-h-[28rem] space-y-2 overflow-auto text-sm">
             {msgs.length === 0 && <li className="text-muted">No messages yet</li>}
             {msgs.map((m, i) => (

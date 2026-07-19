@@ -60,6 +60,13 @@ export type ClientExtendedProfile = {
     state: string
     zip: string
   }
+  billing_address?: {
+    street: string
+    city: string
+    state: string
+    zip: string
+  }
+  billing_same_as_address?: boolean
   front_desk_phone?: string
   emergency?: { name: string; email: string; phone: string }
   frequent_lanes?: Array<{
@@ -91,6 +98,8 @@ export type ClientProfile = {
   invoice_email: string
   contacts: ClientContact[]
   last_po: string | null
+  /** Client-specific PO prefix (e.g. PSA, EDW) for DocNumber sequencing */
+  po_prefix: string | null
   pay_terms: string
   notes: string
   rules: ClientRules
@@ -146,15 +155,17 @@ function seedFromFinancials() {
     const pay =
       financialsFixture.records.find((r) => r.client_name === name)?.pay_terms ||
       'Net 30'
+    const lastPo =
+      financialsFixture.records.find((r) => r.client_name === name)
+        ?.operator_po ?? null
     clients.set(id, {
       id,
       name,
       email: '',
       invoice_email: '',
       contacts: [],
-      last_po:
-        financialsFixture.records.find((r) => r.client_name === name)
-          ?.operator_po ?? null,
+      last_po: lastPo,
+      po_prefix: guessPoPrefix(lastPo),
       pay_terms: String(pay),
       notes: '',
       rules: { ...DEFAULT_CLIENT_RULES },
@@ -187,6 +198,7 @@ export function addClient(opts: {
   email?: string
   invoice_email?: string
   pay_terms?: string
+  po_prefix?: string | null
   notes?: string
   rules?: Partial<ClientRules>
   qb_customer_id?: string | null
@@ -218,9 +230,14 @@ export function addClient(opts: {
       }
     }),
     last_po: null,
+    po_prefix: opts.po_prefix?.trim().toUpperCase() || null,
     pay_terms: opts.pay_terms?.trim() || 'Net 30',
     notes: opts.notes?.trim() ?? '',
-    rules: { ...DEFAULT_CLIENT_RULES, ...opts.rules },
+    rules: {
+      ...DEFAULT_CLIENT_RULES,
+      ...opts.rules,
+      other_rules: opts.rules?.other_rules ?? DEFAULT_CLIENT_RULES.other_rules,
+    },
     qb_customer_id: opts.qb_customer_id ?? null,
     profile: { ...(opts.profile ?? {}) },
   }
@@ -240,6 +257,7 @@ export function updateClient(
       | 'pay_terms'
       | 'notes'
       | 'last_po'
+      | 'po_prefix'
       | 'qb_customer_id'
       | 'profile'
     > & { rules: Partial<ClientRules> }
@@ -424,6 +442,13 @@ export function rememberEmailsOnClient(
     })
   }
   bump(clientId)
+}
+
+export function guessPoPrefix(lastPo: string | null | undefined): string | null {
+  if (!lastPo?.trim()) return null
+  const s = lastPo.trim().replace(/^PO\s*#?\s*/i, '')
+  const m = s.match(/^([A-Za-z]+)/)
+  return m?.[1]?.toUpperCase() ?? null
 }
 
 export function suggestNextPo(lastPo: string | null): string {

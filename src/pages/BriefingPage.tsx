@@ -1,110 +1,270 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { createWxAdapter, type WxBrief } from '@/adapters/wx'
-import { listTrips } from '@/lib/tripStore'
+import { FlightCatBadge } from '@/components/FlightCatBadge'
+import {
+  REST_IDLE_HOURS,
+  formatIdleLabel,
+  type FlyingTripRow,
+  type IdleOperatorRow,
+  type NationalWxSummary,
+} from '@/domain/fleetBriefing'
+import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
+import { loadFleetBriefing } from '@/lib/fleetBriefingData'
+import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
 import { getOnShift, updateShiftNotes } from '@/lib/shiftStore'
-import { raiseException } from '@/lib/exceptionStore'
 
 export default function BriefingPage() {
-  const trips = listTrips()
-  const active = trips.filter((t) =>
-    ['offers_out', 'quoted_hard', 'booked', 'in_progress'].includes(t.state),
-  )
+  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const pendingQuotes = trips.filter((t) =>
     ['quoted_estimated', 'offers_out'].includes(t.state),
   )
   const onShift = getOnShift()
   const [notes, setNotes] = useState(onShift?.notes ?? '')
-  const [briefs, setBriefs] = useState<WxBrief[]>([])
-  const [wxBusy, setWxBusy] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [idleOperators, setIdleOperators] = useState<IdleOperatorRow[]>([])
+  const [nationalWx, setNationalWx] = useState<NationalWxSummary | null>(null)
+  const [flyingTrips, setFlyingTrips] = useState<FlyingTripRow[]>([])
+  const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+  const [adsbPending, setAdsbPending] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const watchIcaos = useMemo(() => {
-    const set = new Set<string>()
-    for (const t of active) {
-      for (const leg of t.legs) {
-        if (leg.origin) set.add(leg.origin.toUpperCase())
-        if (leg.dest) set.add(leg.dest.toUpperCase())
-      }
-      if (t.quick) {
-        for (const l of t.quick.legs) {
-          if (l.origin_icao) set.add(l.origin_icao.toUpperCase())
-          if (l.dest_icao) set.add(l.dest_icao.toUpperCase())
-        }
-      }
-      const lane = t.lane.match(/([A-Z0-9]{3,4})/g)
-      for (const m of lane ?? []) set.add(m)
-    }
-    if (set.size === 0) set.add('KCAK')
-    return [...set].slice(0, 8)
-  }, [active])
-
-  async function loadWx() {
-    setWxBusy(true)
+  async function refresh() {
+    setBusy(true)
+    setError(null)
     try {
-      const wx = createWxAdapter()
-      const rows = await Promise.all(watchIcaos.map((icao) => wx.brief(icao)))
-      setBriefs(rows)
-      for (const b of rows) {
-        for (const flag of b.hardFlags) {
-          raiseException({
-            trip_id: null,
-            trip_ref: null,
-            title: `WX flag · ${b.icao}`,
-            detail: flag,
-            severity: 'attn',
-          })
-        }
-      }
+      const b = await loadFleetBriefing()
+      setIdleOperators(b.idleOperators)
+      setNationalWx(b.nationalWx)
+      setFlyingTrips(b.flyingTrips)
+      setFetchedAt(b.fetchedAt)
+      setAdsbPending(b.adsbPending)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
-      setWxBusy(false)
+      setBusy(false)
     }
   }
 
   useEffect(() => {
-    void loadWx()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchIcaos.join(',')])
+    void refresh()
+  }, [trips.length])
+
+  const zulu = useMemo(() => {
+    if (!fetchedAt) return '—'
+    try {
+      return new Date(fetchedAt).toISOString().slice(11, 16) + 'Z'
+    } catch {
+      return '—'
+    }
+  }, [fetchedAt])
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">Shift ops</div>
-          <h1 className="mt-1 text-2xl font-semibold text-cream">Shift briefing</h1>
+          <div className="text-xs uppercase tracking-[0.2em] text-gold">
+            Fleet ops
+          </div>
+          <h1 className="mt-1 text-2xl font-semibold text-cream">
+            Fleet briefing
+          </h1>
           <p className="mt-1 text-sm text-muted">
-            Cold-load for the on-shift dispatcher — WX watch from aviationweather.gov.
+            Idle top operators (≥{REST_IDLE_HOURS}h), national WX glance, trips
+            out flying.
+            {onShift && (
+              <span className="ml-2 text-gold">
+                On shift: {onShift.person_name}
+              </span>
+            )}
           </p>
-          {onShift && (
-            <p className="mt-1 text-xs text-gold">
-              On shift: {onShift.person_name} · {onShift.phone}
-            </p>
-          )}
+          <p className="mt-1 text-[11px] text-muted">
+            As of <span className="avionic text-cream">{zulu}</span>
+            {adsbPending
+              ? ' · ADS-B pending — idle uses trip history when available'
+              : ' · ADS-B + trip history'}
+          </p>
         </div>
         <button
           type="button"
-          className="rounded-md border border-gold/40 px-3 py-1.5 text-sm text-gold"
-          disabled={wxBusy}
-          onClick={() => void loadWx()}
+          className="rounded-md border border-gold/40 px-3 py-1.5 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
+          disabled={busy}
+          onClick={() => void refresh()}
         >
-          {wxBusy ? 'Refreshing WX…' : 'Refresh WX'}
+          {busy ? 'Refreshing…' : 'Refresh brief'}
         </button>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {error && (
+        <p className="rounded-md border border-late/40 bg-late/10 px-3 py-2 text-sm text-late">
+          {error}
+        </p>
+      )}
+
+      {/* Primary three-panel brief */}
+      <div className="grid gap-4 xl:grid-cols-3">
         <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Active trips</h2>
-          {active.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">None yet</p>
+          <h2 className="text-xs uppercase tracking-wider text-gold">
+            Top operators idle ≥{REST_IDLE_HOURS}h
+          </h2>
+          <p className="mt-1 text-[11px] text-muted">
+            Largest fleets with no flight in the last {REST_IDLE_HOURS} hours
+            (advisory — operator confirms legality).
+          </p>
+          {idleOperators.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">
+              {busy
+                ? 'Loading…'
+                : 'No idle top operators right now — everyone recent or still loading.'}
+            </p>
           ) : (
-            <ul className="mt-2 space-y-2">
-              {active.map((t) => (
+            <ul className="mt-3 space-y-2">
+              {idleOperators.map((op) => (
+                <li
+                  key={op.operator_id}
+                  className="rounded border border-border/60 bg-ink px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium text-cream">
+                      {op.operator_name}
+                    </span>
+                    <span className="avionic text-[11px] text-gold">
+                      {formatIdleLabel(op)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-muted">
+                    <span className="avionic text-cream">
+                      {op.base_icao ?? '—'}
+                    </span>
+                    <span className="avionic">{op.aircraft_count} ac</span>
+                    <span>
+                      {op.evidence === 'adsb'
+                        ? 'from ADS-B'
+                        : op.evidence === 'trip'
+                          ? 'from trips'
+                          : 'no signal'}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <Link to="/network" className="mt-3 inline-block text-xs text-gold">
+            Open Network →
+          </Link>
+        </section>
+
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-xs uppercase tracking-wider text-gold">
+            National weather
+          </h2>
+          <p className="mt-1 text-[11px] text-muted">
+            Sample hubs CONUS ·{' '}
+            <span className="text-vfr">VFR</span>
+            {' · '}
+            <span className="text-mvfr">MVFR</span>
+            {' · '}
+            <span className="text-ifr">IFR</span>
+            {' · '}
+            <span className="text-lifr">LIFR</span>
+          </p>
+          {!nationalWx ? (
+            <p className="mt-3 text-sm text-muted">Loading WX…</p>
+          ) : (
+            <>
+              <p className="mt-3 text-sm text-cream">{nationalWx.headline}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
+                {(
+                  ['VFR', 'MVFR', 'IFR', 'LIFR'] as const
+                ).map((c) => (
+                  <span key={c} className="inline-flex items-center gap-1">
+                    <FlightCatBadge cat={c} size="sm" />
+                    <span className="avionic">{nationalWx.counts[c]}</span>
+                  </span>
+                ))}
+              </div>
+              <ul className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {nationalWx.stations.map((s) => (
+                  <li
+                    key={s.icao}
+                    className="flex items-center justify-between gap-1 rounded border border-border/50 bg-ink px-2 py-1.5"
+                    title={
+                      s.flightCat
+                        ? `${s.region} · ${FLIGHT_CATEGORY_LABELS[s.flightCat]}`
+                        : s.region
+                    }
+                  >
+                    <span className="avionic text-xs text-cream">{s.icao}</span>
+                    <FlightCatBadge cat={s.flightCat} size="sm" />
+                  </li>
+                ))}
+              </ul>
+              {nationalWx.worst.length > 0 && (
+                <p className="mt-2 text-[11px] text-muted">
+                  Watch:{' '}
+                  {nationalWx.worst
+                    .map((w) => `${w.icao} ${w.cat}`)
+                    .join(' · ')}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-xs uppercase tracking-wider text-gold">
+            Trips out flying
+          </h2>
+          <p className="mt-1 text-[11px] text-muted">
+            In progress, or booked with an open/active leg.
+          </p>
+          {flyingTrips.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">
+              None out right now — quiet sky for OnFly trips.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {flyingTrips.map((t) => (
                 <li key={t.id}>
                   <Link
-                    className="text-sm text-cream hover:text-gold"
                     to={`/trips/${t.id}`}
+                    className="block rounded border border-onplan/30 bg-onplan/10 px-3 py-2 hover:border-gold/40"
                   >
-                    T-{t.ref} · {t.lane}{' '}
-                    <span className="avionic text-muted">{t.state}</span>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="avionic text-sm text-gold">T-{t.ref}</span>
+                      <span className="avionic text-[11px] text-onplan">
+                        {t.state}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-sm text-cream">{t.lane}</div>
+                    <div className="mt-0.5 text-[11px] text-muted">
+                      {t.operator_name ?? 'Operator TBD'}
+                      {t.active_leg_label ? ` · ${t.active_leg_label}` : ''}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <Link to="/" className="mt-3 inline-block text-xs text-gold">
+            Open Board →
+          </Link>
+        </section>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-xs uppercase tracking-wider text-muted">
+            Pending offers / quotes
+          </h2>
+          <p className="mt-2 avionic text-cream">{pendingQuotes.length}</p>
+          {pendingQuotes.length === 0 ? (
+            <p className="mt-1 text-sm text-muted">Clear</p>
+          ) : (
+            <ul className="mt-2 space-y-1 text-sm text-muted">
+              {pendingQuotes.map((t) => (
+                <li key={t.id}>
+                  <Link to={`/trips/${t.id}`} className="hover:text-gold">
+                    T-{t.ref} · {t.state}
                   </Link>
                 </li>
               ))}
@@ -114,79 +274,20 @@ export default function BriefingPage() {
 
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">
-            Pending offers / quotes
+            Handoff notes
           </h2>
-          <p className="mt-2 avionic text-cream">{pendingQuotes.length}</p>
-          <ul className="mt-2 space-y-1 text-sm text-muted">
-            {pendingQuotes.map((t) => (
-              <li key={t.id}>
-                T-{t.ref} · {t.state}
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="rounded-lg border border-border bg-surface p-4 lg:col-span-2">
-          <h2 className="text-xs uppercase tracking-wider text-muted">
-            WX watch list
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            METAR/TAF live · NOTAMs stub until FAA API approval · source{' '}
-            {briefs[0]?.source ?? '…'}
-          </p>
-          {briefs.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">Loading…</p>
-          ) : (
-            <ul className="mt-3 space-y-3">
-              {briefs.map((b) => (
-                <li
-                  key={b.icao}
-                  className="rounded border border-border/60 bg-ink px-3 py-2 text-sm"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="avionic text-gold">{b.icao}</span>
-                    <span className="text-[11px] text-muted">
-                      {new Date(b.fetchedAt).toISOString().slice(11, 19)}Z
-                    </span>
-                  </div>
-                  <p className="mt-1 text-cream">{b.summary}</p>
-                  {b.hardFlags.length > 0 && (
-                    <ul className="mt-1 text-xs text-late">
-                      {b.hardFlags.map((f) => (
-                        <li key={f}>{f}</li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Network</h2>
-          <p className="mt-2 text-sm text-muted">
-            Operator response stats fill in as you run trips.
-          </p>
-          <Link to="/radar" className="mt-3 inline-block text-xs text-gold">
-            Open Fleet Radar →
-          </Link>
+          <textarea
+            className="mt-2 w-full rounded border border-border bg-ink px-3 py-2 text-sm text-cream"
+            rows={3}
+            value={notes}
+            onChange={(e) => {
+              setNotes(e.target.value)
+              updateShiftNotes(e.target.value)
+            }}
+            placeholder="What the next dispatcher needs to know…"
+          />
         </section>
       </div>
-
-      <section className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-xs uppercase tracking-wider text-muted">Handoff notes</h2>
-        <textarea
-          className="mt-2 w-full rounded border border-border bg-ink px-3 py-2 text-sm text-cream"
-          rows={3}
-          value={notes}
-          onChange={(e) => {
-            setNotes(e.target.value)
-            updateShiftNotes(e.target.value)
-          }}
-          placeholder="What the next dispatcher needs to know…"
-        />
-      </section>
     </div>
   )
 }

@@ -13,7 +13,7 @@ describe('operator onboard email', () => {
       skyiqUrl: 'https://info.skyiq.net/',
     })
     const html = renderOperatorOnboardEmailHtml(tpl)
-    expect(html).toContain('Join the OnFly Air Network')
+    expect(html).toContain('Join our operator network')
     expect(html).toContain('https://example.com/onboard')
     expect(html).toContain('Complete Onboarding Form')
     expect(html).toContain('https://info.skyiq.net/')

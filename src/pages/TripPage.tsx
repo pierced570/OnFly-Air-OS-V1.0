@@ -12,14 +12,37 @@ import {
 import { clientRuleChips } from '@/lib/clientStore'
 import { canTransition } from '@/domain/stateMachine'
 import { createWxAdapter, type WxBrief } from '@/adapters/wx'
+import { FlightCatBadge } from '@/components/FlightCatBadge'
+import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
+import { PipelineStrip } from '@/components/PipelineStrip'
+import {
+  acknowledgeCheckpoint,
+  listCheckpoints,
+  scheduleCheckpointsForTrip,
+  subscribeCheckpoints,
+} from '@/lib/checkpointStore'
 
 export default function TripPage() {
   const { id } = useParams()
-  useSyncExternalStore(subscribeTrips, listTripsStable, () => [])
+  useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
+  const allChecks = useSyncExternalStore(
+    subscribeCheckpoints,
+    listCheckpoints,
+    listCheckpoints,
+  )
   const trip = id ? getTrip(id) : null
   const [threadBody, setThreadBody] = useState('')
   const [invoiceBusy, setInvoiceBusy] = useState(false)
   const [wxBriefs, setWxBriefs] = useState<WxBrief[]>([])
+  const tripChecks = useMemo(
+    () =>
+      allChecks.filter(
+        (c) =>
+          c.trip_id === id &&
+          (c.status === 'scheduled' || c.status === 'fired'),
+      ),
+    [allChecks, id],
+  )
 
   const ruleChips = useMemo(
     () => (trip?.client_id ? clientRuleChips(trip.client_id) : []),
@@ -92,8 +115,8 @@ export default function TripPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <div className="text-xs uppercase tracking-[0.2em] text-gold">
             {q ? 'Quick dispatch · execution' : 'Trip execution'}
           </div>
@@ -130,16 +153,16 @@ export default function TripPage() {
             </div>
           )}
         </div>
-        <div className="space-y-2 text-right">
-          <div className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-gold">
+        <div className="w-full space-y-2 sm:w-auto sm:text-right">
+          <div className="inline-flex rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-gold">
             <span className="avionic font-medium">{trip.state}</span>
           </div>
-          <div className="flex flex-wrap justify-end gap-1">
+          <div className="flex flex-wrap gap-1.5 sm:justify-end">
             {nextStates.map((to) => (
               <button
                 key={to}
                 type="button"
-                className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-cream"
+                className="min-h-10 rounded border border-border px-3 py-2 text-xs text-muted hover:text-cream"
                 onClick={() => {
                   try {
                     safeTransitionTrip(trip.id, to, 'dispatcher')
@@ -154,6 +177,10 @@ export default function TripPage() {
           </div>
         </div>
       </header>
+
+      <div className="rounded-lg border border-border bg-surface p-3">
+        <PipelineStrip state={trip.state} />
+      </div>
 
       <section className="rounded-lg border border-border bg-surface p-4">
         <h2 className="text-xs uppercase tracking-wider text-muted">ETA chain / legs</h2>
@@ -177,6 +204,12 @@ export default function TripPage() {
                       {leg.origin}→{leg.dest}
                     </span>
                   )}
+                  {(leg.est_start || leg.est_end) && (
+                    <div className="avionic text-[11px] text-muted">
+                      Est {leg.est_start?.slice(11, 16) ?? '—'}Z →{' '}
+                      {leg.est_end?.slice(11, 16) ?? '—'}Z
+                    </div>
+                  )}
                 </div>
                 <Link
                   to={`/t/${leg.one_tap_token}`}
@@ -185,6 +218,72 @@ export default function TripPage() {
                 >
                   One-tap →
                 </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-gold/30 bg-gold/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xs uppercase tracking-wider text-gold">
+            Check-in timers
+          </h2>
+          {(trip.state === 'booked' || trip.state === 'in_progress') &&
+            tripChecks.length === 0 && (
+              <button
+                type="button"
+                className="text-xs text-gold underline"
+                onClick={() => scheduleCheckpointsForTrip(trip.id)}
+              >
+                Schedule check-ins
+              </button>
+            )}
+        </div>
+        <p className="mt-1 text-[11px] text-muted">
+          Auto-scheduled on dispatch: aircraft T-60/T-30/arrival, truck T-30/T-5,
+          overdue watchdogs → Board exception queue + on-shift SMS.
+        </p>
+        {tripChecks.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">No timers yet.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {tripChecks.map((c) => (
+              <li
+                key={c.id}
+                className="flex flex-wrap items-start justify-between gap-2 border-b border-border/40 pb-2 text-sm last:border-0"
+              >
+                <div>
+                  <span
+                    className={
+                      c.status === 'fired' ? 'text-late' : 'text-cream'
+                    }
+                  >
+                    {c.title}
+                  </span>
+                  <div className="avionic text-[11px] text-muted">
+                    {c.fire_at.slice(11, 16)}Z · {c.party} · {c.status}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {c.one_tap_token && (
+                    <Link
+                      to={`/t/${c.one_tap_token}`}
+                      className="text-xs text-gold"
+                    >
+                      One-tap
+                    </Link>
+                  )}
+                  {c.status === 'scheduled' && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted"
+                      onClick={() => acknowledgeCheckpoint(c.id)}
+                    >
+                      Skip
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -235,7 +334,7 @@ export default function TripPage() {
                 )
               }}
             >
-              {invoiceBusy ? 'Creating…' : 'Create mock QB invoice'}
+              {invoiceBusy ? 'Creating…' : 'Create invoice'}
             </button>
           )}
           {trip.invoice && (
@@ -275,11 +374,52 @@ export default function TripPage() {
           <h2 className="text-xs uppercase tracking-wider text-muted">
             Weather brief
           </h2>
-          <ul className="mt-2 space-y-2 text-sm">
+          <p className="mt-1 text-[11px] text-muted">
+            <span className="text-vfr">VFR</span>
+            {' · '}
+            <span className="text-mvfr">MVFR</span>
+            {' · '}
+            <span className="text-ifr">IFR</span>
+            {' · '}
+            <span className="text-lifr">LIFR</span>
+            {' · '}live METAR/TAF
+          </p>
+          <ul className="mt-3 space-y-3 text-sm">
             {wxBriefs.map((b) => (
-              <li key={b.icao}>
-                <span className="avionic text-gold">{b.icao}</span>
-                <span className="ml-2 text-cream">{b.summary}</span>
+              <li key={b.icao} className="rounded border border-border/50 bg-ink/40 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="avionic text-gold">{b.icao}</span>
+                  <FlightCatBadge
+                    cat={b.flightCat}
+                    title={
+                      b.flightCat
+                        ? `METAR · ${FLIGHT_CATEGORY_LABELS[b.flightCat]}`
+                        : undefined
+                    }
+                  />
+                  {b.tafWorstCat && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                      TAF
+                      <FlightCatBadge cat={b.tafWorstCat} size="sm" />
+                    </span>
+                  )}
+                </div>
+                {b.metar && (
+                  <p className="avionic mt-1.5 text-xs text-cream/90">{b.metar}</p>
+                )}
+                {b.tafPeriods.length > 0 && (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {b.tafPeriods.slice(0, 6).map((p, i) => (
+                      <li
+                        key={`${b.icao}-${i}`}
+                        className="inline-flex items-center gap-1 text-[10px] text-muted"
+                      >
+                        <span className="avionic">{p.label}</span>
+                        <FlightCatBadge cat={p.flightCat} size="sm" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

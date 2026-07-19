@@ -11,10 +11,11 @@ import { Link } from 'react-router-dom'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
 import { FlightChip } from '@/components/FlightChip'
 import { OperatorDocSlots } from '@/components/OperatorDocSlots'
+import { isRealAdsbEnabled } from '@/adapters/adsb'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
-import { loadNetwork } from '@/lib/networkData'
+import { loadNetwork, type LoadedNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
-import type { AircraftRow, NetworkFixture, OperatorRow } from '@/lib/types'
+import type { AircraftRow, OperatorRow } from '@/lib/types'
 import {
   ensureOperatorCompliance,
   getOperatorCompliance,
@@ -39,7 +40,8 @@ import {
 import { subscribeTrips, listTripsStable } from '@/lib/tripStore'
 import { lookupAirport } from '@/domain/airports'
 import { haversineNm } from '@/domain/geo'
-import { parseDims } from '@/domain/dimsParser'
+import { parseDims, type DimLengthUnit } from '@/domain/dimsParser'
+import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { rankOperatorsForMission } from '@/domain/missionFit'
 import { loadFleetForMissionFit } from '@/lib/fleetRouting'
 import {
@@ -65,14 +67,21 @@ function typesLine(types: string[], max = 2): string {
   return extra > 0 ? `${shown.join(' · ')} +${extra}` : shown.join(' · ')
 }
 
+/** Real N-numbers for board cards (skip TBD placeholders). */
+function displayTails(tails: string[], max = 4): { shown: string[]; extra: number } {
+  const real = tails.filter((t) => t && !t.toUpperCase().startsWith('TBD'))
+  return { shown: real.slice(0, max), extra: Math.max(0, real.length - max) }
+}
+
 export default function NetworkPage() {
-  const [data, setData] = useState<NetworkFixture | null>(null)
+  const [data, setData] = useState<LoadedNetwork | null>(null)
   const [statusByTail, setStatusByTail] = useState<Map<string, FleetStatus>>(
     () => new Map(),
   )
   const [q, setQ] = useState('')
   const [originIcao, setOriginIcao] = useState('')
   const [cargoDims, setCargoDims] = useState('')
+  const [dimUnit, setDimUnit] = useState<DimLengthUnit>('in')
   const [error, setError] = useState<string | null>(null)
   const [expandedDocs, setExpandedDocs] = useState<string | null>(null)
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null)
@@ -90,16 +99,22 @@ export default function NetworkPage() {
   const complianceRows = useSyncExternalStore(
     subscribeOperatorCompliance,
     listOperatorCompliance,
-    () => [],
+    listOperatorCompliance,
   )
   const drafts = useSyncExternalStore(
     subscribeOperatorDrafts,
     listOperatorDrafts,
-    () => [],
+    listOperatorDrafts,
   )
-  useSyncExternalStore(subscribeTrips, listTripsStable, () => [])
+  useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
+
+  const adsbLive = isRealAdsbEnabled()
 
   async function refreshAdsb() {
+    if (!isRealAdsbEnabled()) {
+      setStatusByTail(new Map())
+      return
+    }
     setAdsbBusy(true)
     try {
       const rows = await loadFleetStatuses(500)
@@ -209,7 +224,10 @@ export default function NetworkPage() {
     return lookupAirport(code)
   }, [originIcao])
 
-  const dimsParsed = useMemo(() => parseDims(cargoDims), [cargoDims])
+  const dimsParsed = useMemo(
+    () => parseDims(cargoDims, { unit: dimUnit }),
+    [cargoDims, dimUnit],
+  )
   const missionPieces = dimsParsed.pieces
 
   const missionRank = useMemo(() => {
@@ -266,10 +284,33 @@ export default function NetworkPage() {
     [missionRank],
   )
 
-  const visibleColumns = useMemo(
-    () => board.filter((c) => visibleVerticals.has(c.id)),
-    [board, visibleVerticals],
+  const visibleColumns = useMemo(() => {
+    const cols = board.filter((c) => visibleVerticals.has(c.id))
+    // Non-empty first so the board isn’t a long slide through blanks.
+    return [...cols].sort((a, b) => {
+      const ae = a.operator_count > 0 ? 0 : 1
+      const be = b.operator_count > 0 ? 0 : 1
+      if (ae !== be) return ae - be
+      return 0
+    })
+  }, [board, visibleVerticals])
+
+  const filledColumns = useMemo(
+    () => visibleColumns.filter((c) => c.operator_count > 0),
+    [visibleColumns],
   )
+
+  // With every vertical on, hide empties so the board isn’t a sideways slog.
+  // Narrower chip selection shows empties so you can inspect a class.
+  const displayColumns = useMemo(() => {
+    if (visibleVerticals.size === VERTICAL_IDS.length) return filledColumns
+    return visibleColumns
+  }, [visibleVerticals, filledColumns, visibleColumns])
+
+  const emptyHiddenCount = useMemo(() => {
+    if (visibleVerticals.size !== VERTICAL_IDS.length) return 0
+    return visibleColumns.length - filledColumns.length
+  }, [visibleVerticals, visibleColumns, filledColumns])
 
   const namedInsurerFlags = useMemo(() => {
     return complianceRows.filter((c) => {
@@ -311,6 +352,10 @@ export default function NetworkPage() {
             operators ·{' '}
             <span className="avionic text-cream">{data.counts.aircraft}</span>{' '}
             aircraft
+            {' · '}
+            <span className="text-muted">
+              {data.source === 'live' ? 'live DB' : 'bundled fixture'}
+            </span>
             {namedInsurerFlags > 0 && (
               <>
                 {' '}
@@ -357,7 +402,7 @@ export default function NetworkPage() {
         <div className="text-xs uppercase tracking-wider text-muted">
           Mission fit
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_1fr_10rem_auto] lg:items-center lg:gap-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_9rem_1fr_10rem_auto] lg:items-end lg:gap-3">
           <input
             value={originIcao}
             onChange={(e) => setOriginIcao(e.target.value.toUpperCase())}
@@ -366,10 +411,15 @@ export default function NetworkPage() {
             autoCapitalize="characters"
             className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold avionic sm:py-2"
           />
+          <DimUnitToggle value={dimUnit} onChange={setDimUnit} />
           <input
             value={cargoDims}
             onChange={(e) => setCargoDims(e.target.value)}
-            placeholder="Cargo dims — 3 skids 48x40x60 @ 800ea"
+            placeholder={
+              dimUnit === 'ft'
+                ? 'Cargo dims — 3 skids 4x3.5x5 @ 800ea (ft)'
+                : 'Cargo dims — 3 skids 48x40x60 @ 800ea (in)'
+            }
             className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold sm:col-span-2 sm:py-2 lg:col-span-1"
           />
           <input
@@ -378,14 +428,23 @@ export default function NetworkPage() {
             placeholder="Filter name / tail…"
             className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold sm:py-2"
           />
-          <button
-            type="button"
-            disabled={adsbBusy}
-            onClick={() => void refreshAdsb()}
-            className="w-full rounded-md border border-gold/40 px-3 py-2.5 text-xs text-gold hover:bg-gold/10 disabled:opacity-50 sm:w-auto sm:py-2"
-          >
-            {adsbBusy ? 'Refreshing…' : 'Refresh ADS-B'}
-          </button>
+          {adsbLive ? (
+            <button
+              type="button"
+              disabled={adsbBusy}
+              onClick={() => void refreshAdsb()}
+              className="w-full rounded-md border border-gold/40 px-3 py-2.5 text-xs text-gold hover:bg-gold/10 disabled:opacity-50 sm:w-auto sm:py-2"
+            >
+              {adsbBusy ? 'Refreshing…' : 'Refresh ADS-B'}
+            </button>
+          ) : (
+            <span
+              className="w-full rounded-md border border-border px-3 py-2.5 text-xs text-muted sm:w-auto sm:py-2"
+              title="Set VITE_ADSB_ADAPTER=real when the provider API is ready"
+            >
+              ADS-B pending API
+            </span>
+          )}
         </div>
         {cargoDims.trim() && (
           <p className="text-xs text-muted">
@@ -401,16 +460,16 @@ export default function NetworkPage() {
           </p>
         )}
         {topPicks.length > 0 && (
-          <ol className="scroll-touch -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
+          <ol className="flex flex-wrap gap-2">
             {topPicks.map((p, i) => (
-              <li key={p.operator_id} className="shrink-0 sm:shrink">
+              <li key={p.operator_id}>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedOpId(p.operator_id)
                     setView('board')
                   }}
-                  className="max-w-[85vw] rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-left text-xs text-cream hover:bg-gold/20 sm:max-w-none sm:py-1.5"
+                  className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-left text-xs text-cream hover:bg-gold/20 sm:py-1.5"
                 >
                   <span className="avionic text-gold">{i + 1}.</span>{' '}
                   <span className="font-medium">{p.operator_name}</span>
@@ -437,17 +496,17 @@ export default function NetworkPage() {
 
       {view === 'board' && (
         <>
-          <div className="scroll-touch -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+          <div className="board-rail flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
             <button
               type="button"
-              className="shrink-0 rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
+              className="shrink-0 rounded-md px-3 py-2.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream sm:py-1.5"
               onClick={() => setVisibleVerticals(new Set(VERTICAL_IDS))}
             >
               All
             </button>
             <button
               type="button"
-              className="shrink-0 rounded-md px-2.5 py-1.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream"
+              className="shrink-0 rounded-md px-3 py-2.5 text-[11px] uppercase tracking-wide text-muted hover:text-cream sm:py-1.5"
               onClick={() => setVisibleVerticals(new Set())}
             >
               None
@@ -455,16 +514,18 @@ export default function NetworkPage() {
             {VERTICAL_IDS.map((id) => {
               const on = visibleVerticals.has(id)
               const col = board.find((c) => c.id === id)
+              const empty = !col || col.operator_count === 0
               return (
                 <button
                   key={id}
                   type="button"
                   onClick={() => toggleVertical(id)}
                   className={[
-                    'shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] transition-colors whitespace-nowrap',
+                    'shrink-0 rounded-md border px-3 py-2.5 text-[11px] transition-colors whitespace-nowrap sm:py-1.5',
                     on
                       ? 'border-gold/50 bg-gold/15 text-gold'
                       : 'border-border bg-surface text-muted',
+                    empty ? 'opacity-50' : '',
                   ].join(' ')}
                 >
                   {VERTICAL_LABELS[id]}
@@ -482,47 +543,61 @@ export default function NetworkPage() {
             <p className="text-sm text-muted">
               No verticals selected — turn one on above.
             </p>
+          ) : displayColumns.length === 0 ? (
+            <p className="text-sm text-muted">
+              No operators in the selected verticals.
+            </p>
           ) : (
-            <div className="scroll-touch snap-x-mandatory -mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:gap-4 sm:px-0">
-              {visibleColumns.map((col) => (
-                <section
-                  key={col.id}
-                  className="snap-start flex w-[min(85vw,20rem)] shrink-0 flex-col rounded-lg border border-border bg-surface sm:w-[280px]"
-                >
-                  <header className="border-b border-border px-4 py-3">
-                    <h2 className="text-sm font-medium text-cream">
-                      {col.label}
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted">
-                      <span className="avionic text-cream">
-                        {col.operator_count}
-                      </span>{' '}
-                      ops ·{' '}
-                      <span className="avionic text-cream">
-                        {col.aircraft_count}
-                      </span>{' '}
-                      tails
-                    </p>
-                  </header>
-                  <ul className="max-h-[55vh] space-y-2 overflow-y-auto p-3 sm:max-h-[62vh]">
-                    {col.operators.length === 0 && (
-                      <li className="px-1 py-4 text-center text-xs text-muted">
-                        No operators in this vertical
-                      </li>
-                    )}
-                    {col.operators.map((card, idx) => (
-                      <VerticalCard
-                        key={`${col.id}:${card.operator_id}`}
-                        rank={idx + 1}
-                        card={card}
-                        selected={selectedOpId === card.operator_id}
-                        onSelect={() => setSelectedOpId(card.operator_id)}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 sm:gap-4">
+                {displayColumns.map((col) => (
+                  <section
+                    key={col.id}
+                    className="flex min-h-0 flex-col rounded-lg border border-border bg-surface"
+                  >
+                    <header className="border-b border-border px-4 py-3">
+                      <h2 className="text-sm font-medium text-cream">
+                        {col.label}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-muted">
+                        <span className="avionic text-cream">
+                          {col.operator_count}
+                        </span>{' '}
+                        ops ·{' '}
+                        <span className="avionic text-cream">
+                          {col.aircraft_count}
+                        </span>{' '}
+                        tails
+                      </p>
+                    </header>
+                    <ul className="max-h-[50vh] space-y-2 overflow-y-auto p-3 sm:max-h-[58vh]">
+                      {col.operators.length === 0 ? (
+                        <li className="px-1 py-4 text-center text-xs text-muted">
+                          No operators in this vertical
+                        </li>
+                      ) : (
+                        col.operators.map((card, idx) => (
+                          <VerticalCard
+                            key={`${col.id}:${card.operator_id}`}
+                            rank={idx + 1}
+                            card={card}
+                            selected={selectedOpId === card.operator_id}
+                            onSelect={() => setSelectedOpId(card.operator_id)}
+                          />
+                        ))
+                      )}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+              {emptyHiddenCount > 0 && (
+                <p className="text-[11px] text-muted">
+                  {emptyHiddenCount} empty vertical
+                  {emptyHiddenCount === 1 ? '' : 's'} hidden — select a chip to
+                  inspect one.
+                </p>
+              )}
+            </>
           )}
 
           {selectedBundle && (
@@ -568,6 +643,7 @@ function VerticalCard({
   onSelect: () => void
 }) {
   const fail = Boolean(card.fit_hard_fail)
+  const { shown: tailsShown, extra: tailsExtra } = displayTails(card.tails)
   return (
     <li>
       <button
@@ -616,7 +692,19 @@ function VerticalCard({
             <div className="mt-0.5 truncate text-xs text-muted">
               {typesLine(card.types)}
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted">
+            {tailsShown.length > 0 ? (
+              <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 avionic text-[11px] text-gold">
+                {tailsShown.map((t) => (
+                  <span key={t}>{t}</span>
+                ))}
+                {tailsExtra > 0 && (
+                  <span className="text-muted">+{tailsExtra}</span>
+                )}
+              </div>
+            ) : (
+              <div className="mt-1.5 text-[11px] text-muted">No N-numbers yet</div>
+            )}
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted">
               <span className="avionic text-cream">
                 {card.base_icao ?? '—'}
               </span>
@@ -625,7 +713,7 @@ function VerticalCard({
                   {card.nm_from_origin} NM
                 </span>
               )}
-              <span className="avionic">{card.aircraft_count} tails</span>
+              <span className="avionic">{card.aircraft_count} ac</span>
             </div>
           </div>
         </div>
@@ -785,12 +873,14 @@ function OperatorDetail({
                   <span className="avionic">{a.mtow_lbs.toLocaleString()} lb</span>
                 )}
               </div>
-              {st && (
+              {st && isRealAdsbEnabled() ? (
                 <FlightChip
                   phase={st.phase}
                   inPosition={st.inPositionOfBase}
                   laddBlocked={st.laddBlocked}
                 />
+              ) : (
+                <span className="text-[11px] text-muted">ADS-B pending</span>
               )}
             </li>
           )
@@ -822,14 +912,16 @@ function OperatorDetail({
                     {a.base_icao ?? '—'}
                   </td>
                   <td className="px-4 py-2">
-                    {st ? (
+                    {st && isRealAdsbEnabled() ? (
                       <FlightChip
                         phase={st.phase}
                         inPosition={st.inPositionOfBase}
                         laddBlocked={st.laddBlocked}
                       />
                     ) : (
-                      <span className="text-xs text-muted">—</span>
+                      <span className="text-xs text-muted">
+                        {isRealAdsbEnabled() ? '—' : 'pending'}
+                      </span>
                     )}
                   </td>
                   <td className="avionic px-4 py-2 text-muted">

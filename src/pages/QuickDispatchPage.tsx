@@ -56,7 +56,7 @@ function parseCc(raw: string): string[] {
 
 export default function QuickDispatchPage() {
   const nav = useNavigate()
-  const clients = useSyncExternalStore(subscribeClients, listClients, () => [])
+  const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
 
   const [clientId, setClientId] = useState('')
   const [showNew, setShowNew] = useState(false)
@@ -183,6 +183,12 @@ export default function QuickDispatchPage() {
         })),
       })
 
+      // Checkpoint timers (T-60/T-30 air, T-30/T-5 ground, overdue watchdogs)
+      const { scheduleCheckpointsForTrip } = await import(
+        '@/lib/checkpointStore'
+      )
+      scheduleCheckpointsForTrip(trip.id)
+
       // ETA + track links → tracker / supply-chain / CC (not AP invoice email).
       const { listTrackerEmails } = await import('@/lib/clientStore')
       const trackerFromClient = listTrackerEmails(client.id)
@@ -202,19 +208,18 @@ export default function QuickDispatchPage() {
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-5 p-4 pb-28 sm:p-6">
       <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold text-cream">
-            <span className="text-gold" aria-hidden>
-              ⚡
-            </span>
-            Quick Dispatch
-          </h1>
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-cream">Quick Dispatch</h1>
           <p className="mt-1 text-sm text-muted">
             Skip the full workflow. Enter trip details, pricing, and go straight
             to tracking.
           </p>
         </div>
-        <Link to="/" className="text-muted hover:text-cream" aria-label="Close">
+        <Link
+          to="/"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted hover:text-cream"
+          aria-label="Close"
+        >
           ✕
         </Link>
       </header>
@@ -710,14 +715,14 @@ export default function QuickDispatchPage() {
         </p>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-ink/95 p-4 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-ink/95 px-4 pt-3 safe-bottom backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <button
           type="button"
           onClick={() => void dispatchNow()}
           disabled={busy}
-          className="mx-auto flex w-full max-w-lg items-center justify-center gap-2 rounded-md bg-gold py-3.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-60"
+          className="mx-auto flex w-full max-w-lg min-h-12 items-center justify-center gap-2 rounded-md bg-gold py-3.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-60"
         >
-          <span aria-hidden>⚡</span> Dispatch Now
+          Dispatch Now
         </button>
       </div>
     </div>

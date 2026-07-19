@@ -1,5 +1,6 @@
 /**
  * Customer (client) onboarding — pure validation + mapping.
+ * Subjects align with Admin "Add client" rules interview + Clients directory fields.
  * No React / Supabase.
  */
 
@@ -24,10 +25,14 @@ export type ClientOnboardPerson = {
   phone: string
 }
 
-export type PayTermsRequest = 'prepay' | 'net_15' | 'net_30' | 'other'
+export type PayTermsRequest = 'prepay' | 'net_15' | 'net_30' | 'net_60' | 'other'
 
 export type UpdateChannel = 'email' | 'sms' | 'both'
 
+/**
+ * Public `/client` draft — same subjects dispatchers enter on Admin + Clients:
+ * company, people (ops/AP/supply/emergency), billing, routing rules, lanes, prefs.
+ */
 export type ClientOnboardDraft = {
   // Company
   legal_name: string
@@ -35,6 +40,7 @@ export type ClientOnboardDraft = {
   website: string
   address: ClientAddress
   billing_same_as_address: boolean
+  billing_address: ClientAddress
 
   // People
   ops: ClientOnboardPerson
@@ -45,19 +51,27 @@ export type ClientOnboardDraft = {
   emergency: ClientOnboardPerson
   emergency_same_as_ops: boolean
 
-  // Billing
+  // Billing (Clients: pay_terms, invoice_email, po_prefix)
   pay_terms: PayTermsRequest
   requires_po: boolean
+  po_prefix: string
   card_on_file: boolean | null
   vendor_packet_to: string
+
+  // Routing rules (Admin ClientWizard / client_rules)
+  dual_pilot_required: boolean
+  freight_only: boolean
+  multi_engine_only: boolean
+  no_single_engine_night: boolean
+  hazmat_allowed: boolean
+  hazmat_notes: string
+  declared_value_norm: string
 
   // Shipping profile
   no_frequent_lanes: boolean
   lanes: ClientLane[]
-  hazmat_sometimes: boolean
   temp_control: boolean
   oversized: boolean
-  high_declared_value: boolean
 
   // Preferences
   update_channel: UpdateChannel
@@ -66,13 +80,18 @@ export type ClientOnboardDraft = {
 
 export type ClientOnboardIssues = { field: string; message: string }
 
+export function emptyAddress(): ClientAddress {
+  return { street: '', city: '', state: '', zip: '' }
+}
+
 export function emptyClientOnboardDraft(): ClientOnboardDraft {
   return {
     legal_name: '',
     dba: '',
     website: '',
-    address: { street: '', city: '', state: '', zip: '' },
+    address: emptyAddress(),
     billing_same_as_address: true,
+    billing_address: emptyAddress(),
     ops: { name: '', email: '', phone: '' },
     ap: { name: '', email: '', phone: '' },
     ap_same_as_ops: false,
@@ -82,14 +101,20 @@ export function emptyClientOnboardDraft(): ClientOnboardDraft {
     emergency_same_as_ops: false,
     pay_terms: 'net_30',
     requires_po: false,
+    po_prefix: '',
     card_on_file: null,
     vendor_packet_to: '',
+    dual_pilot_required: false,
+    freight_only: false,
+    multi_engine_only: false,
+    no_single_engine_night: false,
+    hazmat_allowed: true,
+    hazmat_notes: '',
+    declared_value_norm: '',
     no_frequent_lanes: false,
     lanes: [{ origin: '', destination: '' }],
-    hazmat_sometimes: false,
     temp_control: false,
     oversized: false,
-    high_declared_value: false,
     update_channel: 'email',
     anything_else: '',
   }
@@ -99,11 +124,17 @@ function emailOk(e: string): boolean {
   return e.trim().includes('@')
 }
 
+function addressComplete(a: ClientAddress): boolean {
+  return Boolean(
+    a.street.trim() && a.city.trim() && a.state.trim() && a.zip.trim(),
+  )
+}
+
 function personFilled(p: ClientOnboardPerson): boolean {
   return Boolean(p.name.trim() || p.email.trim() || p.phone.trim())
 }
 
-/** ~9 required fields — company, address, ops, AP, front desk, emergency. */
+/** Required: company, address, ops, AP, front desk, emergency; lanes unless opted out. */
 export function validateClientOnboard(
   draft: ClientOnboardDraft,
 ): ClientOnboardIssues[] {
@@ -111,11 +142,19 @@ export function validateClientOnboard(
   if (!draft.legal_name.trim()) {
     issues.push({ field: 'legal_name', message: 'Company legal name is required' })
   }
-  const a = draft.address
-  if (!a.street.trim() || !a.city.trim() || !a.state.trim() || !a.zip.trim()) {
+  if (!addressComplete(draft.address)) {
     issues.push({
       field: 'address',
       message: 'Full company address is required (street, city, state, ZIP)',
+    })
+  }
+  if (
+    !draft.billing_same_as_address &&
+    !addressComplete(draft.billing_address)
+  ) {
+    issues.push({
+      field: 'billing_address',
+      message: 'Billing address is required when different from company',
     })
   }
   if (!draft.ops.name.trim() || !emailOk(draft.ops.email)) {
@@ -156,6 +195,9 @@ export function validateClientOnboard(
       })
     }
   }
+  if (draft.requires_po && !draft.po_prefix.trim()) {
+    // Soft: not blocking — dispatcher can set later; no hard fail
+  }
   return issues
 }
 
@@ -163,7 +205,45 @@ export function payTermsLabel(t: PayTermsRequest): string {
   if (t === 'prepay') return 'Prepay / CC'
   if (t === 'net_15') return 'Net 15'
   if (t === 'net_30') return 'Net 30'
+  if (t === 'net_60') return 'Net 60'
   return 'Other'
+}
+
+/** Routing-rules slice written to client_rules (Admin wizard same fields). */
+export type OnboardRulesSlice = {
+  dual_pilot_required: boolean
+  freight_only: boolean
+  multi_engine_only: boolean
+  no_single_engine_night: boolean
+  hazmat_allowed: boolean
+  hazmat_notes: string
+  declared_value_norm: string
+  other_rules: string[]
+}
+
+/** Map onboard answers → client_rules (same shape Admin wizard writes). */
+export function rulesFromOnboardDraft(
+  draft: ClientOnboardDraft,
+): OnboardRulesSlice {
+  const other: string[] = []
+  if (draft.requires_po) other.push('PO required on invoices')
+  if (draft.card_on_file === true) {
+    other.push('Card on file requested (send secure link)')
+  }
+  if (draft.card_on_file === false) other.push('No card on file')
+  if (draft.temp_control) other.push('Temp control')
+  if (draft.oversized) other.push('Oversized freight')
+
+  return {
+    dual_pilot_required: draft.dual_pilot_required,
+    freight_only: draft.freight_only,
+    multi_engine_only: draft.multi_engine_only,
+    no_single_engine_night: draft.no_single_engine_night,
+    hazmat_allowed: draft.hazmat_allowed,
+    hazmat_notes: draft.hazmat_notes.trim(),
+    declared_value_norm: draft.declared_value_norm.trim(),
+    other_rules: other,
+  }
 }
 
 /** City/place hints from frequent lanes for request autofill. */

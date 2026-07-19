@@ -10,11 +10,14 @@ describe('intake-email stub', () => {
       subject: 'Need aircraft tomorrow',
       body: '3 skids Akron to Chicago ready 9am',
       requesterMatch: true,
+      notifyPhone: '+15555550199',
     })
     expect(r.ignored).toBe(false)
     if (!r.ignored) {
       expect(r.extracted.origin_text).toMatch(/Akron/)
     }
-    expect(getMockCommsLog().length).toBeGreaterThan(before)
+    const log = getMockCommsLog()
+    expect(log.length).toBeGreaterThan(before)
+    expect(log.at(-1)?.to).toBe('+15555550199')
   })
 })

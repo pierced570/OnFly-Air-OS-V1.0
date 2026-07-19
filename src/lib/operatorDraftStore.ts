@@ -82,21 +82,5 @@ export function saveOperatorDraft(
   return row
 }
 
-/** Mock D085 parse — returns fixture-like tails for review. */
-export function mockParseD085(_fileName: string): Array<{
-  tail: string
-  type_name: string
-  matched: boolean
-  conflict: string | null
-}> {
-  return [
-    { tail: 'N123AB', type_name: 'King Air 200', matched: true, conflict: null },
-    { tail: 'N456CD', type_name: 'Cessna 208', matched: true, conflict: null },
-    {
-      tail: 'N789EF',
-      type_name: 'Unknown Type X',
-      matched: false,
-      conflict: 'Unknown type — pick manually',
-    },
-  ]
-}
+/** @deprecated use parseD085File — kept for tests / offline fixture */
+export { fixtureD085Rows as mockParseD085 } from '@/domain/d085Parse'

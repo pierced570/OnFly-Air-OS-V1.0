@@ -90,14 +90,17 @@ export function getMockSentEmails() {
 }
 
 export function createEmailAdapter(): EmailAdapter {
-  const mode = adapterMode('VITE_EMAIL_ADAPTER', 'mock')
-  if (mode === 'real') return new ResendEmailAdapter()
+  const mode = adapterMode('VITE_EMAIL_ADAPTER', 'real')
+  if (mode === 'real' && isSupabaseConfigured) return new ResendEmailAdapter()
+  if (mode === 'real' && !isSupabaseConfigured) {
+    console.warn('[email] real mode needs Supabase — using mock')
+  }
   return new MockEmailAdapter()
 }
 
 /** True when the app will attempt live Resend (still needs edge secrets). */
 export function isRealEmailEnabled(): boolean {
-  return adapterMode('VITE_EMAIL_ADAPTER', 'mock') === 'real'
+  return adapterMode('VITE_EMAIL_ADAPTER', 'real') === 'real'
 }
 
 /** Ready to call the edge function (adapter=real + Supabase public URL/key). */

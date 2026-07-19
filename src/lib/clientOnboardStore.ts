@@ -1,10 +1,12 @@
 /**
  * Public customer onboarding → ClientProfile + portal session.
+ * Writes the same ClientProfile fields as Admin ClientWizard + Clients directory.
  */
 
 import {
   payTermsLabel,
   resolvePeople,
+  rulesFromOnboardDraft,
   validateClientOnboard,
   type ClientOnboardDraft,
 } from '@/domain/clientOnboard'
@@ -65,6 +67,7 @@ export async function submitClientOnboard(
   }
 
   const { ops, ap, emergency, supervisors } = resolvePeople(draft)
+  const rules = rulesFromOnboardDraft(draft)
   const taskIds: string[] = []
 
   let qbId: string | null = null
@@ -73,24 +76,6 @@ export async function submitClientOnboard(
   } catch {
     qbId = null
   }
-
-  const flags = {
-    hazmat_sometimes: draft.hazmat_sometimes,
-    temp_control: draft.temp_control,
-    oversized: draft.oversized,
-    high_declared_value: draft.high_declared_value,
-  }
-
-  const otherRules: string[] = []
-  if (draft.requires_po) otherRules.push('PO required on invoices')
-  if (draft.card_on_file === true) {
-    otherRules.push('Card on file requested (send secure link)')
-  }
-  if (draft.card_on_file === false) otherRules.push('No card on file')
-  if (flags.hazmat_sometimes) otherRules.push('Hazmat sometimes')
-  if (flags.temp_control) otherRules.push('Temp control')
-  if (flags.oversized) otherRules.push('Oversized freight')
-  if (flags.high_declared_value) otherRules.push('High declared value')
 
   const notesParts = [
     draft.anything_else.trim() && `Onboard notes: ${draft.anything_else.trim()}`,
@@ -142,24 +127,30 @@ export async function submitClientOnboard(
           destination_city: l.destination_city?.trim(),
         }))
 
+  const billing = draft.billing_same_as_address
+    ? { ...draft.address }
+    : { ...draft.billing_address }
+
+  const poPrefix =
+    draft.po_prefix.trim().toUpperCase().replace(/[^A-Z]/g, '') || null
+
   const client = addClient({
     name: draft.legal_name.trim(),
     email: ops.email,
     invoice_email: ap.email,
     pay_terms: payTermsLabel(draft.pay_terms),
+    po_prefix: poPrefix,
     notes: notesParts.join('\n'),
     qb_customer_id: qbId,
     contacts,
-    rules: {
-      hazmat_allowed: true,
-      hazmat_notes: flags.hazmat_sometimes ? 'Sometimes — confirm per trip' : '',
-      other_rules: otherRules,
-    },
+    rules,
     profile: {
       source: 'portal_onboard',
       dba: draft.dba.trim() || undefined,
       website: draft.website.trim() || undefined,
       address: { ...draft.address },
+      billing_address: billing,
+      billing_same_as_address: draft.billing_same_as_address,
       front_desk_phone: draft.front_desk_phone.trim(),
       emergency,
       frequent_lanes: lanes,
@@ -168,7 +159,12 @@ export async function submitClientOnboard(
       card_on_file: draft.card_on_file,
       vendor_packet_to: draft.vendor_packet_to.trim() || undefined,
       update_channel: draft.update_channel,
-      shipping_flags: flags,
+      shipping_flags: {
+        temp_control: draft.temp_control,
+        oversized: draft.oversized,
+        high_declared_value: Boolean(draft.declared_value_norm.trim()),
+        hazmat_sometimes: draft.hazmat_allowed && Boolean(draft.hazmat_notes),
+      },
     },
   })
 
@@ -180,7 +176,7 @@ export async function submitClientOnboard(
       entity_id: client.id,
       entity_label: client.name,
       field: 'onboard_review',
-      note: 'Public customer onboarding submitted — verify contacts, terms, and vendor packet routing.',
+      note: 'Public customer onboarding submitted — verify contacts, terms, routing rules, and vendor packet routing.',
       wizard: 'client',
     }).id,
   )

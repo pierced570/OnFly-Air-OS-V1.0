@@ -1,6 +1,6 @@
 /**
- * Public customer onboarding — cream client theme.
- * Creates a ClientProfile on submit and binds the portal session.
+ * Public client page — shareable onboarding link (not inside the portal).
+ * Subjects match Admin "Add client" rules interview + Clients directory fields.
  */
 
 import { useState, type FormEvent } from 'react'
@@ -8,7 +8,9 @@ import { Link } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { lookupAirport } from '@/domain/airports'
 import {
+  emptyAddress,
   emptyClientOnboardDraft,
+  type ClientAddress,
   type ClientOnboardDraft,
   type ClientOnboardPerson,
   type PayTermsRequest,
@@ -22,7 +24,7 @@ const labelCls = 'block text-xs font-medium text-muted'
 const sectionCls =
   'rounded-lg border border-border bg-surface-2/40 p-4 sm:p-5 space-y-3'
 
-export default function PortalOnboardPage() {
+export default function ClientOnboardPage() {
   const [draft, setDraft] = useState<ClientOnboardDraft>(() =>
     emptyClientOnboardDraft(),
   )
@@ -95,10 +97,10 @@ export default function PortalOnboardPage() {
         <div className="text-xs uppercase tracking-[0.2em] text-gold">
           OnFly Air
         </div>
-        <h1 className="text-xl font-semibold">Customer onboarding</h1>
+        <h1 className="text-xl font-semibold">Client setup</h1>
         <p className="mt-1 text-sm text-muted">
-          About 3 minutes. We never ask for card numbers here — billing setup is
-          handled securely after.
+          Company, people, billing, and aircraft rules — the same profile our
+          dispatchers maintain. We never ask for card numbers here.
         </p>
       </header>
 
@@ -135,81 +137,48 @@ export default function PortalOnboardPage() {
                 />
               </label>
             </div>
-            <label className={labelCls}>
-              Street address *
-              <input
-                className={inputCls}
-                value={draft.address.street}
-                onChange={(e) =>
-                  patch({
-                    address: { ...draft.address, street: e.target.value },
-                  })
-                }
-                required
-              />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className={labelCls}>
-                City *
-                <input
-                  className={inputCls}
-                  value={draft.address.city}
-                  onChange={(e) =>
-                    patch({
-                      address: { ...draft.address, city: e.target.value },
-                    })
-                  }
-                  required
-                />
-              </label>
-              <label className={labelCls}>
-                State *
-                <input
-                  className={inputCls}
-                  value={draft.address.state}
-                  onChange={(e) =>
-                    patch({
-                      address: { ...draft.address, state: e.target.value },
-                    })
-                  }
-                  required
-                />
-              </label>
-              <label className={labelCls}>
-                ZIP *
-                <input
-                  className={inputCls}
-                  value={draft.address.zip}
-                  onChange={(e) =>
-                    patch({
-                      address: { ...draft.address, zip: e.target.value },
-                    })
-                  }
-                  required
-                />
-              </label>
-            </div>
+            <AddressFields
+              title="Company address *"
+              address={draft.address}
+              onChange={(address) => patch({ address })}
+            />
             <label className="flex items-center gap-2 text-sm text-ink">
               <input
                 type="checkbox"
                 checked={draft.billing_same_as_address}
                 onChange={(e) =>
-                  patch({ billing_same_as_address: e.target.checked })
+                  patch({
+                    billing_same_as_address: e.target.checked,
+                    ...(e.target.checked
+                      ? {}
+                      : {
+                          billing_address: draft.billing_address.street
+                            ? draft.billing_address
+                            : emptyAddress(),
+                        }),
+                  })
                 }
               />
               Billing address same as company address
             </label>
+            {!draft.billing_same_as_address && (
+              <AddressFields
+                title="Billing address *"
+                address={draft.billing_address}
+                onChange={(billing_address) => patch({ billing_address })}
+              />
+            )}
           </section>
 
           {/* 2 People */}
           <section className={sectionCls}>
             <h2 className="text-sm font-semibold text-ink">2. People</h2>
             <p className="text-xs text-muted">
-              Ops gets tracking updates · AP gets invoices · Supervisors get
-              escalations · Emergency is 24/7.
+              Ops / requesters get tracking · AP gets invoices · Supply-chain
+              supervisors get trackers · Emergency is 24/7.
             </p>
             <PersonFields
-              title="Ops contact (aircraft & logistics tracking) *"
+              title="Ops / requester (aircraft & logistics) *"
               person={draft.ops}
               onChange={(p) => patchPerson('ops', p)}
             />
@@ -242,7 +211,7 @@ export default function PortalOnboardPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted">
-                  Supervisor emails (escalations)
+                  Supply-chain / supervisor emails (trackers)
                 </span>
                 <button
                   type="button"
@@ -318,7 +287,7 @@ export default function PortalOnboardPage() {
           <section className={sectionCls}>
             <h2 className="text-sm font-semibold text-ink">3. Billing</h2>
             <label className={labelCls}>
-              Terms requested
+              Pay terms
               <select
                 className={inputCls}
                 value={draft.pay_terms}
@@ -329,6 +298,7 @@ export default function PortalOnboardPage() {
                 <option value="prepay">Prepay / credit card</option>
                 <option value="net_15">Net 15</option>
                 <option value="net_30">Net 30</option>
+                <option value="net_60">Net 60</option>
                 <option value="other">Other (we&apos;ll confirm)</option>
               </select>
             </label>
@@ -340,6 +310,18 @@ export default function PortalOnboardPage() {
               />
               Invoices require a PO number
             </label>
+            {draft.requires_po && (
+              <label className={labelCls}>
+                Preferred PO prefix (letters)
+                <input
+                  className={`${inputCls} font-mono uppercase`}
+                  value={draft.po_prefix}
+                  onChange={(e) => patch({ po_prefix: e.target.value })}
+                  placeholder="e.g. PSA"
+                  maxLength={8}
+                />
+              </label>
+            )}
             <fieldset>
               <legend className="text-xs font-medium text-muted">
                 Card on file?
@@ -378,10 +360,109 @@ export default function PortalOnboardPage() {
             </label>
           </section>
 
-          {/* 4 Shipping */}
+          {/* 4 Aircraft & cargo rules — Admin ClientWizard parity */}
           <section className={sectionCls}>
             <h2 className="text-sm font-semibold text-ink">
-              4. Shipping profile
+              4. Aircraft & cargo rules
+            </h2>
+            <p className="text-xs text-muted">
+              Same interview dispatch uses when adding a client — applied to
+              every future quote.
+            </p>
+            <div className="flex flex-wrap gap-3 text-sm text-ink">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.dual_pilot_required}
+                  onChange={(e) =>
+                    patch({ dual_pilot_required: e.target.checked })
+                  }
+                />
+                Two pilots required
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.freight_only}
+                  onChange={(e) => patch({ freight_only: e.target.checked })}
+                />
+                Freight only — no passengers
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.multi_engine_only}
+                  onChange={(e) =>
+                    patch({ multi_engine_only: e.target.checked })
+                  }
+                />
+                Multi-engine only
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.no_single_engine_night}
+                  onChange={(e) =>
+                    patch({ no_single_engine_night: e.target.checked })
+                  }
+                />
+                No single-engine at night
+              </label>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={draft.hazmat_allowed}
+                onChange={(e) => patch({ hazmat_allowed: e.target.checked })}
+              />
+              Hazmat allowed
+            </label>
+            {draft.hazmat_allowed && (
+              <label className={labelCls}>
+                Hazmat notes
+                <input
+                  className={inputCls}
+                  value={draft.hazmat_notes}
+                  onChange={(e) => patch({ hazmat_notes: e.target.value })}
+                  placeholder="e.g. Sometimes — confirm per trip"
+                />
+              </label>
+            )}
+            <label className={labelCls}>
+              Typical declared value
+              <input
+                className={inputCls}
+                value={draft.declared_value_norm}
+                onChange={(e) =>
+                  patch({ declared_value_norm: e.target.value })
+                }
+                placeholder="e.g. under $50k / $100–250k"
+              />
+            </label>
+            <div className="flex flex-wrap gap-3 text-sm text-ink">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.temp_control}
+                  onChange={(e) => patch({ temp_control: e.target.checked })}
+                />
+                Temp control sometimes
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.oversized}
+                  onChange={(e) => patch({ oversized: e.target.checked })}
+                />
+                Oversized freight
+              </label>
+            </div>
+          </section>
+
+          {/* 5 Shipping lanes */}
+          <section className={sectionCls}>
+            <h2 className="text-sm font-semibold text-ink">
+              5. Frequent routes
             </h2>
             <label className="flex items-center gap-2 text-sm text-ink">
               <input
@@ -454,30 +535,11 @@ export default function PortalOnboardPage() {
                 </button>
               </div>
             )}
-            <div className="flex flex-wrap gap-3 text-sm text-ink">
-              {(
-                [
-                  ['hazmat_sometimes', 'Hazmat sometimes'],
-                  ['temp_control', 'Temp control'],
-                  ['oversized', 'Oversized'],
-                  ['high_declared_value', 'High declared value'],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={draft[key]}
-                    onChange={(e) => patch({ [key]: e.target.checked })}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
           </section>
 
-          {/* 5 Preferences */}
+          {/* 6 Preferences */}
           <section className={sectionCls}>
-            <h2 className="text-sm font-semibold text-ink">5. Preferences</h2>
+            <h2 className="text-sm font-semibold text-ink">6. Preferences</h2>
             <label className={labelCls}>
               Trip updates by
               <select
@@ -519,6 +581,60 @@ export default function PortalOnboardPage() {
           </div>
         </form>
       </main>
+    </div>
+  )
+}
+
+function AddressFields({
+  title,
+  address,
+  onChange,
+}: {
+  title: string
+  address: ClientAddress
+  onChange: (a: ClientAddress) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-muted">{title}</div>
+      <label className={labelCls}>
+        Street
+        <input
+          className={inputCls}
+          value={address.street}
+          onChange={(e) => onChange({ ...address, street: e.target.value })}
+          required
+        />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className={labelCls}>
+          City
+          <input
+            className={inputCls}
+            value={address.city}
+            onChange={(e) => onChange({ ...address, city: e.target.value })}
+            required
+          />
+        </label>
+        <label className={labelCls}>
+          State
+          <input
+            className={inputCls}
+            value={address.state}
+            onChange={(e) => onChange({ ...address, state: e.target.value })}
+            required
+          />
+        </label>
+        <label className={labelCls}>
+          ZIP
+          <input
+            className={inputCls}
+            value={address.zip}
+            onChange={(e) => onChange({ ...address, zip: e.target.value })}
+            required
+          />
+        </label>
+      </div>
     </div>
   )
 }

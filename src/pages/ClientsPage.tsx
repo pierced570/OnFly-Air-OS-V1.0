@@ -23,8 +23,53 @@ const ROLE_HELP: Record<ContactRole, string> = {
   supply_chain: 'Receives tracker links, ETA sheets, and status pushes — not invoices.',
 }
 
+function clientSetupUrl(): string {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/client`
+  }
+  return '/client'
+}
+
+function ClientSetupLinkCard() {
+  const [copied, setCopied] = useState(false)
+  const url = clientSetupUrl()
+  return (
+    <div className="rounded-lg border border-gold/30 bg-gold/10 p-3">
+      <div className="text-xs uppercase tracking-wider text-gold">
+        Send to new customers
+      </div>
+      <p className="mt-1 text-xs text-muted">
+        Client setup page (not the portal). Copy and text/email this link.
+      </p>
+      <p className="avionic mt-2 break-all text-xs text-cream">{url}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
+          onClick={() => {
+            void navigator.clipboard?.writeText(url).then(() => {
+              setCopied(true)
+              window.setTimeout(() => setCopied(false), 2000)
+            })
+          }}
+        >
+          {copied ? 'Copied' : 'Copy link'}
+        </button>
+        <Link
+          to="/client"
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export default function ClientsPage() {
-  const clients = useSyncExternalStore(subscribeClients, listClients, () => [])
+  const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [newName, setNewName] = useState('')
@@ -53,6 +98,8 @@ export default function ClientsPage() {
           </p>
         </header>
 
+        <ClientSetupLinkCard />
+
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -65,11 +112,11 @@ export default function ClientsPage() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="New client name"
-            className={input}
+            className={`${input} min-w-0 flex-1`}
           />
           <button
             type="button"
-            className="rounded-md bg-gold px-3 text-sm font-medium text-ink"
+            className="shrink-0 rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink"
             onClick={() => {
               if (!newName.trim()) return
               const c = addClient({ name: newName })
@@ -81,7 +128,12 @@ export default function ClientsPage() {
           </button>
         </div>
 
-        <ul className="max-h-[60vh] space-y-1 overflow-auto">
+        <ul
+          className={[
+            'space-y-1 overflow-auto',
+            selected ? 'hidden max-h-[40vh] lg:block lg:max-h-[60vh]' : 'max-h-[60vh]',
+          ].join(' ')}
+        >
           {filtered.map((c) => {
             const ring = c.contacts.filter((x) => x.notify_prefs.request_alert).length
             const inv = c.contacts.filter((x) => x.notify_prefs.invoice).length
@@ -91,7 +143,7 @@ export default function ClientsPage() {
                   type="button"
                   onClick={() => setSelectedId(c.id)}
                   className={[
-                    'w-full rounded-md border px-3 py-2 text-left text-sm',
+                    'w-full rounded-md border px-3 py-3 text-left text-sm sm:py-2',
                     selected?.id === c.id
                       ? 'border-gold bg-gold/10 text-cream'
                       : 'border-border bg-surface text-muted hover:text-cream',
@@ -110,16 +162,28 @@ export default function ClientsPage() {
 
       <main className="min-w-0 flex-1">
         {!selected ? (
-          <p className="text-sm text-muted">Select or add a client.</p>
+          <p className="text-sm text-muted lg:block">
+            <span className="lg:hidden">Tap a client above, or add one.</span>
+            <span className="hidden lg:inline">Select or add a client.</span>
+          </p>
         ) : (
-          <ClientDetail client={selected} />
+          <ClientDetail
+            client={selected}
+            onBack={() => setSelectedId(null)}
+          />
         )}
       </main>
     </div>
   )
 }
 
-function ClientDetail({ client }: { client: ClientProfile }) {
+function ClientDetail({
+  client,
+  onBack,
+}: {
+  client: ClientProfile
+  onBack?: () => void
+}) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [cell, setCell] = useState('')
@@ -127,20 +191,38 @@ function ClientDetail({ client }: { client: ClientProfile }) {
 
   const ringers = client.contacts.filter((c) => c.notify_prefs.request_alert)
   const invoiceTo = client.contacts.filter((c) => c.notify_prefs.invoice)
+  const profile = client.profile ?? {}
+  const addr = profile.address
+
+  function patchProfile(
+    patch: Partial<NonNullable<ClientProfile['profile']>>,
+  ) {
+    updateClient(client.id, { profile: { ...profile, ...patch } })
+  }
 
   return (
     <div className="space-y-6">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="tap -ml-2 text-sm text-gold lg:hidden"
+        >
+          ← Clients
+        </button>
+      )}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-cream">{client.name}</h2>
           <p className="mt-1 text-sm text-muted">
             Pay terms {client.pay_terms}
             {client.last_po ? ` · last PO ${client.last_po}` : ''}
+            {profile.source === 'portal_onboard' ? ' · from /client setup' : ''}
           </p>
         </div>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-3">
         <label className={label}>
           Default invoice email
           <input
@@ -160,10 +242,140 @@ function ClientDetail({ client }: { client: ClientProfile }) {
             onChange={(e) => updateClient(client.id, { pay_terms: e.target.value })}
           />
         </label>
+        <label className={label}>
+          PO prefix
+          <input
+            className={`${input} avionic uppercase`}
+            value={client.po_prefix ?? ''}
+            onChange={(e) =>
+              updateClient(client.id, {
+                po_prefix: e.target.value.trim().toUpperCase() || null,
+              })
+            }
+            placeholder="PSA"
+          />
+        </label>
+      </section>
+
+      <section className="rounded-lg border border-border bg-surface p-3 space-y-3">
+        <div className="text-xs uppercase tracking-wider text-muted">
+          Company profile
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={label}>
+            DBA
+            <input
+              className={input}
+              value={profile.dba ?? ''}
+              onChange={(e) => patchProfile({ dba: e.target.value || undefined })}
+            />
+          </label>
+          <label className={label}>
+            Website
+            <input
+              className={input}
+              value={profile.website ?? ''}
+              onChange={(e) =>
+                patchProfile({ website: e.target.value || undefined })
+              }
+            />
+          </label>
+          <label className={label}>
+            Front desk phone
+            <input
+              className={`${input} avionic`}
+              value={profile.front_desk_phone ?? ''}
+              onChange={(e) =>
+                patchProfile({ front_desk_phone: e.target.value || undefined })
+              }
+            />
+          </label>
+          <label className={label}>
+            Vendor packet →
+            <input
+              className={input}
+              value={profile.vendor_packet_to ?? ''}
+              onChange={(e) =>
+                patchProfile({ vendor_packet_to: e.target.value || undefined })
+              }
+              placeholder="W-9 / banking destination"
+            />
+          </label>
+        </div>
+        {addr && (
+          <p className="text-xs text-muted">
+            Address:{' '}
+            <span className="text-cream">
+              {[addr.street, addr.city, addr.state, addr.zip]
+                .filter(Boolean)
+                .join(', ')}
+            </span>
+            {profile.billing_same_as_address === false &&
+              profile.billing_address && (
+                <span>
+                  {' '}
+                  · Billing:{' '}
+                  {[
+                    profile.billing_address.street,
+                    profile.billing_address.city,
+                    profile.billing_address.state,
+                    profile.billing_address.zip,
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                </span>
+              )}
+          </p>
+        )}
+        {profile.emergency && (
+          <p className="text-xs text-muted">
+            Emergency:{' '}
+            <span className="text-cream">
+              {profile.emergency.name} {profile.emergency.phone}
+              {profile.emergency.email ? ` · ${profile.emergency.email}` : ''}
+            </span>
+          </p>
+        )}
+        <div className="flex flex-wrap gap-4 text-sm text-cream">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={Boolean(profile.requires_po)}
+              onChange={(e) => patchProfile({ requires_po: e.target.checked })}
+            />
+            PO required
+          </label>
+          <label className={label}>
+            Updates
+            <select
+              className={input}
+              value={profile.update_channel ?? 'email'}
+              onChange={(e) =>
+                patchProfile({
+                  update_channel: e.target.value as 'email' | 'sms' | 'both',
+                })
+              }
+            >
+              <option value="email">Email</option>
+              <option value="sms">SMS</option>
+              <option value="both">Email + SMS</option>
+            </select>
+          </label>
+        </div>
+        {profile.frequent_lanes && profile.frequent_lanes.length > 0 && (
+          <p className="avionic text-xs text-gold">
+            Lanes:{' '}
+            {profile.frequent_lanes
+              .map((l) => `${l.origin}→${l.destination}`)
+              .join(' · ')}
+          </p>
+        )}
       </section>
 
       <section className="rounded-lg border border-border bg-surface p-3">
-        <div className="text-xs uppercase tracking-wider text-muted">Routing rules</div>
+        <div className="text-xs uppercase tracking-wider text-muted">
+          Routing rules
+        </div>
         <div className="mt-3 flex flex-wrap gap-4 text-sm text-cream">
           <label className="flex items-center gap-2">
             <input
@@ -204,6 +416,18 @@ function ClientDetail({ client }: { client: ClientProfile }) {
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
+              checked={client.rules.no_single_engine_night}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { no_single_engine_night: e.target.checked },
+                })
+              }
+            />
+            No SE night
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
               checked={client.rules.hazmat_allowed}
               onChange={(e) =>
                 updateClient(client.id, {
@@ -214,8 +438,48 @@ function ClientDetail({ client }: { client: ClientProfile }) {
             Hazmat OK
           </label>
         </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className={label}>
+            Hazmat notes
+            <input
+              className={input}
+              value={client.rules.hazmat_notes}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { hazmat_notes: e.target.value },
+                })
+              }
+            />
+          </label>
+          <label className={label}>
+            Declared value norms
+            <input
+              className={input}
+              value={client.rules.declared_value_norm}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { declared_value_norm: e.target.value },
+                })
+              }
+            />
+          </label>
+        </div>
+        <label className={`${label} mt-3`}>
+          Notes
+          <textarea
+            className={input}
+            rows={2}
+            value={client.notes}
+            onChange={(e) => updateClient(client.id, { notes: e.target.value })}
+          />
+        </label>
         <p className="mt-2 text-xs text-muted">
-          Full interview:{' '}
+          Full public setup:{' '}
+          <Link to="/client" className="text-gold">
+            /client
+          </Link>
+          {' · '}
+          Admin interview:{' '}
           <Link to="/admin" className="text-gold">
             Admin → Add client
           </Link>

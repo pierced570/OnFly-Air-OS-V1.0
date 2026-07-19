@@ -22,7 +22,7 @@ const field =
 
 export default function StaffAccessPage() {
   const staff = useSyncExternalStore(subscribeStaff, listStaff, listStaff)
-  const session = useSyncExternalStore(subscribeStaff, getSession, () => null)
+  const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
   const [editing, setEditing] = useState<StaffMember | null>(null)
   const [status, setStatus] = useState<string | null>(null)
 

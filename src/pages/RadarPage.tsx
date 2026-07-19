@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { createWxAdapter } from '@/adapters/wx'
+import { isRealAdsbEnabled } from '@/adapters/adsb'
+import { createWxAdapter, type WxBrief } from '@/adapters/wx'
+import { FlightCatBadge } from '@/components/FlightCatBadge'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
+import { loadNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
 import { FlightChip } from '@/components/FlightChip'
 import { RadarMap } from '@/components/RadarMap'
@@ -25,21 +28,25 @@ export default function RadarPage() {
   const watched = useSyncExternalStore(
     subscribeWatchedTails,
     listWatchedTails,
-    () => [],
+    listWatchedTails,
   )
   const [statuses, setStatuses] = useState<FleetStatus[]>([])
-  const [wx, setWx] = useState('')
+  const [wx, setWx] = useState<WxBrief | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const adsbLive = isRealAdsbEnabled()
+
   async function refresh() {
     setBusy(true)
     try {
+      // Ensure watch list matches Network fleet (live DB or fixture).
+      await loadNetwork()
+      // Mock adapter returns no_data only — never invents airborne tracks.
       setStatuses(await loadFleetStatuses())
-      const brief = await createWxAdapter().brief('KCAK')
-      setWx(brief.summary)
+      setWx(await createWxAdapter().brief('KCAK'))
     } finally {
       setBusy(false)
     }
@@ -78,18 +85,42 @@ export default function RadarPage() {
           <p className="mt-1 text-sm text-muted">
             {watched.length} watched tails
             {d085Count ? ` · ${d085Count} from D085 uploads` : ''}
-            {' · '}
-            last takeoff / landing from ADS-B
+            {adsbLive
+              ? ' · last takeoff / landing from ADS-B'
+              : ' · ADS-B API not connected yet'}
           </p>
+          {!adsbLive && (
+            <p className="mt-2 text-xs text-gold">
+              Positions are off until the live ADS-B provider is wired — no mock
+              tracks. Tails below are from Network.
+            </p>
+          )}
+          {wx && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+              <span className="avionic text-gold">{wx.icao}</span>
+              <FlightCatBadge cat={wx.flightCat} />
+              {wx.tafWorstCat && (
+                <span className="inline-flex items-center gap-1">
+                  TAF <FlightCatBadge cat={wx.tafWorstCat} size="sm" />
+                </span>
+              )}
+              <span className="text-muted/80">live METAR/TAF</span>
+            </p>
+          )}
         </div>
         <div className="flex gap-3">
           <button
             type="button"
-            className="text-sm text-gold"
-            disabled={busy}
+            className="text-sm text-gold disabled:opacity-50"
+            disabled={busy || !adsbLive}
             onClick={() => void refresh()}
+            title={
+              adsbLive
+                ? 'Refresh live positions'
+                : 'Enable when VITE_ADSB_ADAPTER=real + provider key'
+            }
           >
-            {busy ? 'Refreshing…' : 'Refresh ADS-B'}
+            {busy ? 'Refreshing…' : adsbLive ? 'Refresh ADS-B' : 'ADS-B pending'}
           </button>
           <Link to="/admin" className="text-sm text-muted hover:text-cream">
             Upload D085 →
@@ -97,34 +128,36 @@ export default function RadarPage() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {(
-          [
-            ['all', 'All'],
-            ['airborne', 'Airborne'],
-            ['on_ground', 'On ground'],
-            ['no_data', 'No ADS-B'],
-            ['d085', 'D085 watch'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setFilter(id)}
-            className={[
-              'rounded-md px-3 py-1.5 text-xs',
-              filter === id ? 'bg-gold text-ink' : 'bg-surface text-muted',
-            ].join(' ')}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex flex-col gap-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Filter tail / operator…"
-          className="ml-auto w-56 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-cream"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-cream sm:max-w-xs sm:py-2"
         />
+        <div className="board-rail flex gap-2 overflow-x-auto pb-1">
+          {(
+            [
+              ['all', 'All'],
+              ['airborne', 'Airborne'],
+              ['on_ground', 'On ground'],
+              ['no_data', 'No ADS-B'],
+              ['d085', 'D085 watch'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setFilter(id)}
+              className={[
+                'shrink-0 rounded-md px-3 py-2.5 text-xs sm:py-2',
+                filter === id ? 'bg-gold text-ink' : 'bg-surface text-muted',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <RadarMap statuses={filtered} onSelect={setSelected} />
@@ -132,7 +165,37 @@ export default function RadarPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">WX brief</h2>
-          <p className="mt-2 text-sm text-cream">{wx || '…'}</p>
+          {wx ? (
+            <div className="mt-2 space-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="avionic text-gold">{wx.icao}</span>
+                <FlightCatBadge cat={wx.flightCat} />
+                {wx.tafWorstCat && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                    TAF <FlightCatBadge cat={wx.tafWorstCat} size="sm" />
+                  </span>
+                )}
+              </div>
+              {wx.metar && (
+                <p className="avionic text-xs text-cream/90">{wx.metar}</p>
+              )}
+              {wx.tafPeriods.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5">
+                  {wx.tafPeriods.slice(0, 6).map((p, i) => (
+                    <li
+                      key={`${p.timeFrom}-${i}`}
+                      className="inline-flex items-center gap-1 text-[10px] text-muted"
+                    >
+                      <span className="avionic">{p.label}</span>
+                      <FlightCatBadge cat={p.flightCat} size="sm" />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-muted">…</p>
+          )}
           {selectedStatus && (
             <div className="mt-4 border-t border-border pt-3 text-sm">
               <div className="avionic text-gold">{selectedStatus.tail}</div>

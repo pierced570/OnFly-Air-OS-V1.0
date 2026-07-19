@@ -6,6 +6,7 @@ import type { Candidate } from '@/domain/routing'
 import type { TripState } from '@/domain/stateMachine'
 import { transition } from '@/domain/stateMachine'
 import { parseThreadActual } from '@/domain/threadParse'
+import { tripInvoiceLines } from '@/domain/qbInvoice'
 import { createAccountingAdapter } from '@/adapters/accounting'
 
 function tapToken(kind: string): string {
@@ -557,17 +558,63 @@ export function postThreadMessage(
   return msg
 }
 
+/** Create QB invoice for a trip (mock or live). Does not use QBO email. */
 export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
+  return createInvoiceForTrip(tripId)
+}
+
+export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
   const t = trips.get(tripId)
   if (!t) return null
   if (t.invoice) return t.invoice
   const total = t.quick?.client_price ?? t.hard_quote?.total ?? 0
+  if (!(total > 0)) return null
   const acct = createAccountingAdapter()
   const clientName = t.quick?.client_name ?? 'Client'
-  await acct.ensureCustomer(clientName)
-  const created = await acct.createInvoice(t.ref, [
-    { description: `Trip T-${t.ref}`, amount: total },
-  ])
+  const po = t.quick?.po?.trim() || `T-${t.ref}`
+  const txnDate = new Date().toISOString().slice(0, 10)
+  const lines = tripInvoiceLines({
+    tripRef: t.ref,
+    lane: t.lane,
+    flightDate: t.quick?.legs[0]?.date ?? null,
+    airAmount: total,
+  })
+  const created = await acct.createInvoice({
+    customerName: clientName,
+    poNumber: po,
+    txnDate,
+    payTerms: t.quick?.pay_terms ?? 'Net 30',
+    tripRef: t.ref,
+    lines,
+    notes: t.quick?.notes ?? null,
+  })
+
+  // Branded Resend delivery (never QBO /invoice/{id}/send)
+  const apTo = [
+    t.quick?.invoice_email,
+    ...t.participants
+      .filter((p) => p.role === 'client_ap' && p.email)
+      .map((p) => p.email),
+  ]
+    .filter((e): e is string => Boolean(e?.includes('@')))
+    .map((e) => e.toLowerCase())
+  const uniqueTo = [...new Set(apTo)]
+  if (uniqueTo.length && (t.quick?.send_invoice ?? true)) {
+    try {
+      const pdf = await acct.getInvoicePdfBase64(created.qbInvoiceId)
+      if (pdf) {
+        await acct.sendInvoiceEmail({
+          to: uniqueTo,
+          poNumber: created.qbInvoiceNumber || po,
+          pdfBase64: pdf,
+          clientName,
+        })
+      }
+    } catch (e) {
+      console.warn('[invoice] email failed (invoice still created)', e)
+    }
+  }
+
   const inv: TripInvoice = {
     id: crypto.randomUUID(),
     qb_invoice_id: created.qbInvoiceId,
@@ -581,7 +628,7 @@ export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvo
     row.documents.push({
       id: crypto.randomUUID(),
       kind: 'other',
-      title: `Invoice ${inv.qb_invoice_id}`,
+      title: `Invoice ${created.qbInvoiceNumber || inv.qb_invoice_id}`,
       at: inv.created_at,
       url: inv.url,
     })
@@ -589,6 +636,7 @@ export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvo
       try {
         const result = transition(row.state, 'invoiced', 'system', {
           qb_invoice_id: inv.qb_invoice_id,
+          doc_number: created.qbInvoiceNumber,
         })
         row.state = result.to
         row.events.push({
@@ -605,7 +653,11 @@ export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvo
         at: inv.created_at,
         actor: 'system',
         kind: 'invoice_created',
-        payload: { qb_invoice_id: inv.qb_invoice_id, total },
+        payload: {
+          qb_invoice_id: inv.qb_invoice_id,
+          doc_number: created.qbInvoiceNumber,
+          total,
+        },
       })
     }
   })

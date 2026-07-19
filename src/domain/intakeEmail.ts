@@ -7,6 +7,8 @@ export async function handleInboundEmail(opts: {
   subject: string
   body: string
   requesterMatch: boolean
+  /** On-shift dispatcher phone; caller resolves from shifts. */
+  notifyPhone: string
 }) {
   if (!opts.requesterMatch) {
     return { ignored: true as const, reason: 'sender not a known requester' }
@@ -16,8 +18,8 @@ export async function handleInboundEmail(opts: {
   const comms = createCommsAdapter()
   await comms.send({
     channel: 'sms',
-    to: '+10000000000',
-    body: `OnFly: draft trip from email — review /trips/review (mock). Origin ${extracted.origin_text} → ${extracted.destination_text}`,
+    to: opts.notifyPhone,
+    body: `OnFly: draft trip from email — review /intake (mock). Origin ${extracted.origin_text} → ${extracted.destination_text}`,
   })
   return { ignored: false as const, extracted }
 }

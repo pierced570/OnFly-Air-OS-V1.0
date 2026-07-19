@@ -103,6 +103,7 @@ describe('staffAccess', () => {
     expect(sectionForPath('/admin/staff')).toBe('staff_access')
     expect(sectionForPath('/admin/tasks')).toBe('tasks')
     expect(sectionForPath('/admin')).toBe('admin')
+    expect(sectionForPath('/leads')).toBe('leads')
     expect(sectionForPath('/')).toBe('board')
   })
 })

@@ -51,6 +51,13 @@ export type FinancialRecord = {
   vendor_bill_url: string | null
   vendor_bill_verified: boolean
   notes: string | null
+
+  /** Set after QBO create_invoice (or mock) */
+  qb_invoice_id?: string | null
+  qb_invoice_number?: string | null
+  invoice_date?: string | null
+  due_date?: string | null
+  po_number?: string | null
 }
 
 export type ComputedFinancial = FinancialRecord & {

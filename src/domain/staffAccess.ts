@@ -9,6 +9,7 @@ export const STAFF_SECTIONS = [
   { id: 'intake', label: 'Intake', pathPrefix: '/intake' },
   { id: 'financials', label: 'Financials', pathPrefix: '/financials' },
   { id: 'clients', label: 'Clients', pathPrefix: '/clients' },
+  { id: 'leads', label: 'Leads', pathPrefix: '/leads' },
   { id: 'fbos', label: 'FBOs', pathPrefix: '/fbos' },
   { id: 'trips', label: 'Trips', pathPrefix: '/trips' },
   { id: 'quotes', label: 'Quotes', pathPrefix: '/quotes' },
@@ -151,6 +152,7 @@ export function sectionForPath(pathname: string): StaffSectionId | null {
   if (pathname.startsWith('/intake')) return 'intake'
   if (pathname.startsWith('/financials')) return 'financials'
   if (pathname.startsWith('/clients')) return 'clients'
+  if (pathname.startsWith('/leads')) return 'leads'
   if (pathname.startsWith('/fbos')) return 'fbos'
   if (pathname.startsWith('/trips')) return 'trips'
   if (pathname.startsWith('/quotes')) return 'quotes'
@@ -166,6 +168,7 @@ export const DISPATCH_DEFAULT_SECTIONS: StaffSectionId[] = [
   'quick_dispatch',
   'intake',
   'clients',
+  'leads',
   'fbos',
   'trips',
   'quotes',

@@ -48,6 +48,48 @@ function seedFromNetwork() {
 
 seedFromNetwork()
 
+/** Reconcile watch list with live Network fleet (DB or fixture). */
+export function syncWatchedFromFleet(
+  aircraft: Array<{
+    tail: string
+    type_name: string | null
+    operator_name: string
+    operator_id: string
+    base_icao: string | null
+  }>,
+): void {
+  const now = new Date().toISOString()
+  let changed = false
+  for (const a of aircraft) {
+    const tail = String(a.tail ?? '').toUpperCase()
+    if (!tail || tail.startsWith('TBD')) continue
+    const existing = byTail.get(tail)
+    if (existing?.source === 'd085') {
+      const next = {
+        ...existing,
+        type_name: a.type_name ?? existing.type_name,
+        base_icao: a.base_icao ?? existing.base_icao,
+        operator_name: a.operator_name || existing.operator_name,
+        operator_id: a.operator_id || existing.operator_id,
+      }
+      byTail.set(tail, next)
+      changed = true
+      continue
+    }
+    byTail.set(tail, {
+      tail,
+      type_name: a.type_name,
+      operator_name: a.operator_name,
+      operator_id: a.operator_id,
+      base_icao: a.base_icao,
+      source: 'network',
+      added_at: existing?.added_at ?? now,
+    })
+    changed = true
+  }
+  if (changed) bump()
+}
+
 export function subscribeWatchedTails(fn: () => void): () => void {
   listeners.add(fn)
   return () => {

@@ -7,7 +7,7 @@ Updated as we convert mocks → durable/live paths.
 | 1 | Foundation | **DONE** spine, fleet import, network, airports+city/state | Direct state revoke hardening |
 | 2 | Quote engine | **PARTIAL** — client rules + FBO fees wired into candidates; NM GC readout in reasoning; live airports picker | Maps drive times, pricing priors, tax_rates from DB, quote/doc rows |
 | 3 | Offers/booking | **PARTIAL** — accept → confirm + stand-down (mock SMS) + ETA sheet/track links to tracker/supply-chain; **no QB invoice on accept** | RingCentral, QBO invoice, offers table writes |
-| 4 | Execution | **PARTIAL** — trip execution UI, one-tap, thread parse | Thread numbers, checkpoints cron, Storage POD |
+| 4 | Execution | **PARTIAL** — trip execution UI, one-tap, thread parse, **checkpoint timers** on dispatch | Thread numbers, edge cron (client ticker for now), Storage POD |
 | 5 | Portal/money | **PARTIAL** — portal form + track; financials ledger; mock QB | Magic-link RLS, QBO OAuth, manifests/render-doc |
 | 6 | Admin wizards | **PARTIAL** — operator docs (charter/D085/COI + expiry); COI expiry email; named-insurer toggle @ 3 trips; FBO CSV | D085 real parse edge; Storage upload; persist operators to DB |
 | 7 | Intelligence | **PARTIAL** — live METAR/TAF; radar watches network + D085 tails (mock ADS-B takeoff/landing); crew-rest chips removed | Live ADS-B poller, NOTAM FAA API, Telnyx, scorecard MV |
@@ -26,6 +26,21 @@ Updated as we convert mocks → durable/live paths.
 - Hard quote accept → confirm selected operator + stand down others (mock SMS)
 - ETA sheet + portal track links → client tracker / supply-chain emails (+ QD CC)
 - Invoice → AP / QB **not** on accept (manual later)
+
+## Checkpoint timers (on dispatch)
+
+- On book / Quick Dispatch: hydrate leg est times → schedule truck T-30/T-5, air T-60/T-30/arrival, overdue (+20m) watchdogs
+- Dispatcher shell ticks every 30s → fires due check-ins to Board exception queue + on-shift SMS
+- Board “Upcoming check-ins” + Trip “Check-in timers” with one-tap links
+- Domain: `src/domain/checkpoints.ts` · store: `src/lib/checkpointStore.ts`
+
+## Estimated quote + ETA email (request flow)
+
+- Quote composer → **Approve & send estimated quote + ETA sheet** (`sendEstimatedQuote`)
+- HTML includes totals + domain ETA chain (stop-local + Zulu); carrier unnamed
+- Recipients from request email / client requesters (editable To:)
+- Hard quote select also emails quote + ETA + accept link when a chain exists
+- Resend when `VITE_EMAIL_ADAPTER=real`
 
 ## Radar / D085
 
@@ -77,35 +92,44 @@ Updated as we convert mocks → durable/live paths.
 - Portal track: ETA / legs+actuals / contacts / live updates — **no pricing**
 - Full wire order: [`docs/WIRE_ORDER.md`](WIRE_ORDER.md)
 
-## Customer onboarding (portal)
+## Customer onboarding (client page — not portal)
 
-- Public form: `/portal/onboard` (company, people roles, billing, lanes, prefs)
-- Submit → `addClient` + contacts (ops/AP/supervisors) + `clients.profile` jsonb
-- Binds browser portal session → home shows company; request form seeds frequent lane
+- Public shareable form: `/client` — same subjects as Admin Add-client + Clients directory:
+  company/address/billing, people (ops/AP/supply/emergency), pay terms + PO prefix,
+  routing rules (dual pilot, freight, multi-engine, SE night, hazmat, declared value),
+  frequent lanes, update prefs
+- Portal is request/track only; send `/client` to new customers (Clients page has copy link)
+- Legacy `/portal/onboard` redirects to `/client`
+- Submit → `addClient` + `client_rules` + contacts + `clients.profile` jsonb
+- Clients detail shows/edits the same profile + full rules
 - NEEDS-INFO tasks for review / vendor packet / card-on-file link (never collect cards)
 - Migration `0008_client_profile.sql`
 
-## Vendor wiring from logins-keys.csv (2026-07-18)
+## Vendor wiring from logins-keys.csv (2026-07-18) — live flip pass
 
 | Vendor | Status | Notes |
 |--------|--------|-------|
-| Supabase | **keys loaded** | Management API → `VITE_SUPABASE_*` in local `.env` |
-| Resend | **live** | `send-email` deployed · From `info@onflyair.com` |
-| Mapbox | **live path** | Directions adapter · `VITE_MAPBOX_TOKEN` (pk.*) |
-| OpenAI | **wired / quota** | `llm-extract` deployed · OnFly ChatGPT key 401 · skyIQ key models-ok but chat **quota exceeded** — add billing or new key |
-| ADS-B Exchange | **wired / unsubscribed** | `adsb-positions` deployed · RapidAPI returns not subscribed — renew ADSBexchange-com1 |
-| QuickBooks | blocked | Vault has login only — need OAuth app ids |
-| RingCentral / Telnyx / Anthropic | missing | Not in CSV |
+| Supabase | **live** | `VITE_SUPABASE_*` in `.env` |
+| Resend | **live** | default `VITE_EMAIL_ADAPTER=real` · `send-email` |
+| Mapbox | **live** | default `VITE_MAPS_ADAPTER=real` · Directions |
+| Claude / Anthropic | **live** | default `VITE_LLM_ADAPTER=real` · `llm-extract` (trip + D085) |
+| WX METAR/TAF | **live** | `wx-brief` + aviationweather.gov · flight-cat colors |
+| OpenAI | fallback only | Claude preferred |
+| ADS-B | **blocked** | RapidAPI dead — leave `VITE_ADSB_ADAPTER=mock` until FlightAware/ADSBX direct |
+| QuickBooks | **wired (mock default)** | Edge `quickbooks-auth` / `quickbooks-api` / `send-invoice-email`; Financials Connect + Send Invoice; flip `VITE_QB_ADAPTER=real` after Intuit OAuth app secrets |
+| RingCentral / Telnyx | **blocked** | Not sourced — SMS/voice stay mock |
+| NOTAMs | **blocked** | FAA API enrollment |
 | Twilio | login only | Prefer RC for SMS |
 
-Deploy: `npm run deploy:vendors` · toggles in `.env.local` / Vercel.
+Deploy: `npm run deploy:vendors` · Admin chip strip shows live / wire / mock.
 
-## Next (priority)
+## Next (still to wire)
 
-1. Set Vercel envs (`VITE_SUPABASE_*`, `VITE_MAPBOX_TOKEN`, adapter=real)  
-2. Renew ADS-B RapidAPI subscription  
-3. Persist trips/offers/quotes via `trip_transition` RPC  
-4. D085 AI verify UI on `llm-extract`  
-5. Replace skyIQ OpenAI key with dedicated OnFly key  
-6. RC → Telnyx → QBO OAuth  
+1. ADS-B provider swap (FlightAware or ADSBX direct)  
+2. RingCentral SMS adapter  
+3. QuickBooks OAuth app secrets (`QB_CLIENT_ID`/`SECRET`) + Connect on Financials → sandbox invoice smoke test  
+4. FAA NOTAM API  
+5. Persist trips/offers via `trip_transition`  
+6. Resend inbound webhook for intake-email  
+7. Vercel env parity (`VITE_*` real toggles + tokens)  
 

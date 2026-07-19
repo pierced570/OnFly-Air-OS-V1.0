@@ -137,6 +137,36 @@ export async function selectOfferAndHardQuote(tripId: string, offerId: string, c
     to: '+1555CLIENT',
     body: `OnFly hard quote ${trip.lane}: $${clientTotal.toFixed(0)}. Accept: /accept/${accept_token}`,
   })
+
+  // Email client hard quote + ETA sheet (same function as estimated quotes)
+  const selectedCand =
+    trip.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
+    trip.candidates.find((c) => c.tail === offer.tail) ??
+    trip.candidates[0]
+  if (selectedCand?.chain?.length) {
+    try {
+      const { sendEstimatedQuote } = await import('@/lib/sendEstimatedQuote')
+      const [originLabel, destLabel] = trip.lane.split(/\s*→\s*/)
+      await sendEstimatedQuote({
+        originLabel: originLabel?.trim() || trip.lane,
+        destLabel: destLabel?.trim() || '',
+        readyLabel: trip.ready_label,
+        payloadKind: kind,
+        candidates: trip.candidates,
+        selected: selectedCand,
+        airSubtotal: clientTotal,
+        total: clientTotal,
+        taxLines: [],
+        clientId: trip.client_id,
+        kind: 'hard',
+        acceptUrl: `/accept/${accept_token}`,
+        tripId,
+      })
+    } catch (e) {
+      console.warn('[hard quote] email with ETA skipped', e)
+    }
+  }
+
   return getTrip(tripId)!
 }
 

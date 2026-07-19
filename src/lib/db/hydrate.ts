@@ -2,6 +2,7 @@
  * Boot-time hydrate: pull real operating rows from Supabase into session stores.
  */
 
+import type { Lead } from '@/domain/leads'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import {
   replaceClientsFromDb,
@@ -10,6 +11,7 @@ import {
   DEFAULT_CLIENT_RULES,
 } from '@/lib/clientStore'
 import { replaceFbosFromDb, type FboRow } from '@/lib/fboStore'
+import { replaceLeadsFromDb } from '@/lib/leadStore'
 import { replaceNeedsInfoFromDb, type NeedsInfoTask } from '@/lib/needsInfoStore'
 import { hydrateShiftFromDb } from '@/lib/shiftStore'
 
@@ -18,16 +20,17 @@ export async function hydrateOperatingData(): Promise<{
   clients: number
   fbos: number
   tasks: number
+  leads: number
 }> {
   if (!canPersist()) {
-    return { ok: false, clients: 0, fbos: 0, tasks: 0 }
+    return { ok: false, clients: 0, fbos: 0, tasks: 0, leads: 0 }
   }
 
   const clientRows = await safeQuery('clients', () =>
     db()
       .from('clients')
       .select(
-        'id,name,billing_terms,qb_customer_id,notes,invoice_email,last_po,legacy_key,profile,client_contacts(id,name,role,email,cell,notify_prefs),client_rules(*)',
+        'id,name,billing_terms,qb_customer_id,notes,invoice_email,last_po,po_prefix,legacy_key,profile,client_contacts(id,name,role,email,cell,notify_prefs),client_rules(*)',
       )
       .order('name'),
   )
@@ -58,6 +61,11 @@ export async function hydrateOperatingData(): Promise<{
           }
         }),
         last_po: r.last_po ? String(r.last_po) : null,
+        po_prefix: r.po_prefix
+          ? String(r.po_prefix)
+          : r.last_po
+            ? String(r.last_po).match(/^([A-Za-z]+)/)?.[1]?.toUpperCase() ?? null
+            : null,
         pay_terms: String(r.billing_terms ?? 'Net 30'),
         notes: String(r.notes ?? ''),
         rules: {
@@ -164,5 +172,31 @@ export async function hydrateOperatingData(): Promise<{
     })
   }
 
-  return { ok: true, clients, fbos, tasks }
+  const leadRows = await safeQuery('leads', () =>
+    db().from('leads').select('*').order('next_follow_up_at', { ascending: true }).limit(1000),
+  )
+  let leads = 0
+  if (leadRows && Array.isArray(leadRows) && leadRows.length) {
+    const mapped: Lead[] = leadRows.map((r: Record<string, unknown>) => ({
+      id: String(r.id),
+      company: String(r.company ?? ''),
+      contact_name: String(r.contact_name ?? ''),
+      title: String(r.title ?? ''),
+      email: String(r.email ?? ''),
+      phone: String(r.phone ?? ''),
+      kind: (String(r.kind ?? 'other') as Lead['kind']),
+      status: (String(r.status ?? 'open') as Lead['status']),
+      last_contacted_at: r.last_contacted_at ? String(r.last_contacted_at) : null,
+      next_follow_up_at: r.next_follow_up_at ? String(r.next_follow_up_at) : null,
+      notes: String(r.notes ?? ''),
+      last_touch_note: String(r.last_touch_note ?? ''),
+      owner: String(r.owner ?? ''),
+      created_at: String(r.created_at ?? new Date().toISOString()),
+      updated_at: String(r.updated_at ?? new Date().toISOString()),
+    }))
+    replaceLeadsFromDb(mapped)
+    leads = mapped.length
+  }
+
+  return { ok: true, clients, fbos, tasks, leads }
 }

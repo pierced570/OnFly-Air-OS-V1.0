@@ -1,12 +1,22 @@
 import networkFixture from '@/fixtures/network.json'
 import type { AircraftRow, NetworkFixture, OperatorRow } from '@/lib/types'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { syncWatchedFromFleet } from '@/lib/watchedTailsStore'
 
 export type { OperatorRow, AircraftRow }
 
-let cached: NetworkFixture | null = null
+export type NetworkLoadSource = 'live' | 'fixture'
 
-export async function loadNetwork(): Promise<NetworkFixture> {
+export type LoadedNetwork = NetworkFixture & { source: NetworkLoadSource }
+
+let cached: LoadedNetwork | null = null
+
+/** Clear in-module cache (e.g. after fleet import). */
+export function clearNetworkCache() {
+  cached = null
+}
+
+export async function loadNetwork(): Promise<LoadedNetwork> {
   if (cached) return cached
 
   if (isSupabaseConfigured && supabase) {
@@ -18,7 +28,9 @@ export async function loadNetwork(): Promise<NetworkFixture> {
           'id,operator_id,tail,type_name,category,engines,base_icao,cruise_kts,mtow_lbs,max_payload_lbs,seats,needs_info,active,operators(name)',
         ),
     ])
-    if (!oErr && !aErr && operators && aircraft) {
+    // Only use live DB when it actually has fleet rows — empty project
+    // must fall through to the bundled fixture or intake/quote recommend nothing.
+    if (!oErr && !aErr && operators && aircraft && aircraft.length > 0) {
       const ops: OperatorRow[] = operators.map((o) => ({
         id: o.id as string,
         name: o.name as string,
@@ -58,11 +70,15 @@ export async function loadNetwork(): Promise<NetworkFixture> {
           airports: 0,
           needs_info_tasks: acs.reduce((n, a) => n + a.needs_info.length, 0),
         },
+        source: 'live',
       }
+      syncWatchedFromFleet(acs)
       return cached
     }
   }
 
-  cached = networkFixture as NetworkFixture
+  const fixture = networkFixture as NetworkFixture
+  cached = { ...fixture, source: 'fixture' }
+  syncWatchedFromFleet(fixture.aircraft)
   return cached
 }

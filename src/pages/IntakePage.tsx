@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  deleteIntakeDraft,
   listIntakeDrafts,
   simulateInboundEmail,
   simulateInboundSms,
@@ -9,7 +10,7 @@ import {
 import { listRequestAlertEmails } from '@/lib/clientStore'
 
 export default function IntakePage() {
-  const drafts = useSyncExternalStore(subscribeIntake, listIntakeDrafts, () => [])
+  const drafts = useSyncExternalStore(subscribeIntake, listIntakeDrafts, listIntakeDrafts)
   const [channel, setChannel] = useState<'email' | 'sms'>('email')
   const [from, setFrom] = useState('')
   const [subject, setSubject] = useState('Need a plane tonight')
@@ -43,8 +44,8 @@ export default function IntakePage() {
         <header>
           <h1 className="text-2xl font-semibold text-cream">Intake simulator</h1>
           <p className="mt-1 text-sm text-muted">
-            Mock email/SMS → LLM extract → ring on-shift → review queue. Live Resend /
-            RC webhooks later.
+            Simulate inbound → Claude extract → ring on-shift → review. Desk SMS mock
+            until RingCentral; Resend inbound webhook still to wire.
           </p>
         </header>
 
@@ -159,14 +160,31 @@ export default function IntakePage() {
               {d.ignore_reason && (
                 <p className="mt-1 text-xs text-late">{d.ignore_reason}</p>
               )}
-              {d.status === 'pending_review' && (
-                <Link
-                  to={`/intake/${d.id}`}
-                  className="mt-2 inline-block text-xs text-gold hover:text-gold-lt"
+              <div className="mt-2 flex flex-wrap items-center gap-1">
+                {d.status === 'pending_review' && (
+                  <Link
+                    to={`/intake/${d.id}`}
+                    className="tap rounded-md text-sm text-gold hover:text-gold-lt"
+                  >
+                    Open review →
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  className="tap rounded-md text-sm text-late"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Delete this ${d.channel} from ${d.from}?`,
+                      )
+                    ) {
+                      deleteIntakeDraft(d.id)
+                    }
+                  }}
                 >
-                  Open review →
-                </Link>
-              )}
+                  Delete
+                </button>
+              </div>
             </div>
           ))
         )}

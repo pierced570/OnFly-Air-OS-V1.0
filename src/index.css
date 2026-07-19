@@ -13,6 +13,11 @@
   --attn: var(--gold);
   --late: #c0392b;
   --onplan: #2e7d32;
+  /* Flight categories (FAA METAR/TAF chips) */
+  --vfr: #2e7d32;
+  --mvfr: #1e88e5;
+  --ifr: #c0392b;
+  --lifr: #8e24aa;
   --text: var(--cream);
   --bg: var(--ink);
   color-scheme: dark;
@@ -30,6 +35,10 @@
   --attn: var(--gold);
   --late: #c0392b;
   --onplan: #2e7d32;
+  --vfr: #2e7d32;
+  --mvfr: #1e88e5;
+  --ifr: #c0392b;
+  --lifr: #8e24aa;
   --text: var(--ink);
   --bg: var(--cream);
   color-scheme: light;
@@ -47,6 +56,10 @@
   --color-attn: var(--attn);
   --color-late: var(--late);
   --color-onplan: var(--onplan);
+  --color-vfr: var(--vfr);
+  --color-mvfr: var(--mvfr);
+  --color-ifr: var(--ifr);
+  --color-lifr: var(--lifr);
   --font-avionic: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -74,6 +87,22 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  /* Prefer tap without 300ms delay; keep text selectable in fields */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Comfortable minimum tap target for text actions */
+.tap {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
 .avionic {
@@ -109,10 +138,27 @@ button {
   overscroll-behavior-x: contain;
 }
 
-.snap-x-mandatory {
-  scroll-snap-type: x mandatory;
+/* Soft horizontal rail — thin bar, no snap jank */
+.board-rail {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--gold) 35%, transparent) transparent;
 }
 
-.snap-start {
-  scroll-snap-align: start;
+.board-rail::-webkit-scrollbar {
+  height: 6px;
+}
+
+.board-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.board-rail::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--gold) 35%, transparent);
+  border-radius: 999px;
+}
+
+.board-rail::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--gold) 55%, transparent);
 }

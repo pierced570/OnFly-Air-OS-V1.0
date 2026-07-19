@@ -4,6 +4,10 @@
 
 import { handleInboundEmail } from '@/domain/intakeEmail'
 import { listRequestAlertEmails } from '@/lib/clientStore'
+import {
+  FALLBACK_DISPATCH_PHONE,
+  resolveDispatchPhone,
+} from '@/lib/dispatchNotify'
 import { getOnShift } from '@/lib/shiftStore'
 
 export type IntakeDraft = {
@@ -75,11 +79,13 @@ export async function simulateInboundEmail(opts: {
       ? from.includes('@') // allow demo when no contacts flagged yet
       : alerts.includes(from)
 
+  const notifyPhone = resolveDispatchPhone()
   const result = await handleInboundEmail({
     from: opts.from,
     subject: opts.subject,
     body: opts.body,
     requesterMatch,
+    notifyPhone,
   })
 
   const shift = getOnShift()
@@ -94,7 +100,9 @@ export async function simulateInboundEmail(opts: {
     status: result.ignored ? 'ignored' : 'pending_review',
     extracted: result.ignored ? null : (result.extracted as IntakeDraft['extracted']),
     ignore_reason: result.ignored ? result.reason : undefined,
-    notified_phone: result.ignored ? undefined : shift?.phone || '+10000000000',
+    notified_phone: result.ignored
+      ? undefined
+      : shift?.phone || FALLBACK_DISPATCH_PHONE,
   }
   drafts.set(id, row)
   bump()
@@ -134,4 +142,11 @@ export function ignoreIntakeDraft(id: string, reason = 'dispatcher ignored'): vo
   row.status = 'ignored'
   row.ignore_reason = reason
   bump()
+}
+
+/** Remove an intake draft from the queue (pending, accepted, or ignored). */
+export function deleteIntakeDraft(id: string): boolean {
+  const ok = drafts.delete(id)
+  if (ok) bump()
+  return ok
 }
