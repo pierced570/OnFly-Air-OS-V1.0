@@ -1,5 +1,5 @@
 /**
- * Trip/offers store — session Map with best-effort Supabase sync via trip_transition.
+ * Trip/offers store — session Map + localStorage + Supabase sync via trip_transition.
  */
 
 import type { Candidate } from '@/domain/routing'
@@ -18,15 +18,32 @@ import { tripInvoiceLines } from '@/domain/qbInvoice'
 import { createAccountingAdapter } from '@/adapters/accounting'
 import { raiseException } from '@/lib/exceptionStore'
 
+const STORAGE_KEY = 'onfly.trips.v1'
+
 function asTripLegs(legs: AppLeg[]): TripLegRow[] {
   return legs.map((l) => ({ ...l }))
 }
 
 function schedulePersist(tripId: string): void {
-  void import('@/lib/db/persistTrip').then(async (m) => {
+  void flushPersistTrip(tripId)
+}
+
+/** Flush one trip to Supabase (best-effort). */
+export async function flushPersistTrip(tripId: string): Promise<void> {
+  try {
+    const m = await import('@/lib/db/persistTrip')
     const row = trips.get(tripId)
     if (row) await m.persistTripSnapshot(row)
-  })
+  } catch (e) {
+    console.warn('[trips] persist failed', tripId, e)
+  }
+}
+
+/** Flush every trip currently in session. */
+export async function flushAllTrips(): Promise<void> {
+  for (const id of trips.keys()) {
+    await flushPersistTrip(id)
+  }
 }
 
 function tapToken(kind: string): string {
@@ -275,10 +292,40 @@ function rebuild() {
   snapshot = [...trips.values()].sort((a, b) => b.ref - a.ref)
 }
 
+function persistLocal(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...trips.values()]))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function loadLocal(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as TripStoreRow[]
+    if (!Array.isArray(parsed)) return
+    for (const row of parsed) {
+      if (!row?.id || !row.state) continue
+      trips.set(row.id, row)
+      if (typeof row.ref === 'number' && row.ref >= refSeq) refSeq = row.ref + 1
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function bump() {
   rebuild()
+  persistLocal()
   for (const l of listeners) l()
 }
+
+loadLocal()
+rebuild()
 
 export function subscribeTrips(fn: () => void): () => void {
   listeners.add(fn)
@@ -440,7 +487,7 @@ export function getTrip(id: string) {
   return trips.get(id) ?? null
 }
 
-/** Replace session trips from DB hydrate (keeps higher refSeq). */
+/** Merge DB rows into session (does not wipe local-only trips still syncing). */
 export function replaceTripsFromDb(rows: TripStoreRow[]): void {
   if (!rows.length) return
   for (const r of rows) {
@@ -448,6 +495,14 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
     if (r.ref >= refSeq) refSeq = r.ref + 1
   }
   bump()
+  // Push any local-only trips that never made it to DB
+  void flushLocalOnlyTrips(new Set(rows.map((r) => r.id)))
+}
+
+async function flushLocalOnlyTrips(knownDbIds: Set<string>): Promise<void> {
+  for (const [id] of trips) {
+    if (!knownDbIds.has(id)) await flushPersistTrip(id)
+  }
 }
 
 /** Attach / replace legs from a quote chain (book / hard-quote select). */

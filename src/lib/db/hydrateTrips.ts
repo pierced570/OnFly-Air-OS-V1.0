@@ -24,7 +24,12 @@ export async function hydrateTrips(): Promise<number> {
       .order('ref', { ascending: false })
       .limit(200),
   )
-  if (!Array.isArray(tripRows) || !tripRows.length) return 0
+  if (!Array.isArray(tripRows) || !tripRows.length) {
+    // Still flush anything sitting in localStorage/session
+    const { flushAllTrips } = await import('@/lib/tripStore')
+    await flushAllTrips()
+    return 0
+  }
 
   const ids = tripRows.map((r: { id: string }) => r.id)
   const legRows = await safeQuery('trip_legs.hydrate', () =>
