@@ -48,12 +48,28 @@ describe('staffAccess', () => {
     expect(phoneDigitsInput('610-509-2031 xyz')).toBe('6105092031')
   })
 
-  it('logs in by name + phone', () => {
-    const hit = findStaffByLogin([pierce, chris], 'Pierce', '6105092031')
+  it('logs in by first name + last name + phone', () => {
+    const hit = findStaffByLogin(
+      [pierce, chris],
+      'Pierce',
+      'Demetriades',
+      '6105092031',
+    )
     expect(hit?.id).toBe('1')
-    expect(findStaffByLogin([pierce], 'Nobody', '6105092031')).toBeNull()
     expect(
-      findStaffByLogin([pierce], 'Pierce Demetriades', '(610) 509-2031')?.id,
+      findStaffByLogin([pierce], 'Pierce', 'Wrong', '6105092031'),
+    ).toBeNull()
+    // First name alone is not enough
+    expect(
+      findStaffByLogin([pierce], 'Pierce', '', '6105092031'),
+    ).toBeNull()
+    expect(
+      findStaffByLogin(
+        [pierce],
+        'pierce',
+        'demetriades',
+        '(610) 509-2031',
+      )?.id,
     ).toBe('1')
   })
 

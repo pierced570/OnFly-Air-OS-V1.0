@@ -197,15 +197,22 @@ export function sessionCan(section: StaffSectionId): boolean {
 }
 
 export function loginStaff(
-  name: string,
+  firstName: string,
+  lastName: string,
   phone: string,
 ): { ok: true; member: StaffMember } | { ok: false; error: string } {
-  const member = findStaffByLogin(staff, name, phone)
+  if (!firstName.trim() || !lastName.trim()) {
+    return {
+      ok: false,
+      error: 'Enter your first and last name.',
+    }
+  }
+  const member = findStaffByLogin(staff, firstName, lastName, phone)
   if (!member) {
     return {
       ok: false,
       error:
-        'No match. Use your registered name and phone. Ask Pierce to add you under Admin → Staff access.',
+        'No match. Use your registered first name, last name, and phone. Ask Pierce to add you under Admin → Staff access.',
     }
   }
   session = enforceOwnerRules(member)

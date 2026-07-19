@@ -4,7 +4,9 @@ import {
   formatPhoneDisplay,
   GRANTABLE_SECTION_IDS,
   GRANTABLE_SECTIONS,
+  joinFullName,
   OWNER_STAFF_ID,
+  splitFullName,
   STAFF_SECTIONS,
   type StaffMember,
   type StaffSectionId,
@@ -172,7 +174,9 @@ function StaffEditor({
   }) => void
 }) {
   const isOwner = initial.id === OWNER_STAFF_ID
-  const [name, setName] = useState(initial.name)
+  const initialParts = splitFullName(initial.name)
+  const [firstName, setFirstName] = useState(initialParts.firstName)
+  const [lastName, setLastName] = useState(initialParts.lastName)
   const [phone, setPhone] = useState(initial.phone)
   const [active, setActive] = useState(initial.active)
   const [sections, setSections] = useState<StaffSectionId[]>([
@@ -202,15 +206,28 @@ function StaffEditor({
         </div>
 
         <div className="mt-4 grid gap-3">
-          <label className="block text-xs text-muted">
-            Name
-            <input
-              className={field}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isOwner}
-            />
-          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-xs text-muted">
+              First name
+              <input
+                className={field}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                disabled={isOwner}
+                autoComplete="given-name"
+              />
+            </label>
+            <label className="block text-xs text-muted">
+              Last name
+              <input
+                className={field}
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                disabled={isOwner}
+                autoComplete="family-name"
+              />
+            </label>
+          </div>
           <label className="block text-xs text-muted">
             Phone (required to log in)
             <PhoneInput
@@ -290,12 +307,13 @@ function StaffEditor({
             onClick={() =>
               onSave({
                 id: initial.id || undefined,
-                name,
+                name: joinFullName(firstName, lastName),
                 phone,
                 sections,
                 active,
               })
             }
+            disabled={!firstName.trim() || !lastName.trim()}
           >
             Save
           </button>

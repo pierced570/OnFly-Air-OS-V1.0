@@ -2,8 +2,12 @@ import { useState, type FormEvent } from 'react'
 import PhoneInput from '@/components/PhoneInput'
 import { loginStaff } from '@/lib/staffStore'
 
+const inputClass =
+  'mt-1 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-cream outline-none focus:border-gold'
+
 export default function StaffLoginPage() {
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -12,10 +16,15 @@ export default function StaffLoginPage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const result = loginStaff(name, phone)
+    const result = loginStaff(firstName, lastName, phone)
     if (!result.ok) setError(result.error)
     setBusy(false)
   }
+
+  const canSubmit =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    phone.length >= 10
 
   return (
     <div
@@ -30,22 +39,35 @@ export default function StaffLoginPage() {
           Dispatch OS
         </h1>
         <p className="mt-2 text-sm text-muted">
-          Enter your name and phone to open the desk. Access is limited to the
-          sections your admin assigned.
+          Enter your first name, last name, and phone to open the desk. Access
+          is limited to the sections the owner assigned.
         </p>
 
         <form onSubmit={submit} className="mt-8 space-y-4">
-          <label className="block text-xs text-muted">
-            Name
-            <input
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-cream outline-none focus:border-gold"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoComplete="name"
-              required
-              placeholder="First Last"
-            />
-          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-xs text-muted">
+              First name
+              <input
+                className={inputClass}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                autoComplete="given-name"
+                required
+                placeholder="Pierce"
+              />
+            </label>
+            <label className="block text-xs text-muted">
+              Last name
+              <input
+                className={inputClass}
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                autoComplete="family-name"
+                required
+                placeholder="Demetriades"
+              />
+            </label>
+          </div>
           <label className="block text-xs text-muted">
             Phone
             <PhoneInput
@@ -58,7 +80,7 @@ export default function StaffLoginPage() {
           {error && <p className="text-sm text-late">{error}</p>}
           <button
             type="submit"
-            disabled={busy || !name.trim() || phone.length < 10}
+            disabled={busy || !canSubmit}
             className="w-full rounded-md bg-gold py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
           >
             {busy ? 'Checking…' : 'Enter'}

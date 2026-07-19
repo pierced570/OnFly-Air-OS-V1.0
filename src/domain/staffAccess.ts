@@ -100,34 +100,64 @@ export function phonesMatch(a: string, b: string): boolean {
   return na === nb || na.endsWith(nb) || nb.endsWith(na)
 }
 
+export function normalizeNamePart(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+export function joinFullName(firstName: string, lastName: string): string {
+  return `${firstName.trim()} ${lastName.trim()}`.replace(/\s+/g, ' ').trim()
+}
+
+/** Split stored "First … Last" into first token + remainder (last name). */
+export function splitFullName(full: string): { firstName: string; lastName: string } {
+  const parts = full.trim().replace(/\s+/g, ' ').split(' ').filter(Boolean)
+  if (!parts.length) return { firstName: '', lastName: '' }
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' }
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+}
+
+/**
+ * Login requires first + last. Matches stored full name:
+ * - first token === firstName
+ * - last token OR full remainder === lastName
+ */
+export function loginNamesMatch(
+  firstName: string,
+  lastName: string,
+  storedFull: string,
+): boolean {
+  const f = normalizeNamePart(firstName)
+  const l = normalizeNamePart(lastName)
+  if (!f || !l) return false
+  const parts = normalizeNamePart(storedFull).split(' ').filter(Boolean)
+  if (parts.length < 2) return false
+  const storedFirst = parts[0]
+  const storedLast = parts[parts.length - 1]
+  const storedRemainder = parts.slice(1).join(' ')
+  return f === storedFirst && (l === storedLast || l === storedRemainder)
+}
+
+/** @deprecated Prefer loginNamesMatch with first + last. */
 export function namesMatch(entered: string, stored: string): boolean {
-  const a = entered.trim().toLowerCase().replace(/\s+/g, ' ')
-  const b = stored.trim().toLowerCase().replace(/\s+/g, ' ')
-  if (!a || !b) return false
-  if (a === b) return true
-  // Allow first name if unique match is checked by caller; here: first-token match
-  const af = a.split(' ')[0]
-  const bf = b.split(' ')[0]
-  return af.length >= 2 && af === bf && (a === af || b.startsWith(af))
+  const { firstName, lastName } = splitFullName(entered)
+  if (!lastName) return false
+  return loginNamesMatch(firstName, lastName, stored)
 }
 
 export function findStaffByLogin(
   staff: StaffMember[],
-  name: string,
+  firstName: string,
+  lastName: string,
   phone: string,
 ): StaffMember | null {
   const phoneHits = staff.filter(
     (s) => s.active && s.phone.trim() && phonesMatch(phone, s.phone),
   )
   if (!phoneHits.length) return null
-  const exact = phoneHits.find(
-    (s) =>
-      s.name.trim().toLowerCase() === name.trim().toLowerCase().replace(/\s+/g, ' '),
+  const hits = phoneHits.filter((s) =>
+    loginNamesMatch(firstName, lastName, s.name),
   )
-  if (exact) return exact
-  const loose = phoneHits.filter((s) => namesMatch(name, s.name))
-  if (loose.length === 1) return loose[0]
-  return null
+  return hits.length === 1 ? hits[0] : null
 }
 
 export function hasSection(
