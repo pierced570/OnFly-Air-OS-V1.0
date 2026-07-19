@@ -27,7 +27,7 @@ export function AirportSelect({
   value,
   onChange,
   label,
-  placeholder = 'Search ICAO, city, or state…',
+  placeholder = 'Search ICAO, IATA, city, or state…',
   required = false,
   optional = false,
   className = '',
