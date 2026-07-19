@@ -9,7 +9,7 @@ import {
 import StaffLoginPage from '@/pages/StaffLoginPage'
 
 export function StaffGate({ children }: { children: ReactNode }) {
-  const session = useSyncExternalStore(subscribeStaff, getSession, () => null)
+  const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
   const loc = useLocation()
 
   if (!session) {

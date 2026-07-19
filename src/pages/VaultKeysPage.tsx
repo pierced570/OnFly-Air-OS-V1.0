@@ -18,7 +18,8 @@ const field =
 const labelCls = 'block text-xs text-muted'
 
 export default function VaultKeysPage() {
-  const session = useSyncExternalStore(subscribeStaff, getSession, () => null)
+  // getServerSnapshot must match getSnapshot identity rules (no () => null).
+  const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
   const entries = useSyncExternalStore(
     subscribeVault,
     listVaultEntries,

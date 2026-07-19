@@ -31,7 +31,7 @@ const nav: {
 ]
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
-  useSyncExternalStore(subscribeStaff, getSession, () => null)
+  useSyncExternalStore(subscribeStaff, getSession, getSession)
   const visible = nav.filter((item) => sessionCan(item.section))
   return (
     <>
@@ -60,7 +60,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 export function DispatchShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const loc = useLocation()
-  const session = useSyncExternalStore(subscribeStaff, getSession, () => null)
+  const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
 
   useEffect(() => {
     setOpen(false)

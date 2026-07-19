@@ -24,11 +24,16 @@ const VAULT_KEY = 'onfly.vault.keys.v1'
 
 let entries: VaultEntry[] = load()
 const listeners = new Set<() => void>()
-/** Stable snapshot for useSyncExternalStore */
+/** Stable snapshot for useSyncExternalStore — must not allocate on read. */
 let cachedEntries: VaultEntry[] = entries.map((e) => ({ ...e }))
+let bootstrapDone = false
+
+function rebuildCache() {
+  cachedEntries = entries.map((e) => ({ ...e }))
+}
 
 function bump() {
-  cachedEntries = entries.map((e) => ({ ...e }))
+  rebuildCache()
   for (const l of listeners) l()
 }
 
@@ -242,19 +247,49 @@ export function importVaultCsv(
   return parsed.length
 }
 
-/** Merge optional gitignored local seed (dev/agent machines only). */
+/**
+ * Merge optional gitignored local seed (dev/agent machines only).
+ * Silent — one cache rebuild at the end so mount never sees a notify storm.
+ */
 function applyLocalBootstrap(): void {
+  if (bootstrapDone) return
+  bootstrapDone = true
   try {
     const mods = import.meta.glob<{
       VAULT_BOOTSTRAP_ENTRIES?: Array<Partial<VaultEntry> & { label: string }>
     }>('./vaultBootstrap.local.ts', { eager: true })
+    let changed = false
     for (const mod of Object.values(mods)) {
       for (const row of mod.VAULT_BOOTSTRAP_ENTRIES ?? []) {
-        if (row.label?.trim()) upsertVaultEntry(row)
+        const label = row.label?.trim()
+        if (!label) continue
+        const key = label.toLowerCase()
+        if (
+          entries.some((e) => displayVaultLabel(e).toLowerCase() === key)
+        ) {
+          continue
+        }
+        entries.push(
+          normalizeEntry({
+            id: crypto.randomUUID(),
+            label,
+            service_name: label,
+            credential_type: row.credential_type ?? 'login',
+            username: row.username ?? '',
+            password: row.password ?? '',
+            api_key: row.api_key ?? '',
+            url: row.url ?? '',
+            notes: row.notes ?? '',
+            created_at: new Date().toISOString(),
+          }),
+        )
+        changed = true
       }
     }
+    if (changed) persist()
+    rebuildCache()
   } catch {
-    /* no local seed */
+    rebuildCache()
   }
 }
 

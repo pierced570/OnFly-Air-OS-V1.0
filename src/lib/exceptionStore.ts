@@ -77,22 +77,27 @@ export function syncExceptionsFromTrips(
     quick?: { timing: string } | undefined
   }>,
 ): void {
+  let changed = false
   for (const t of trips) {
     if (t.state !== 'booked' && t.state !== 'in_progress') continue
     const key = `watch-${t.id}`
-    if ([...cards.values()].some((c) => c.id === key || c.trip_id === t.id)) continue
+    if ([...cards.values()].some((c) => c.id === key || c.trip_id === t.id))
+      continue
     if (t.quick?.timing === 'asap' || t.ready_label === 'ASAP') {
       cards.set(key, {
         id: key,
         trip_id: t.id,
         trip_ref: t.ref,
         title: `ASAP watch · T-${t.ref}`,
-        detail: 'Checkpoint: confirm positioning / pickup within slip threshold.',
+        detail:
+          'Checkpoint: confirm positioning / pickup within slip threshold.',
         severity: 'attn',
         created_at: new Date().toISOString(),
         acknowledged: false,
       })
+      changed = true
     }
   }
-  bump()
+  // Only notify when something new was added — always-bump caused Board re-render storms.
+  if (changed) bump()
 }
