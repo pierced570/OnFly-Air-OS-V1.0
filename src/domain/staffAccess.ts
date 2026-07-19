@@ -37,7 +37,24 @@ export type StaffMember = {
 export function normalizePhone(phone: string): string {
   const d = phone.replace(/\D/g, '')
   if (d.length === 11 && d.startsWith('1')) return d.slice(1)
-  return d
+  return d.slice(0, 10)
+}
+
+/**
+ * Digits the user may type into a phone field (US, max 10).
+ * Strips spaces, dashes, parens, and a leading country code 1.
+ */
+export function phoneDigitsInput(raw: string): string {
+  return normalizePhone(raw)
+}
+
+/** Display / type-as-you-go format: (XXX) XXX-XXXX */
+export function formatPhoneDisplay(phone: string): string {
+  const d = phoneDigitsInput(phone)
+  if (!d) return ''
+  if (d.length <= 3) return `(${d}`
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`
 }
 
 export function phonesMatch(a: string, b: string): boolean {

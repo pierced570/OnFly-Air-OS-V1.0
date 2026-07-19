@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   findStaffByLogin,
+  formatPhoneDisplay,
   hasSection,
   normalizePhone,
+  phoneDigitsInput,
   phonesMatch,
   sectionForPath,
   type StaffMember,
@@ -11,7 +13,7 @@ import {
 const pierce: StaffMember = {
   id: '1',
   name: 'Pierce Demetriades',
-  phone: '858-529-7860',
+  phone: '6105092031',
   is_admin: true,
   sections: ['board'],
   active: true,
@@ -20,22 +22,37 @@ const pierce: StaffMember = {
 const chris: StaffMember = {
   id: '2',
   name: 'Chris Hewitt',
-  phone: '(502) 555-0100',
+  phone: '5025550100',
   is_admin: false,
   sections: ['board', 'radar'],
   active: true,
 }
 
 describe('staffAccess', () => {
-  it('normalizes US phones', () => {
-    expect(normalizePhone('+1 (858) 529-7860')).toBe('8585297860')
-    expect(phonesMatch('8585297860', '858-529-7860')).toBe(true)
+  it('normalizes US phones and strips formatting junk', () => {
+    expect(normalizePhone('+1 (610) 509-2031')).toBe('6105092031')
+    expect(normalizePhone('610-509-2031')).toBe('6105092031')
+    expect(normalizePhone('6105092031')).toBe('6105092031')
+    expect(phonesMatch('6105092031', '(610) 509-2031')).toBe(true)
+  })
+
+  it('formats display as (XXX) XXX-XXXX while typing', () => {
+    expect(formatPhoneDisplay('')).toBe('')
+    expect(formatPhoneDisplay('6')).toBe('(6')
+    expect(formatPhoneDisplay('610')).toBe('(610')
+    expect(formatPhoneDisplay('6105')).toBe('(610) 5')
+    expect(formatPhoneDisplay('6105092031')).toBe('(610) 509-2031')
+    expect(phoneDigitsInput('(610) 509-2031')).toBe('6105092031')
+    expect(phoneDigitsInput('610-509-2031 xyz')).toBe('6105092031')
   })
 
   it('logs in by name + phone', () => {
-    const hit = findStaffByLogin([pierce, chris], 'Pierce', '8585297860')
+    const hit = findStaffByLogin([pierce, chris], 'Pierce', '6105092031')
     expect(hit?.id).toBe('1')
-    expect(findStaffByLogin([pierce], 'Nobody', '8585297860')).toBeNull()
+    expect(findStaffByLogin([pierce], 'Nobody', '6105092031')).toBeNull()
+    expect(
+      findStaffByLogin([pierce], 'Pierce Demetriades', '(610) 509-2031')?.id,
+    ).toBe('1')
   })
 
   it('admins bypass section list; others need explicit grant', () => {

@@ -1,6 +1,8 @@
 import { useSyncExternalStore, useState } from 'react'
+import PhoneInput from '@/components/PhoneInput'
 import {
   ALL_SECTION_IDS,
+  formatPhoneDisplay,
   STAFF_SECTIONS,
   type StaffMember,
   type StaffSectionId,
@@ -80,7 +82,9 @@ export default function StaffAccessPage() {
                 )}
               </div>
               <div className="avionic text-xs text-muted">
-                {s.phone || 'phone not set — cannot log in'}
+                {s.phone
+                  ? formatPhoneDisplay(s.phone)
+                  : 'phone not set — cannot log in'}
               </div>
               <div className="mt-1 text-[11px] text-muted">
                 {s.is_admin
@@ -185,11 +189,10 @@ function StaffEditor({
           </label>
           <label className="block text-xs text-muted">
             Phone (required to log in)
-            <input
+            <PhoneInput
               className={`${field} font-mono`}
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="555-555-5555"
+              onChange={setPhone}
             />
           </label>
           <label className="flex items-center gap-2 text-sm text-cream">

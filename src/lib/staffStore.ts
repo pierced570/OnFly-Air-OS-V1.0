@@ -8,9 +8,13 @@ import {
   DISPATCH_DEFAULT_SECTIONS,
   findStaffByLogin,
   hasSection,
+  normalizePhone,
   type StaffMember,
   type StaffSectionId,
 } from '@/domain/staffAccess'
+
+/** Pierce's cell — login seed (not the 858 dispatch line). */
+const PIERCE_PHONE = '6105092031'
 
 const STAFF_KEY = 'onfly.staff.directory.v1'
 const SESSION_KEY = 'onfly.staff.session.v1'
@@ -24,7 +28,7 @@ function seedStaff(): StaffMember[] {
     {
       id: 'staff-pierce',
       name: 'Pierce Demetriades',
-      phone: '858-529-7860',
+      phone: PIERCE_PHONE,
       is_admin: true,
       sections: [...ALL_SECTION_IDS],
       active: true,
@@ -64,13 +68,32 @@ function seedStaff(): StaffMember[] {
   ]
 }
 
+/** Fix stale Pierce phone from older seeds (858 dispatch line). */
+function migrateStaff(list: StaffMember[]): StaffMember[] {
+  let changed = false
+  const next = list.map((s) => {
+    if (s.id !== 'staff-pierce') return s
+    if (normalizePhone(s.phone) === PIERCE_PHONE) return s
+    changed = true
+    return { ...s, phone: PIERCE_PHONE }
+  })
+  if (changed && storageAvailable()) {
+    try {
+      localStorage.setItem(STAFF_KEY, JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }
+  return next
+}
+
 function loadStaff(): StaffMember[] {
   if (!storageAvailable()) return seedStaff()
   try {
     const raw = localStorage.getItem(STAFF_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as StaffMember[]
-      if (Array.isArray(parsed) && parsed.length) return parsed
+      if (Array.isArray(parsed) && parsed.length) return migrateStaff(parsed)
     }
   } catch {
     /* seed */
@@ -189,7 +212,7 @@ export function upsertStaff(input: {
   const next: StaffMember = {
     id,
     name,
-    phone: input.phone.trim(),
+    phone: normalizePhone(input.phone),
     is_admin: input.is_admin,
     sections: input.is_admin
       ? [...ALL_SECTION_IDS]
