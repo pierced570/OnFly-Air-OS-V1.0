@@ -18,7 +18,9 @@ export async function loadNetwork(): Promise<NetworkFixture> {
           'id,operator_id,tail,type_name,category,engines,base_icao,cruise_kts,mtow_lbs,max_payload_lbs,seats,needs_info,active,operators(name)',
         ),
     ])
-    if (!oErr && !aErr && operators && aircraft) {
+    // Only use live DB when it actually has fleet rows — empty project
+    // must fall through to the bundled fixture or intake/quote recommend nothing.
+    if (!oErr && !aErr && operators && aircraft && aircraft.length > 0) {
       const ops: OperatorRow[] = operators.map((o) => ({
         id: o.id as string,
         name: o.name as string,

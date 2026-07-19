@@ -27,13 +27,24 @@ export interface LlmAdapter {
 
 export class MockLlmAdapter implements LlmAdapter {
   async extractTripRequest(rawText: string): Promise<ExtractedRequest> {
+    const fromTo =
+      rawText.match(
+        /\bfrom\s+([^.\n]+?)\s+to\s+([^.\n]+?)(?:\s+ready|\s*$|[.])/i,
+      ) ??
+      rawText.match(/\b([A-Z]{3,4})\s*(?:→|->|to)\s*([A-Z]{3,4})\b/i)
+    const origin_text = fromTo?.[1]?.trim() || 'Akron, OH'
+    const destination_text = fromTo?.[2]?.trim() || 'Chicago, IL'
+    const pieces =
+      rawText.match(
+        /(\d+\s*(?:skids?|crates?|pieces?)[^.\n]{0,40})/i,
+      )?.[1] ?? '3 skids 48x40x60 @ 800ea'
     return {
-      pieces_text: '3 skids 48x40x60 @ 800ea',
-      origin_text: 'Akron, OH',
-      destination_text: 'Chicago, IL',
+      pieces_text: pieces.trim(),
+      origin_text,
+      destination_text,
       ready_local: '2026-07-15T09:00',
       payload_kind: 'cargo',
-      hazmat: false,
+      hazmat: /hazmat/i.test(rawText),
       notes: 'mock extraction',
       raw: rawText,
     }

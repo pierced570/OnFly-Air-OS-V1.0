@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { parseDims, type Piece } from '@/domain/dimsParser'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import { createMapsAdapter } from '@/adapters/maps'
@@ -12,7 +12,7 @@ import { FlightChip } from '@/components/FlightChip'
 import { TripRequestForm } from '@/components/TripRequestForm'
 import { formatStopLocal } from '@/domain/timeFmt'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
-import { submitTripRequest } from '@/lib/requestStore'
+import { getRequest, submitTripRequest } from '@/lib/requestStore'
 import type { TripRequestDraft, TripRequestRecord } from '@/domain/tripRequest'
 
 function resolveAirport(icaoRaw: string) {
@@ -22,12 +22,40 @@ function resolveAirport(icaoRaw: string) {
 
 export default function NewTripPage() {
   const nav = useNavigate()
+  const [params] = useSearchParams()
   const [request, setRequest] = useState<TripRequestRecord | null>(null)
   const [dimsText, setDimsText] = useState('')
   const [piecesApproved, setPiecesApproved] = useState<Piece[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
+
+  // Hydrate from intake "Accept → Quote" (request id + session quote draft).
+  useEffect(() => {
+    const rid = params.get('request')
+    if (rid) {
+      const row = getRequest(rid)
+      if (row) {
+        setRequest(row)
+        if (row.cargo_notes.trim()) setDimsText(row.cargo_notes)
+      }
+    }
+    try {
+      const raw = sessionStorage.getItem('onfly_quote_draft')
+      if (!raw) return
+      const draft = JSON.parse(raw) as {
+        candidates?: Candidate[]
+        requestId?: string
+      }
+      if (draft.candidates?.length) setCandidates(draft.candidates)
+      if (!rid && draft.requestId) {
+        const row = getRequest(draft.requestId)
+        if (row) setRequest(row)
+      }
+    } catch {
+      /* ignore bad draft */
+    }
+  }, [params])
 
   const parsed = useMemo(() => parseDims(dimsText), [dimsText])
 

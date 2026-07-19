@@ -24,8 +24,11 @@ const VAULT_KEY = 'onfly.vault.keys.v1'
 
 let entries: VaultEntry[] = load()
 const listeners = new Set<() => void>()
+/** Stable snapshot for useSyncExternalStore */
+let cachedEntries: VaultEntry[] = entries.map((e) => ({ ...e }))
 
 function bump() {
+  cachedEntries = entries.map((e) => ({ ...e }))
   for (const l of listeners) l()
 }
 
@@ -83,7 +86,7 @@ export function subscribeVault(fn: () => void): () => void {
 }
 
 export function listVaultEntries(): VaultEntry[] {
-  return entries.map((e) => ({ ...e }))
+  return cachedEntries
 }
 
 export function clearVault(): void {
