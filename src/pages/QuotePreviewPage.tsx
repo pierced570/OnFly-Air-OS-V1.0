@@ -25,6 +25,7 @@ type Draft = {
   client_id?: string | null
   requestId?: string | null
   requestRef?: number | null
+  preferredAircraftId?: string
 }
 
 export default function QuotePreviewPage() {
@@ -46,7 +47,8 @@ export default function QuotePreviewPage() {
   }, [draft])
 
   const [selectedId, setSelectedId] = useState(
-    draft?.candidates.find((c) => c.label === 'best')?.aircraft_id,
+    draft?.preferredAircraftId ??
+      draft?.candidates.find((c) => c.label === 'best')?.aircraft_id,
   )
   const [markupMode, setMarkupMode] = useState<MarkupMode>('percent')
   const [markupValue, setMarkupValue] = useState(0)
