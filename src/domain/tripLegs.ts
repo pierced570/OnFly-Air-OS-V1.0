@@ -95,6 +95,7 @@ export function legsToChain(legs: AppLeg[]): ChainLeg[] {
         ? 'air'
         : 'merged',
     label: l.label,
+    event: l.label,
     from: { lat: 0, lon: 0, icao: l.origin },
     to: { lat: 0, lon: 0, icao: l.dest },
     est_start: l.est_start ?? new Date().toISOString(),
@@ -102,7 +103,8 @@ export function legsToChain(legs: AppLeg[]): ChainLeg[] {
     actual_start: l.actual_start,
     actual_end: l.actual_end,
     duration_min: 0,
-    duration_source: 'booked',
+    source: l.actual_end || l.actual_start ? 'actual' : 'assumed',
+    duration_source: l.actual_end || l.actual_start ? 'actual' : 'booked',
   }))
 }
 

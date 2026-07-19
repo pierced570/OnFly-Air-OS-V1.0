@@ -594,6 +594,47 @@ function ClientDetail({
                 </label>
               </div>
               <p className="mt-2 text-[11px] text-muted">{ROLE_HELP[c.role]}</p>
+              <div className="mt-2">
+                <button
+                  type="button"
+                  className="text-xs text-gold underline"
+                  onClick={() => {
+                    void (async () => {
+                      const { createCommsAdapter } = await import(
+                        '@/adapters/comms'
+                      )
+                      const { createEmailAdapter } = await import(
+                        '@/adapters/email'
+                      )
+                      const { portalInviteSmsBody } = await import(
+                        '@/domain/tripThread'
+                      )
+                      const portalUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/portal/login`
+                      const body = portalInviteSmsBody({
+                        clientName: client.name,
+                        portalUrl,
+                      })
+                      if (c.cell) {
+                        await createCommsAdapter().send({
+                          channel: 'sms',
+                          to: c.cell,
+                          body,
+                        })
+                      }
+                      if (c.email) {
+                        await createEmailAdapter().send({
+                          to: c.email,
+                          subject: `OnFly Air portal — ${client.name}`,
+                          text: body,
+                          html: `<p>${body}</p><p><a href="${portalUrl}">Open portal</a></p>`,
+                        })
+                      }
+                    })()
+                  }}
+                >
+                  Invite to portal (SMS / email)
+                </button>
+              </div>
               <div className="mt-3 flex flex-wrap gap-4 text-sm text-cream">
                 <label className="flex items-center gap-2">
                   <input

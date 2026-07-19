@@ -70,7 +70,7 @@ export default function QuotePreviewPage() {
 
   const selected =
     draft.candidates.find((c) => c.aircraft_id === selectedId) ?? draft.candidates[0]!
-  const mtow = selected.type_name?.match(/310/) ? 5500 : 12500
+  const mtow = selected.mtow_lbs
   const airSubtotal =
     markupValue === 0
       ? selected.price

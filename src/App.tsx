@@ -20,6 +20,11 @@ const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalLoginPage = lazy(() => import('@/pages/portal/PortalLoginPage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
 const PortalTrackPage = lazy(() => import('@/pages/portal/PortalTrackPage'))
+const PortalTripTrackPage = lazy(() =>
+  import('@/pages/portal/PortalTrackPage').then((m) => ({
+    default: m.PortalTripTrackPage,
+  })),
+)
 const RadarPage = lazy(() => import('@/pages/RadarPage'))
 const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
@@ -89,6 +94,7 @@ export function App() {
         <Route path="/portal/login" element={<PortalLoginPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
         <Route path="/portal/track/:token" element={<PortalTrackPage />} />
+        <Route path="/portal/trips/:id" element={<PortalTripTrackPage />} />
         {/* Public client page — send this link; not part of the portal */}
         <Route path="/client" element={<ClientOnboardPage />} />
         <Route path="/client/onboard" element={<Navigate to="/client" replace />} />

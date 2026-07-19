@@ -32,12 +32,11 @@ export function getMockCommsLog() {
 
 export function createCommsAdapter(): CommsAdapter {
   // BLOCKED: RingCentral JWT + SMS from-numbers not sourced yet.
-  // Keep mock so portal/intake notify still demo; flip when RC lands.
   const mode = (import.meta.env.VITE_COMMS_ADAPTER as string | undefined)
     ?.toLowerCase()
   if (mode === 'real') {
     console.warn(
-      '[comms] VITE_COMMS_ADAPTER=real but RingCentral adapter not wired — mock SMS',
+      '[comms] VITE_COMMS_ADAPTER=real but RingCentral is not wired — using mock SMS. Unset VITE_COMMS_ADAPTER or set mock.',
     )
   }
   return new MockCommsAdapter()

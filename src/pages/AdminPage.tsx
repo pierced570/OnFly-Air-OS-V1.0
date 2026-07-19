@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import {
@@ -25,8 +25,61 @@ import { createAccountingAdapter } from '@/adapters/accounting'
 import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
 import { listAdapterDoorStatus } from '@/lib/adapterStatus'
 import type { D085AircraftRow } from '@/domain/d085Parse'
+import {
+  ETA_DEFAULT_LABELS,
+  getEtaDefaults,
+  resetEtaDefaults,
+  setEtaDefault,
+  subscribeEtaDefaults,
+} from '@/lib/etaDefaultsStore'
+import { formatDurationMin, parseDurationInput } from '@/domain/timeFmt'
+import type { EtaDefaults } from '@/domain/etaChain'
 
 type WizardKind = 'invite' | 'operator' | 'client' | 'fbo'
+
+function EtaDefaultsPanel() {
+  useSyncExternalStore(subscribeEtaDefaults, getEtaDefaults, getEtaDefaults)
+  const defaults = getEtaDefaults()
+  const keys = Object.keys(ETA_DEFAULT_LABELS) as (keyof EtaDefaults)[]
+
+  return (
+    <section className="rounded-lg border border-gold/30 bg-gold/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-medium text-cream">ETA defaults</h2>
+          <p className="mt-0.5 text-xs text-muted">
+            Per-leg overridable on the dispatcher sheet. Source tags:
+            assumed → quoted → manual → actual.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="text-xs text-gold underline"
+          onClick={() => resetEtaDefaults()}
+        >
+          Reset all
+        </button>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {keys.map((key) => (
+          <label key={key} className="block text-xs text-muted">
+            {ETA_DEFAULT_LABELS[key]}
+            <input
+              className="avionic mt-1 w-full rounded border border-border bg-black/30 px-2 py-1.5 text-sm text-cream"
+              defaultValue={formatDurationMin(defaults[key])}
+              key={`${key}-${defaults[key]}`}
+              onBlur={(e) => {
+                const min = parseDurationInput(e.target.value)
+                if (min == null) return
+                setEtaDefault(key, min)
+              }}
+            />
+          </label>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 const OP_STEPS = [
   'Identity',
@@ -113,6 +166,8 @@ export default function AdminPage() {
           ))}
         </ul>
       </header>
+
+      <EtaDefaultsPanel />
 
       <div className="flex flex-wrap gap-2">
         {(

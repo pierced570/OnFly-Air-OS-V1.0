@@ -76,6 +76,8 @@ export type Candidate = {
   aircraft_id: string
   tail: string
   type_name: string | null
+  /** Per-tail MTOW — drives FET exemption via tax_rates threshold. */
+  mtow_lbs: number | null
   cost: number
   price: number
   chain: ChainLeg[]
@@ -356,6 +358,7 @@ export async function generateCandidates(
       aircraft_id: ac.id,
       tail: ac.tail,
       type_name: ac.type_name,
+      mtow_lbs: ac.mtow_lbs,
       cost,
       price,
       chain,

@@ -153,10 +153,6 @@ const SORTED: AirportInfo[] = ROWS.map(toInfo).sort((a, b) =>
   a.icao.localeCompare(b.icao),
 )
 
-export function listAirports(): AirportInfo[] {
-  return SORTED
-}
-
 export function lookupAirport(icao: string): AirportInfo | null {
   if (!icao.trim()) return null
   return AIRPORTS[icao.trim().toUpperCase()] ?? null

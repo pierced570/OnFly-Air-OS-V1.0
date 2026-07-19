@@ -1,8 +1,7 @@
 /**
- * Tails under ADS-B watch — seeded from network fleet + every D085 confirm.
+ * Tails under ADS-B watch — filled via syncWatchedFromFleet / D085 confirm.
+ * Does not import the large network.json fixture on boot.
  */
-
-import network from '@/fixtures/network.json'
 
 export type WatchedTail = {
   tail: string
@@ -27,26 +26,7 @@ function bump() {
   for (const l of listeners) l()
 }
 
-function seedFromNetwork() {
-  if (byTail.size) return
-  const now = new Date().toISOString()
-  for (const a of network.aircraft ?? []) {
-    const tail = String(a.tail ?? '').toUpperCase()
-    if (!tail || tail.startsWith('TBD')) continue
-    byTail.set(tail, {
-      tail,
-      type_name: a.type_name ?? null,
-      operator_name: a.operator_name ?? 'Unknown',
-      operator_id: a.operator_id ?? null,
-      base_icao: a.base_icao ?? null,
-      source: 'network',
-      added_at: now,
-    })
-  }
-  rebuild()
-}
-
-seedFromNetwork()
+rebuild()
 
 /** Reconcile watch list with live Network fleet (DB or fixture). */
 export function syncWatchedFromFleet(
@@ -65,14 +45,13 @@ export function syncWatchedFromFleet(
     if (!tail || tail.startsWith('TBD')) continue
     const existing = byTail.get(tail)
     if (existing?.source === 'd085') {
-      const next = {
+      byTail.set(tail, {
         ...existing,
         type_name: a.type_name ?? existing.type_name,
         base_icao: a.base_icao ?? existing.base_icao,
         operator_name: a.operator_name || existing.operator_name,
         operator_id: a.operator_id || existing.operator_id,
-      }
-      byTail.set(tail, next)
+      })
       changed = true
       continue
     }
@@ -101,7 +80,9 @@ export function listWatchedTails(): WatchedTail[] {
   return snapshot
 }
 
-export function watchTail(partial: Omit<WatchedTail, 'added_at'> & { added_at?: string }): void {
+export function watchTail(
+  partial: Omit<WatchedTail, 'added_at'> & { added_at?: string },
+): void {
   const tail = partial.tail.toUpperCase()
   const existing = byTail.get(tail)
   byTail.set(tail, {

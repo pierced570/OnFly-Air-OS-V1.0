@@ -10,6 +10,19 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/@supabase')) return 'supabase'
+          if (id.includes('node_modules/luxon')) return 'luxon'
+          if (id.includes('node_modules/maplibre')) return 'maplibre'
+          if (id.includes('fixtures/financials.json')) return 'fixture-financials'
+          if (id.includes('fixtures/network.json')) return 'fixture-network'
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'node',

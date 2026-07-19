@@ -4,9 +4,10 @@
  *  - requester → inbound email/SMS match → ring on-shift phone / request alerts
  *  - ap → invoices only
  *  - supply_chain → tracker / ETA pushes
+ *
+ * Starts empty — hydrated from Supabase (or user adds clients). The large
+ * financials.json fixture is NOT imported here so Board boot stays light.
  */
-
-import financialsFixture from '@/fixtures/financials.json'
 
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
 
@@ -142,41 +143,6 @@ function defaultPrefs(role: ContactRole): ContactNotifyPrefs {
   }
   return { request_alert: false, invoice: false, tracker: true }
 }
-
-function seedFromFinancials() {
-  if (clients.size) return
-  const names = new Set<string>()
-  for (const r of financialsFixture.records) {
-    const n = (r.client_name || '').trim()
-    if (n) names.add(n)
-  }
-  for (const name of [...names].sort()) {
-    const id = `client-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`
-    const pay =
-      financialsFixture.records.find((r) => r.client_name === name)?.pay_terms ||
-      'Net 30'
-    const lastPo =
-      financialsFixture.records.find((r) => r.client_name === name)
-        ?.operator_po ?? null
-    clients.set(id, {
-      id,
-      name,
-      email: '',
-      invoice_email: '',
-      contacts: [],
-      last_po: lastPo,
-      po_prefix: guessPoPrefix(lastPo),
-      pay_terms: String(pay),
-      notes: '',
-      rules: { ...DEFAULT_CLIENT_RULES },
-      qb_customer_id: null,
-      profile: { source: 'import' },
-    })
-  }
-  rebuild()
-}
-
-seedFromFinancials()
 
 export function subscribeClients(fn: () => void): () => void {
   listeners.add(fn)

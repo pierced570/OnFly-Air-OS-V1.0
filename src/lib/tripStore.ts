@@ -3,20 +3,33 @@
  */
 
 import type { Candidate } from '@/domain/routing'
-import type { ChainLeg } from '@/domain/etaChain'
-import { DEFAULT_LEG_DEFAULTS } from '@/domain/etaChain'
+import type { ChainLeg, ServicePattern } from '@/domain/etaChain'
+import {
+  applyActual,
+  applyQuotedTtp,
+  BUILTIN_ETA_DEFAULTS,
+  copyChainToTrip,
+  DEFAULT_LEG_DEFAULTS,
+  editDuration,
+  projectedDeliveryUtc,
+  resetDurationToDefault,
+  type EtaDefaults,
+  type EtaSource,
+} from '@/domain/etaChain'
 import type { TripState } from '@/domain/stateMachine'
 import { transition } from '@/domain/stateMachine'
 import { parseThreadActual } from '@/domain/threadParse'
 import {
+  applyChainToLegs,
   applyParsedActualToLegs,
   cascadeRecomputeFromActual,
   materializeChainToLegs,
   type AppLeg,
 } from '@/domain/tripLegs'
 import { tripInvoiceLines } from '@/domain/qbInvoice'
-import { createAccountingAdapter } from '@/adapters/accounting'
 import { raiseException } from '@/lib/exceptionStore'
+import { getEtaDefaults } from '@/lib/etaDefaultsStore'
+import { roleOnOpsThread } from '@/domain/tripThread'
 
 const STORAGE_KEY = 'onfly.trips.v1'
 
@@ -115,6 +128,9 @@ function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
       name: 'On-shift',
       cell: '',
       email: '',
+      in_thread: true,
+      released_at: null,
+      invite_sent_at: null,
     },
     {
       id: crypto.randomUUID(),
@@ -122,6 +138,9 @@ function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
       name: meta.operator_name || 'Operator',
       cell: '',
       email: '',
+      in_thread: true,
+      released_at: null,
+      invite_sent_at: null,
     },
   ]
   if (meta.invoice_email) {
@@ -131,6 +150,9 @@ function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
       name: 'AP',
       cell: '',
       email: meta.invoice_email,
+      in_thread: false,
+      released_at: null,
+      invite_sent_at: null,
     })
   }
   for (const email of meta.cc_emails) {
@@ -140,6 +162,9 @@ function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
       name: email.split('@')[0] || 'CC',
       cell: '',
       email,
+      in_thread: false,
+      released_at: null,
+      invite_sent_at: null,
     })
   }
   return out
@@ -228,6 +253,11 @@ export type TripParticipant = {
   name: string
   cell: string
   email: string
+  /** On the ops SMS thread (false for portal-only clients). */
+  in_thread: boolean
+  released_at: string | null
+  /** When true, invite SMS/email already sent. */
+  invite_sent_at: string | null
 }
 
 export type ThreadMessage = {
@@ -275,12 +305,29 @@ export type TripStoreRow = {
   }
   lost_reason?: string
   quick?: QuickDispatchMeta
+  /** Single ETA chain SoT — copied onto the trip at estimate/book. */
+  eta_chain: ChainLeg[]
+  service_pattern: ServicePattern | null
+  promised_delivery: string | null
+  eta_defaults_snapshot: EtaDefaults | null
+  /** Assigned SMS thread DID from pool. */
+  thread_number: string | null
+  thread_disbanded_at: string | null
   legs: TripLegRow[]
   participants: TripParticipant[]
   thread: ThreadMessage[]
   documents: TripDocument[]
   invoice: TripInvoice | null
   client_id?: string
+}
+
+function syncLegsFromChain(t: TripStoreRow, chain: ChainLeg[]): void {
+  t.eta_chain = chain
+  if (!t.legs.length) {
+    t.legs = asTripLegs(materializeChainToLegs(chain))
+    return
+  }
+  t.legs = asTripLegs(applyChainToLegs(t.legs, chain))
 }
 
 const trips = new Map<string, TripStoreRow>()
@@ -310,6 +357,21 @@ function loadLocal(): void {
     if (!Array.isArray(parsed)) return
     for (const row of parsed) {
       if (!row?.id || !row.state) continue
+      // Backfill ETA spine fields for older localStorage snapshots
+      if (!Array.isArray(row.eta_chain)) row.eta_chain = []
+      if (row.service_pattern === undefined) row.service_pattern = null
+      if (row.promised_delivery === undefined) row.promised_delivery = null
+      if (row.eta_defaults_snapshot === undefined) row.eta_defaults_snapshot = null
+      if (row.thread_number === undefined) row.thread_number = null
+      if (row.thread_disbanded_at === undefined) row.thread_disbanded_at = null
+      if (!Array.isArray(row.legs)) row.legs = []
+      if (!Array.isArray(row.participants)) row.participants = []
+      row.participants = row.participants.map((p) => ({
+        ...p,
+        in_thread: p.in_thread ?? true,
+        released_at: p.released_at ?? null,
+        invite_sent_at: p.invite_sent_at ?? null,
+      }))
       trips.set(row.id, row)
       if (typeof row.ref === 'number' && row.ref >= refSeq) refSeq = row.ref + 1
     }
@@ -347,12 +409,15 @@ export function createTripFromCandidates(opts: {
   client_id?: string
   /** Prefer this chain when materializing legs (selected option). */
   selectedChain?: ChainLeg[]
+  service_pattern?: ServicePattern | null
 }): TripStoreRow {
   const id = crypto.randomUUID()
-  const chain =
+  const chain = copyChainToTrip(
     opts.selectedChain ??
-    opts.candidates.find((c) => c.chain?.length)?.chain ??
-    []
+      opts.candidates.find((c) => c.chain?.length)?.chain ??
+      [],
+  )
+  const defaults = getEtaDefaults()
   const legs = chain.length ? asTripLegs(materializeChainToLegs(chain)) : []
   const row: TripStoreRow = {
     id,
@@ -384,6 +449,12 @@ export function createTripFromCandidates(opts: {
       contact_cell: `+1555000${String(1000 + i).slice(-4)}`,
     })),
     client_id: opts.client_id,
+    eta_chain: chain,
+    service_pattern: opts.service_pattern ?? null,
+    promised_delivery: projectedDeliveryUtc(chain),
+    eta_defaults_snapshot: { ...defaults },
+    thread_number: null,
+    thread_disbanded_at: null,
     legs,
     participants: [
       {
@@ -392,6 +463,9 @@ export function createTripFromCandidates(opts: {
         name: 'On-shift',
         cell: '',
         email: '',
+        in_thread: true,
+        released_at: null,
+        invite_sent_at: null,
       },
     ],
     thread: [],
@@ -439,6 +513,12 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
     offers: [],
     quick: structuredClone(meta),
     client_id: meta.client_id,
+    eta_chain: [],
+    service_pattern: 'A2A',
+    promised_delivery: null,
+    eta_defaults_snapshot: { ...getEtaDefaults() },
+    thread_number: null,
+    thread_disbanded_at: null,
     legs: buildQuickLegs(meta),
     participants: buildQuickParticipants(meta),
     thread: [],
@@ -491,6 +571,23 @@ export function getTrip(id: string) {
 export function replaceTripsFromDb(rows: TripStoreRow[]): void {
   if (!rows.length) return
   for (const r of rows) {
+    const existing = trips.get(r.id)
+    if (existing) {
+      // Preserve richer session overlays until DB catches up.
+      if (!r.events.length && existing.events.length) r.events = existing.events
+      else if (r.events.length && existing.events.length) {
+        r.events = mergeTripEvents(r.events, existing.events)
+      }
+      if (!r.thread.length && existing.thread.length) r.thread = existing.thread
+      if (!r.documents.length && existing.documents.length) {
+        r.documents = existing.documents
+      }
+      if (!r.eta_chain.length && existing.eta_chain.length) {
+        r.eta_chain = existing.eta_chain
+        r.service_pattern = r.service_pattern ?? existing.service_pattern
+        r.promised_delivery = r.promised_delivery ?? existing.promised_delivery
+      }
+    }
     trips.set(r.id, r)
     if (r.ref >= refSeq) refSeq = r.ref + 1
   }
@@ -499,26 +596,141 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
   void flushLocalOnlyTrips(new Set(rows.map((r) => r.id)))
 }
 
+function mergeTripEvents(
+  dbEvents: TripStoreRow['events'],
+  localEvents: TripStoreRow['events'],
+): TripStoreRow['events'] {
+  const keyOf = (e: TripStoreRow['events'][number]) =>
+    `${e.at}|${e.kind}|${e.actor}|${JSON.stringify(e.payload ?? {})}`
+  const seen = new Set(dbEvents.map(keyOf))
+  const merged = [...dbEvents]
+  for (const e of localEvents) {
+    if (seen.has(keyOf(e))) continue
+    seen.add(keyOf(e))
+    merged.push(e)
+  }
+  return merged.sort((a, b) => a.at.localeCompare(b.at))
+}
+
 async function flushLocalOnlyTrips(knownDbIds: Set<string>): Promise<void> {
   for (const [id] of trips) {
     if (!knownDbIds.has(id)) await flushPersistTrip(id)
   }
 }
 
-/** Attach / replace legs from a quote chain (book / hard-quote select). */
+/** Attach / replace legs + eta_chain from a quote chain (book / hard-quote select). */
 export function materializeTripLegsFromChain(
   tripId: string,
   chain: ChainLeg[],
+  opts?: { pattern?: ServicePattern | null; lockPromised?: boolean },
 ): void {
   if (!chain.length) return
+  const copied = copyChainToTrip(chain)
   mutateTrip(tripId, (t) => {
     if (t.legs.some((l) => l.actual_start || l.actual_end)) return
-    t.legs = asTripLegs(materializeChainToLegs(chain))
+    t.eta_chain = copied
+    t.legs = asTripLegs(materializeChainToLegs(copied))
+    if (opts?.pattern) t.service_pattern = opts.pattern
+    if (opts?.lockPromised !== false) {
+      t.promised_delivery = projectedDeliveryUtc(copied)
+    }
+    if (!t.eta_defaults_snapshot) {
+      t.eta_defaults_snapshot = { ...getEtaDefaults() }
+    }
     t.events.push({
       at: new Date().toISOString(),
       actor: 'system',
-      kind: 'legs_materialized',
-      payload: { count: t.legs.length },
+      kind: 'eta_chain_copied_to_trip',
+      payload: { count: copied.length, pattern: t.service_pattern },
+    })
+  })
+}
+
+/** Apply operator-quoted TTP onto trip chain + matching candidate → recompute. */
+export function applyOfferTtpToTrip(
+  tripId: string,
+  offerId: string,
+  ttpMin: number,
+): void {
+  mutateTrip(tripId, (t) => {
+    const offer = t.offers.find((o) => o.id === offerId)
+    if (!offer) return
+
+    // Update candidate chain (offer board / magic link same numbers)
+    const cand =
+      t.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
+      t.candidates.find((c) => c.tail === offer.tail)
+    if (cand?.chain?.length) {
+      const { chain } = applyQuotedTtp(cand.chain, ttpMin)
+      cand.chain = chain
+      cand.eta_end = projectedDeliveryUtc(chain) ?? cand.eta_end
+    }
+
+    if (t.eta_chain.length) {
+      const { chain, slippedMinutes } = applyQuotedTtp(t.eta_chain, ttpMin)
+      syncLegsFromChain(t, chain)
+      t.events.push({
+        at: new Date().toISOString(),
+        actor: offer.operator_name,
+        kind: 'eta_ttp_quoted',
+        payload: { offer_id: offerId, ttp_min: ttpMin, slipped_min: slippedMinutes },
+      })
+    }
+  })
+}
+
+/** Dispatcher edits an assumption cell on the trip sheet. */
+export function editTripEtaDuration(
+  tripId: string,
+  seq: number,
+  durationMin: number,
+  source: EtaSource = 'manual',
+): void {
+  mutateTrip(tripId, (t) => {
+    if (!t.eta_chain.length) return
+    const { chain, slippedMinutes } = editDuration(
+      t.eta_chain,
+      seq,
+      durationMin,
+      source,
+    )
+    syncLegsFromChain(t, chain)
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'eta_duration_edited',
+      payload: { seq, duration_min: durationMin, source, slipped_min: slippedMinutes },
+    })
+    const threshold =
+      t.eta_defaults_snapshot?.slip_threshold ?? BUILTIN_ETA_DEFAULTS.slip_threshold
+    if (Math.abs(slippedMinutes) >= threshold) {
+      raiseException({
+        trip_id: t.id,
+        trip_ref: t.ref,
+        title: `ETA slip ${slippedMinutes > 0 ? '+' : ''}${slippedMinutes}m`,
+        detail: `Dispatcher edit on node #${seq}`,
+        severity: 'late',
+        href: `/trips/${t.id}`,
+      })
+    }
+  })
+}
+
+export function resetTripEtaDuration(tripId: string, seq: number): void {
+  mutateTrip(tripId, (t) => {
+    if (!t.eta_chain.length) return
+    const defaults = t.eta_defaults_snapshot ?? getEtaDefaults()
+    const { chain, slippedMinutes } = resetDurationToDefault(
+      t.eta_chain,
+      seq,
+      defaults,
+    )
+    syncLegsFromChain(t, chain)
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'eta_duration_reset',
+      payload: { seq, slipped_min: slippedMinutes },
     })
   })
 }
@@ -561,6 +773,8 @@ export function safeTransitionTrip(
   const prev = trips.get(id)
   if (!prev) throw new Error('trip not found')
   const fromState = prev.state
+  // Validate before mutating so illegal edges never touch local state.
+  transition(fromState, to, actor, payload)
   const result = mutateTrip(id, (t) => {
     const tr = transition(t.state, to, actor, payload)
     t.state = tr.to
@@ -572,13 +786,34 @@ export function safeTransitionTrip(
     })
   })
   void import('@/lib/db/persistTrip').then((m) =>
-    m.syncTripTransition({
-      trip: result,
-      fromState,
-      toState: to,
-      actor,
-      payload,
-    }),
+    m
+      .syncTripTransition({
+        trip: result,
+        fromState,
+        toState: to,
+        actor,
+        payload,
+      })
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (/already in state/i.test(msg)) return
+        console.warn('[trips] transition RPC failed — rolling back local state', msg)
+        const cur = trips.get(id)
+        if (!cur || cur.state !== to) return
+        mutateTrip(id, (t) => {
+          t.state = fromState
+          for (let i = t.events.length - 1; i >= 0; i--) {
+            const ev = t.events[i]
+            if (
+              ev?.kind === 'state_transition' &&
+              (ev.payload.to === to || ev.payload.to_state === to)
+            ) {
+              t.events.splice(i, 1)
+              break
+            }
+          }
+        })
+      }),
   )
   if (to === 'delivered') {
     void createInvoiceForTrip(id).catch((e) =>
@@ -597,7 +832,9 @@ export function getTripByLegToken(token: string): {
   trip: TripStoreRow
   leg: TripLegRow
 } | null {
+  if (!token || token.startsWith('expired-')) return null
   for (const t of trips.values()) {
+    if (t.thread_disbanded_at) continue
     const leg = t.legs.find((l) => l.one_tap_token === token)
     if (leg) return { trip: t, leg }
   }
@@ -631,6 +868,14 @@ export function completeLegCheckIn(
         actual_end: now,
       }
     })
+    if (t.eta_chain.length) {
+      const { chain } = applyActual(t.eta_chain, {
+        seq: leg.seq,
+        actual_start: leg.actual_start ?? now,
+        actual_end: now,
+      })
+      t.eta_chain = chain
+    }
     const next = t.legs.find((l) => l.status === 'pending')
     if (next) {
       t.legs = t.legs.map((l) =>
@@ -726,6 +971,29 @@ export function postThreadMessage(
       const applied = applyParsedActualToLegs(t.legs, parsed, msg.at)
       if (applied.appliedSeq != null) {
         t.legs = asTripLegs(applied.legs)
+        // Keep trip eta_chain in lockstep (SoT) via the same recompute path
+        if (t.eta_chain.length) {
+          if (applied.autoApplied) {
+            const endKinds = new Set(['wheels_down', 'delivered', 'arrived'])
+            const { chain } = applyActual(t.eta_chain, {
+              seq: applied.appliedSeq,
+              actual_start: msg.at,
+              actual_end: endKinds.has(parsed.kind) ? msg.at : undefined,
+            })
+            t.eta_chain = chain
+          } else {
+            const bySeq = new Map(t.legs.map((l) => [l.seq, l]))
+            t.eta_chain = t.eta_chain.map((c) => {
+              const l = bySeq.get(c.seq)
+              if (!l) return c
+              return {
+                ...c,
+                est_start: l.est_start ?? c.est_start,
+                est_end: l.est_end ?? c.est_end,
+              }
+            })
+          }
+        }
         t.events.push({
           at: msg.at,
           actor: 'system',
@@ -739,10 +1007,10 @@ export function postThreadMessage(
             auto: applied.autoApplied,
           },
         })
-        if (
-          Math.abs(applied.slippedMinutes) >=
+        const threshold =
+          t.eta_defaults_snapshot?.slip_threshold ??
           DEFAULT_LEG_DEFAULTS.slipThresholdMin
-        ) {
+        if (Math.abs(applied.slippedMinutes) >= threshold) {
           raiseException({
             trip_id: t.id,
             trip_ref: t.ref,
@@ -759,6 +1027,8 @@ export function postThreadMessage(
 }
 
 /** Create QB invoice for a trip (mock or live). Does not use QBO email. */
+const invoiceInFlight = new Set<string>()
+
 export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
   return createInvoiceForTrip(tripId)
 }
@@ -767,8 +1037,12 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   const t = trips.get(tripId)
   if (!t) return null
   if (t.invoice) return t.invoice
+  if (invoiceInFlight.has(tripId)) return t.invoice
+  invoiceInFlight.add(tripId)
+  try {
   const total = t.quick?.client_price ?? t.hard_quote?.total ?? 0
   if (!(total > 0)) return null
+  const { createAccountingAdapter } = await import('@/adapters/accounting')
   const acct = createAccountingAdapter()
   const clientName = t.quick?.client_name ?? 'Client'
   const po = t.quick?.po?.trim() || `T-${t.ref}`
@@ -856,6 +1130,9 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
     }
   }
   return inv
+  } finally {
+    invoiceInFlight.delete(tripId)
+  }
 }
 
 export function addTripDocument(
@@ -872,3 +1149,306 @@ export function addTripDocument(
     })
   })
 }
+
+function originBase(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return 'https://app.onflyair.com'
+}
+
+/** Assign a pool DID and open the trip SMS thread (idempotent). */
+export async function ensureTripThread(tripId: string): Promise<string | null> {
+  const trip = getTrip(tripId)
+  if (!trip) return null
+  if (trip.thread_number && !trip.thread_disbanded_at) return trip.thread_number
+
+  const { assignThreadNumber } = await import('@/lib/threadPoolStore')
+  const active = listTrips().filter(
+    (t) =>
+      t.id !== tripId &&
+      t.thread_number &&
+      !t.thread_disbanded_at &&
+      !['closed', 'cancelled', 'lost'].includes(t.state),
+  )
+  const number = assignThreadNumber({
+    tripId,
+    candidateCells: trip.participants.map((p) => p.cell).filter(Boolean),
+    activeTrips: active.map((t) => ({
+      id: t.id,
+      thread_number: t.thread_number,
+      cells: t.participants.map((p) => p.cell).filter(Boolean),
+    })),
+  })
+  if (!number) return null
+
+  mutateTrip(tripId, (t) => {
+    t.thread_number = number
+    t.thread_disbanded_at = null
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'system',
+      kind: 'thread_assigned',
+      payload: { thread_number: number },
+    })
+  })
+  return number
+}
+
+export function addTripParticipant(
+  tripId: string,
+  input: {
+    name: string
+    role: string
+    cell?: string
+    email?: string
+    /** Force onto ops thread; default by role. */
+    in_thread?: boolean
+  },
+): TripParticipant {
+  const inThread = input.in_thread ?? roleOnOpsThread(input.role)
+  let created!: TripParticipant
+  mutateTrip(tripId, (t) => {
+    created = {
+      id: crypto.randomUUID(),
+      name: input.name.trim(),
+      role: input.role,
+      cell: (input.cell ?? '').trim(),
+      email: (input.email ?? '').trim(),
+      in_thread: inThread,
+      released_at: null,
+      invite_sent_at: null,
+    }
+    t.participants.push(created)
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'participant_added',
+      payload: {
+        participant_id: created.id,
+        role: created.role,
+        in_thread: created.in_thread,
+      },
+    })
+  })
+  return created
+}
+
+/** Send intro / portal / track / one-tap invite to a participant's phone. */
+export async function inviteTripParticipant(
+  tripId: string,
+  participantId: string,
+): Promise<{ ok: boolean; channel: string; detail: string }> {
+  const trip = getTrip(tripId)
+  if (!trip) return { ok: false, channel: '', detail: 'trip not found' }
+  const p = trip.participants.find((x) => x.id === participantId)
+  if (!p) return { ok: false, channel: '', detail: 'participant not found' }
+
+  const {
+    introSmsBody,
+    portalInviteSmsBody,
+    trackLinkSmsBody,
+    roleGetsPortalInvite,
+    roleOnOpsThread,
+  } = await import('@/domain/tripThread')
+  const { createCommsAdapter } = await import('@/adapters/comms')
+  const { createEmailAdapter } = await import('@/adapters/email')
+  const comms = createCommsAdapter()
+
+  if (roleOnOpsThread(p.role) && p.in_thread && !p.released_at) {
+    const number = trip.thread_number ?? (await ensureTripThread(tripId))
+    if (!number) {
+      return { ok: false, channel: 'sms', detail: 'no thread number available' }
+    }
+    if (!p.cell) {
+      return { ok: false, channel: 'sms', detail: 'participant has no cell' }
+    }
+    const body = introSmsBody({
+      tripRef: trip.ref,
+      lane: trip.lane,
+      threadNumber: number,
+    })
+    await comms.send({ channel: 'sms', to: p.cell, from: number, body })
+    mutateTrip(tripId, (t) => {
+      const row = t.participants.find((x) => x.id === participantId)!
+      row.invite_sent_at = new Date().toISOString()
+      t.events.push({
+        at: row.invite_sent_at,
+        actor: 'comms',
+        kind: 'participant_invite_sms',
+        payload: { participant_id: participantId, to: p.cell },
+      })
+      t.thread.push({
+        id: crypto.randomUUID(),
+        at: row.invite_sent_at,
+        from: 'OnFly Dispatch',
+        channel: 'sms',
+        body: `[invite → ${p.name}] ${body}`,
+        parsed_kind: null,
+      })
+    })
+    return { ok: true, channel: 'sms', detail: `Intro SMS → ${p.cell}` }
+  }
+
+  if (roleGetsPortalInvite(p.role)) {
+    const { createPortalTrackToken } = await import('@/lib/portalTrackStore')
+    const token = createPortalTrackToken({
+      tripId,
+      email: p.email || `trip-${trip.ref}@track.onfly`,
+    })
+    const trackUrl = `${originBase()}/portal/track/${token}`
+    const portalUrl = `${originBase()}/portal/login`
+    if (p.cell) {
+      const body = trackLinkSmsBody({ tripRef: trip.ref, trackUrl })
+      await comms.send({ channel: 'sms', to: p.cell, body })
+      mutateTrip(tripId, (t) => {
+        const row = t.participants.find((x) => x.id === participantId)!
+        row.invite_sent_at = new Date().toISOString()
+        t.events.push({
+          at: row.invite_sent_at,
+          actor: 'comms',
+          kind: 'participant_track_sms',
+          payload: { participant_id: participantId, to: p.cell },
+        })
+      })
+      return { ok: true, channel: 'sms', detail: `Tracking link → ${p.cell}` }
+    }
+    if (p.email) {
+      const email = createEmailAdapter()
+      await email.send({
+        to: p.email,
+        subject: `OnFly Trip #${trip.ref} — portal & tracking`,
+        text: `${portalInviteSmsBody({ portalUrl })}\n\nLive tracking: ${trackUrl}`,
+        html: `<p>${portalInviteSmsBody({ portalUrl })}</p><p><a href="${trackUrl}">Open live tracking</a></p>`,
+      })
+      mutateTrip(tripId, (t) => {
+        const row = t.participants.find((x) => x.id === participantId)!
+        row.invite_sent_at = new Date().toISOString()
+        t.events.push({
+          at: row.invite_sent_at,
+          actor: 'comms',
+          kind: 'participant_portal_email',
+          payload: { participant_id: participantId, to: p.email },
+        })
+      })
+      return { ok: true, channel: 'email', detail: `Portal invite → ${p.email}` }
+    }
+    return { ok: false, channel: '', detail: 'need cell or email for portal invite' }
+  }
+
+  return { ok: false, channel: '', detail: 'no invite path for this role' }
+}
+
+export async function releaseTripParticipant(
+  tripId: string,
+  participantId: string,
+): Promise<void> {
+  const trip = getTrip(tripId)
+  if (!trip) return
+  const p = trip.participants.find((x) => x.id === participantId)
+  if (!p || p.released_at) return
+  const { releaseSmsBody } = await import('@/domain/tripThread')
+  const { createCommsAdapter } = await import('@/adapters/comms')
+  if (p.cell && p.in_thread && trip.thread_number) {
+    await createCommsAdapter().send({
+      channel: 'sms',
+      to: p.cell,
+      from: trip.thread_number,
+      body: releaseSmsBody({ tripRef: trip.ref, lane: trip.lane }),
+    })
+  }
+  mutateTrip(tripId, (t) => {
+    const row = t.participants.find((x) => x.id === participantId)!
+    row.released_at = new Date().toISOString()
+    row.in_thread = false
+    t.events.push({
+      at: row.released_at,
+      actor: 'dispatcher',
+      kind: 'participant_released',
+      payload: { participant_id: participantId },
+    })
+  })
+}
+
+/**
+ * Close trip communications: release everyone on the thread, free the DID
+ * (+24h grace), expire one-tap tokens, optionally bank contacts.
+ */
+export async function disbandTripComms(
+  tripId: string,
+  opts?: { bankContacts?: boolean; promoteToClient?: boolean },
+): Promise<{ banked: number; promoted: number }> {
+  const trip = getTrip(tripId)
+  if (!trip) return { banked: 0, promoted: 0 }
+  if (trip.thread_disbanded_at) {
+    return { banked: 0, promoted: 0 }
+  }
+
+  const { disbandSmsBody } = await import('@/domain/tripThread')
+  const { createCommsAdapter } = await import('@/adapters/comms')
+  const { releaseThreadNumber } = await import('@/lib/threadPoolStore')
+  const comms = createCommsAdapter()
+  const now = new Date().toISOString()
+
+  for (const p of trip.participants) {
+    if (p.released_at || !p.in_thread) continue
+    if (p.cell && trip.thread_number) {
+      await comms.send({
+        channel: 'sms',
+        to: p.cell,
+        from: trip.thread_number,
+        body: disbandSmsBody({ tripRef: trip.ref, lane: trip.lane }),
+      })
+    }
+  }
+
+  if (trip.thread_number) {
+    releaseThreadNumber(trip.id)
+  }
+
+  let banked = 0
+  let promoted = 0
+  if (opts?.bankContacts !== false) {
+    const { bankParticipants, promoteBankedToClientContacts } = await import(
+      '@/lib/contactBankStore'
+    )
+    const saved = bankParticipants({
+      participants: trip.participants,
+      client_id: trip.client_id,
+      trip_id: trip.id,
+      trip_ref: trip.ref,
+    })
+    banked = saved.length
+    if (opts?.promoteToClient && trip.client_id) {
+      promoted = await promoteBankedToClientContacts(trip.client_id, saved)
+    }
+  }
+
+  mutateTrip(tripId, (t) => {
+    t.thread_disbanded_at = now
+    for (const p of t.participants) {
+      if (!p.released_at && p.in_thread) {
+        p.released_at = now
+        p.in_thread = false
+      }
+    }
+    // Expire one-tap tokens by blanking them
+    t.legs = t.legs.map((l) => ({
+      ...l,
+      one_tap_token: l.one_tap_token ? `expired-${l.id.slice(0, 8)}` : l.one_tap_token,
+    }))
+    t.events.push({
+      at: now,
+      actor: 'dispatcher',
+      kind: 'thread_disbanded',
+      payload: {
+        banked,
+        promoted,
+        prior_thread: trip.thread_number,
+      },
+    })
+  })
+
+  return { banked, promoted }
+}
+

@@ -37,8 +37,7 @@ export function createPortalTrackToken(opts: {
 }
 
 export function getPortalTrackTripId(token: string): string | null {
-  const hit = byToken.get(token)
-  return hit?.tripId ?? null
+  return byToken.get(token)?.tripId ?? null
 }
 
 export function getPortalTrackRow(token: string): PortalTrackRow | null {

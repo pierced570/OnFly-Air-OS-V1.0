@@ -99,6 +99,8 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
         ready_label: trip.ready_label,
         accept_token: trip.hard_quote?.accept_token ?? null,
         po_number: trip.quick?.po || null,
+        thread_number: trip.thread_number,
+        thread_disbanded_at: trip.thread_disbanded_at,
         session_meta: {
           ref: trip.ref,
           quick: trip.quick ?? null,
@@ -111,9 +113,66 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
   )
 
   await persistLegs(trip.id, trip.legs)
+  await persistEtaNodes(trip)
   await persistOffers(trip.id, trip.offers)
   await persistParticipants(trip)
   await persistDocuments(trip)
+}
+
+async function persistEtaNodes(trip: TripStoreRow): Promise<void> {
+  if (!canPersist() || !trip.eta_chain?.length) return
+  await safeQuery('trips.eta_meta', () =>
+    db()
+      .from('trips')
+      .update({
+        service_pattern: trip.service_pattern,
+        promised_delivery: trip.promised_delivery,
+        eta_defaults_snapshot: trip.eta_defaults_snapshot,
+      })
+      .eq('id', trip.id),
+  )
+  // Upsert nodes first, then drop orphans — avoids empty-chain window if insert fails.
+  const rows = trip.eta_chain.map((l) => ({
+    trip_id: trip.id,
+    seq: l.seq,
+    type: l.type,
+    branch: l.branch,
+    label: l.label,
+    event: l.event,
+    from_icao: l.from.icao ?? null,
+    to_icao: l.to.icao ?? null,
+    from_tz: l.from.tz ?? null,
+    to_tz: l.to.tz ?? null,
+    from_lat: l.from.lat,
+    from_lon: l.from.lon,
+    to_lat: l.to.lat,
+    to_lon: l.to.lon,
+    est_start: l.est_start,
+    est_end: l.est_end,
+    actual_start: l.actual_start ?? null,
+    actual_end: l.actual_end ?? null,
+    duration_min: l.duration_min,
+    duration_key: l.duration_key ?? null,
+    source: l.source,
+    distance_mi: l.distance_mi ?? null,
+    distance_nm: l.distance_nm ?? null,
+    slack_min: l.slack_min ?? null,
+  }))
+  await safeQuery('trip_eta_nodes.upsert', () =>
+    db()
+      .from('trip_eta_nodes')
+      .upsert(rows, { onConflict: 'trip_id,seq' }),
+  )
+  const keepSeqs = trip.eta_chain.map((l) => l.seq)
+  if (keepSeqs.length) {
+    await safeQuery('trip_eta_nodes.delete_orphans', () =>
+      db()
+        .from('trip_eta_nodes')
+        .delete()
+        .eq('trip_id', trip.id)
+        .not('seq', 'in', `(${keepSeqs.join(',')})`),
+    )
+  }
 }
 
 export async function persistLegs(
@@ -121,6 +180,17 @@ export async function persistLegs(
   legs: TripLegRow[],
 ): Promise<void> {
   if (!canPersist() || !legs.length) return
+  const keepIds = legs.map((l) => l.id).filter(Boolean)
+  if (keepIds.length) {
+    // Drop orphaned legs left behind after rematerialize (new UUIDs).
+    await safeQuery('trip_legs.delete_orphans', () =>
+      db()
+        .from('trip_legs')
+        .delete()
+        .eq('trip_id', tripId)
+        .not('id', 'in', `(${keepIds.join(',')})`),
+    )
+  }
   const rows = legs.map((l) => ({
     id: l.id,
     trip_id: tripId,
@@ -189,7 +259,8 @@ async function persistParticipants(trip: TripStoreRow): Promise<void> {
     name: p.name,
     cell: p.cell || null,
     email: p.email || null,
-    in_thread: true,
+    in_thread: p.in_thread !== false,
+    released_at: p.released_at,
   }))
   await safeQuery('trip_participants.upsert', () =>
     db().from('trip_participants').upsert(rows, { onConflict: 'id' }),
@@ -258,10 +329,10 @@ export async function syncTripTransition(opts: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/already in state/i.test(msg)) {
-      /* ok */
-    } else {
-      console.warn('[db] trip_transition failed', msg)
+      await persistTripSnapshot(trip)
+      return
     }
+    throw e instanceof Error ? e : new Error(msg)
   }
   await persistTripSnapshot(trip)
 }

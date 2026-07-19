@@ -108,6 +108,9 @@ export async function submitOperatorQuote(
       payload: { ...input, offer_id: o.id },
     })
   })
+  // Quoted TTP replaces assumed acft_ttp → recompute (same numbers on magic link + board)
+  const { applyOfferTtpToTrip } = await import('@/lib/tripStore')
+  applyOfferTtpToTrip(trip.id, offer.id, input.time_to_position_min)
   return getTrip(trip.id)!
 }
 
@@ -173,6 +176,12 @@ export async function selectOfferAndHardQuote(tripId: string, offerId: string, c
 export async function acceptHardQuote(token: string) {
   const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
   if (!trip) throw new Error('invalid accept token')
+  if (trip.state === 'booked' || trip.state === 'in_progress' || trip.state === 'delivered') {
+    return getTrip(trip.id)!
+  }
+  if (trip.state !== 'quoted_hard') {
+    throw new Error(`cannot accept from state ${trip.state}`)
+  }
   const kind = payloadKindOf(trip)
   mutateTrip(trip.id, (t) => {
     if (t.hard_quote && (kind === 'pax' || kind === 'both')) {
@@ -181,15 +190,20 @@ export async function acceptHardQuote(token: string) {
   })
   safeTransitionTrip(trip.id, 'booked', 'client', { accept_token: token })
   {
-    const { materializeTripLegsFromChain, getTrip: gt } = await import(
-      '@/lib/tripStore'
-    )
+    const { materializeTripLegsFromChain, getTrip: gt, applyOfferTtpToTrip } =
+      await import('@/lib/tripStore')
     const booked = gt(trip.id)
     const selectedOffer = booked?.offers.find((o) => o.state === 'selected')
     const cand =
       booked?.candidates.find((c) => c.aircraft_id === selectedOffer?.aircraft_id) ??
       booked?.candidates.find((c) => c.chain?.length)
-    if (cand?.chain?.length) materializeTripLegsFromChain(trip.id, cand.chain)
+    if (cand?.chain?.length) {
+      // Winning quote TTP already on candidate; copy chain onto trip
+      materializeTripLegsFromChain(trip.id, cand.chain)
+      if (selectedOffer?.time_to_position_min != null) {
+        applyOfferTtpToTrip(trip.id, selectedOffer.id, selectedOffer.time_to_position_min)
+      }
+    }
   }
   const comms = createCommsAdapter()
   const fresh = getTrip(trip.id)!
@@ -229,6 +243,31 @@ export async function acceptHardQuote(token: string) {
       payload: { queued: true },
     })
   })
+
+  // Spin up SMS thread pool number + intro path
+  {
+    const { ensureTripThread, getTrip: gt } = await import('@/lib/tripStore')
+    await ensureTripThread(trip.id)
+    const booked = gt(trip.id)
+    const selected = booked?.offers.find((o) => o.state === 'selected')
+    if (selected && booked) {
+      const { addTripParticipant, inviteTripParticipant } = await import(
+        '@/lib/tripStore'
+      )
+      const already = booked.participants.some(
+        (p) => p.role === 'operator_ops' && p.name === selected.operator_name,
+      )
+      if (!already) {
+        const p = addTripParticipant(trip.id, {
+          name: selected.operator_name,
+          role: 'operator_ops',
+          cell: selected.contact_cell,
+          in_thread: true,
+        })
+        await inviteTripParticipant(trip.id, p.id)
+      }
+    }
+  }
 
   // ETA sheet + portal track links → tracker / supply-chain (no QB invoice here)
   const { runOnBookedAutomations } = await import('@/lib/onBooked')

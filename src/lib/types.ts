@@ -35,29 +35,3 @@ export type NetworkFixture = {
   type_specs: Array<Record<string, unknown>>
   counts: { operators: number; aircraft: number; airports: number; needs_info_tasks: number }
 }
-
-export type TripFixture = {
-  id: string
-  ref: number
-  state: string
-  mode: string
-  payload_kind: string
-  origin: { kind: string; text: string; icao?: string; tz?: string }
-  destination: { kind: string; text: string; icao?: string; tz?: string }
-  events: Array<{
-    id: string
-    at: string
-    actor: string
-    kind: string
-    payload: Record<string, unknown>
-  }>
-  legs: Array<{
-    seq: number
-    type: string
-    status: string
-    est_start: string | null
-    est_end: string | null
-    actual_start: string | null
-    actual_end: string | null
-  }>
-}
