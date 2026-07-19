@@ -174,6 +174,14 @@ function ClientDetail({ client }: { client: ClientProfile }) {
 
   const ringers = client.contacts.filter((c) => c.notify_prefs.request_alert)
   const invoiceTo = client.contacts.filter((c) => c.notify_prefs.invoice)
+  const profile = client.profile ?? {}
+  const addr = profile.address
+
+  function patchProfile(
+    patch: Partial<NonNullable<ClientProfile['profile']>>,
+  ) {
+    updateClient(client.id, { profile: { ...profile, ...patch } })
+  }
 
   return (
     <div className="space-y-6">
@@ -183,6 +191,7 @@ function ClientDetail({ client }: { client: ClientProfile }) {
           <p className="mt-1 text-sm text-muted">
             Pay terms {client.pay_terms}
             {client.last_po ? ` · last PO ${client.last_po}` : ''}
+            {profile.source === 'portal_onboard' ? ' · from /client setup' : ''}
           </p>
         </div>
       </header>
@@ -222,8 +231,125 @@ function ClientDetail({ client }: { client: ClientProfile }) {
         </label>
       </section>
 
+      <section className="rounded-lg border border-border bg-surface p-3 space-y-3">
+        <div className="text-xs uppercase tracking-wider text-muted">
+          Company profile
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={label}>
+            DBA
+            <input
+              className={input}
+              value={profile.dba ?? ''}
+              onChange={(e) => patchProfile({ dba: e.target.value || undefined })}
+            />
+          </label>
+          <label className={label}>
+            Website
+            <input
+              className={input}
+              value={profile.website ?? ''}
+              onChange={(e) =>
+                patchProfile({ website: e.target.value || undefined })
+              }
+            />
+          </label>
+          <label className={label}>
+            Front desk phone
+            <input
+              className={`${input} avionic`}
+              value={profile.front_desk_phone ?? ''}
+              onChange={(e) =>
+                patchProfile({ front_desk_phone: e.target.value || undefined })
+              }
+            />
+          </label>
+          <label className={label}>
+            Vendor packet →
+            <input
+              className={input}
+              value={profile.vendor_packet_to ?? ''}
+              onChange={(e) =>
+                patchProfile({ vendor_packet_to: e.target.value || undefined })
+              }
+              placeholder="W-9 / banking destination"
+            />
+          </label>
+        </div>
+        {addr && (
+          <p className="text-xs text-muted">
+            Address:{' '}
+            <span className="text-cream">
+              {[addr.street, addr.city, addr.state, addr.zip]
+                .filter(Boolean)
+                .join(', ')}
+            </span>
+            {profile.billing_same_as_address === false &&
+              profile.billing_address && (
+                <span>
+                  {' '}
+                  · Billing:{' '}
+                  {[
+                    profile.billing_address.street,
+                    profile.billing_address.city,
+                    profile.billing_address.state,
+                    profile.billing_address.zip,
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                </span>
+              )}
+          </p>
+        )}
+        {profile.emergency && (
+          <p className="text-xs text-muted">
+            Emergency:{' '}
+            <span className="text-cream">
+              {profile.emergency.name} {profile.emergency.phone}
+              {profile.emergency.email ? ` · ${profile.emergency.email}` : ''}
+            </span>
+          </p>
+        )}
+        <div className="flex flex-wrap gap-4 text-sm text-cream">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={Boolean(profile.requires_po)}
+              onChange={(e) => patchProfile({ requires_po: e.target.checked })}
+            />
+            PO required
+          </label>
+          <label className={label}>
+            Updates
+            <select
+              className={input}
+              value={profile.update_channel ?? 'email'}
+              onChange={(e) =>
+                patchProfile({
+                  update_channel: e.target.value as 'email' | 'sms' | 'both',
+                })
+              }
+            >
+              <option value="email">Email</option>
+              <option value="sms">SMS</option>
+              <option value="both">Email + SMS</option>
+            </select>
+          </label>
+        </div>
+        {profile.frequent_lanes && profile.frequent_lanes.length > 0 && (
+          <p className="avionic text-xs text-gold">
+            Lanes:{' '}
+            {profile.frequent_lanes
+              .map((l) => `${l.origin}→${l.destination}`)
+              .join(' · ')}
+          </p>
+        )}
+      </section>
+
       <section className="rounded-lg border border-border bg-surface p-3">
-        <div className="text-xs uppercase tracking-wider text-muted">Routing rules</div>
+        <div className="text-xs uppercase tracking-wider text-muted">
+          Routing rules
+        </div>
         <div className="mt-3 flex flex-wrap gap-4 text-sm text-cream">
           <label className="flex items-center gap-2">
             <input
@@ -264,6 +390,18 @@ function ClientDetail({ client }: { client: ClientProfile }) {
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
+              checked={client.rules.no_single_engine_night}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { no_single_engine_night: e.target.checked },
+                })
+              }
+            />
+            No SE night
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
               checked={client.rules.hazmat_allowed}
               onChange={(e) =>
                 updateClient(client.id, {
@@ -274,8 +412,48 @@ function ClientDetail({ client }: { client: ClientProfile }) {
             Hazmat OK
           </label>
         </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className={label}>
+            Hazmat notes
+            <input
+              className={input}
+              value={client.rules.hazmat_notes}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { hazmat_notes: e.target.value },
+                })
+              }
+            />
+          </label>
+          <label className={label}>
+            Declared value norms
+            <input
+              className={input}
+              value={client.rules.declared_value_norm}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { declared_value_norm: e.target.value },
+                })
+              }
+            />
+          </label>
+        </div>
+        <label className={`${label} mt-3`}>
+          Notes
+          <textarea
+            className={input}
+            rows={2}
+            value={client.notes}
+            onChange={(e) => updateClient(client.id, { notes: e.target.value })}
+          />
+        </label>
         <p className="mt-2 text-xs text-muted">
-          Full interview:{' '}
+          Full public setup:{' '}
+          <Link to="/client" className="text-gold">
+            /client
+          </Link>
+          {' · '}
+          Admin interview:{' '}
           <Link to="/admin" className="text-gold">
             Admin → Add client
           </Link>

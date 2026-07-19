@@ -60,6 +60,13 @@ export type ClientExtendedProfile = {
     state: string
     zip: string
   }
+  billing_address?: {
+    street: string
+    city: string
+    state: string
+    zip: string
+  }
+  billing_same_as_address?: boolean
   front_desk_phone?: string
   emergency?: { name: string; email: string; phone: string }
   frequent_lanes?: Array<{
@@ -191,6 +198,7 @@ export function addClient(opts: {
   email?: string
   invoice_email?: string
   pay_terms?: string
+  po_prefix?: string | null
   notes?: string
   rules?: Partial<ClientRules>
   qb_customer_id?: string | null
@@ -222,10 +230,14 @@ export function addClient(opts: {
       }
     }),
     last_po: null,
-    po_prefix: null,
+    po_prefix: opts.po_prefix?.trim().toUpperCase() || null,
     pay_terms: opts.pay_terms?.trim() || 'Net 30',
     notes: opts.notes?.trim() ?? '',
-    rules: { ...DEFAULT_CLIENT_RULES, ...opts.rules },
+    rules: {
+      ...DEFAULT_CLIENT_RULES,
+      ...opts.rules,
+      other_rules: opts.rules?.other_rules ?? DEFAULT_CLIENT_RULES.other_rules,
+    },
     qb_customer_id: opts.qb_customer_id ?? null,
     profile: { ...(opts.profile ?? {}) },
   }

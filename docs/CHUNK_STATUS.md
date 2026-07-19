@@ -79,11 +79,14 @@ Updated as we convert mocks → durable/live paths.
 
 ## Customer onboarding (client page — not portal)
 
-- Public shareable form: `/client` (company, people roles, billing, lanes, prefs)
+- Public shareable form: `/client` — same subjects as Admin Add-client + Clients directory:
+  company/address/billing, people (ops/AP/supply/emergency), pay terms + PO prefix,
+  routing rules (dual pilot, freight, multi-engine, SE night, hazmat, declared value),
+  frequent lanes, update prefs
 - Portal is request/track only; send `/client` to new customers (Clients page has copy link)
 - Legacy `/portal/onboard` redirects to `/client`
-- Submit → `addClient` + contacts (ops/AP/supervisors) + `clients.profile` jsonb
-- Binds browser portal session → portal home shows company; request form seeds frequent lane
+- Submit → `addClient` + `client_rules` + contacts + `clients.profile` jsonb
+- Clients detail shows/edits the same profile + full rules
 - NEEDS-INFO tasks for review / vendor packet / card-on-file link (never collect cards)
 - Migration `0008_client_profile.sql`
 

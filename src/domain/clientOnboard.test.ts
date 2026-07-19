@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   emptyClientOnboardDraft,
   laneCityHints,
+  payTermsLabel,
+  rulesFromOnboardDraft,
   validateClientOnboard,
 } from './clientOnboard'
 
@@ -40,6 +42,44 @@ describe('validateClientOnboard', () => {
     d.emergency_same_as_ops = true
     d.no_frequent_lanes = true
     expect(validateClientOnboard(d)).toEqual([])
+  })
+
+  it('requires billing address when different', () => {
+    const d = emptyClientOnboardDraft()
+    d.legal_name = 'Acme'
+    d.address = {
+      street: '1 Main',
+      city: 'Akron',
+      state: 'OH',
+      zip: '44306',
+    }
+    d.billing_same_as_address = false
+    d.ops = { name: 'Ops', email: 'ops@x.com', phone: '1' }
+    d.ap_same_as_ops = true
+    d.front_desk_phone = '1'
+    d.emergency_same_as_ops = true
+    d.no_frequent_lanes = true
+    expect(validateClientOnboard(d).map((i) => i.field)).toContain(
+      'billing_address',
+    )
+  })
+
+  it('maps rules like Admin ClientWizard', () => {
+    const d = emptyClientOnboardDraft()
+    d.dual_pilot_required = true
+    d.freight_only = true
+    d.multi_engine_only = true
+    d.no_single_engine_night = true
+    d.hazmat_allowed = false
+    d.declared_value_norm = 'under $50k'
+    d.requires_po = true
+    const rules = rulesFromOnboardDraft(d)
+    expect(rules.dual_pilot_required).toBe(true)
+    expect(rules.freight_only).toBe(true)
+    expect(rules.hazmat_allowed).toBe(false)
+    expect(rules.declared_value_norm).toBe('under $50k')
+    expect(rules.other_rules).toContain('PO required on invoices')
+    expect(payTermsLabel('net_60')).toBe('Net 60')
   })
 
   it('extracts city hints from lanes', () => {

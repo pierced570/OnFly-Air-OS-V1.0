@@ -38,7 +38,11 @@ export default function PortalRequestPage() {
             },
           ]
         : base.legs,
-      hazmat: Boolean(client.profile.shipping_flags?.hazmat_sometimes),
+      hazmat: Boolean(
+        client.rules.hazmat_allowed &&
+          (client.profile.shipping_flags?.hazmat_sometimes ||
+            client.rules.hazmat_notes),
+      ),
     }
   }, [client])
 

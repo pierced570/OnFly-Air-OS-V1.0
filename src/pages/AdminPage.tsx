@@ -658,6 +658,8 @@ function ClientWizard() {
   const [skipped, setSkipped] = useState<string[]>([])
   const [name, setName] = useState('')
   const [pay, setPay] = useState('Net 30')
+  const [poPrefix, setPoPrefix] = useState('')
+  const [requiresPo, setRequiresPo] = useState(false)
   const [dual, setDual] = useState(false)
   const [freight, setFreight] = useState(false)
   const [multi, setMulti] = useState(false)
@@ -668,10 +670,16 @@ function ClientWizard() {
   const [personName, setPersonName] = useState('')
   const [personEmail, setPersonEmail] = useState('')
   const [personRole, setPersonRole] = useState<ContactRole>('requester')
+  const [apEmail, setApEmail] = useState('')
+  const [apName, setApName] = useState('')
   const [saved, setSaved] = useState(false)
 
   const completeness = useMemo(() => {
-    const checks = [!!name.trim(), !!pay.trim(), !!personEmail.trim() || skipped.includes('people')]
+    const checks = [
+      !!name.trim(),
+      !!pay.trim(),
+      !!personEmail.trim() || skipped.includes('people'),
+    ]
     return Math.round((checks.filter(Boolean).length / checks.length) * 100)
   }, [name, pay, personEmail, skipped])
 
@@ -679,9 +687,33 @@ function ClientWizard() {
     if (!name.trim()) return
     const acct = createAccountingAdapter()
     const qb = await acct.ensureCustomer(name.trim())
+    const contacts: Array<{
+      name: string
+      email: string
+      role: ContactRole
+    }> = []
+    if (personEmail.trim()) {
+      contacts.push({
+        name: personName || personEmail.split('@')[0] || 'Contact',
+        email: personEmail.trim(),
+        role: personRole,
+      })
+    }
+    const inv = apEmail.trim() || (personRole === 'ap' ? personEmail.trim() : '')
+    if (inv && !contacts.some((c) => c.email.toLowerCase() === inv.toLowerCase())) {
+      contacts.push({
+        name: apName.trim() || inv.split('@')[0] || 'AP',
+        email: inv,
+        role: 'ap',
+      })
+    }
+    const other: string[] = []
+    if (requiresPo) other.push('PO required on invoices')
     const client = addClient({
       name,
       pay_terms: pay,
+      po_prefix: poPrefix.trim().toUpperCase() || null,
+      invoice_email: inv || undefined,
       qb_customer_id: qb,
       rules: {
         dual_pilot_required: dual,
@@ -691,16 +723,13 @@ function ClientWizard() {
         hazmat_allowed: hazmatOk,
         hazmat_notes: hazmatNotes,
         declared_value_norm: declared,
+        other_rules: other,
       },
-      contacts: personEmail.trim()
-        ? [
-            {
-              name: personName || personEmail.split('@')[0] || 'Contact',
-              email: personEmail,
-              role: personRole,
-            },
-          ]
-        : [],
+      contacts,
+      profile: {
+        source: 'admin',
+        requires_po: requiresPo,
+      },
     })
     for (const field of skipped) {
       addNeedsInfoTask({
@@ -755,10 +784,43 @@ function ClientWizard() {
           </label>
           <label className={wizardLabel}>
             Pay terms
-            <input className={wizardInput} value={pay} onChange={(e) => setPay(e.target.value)} />
+            <select
+              className={wizardInput}
+              value={pay}
+              onChange={(e) => setPay(e.target.value)}
+            >
+              <option>Prepay / CC</option>
+              <option>Net 15</option>
+              <option>Net 30</option>
+              <option>Net 60</option>
+              <option>Other</option>
+            </select>
           </label>
+          <label className="flex items-center gap-2 text-sm text-cream sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={requiresPo}
+              onChange={(e) => setRequiresPo(e.target.checked)}
+            />
+            Invoices require a PO number
+          </label>
+          {requiresPo && (
+            <label className={wizardLabel}>
+              PO prefix
+              <input
+                className={`${wizardInput} uppercase`}
+                value={poPrefix}
+                onChange={(e) => setPoPrefix(e.target.value)}
+                placeholder="PSA"
+              />
+            </label>
+          )}
           <p className="sm:col-span-2 text-xs text-muted">
-            QB customer stays mock until Intuit OAuth is wired.
+            Same subjects as public{' '}
+            <Link to="/client" className="text-gold">
+              /client
+            </Link>{' '}
+            setup. For full address + emergency, send customers that link.
           </p>
         </div>
       )}
@@ -825,18 +887,19 @@ function ClientWizard() {
       {step === 5 && (
         <div className="space-y-3">
           <p className="text-xs text-late">
-            Requester emails arm the intake phone ring — choose carefully.
+            Requester emails arm the intake phone ring — choose carefully. AP
+            gets invoices only (matches /client people section).
           </p>
           <div className="grid gap-2 sm:grid-cols-3">
             <input
               className={wizardInput}
-              placeholder="Name"
+              placeholder="Primary name"
               value={personName}
               onChange={(e) => setPersonName(e.target.value)}
             />
             <input
               className={wizardInput}
-              placeholder="Email"
+              placeholder="Primary email"
               value={personEmail}
               onChange={(e) => setPersonEmail(e.target.value)}
             />
@@ -850,6 +913,20 @@ function ClientWizard() {
               <option value="supply_chain">Supply chain</option>
             </select>
           </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              className={wizardInput}
+              placeholder="AP name (optional)"
+              value={apName}
+              onChange={(e) => setApName(e.target.value)}
+            />
+            <input
+              className={wizardInput}
+              placeholder="AP invoice email"
+              value={apEmail}
+              onChange={(e) => setApEmail(e.target.value)}
+            />
+          </div>
         </div>
       )}
       {step === 6 && (
@@ -859,7 +936,10 @@ function ClientWizard() {
               Client saved with rules chips. Manage contacts anytime on Clients.
             </p>
           ) : (
-            <p className="text-muted">Save to write client + rules + contact flags.</p>
+            <p className="text-muted">
+              Save writes company, pay terms, routing rules, requester + AP —
+              same fields as /client onboarding.
+            </p>
           )}
         </div>
       )}
