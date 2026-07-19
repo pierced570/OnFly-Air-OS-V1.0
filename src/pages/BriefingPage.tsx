@@ -10,11 +10,11 @@ import {
 } from '@/domain/fleetBriefing'
 import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
 import { loadFleetBriefing } from '@/lib/fleetBriefingData'
-import { listTrips, listTripsStable, subscribeTrips } from '@/lib/tripStore'
+import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
 import { getOnShift, updateShiftNotes } from '@/lib/shiftStore'
 
 export default function BriefingPage() {
-  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTrips)
+  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const pendingQuotes = trips.filter((t) =>
     ['quoted_estimated', 'offers_out'].includes(t.state),
   )

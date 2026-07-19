@@ -188,8 +188,13 @@ export function listStaff(): StaffMember[] {
   return cachedStaff
 }
 
+/** Stable reference between bumps — required by useSyncExternalStore. */
 export function getSession(): StaffMember | null {
   return cachedSession
+}
+
+export function sessionSnapshotIsStable(): boolean {
+  return getSession() === getSession()
 }
 
 export function sessionCan(section: StaffSectionId): boolean {

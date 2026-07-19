@@ -8,7 +8,7 @@ import { listClients, subscribeClients } from '@/lib/clientStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
 
 function useRequests() {
-  return useSyncExternalStore(subscribeRequests, listRequests, () => [])
+  return useSyncExternalStore(subscribeRequests, listRequests, listRequests)
 }
 
 function usePortalClient() {

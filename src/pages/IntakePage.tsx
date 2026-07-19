@@ -10,7 +10,7 @@ import {
 import { listRequestAlertEmails } from '@/lib/clientStore'
 
 export default function IntakePage() {
-  const drafts = useSyncExternalStore(subscribeIntake, listIntakeDrafts, () => [])
+  const drafts = useSyncExternalStore(subscribeIntake, listIntakeDrafts, listIntakeDrafts)
   const [channel, setChannel] = useState<'email' | 'sms'>('email')
   const [from, setFrom] = useState('')
   const [subject, setSubject] = useState('Need a plane tonight')

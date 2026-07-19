@@ -28,7 +28,7 @@ export default function RadarPage() {
   const watched = useSyncExternalStore(
     subscribeWatchedTails,
     listWatchedTails,
-    () => [],
+    listWatchedTails,
   )
   const [statuses, setStatuses] = useState<FleetStatus[]>([])
   const [wx, setWx] = useState<WxBrief | null>(null)

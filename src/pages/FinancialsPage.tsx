@@ -84,7 +84,7 @@ function StatusPill({
 type Drawer = 'op' | 'client' | null
 
 export default function FinancialsPage() {
-  const rows = useSyncExternalStore(subscribeFinancials, listFinancials, () => [])
+  const rows = useSyncExternalStore(subscribeFinancials, listFinancials, listFinancials)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<'all' | 'unpaid' | 'due_soon'>('all')
   const [dateFrom, setDateFrom] = useState('')

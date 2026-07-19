@@ -24,11 +24,11 @@ import {
 
 export default function TripPage() {
   const { id } = useParams()
-  useSyncExternalStore(subscribeTrips, listTripsStable, () => [])
+  useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const allChecks = useSyncExternalStore(
     subscribeCheckpoints,
     listCheckpoints,
-    () => [],
+    listCheckpoints,
   )
   const trip = id ? getTrip(id) : null
   const [threadBody, setThreadBody] = useState('')

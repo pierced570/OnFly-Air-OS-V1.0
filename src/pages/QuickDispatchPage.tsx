@@ -56,7 +56,7 @@ function parseCc(raw: string): string[] {
 
 export default function QuickDispatchPage() {
   const nav = useNavigate()
-  const clients = useSyncExternalStore(subscribeClients, listClients, () => [])
+  const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
 
   const [clientId, setClientId] = useState('')
   const [showNew, setShowNew] = useState(false)

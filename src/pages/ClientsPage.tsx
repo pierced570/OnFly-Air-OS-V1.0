@@ -69,7 +69,7 @@ function ClientSetupLinkCard() {
 }
 
 export default function ClientsPage() {
-  const clients = useSyncExternalStore(subscribeClients, listClients, () => [])
+  const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [newName, setNewName] = useState('')

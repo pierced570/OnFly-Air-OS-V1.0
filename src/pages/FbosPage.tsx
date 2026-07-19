@@ -5,7 +5,7 @@ import { lookupAirport } from '@/domain/airports'
 import { listFbos, rankFbosForCargo, subscribeFbos } from '@/lib/fboStore'
 
 export default function FbosPage() {
-  const fbos = useSyncExternalStore(subscribeFbos, listFbos, () => [])
+  const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
   const [q, setQ] = useState('')
   const [rankIcao, setRankIcao] = useState('')
 

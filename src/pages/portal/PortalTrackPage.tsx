@@ -104,7 +104,7 @@ function clientSafeTripView(trip: TripStoreRow) {
 
 export default function PortalTrackPage() {
   // Live-subscribe so one-tap / leg updates refresh this view
-  useSyncExternalStore(subscribeTrips, listTripsStable, () => [])
+  useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
 
   const { token } = useParams()
   const row = useMemo(() => {

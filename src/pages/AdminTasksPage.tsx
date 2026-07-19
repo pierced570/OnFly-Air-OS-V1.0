@@ -8,7 +8,11 @@ import {
 } from '@/lib/needsInfoStore'
 
 export default function AdminTasksPage() {
-  const tasks = useSyncExternalStore(subscribeNeedsInfo, listNeedsInfoTasks, () => [])
+  const tasks = useSyncExternalStore(
+    subscribeNeedsInfo,
+    listNeedsInfoTasks,
+    listNeedsInfoTasks,
+  )
   const [filter, setFilter] = useState<'open' | 'all'>('open')
   const [entity, setEntity] = useState<string>('all')
   const counts = openCountByEntity()

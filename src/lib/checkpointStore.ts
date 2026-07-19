@@ -30,7 +30,9 @@ export type ScheduledCheckpoint = PlannedCheckpoint & {
 
 const byTrip = new Map<string, ScheduledCheckpoint[]>()
 const listeners = new Set<() => void>()
+/** Stable snapshots for useSyncExternalStore — never allocate on read. */
 let snapshot: ScheduledCheckpoint[] = []
+let upcomingSnapshot: ScheduledCheckpoint[] = []
 let ticker: ReturnType<typeof setInterval> | null = null
 
 function rebuild() {
@@ -38,6 +40,14 @@ function rebuild() {
     .flat()
     .filter((c) => c.status === 'scheduled' || c.status === 'fired')
     .sort((a, b) => a.fire_at.localeCompare(b.fire_at))
+  const now = Date.now()
+  upcomingSnapshot = snapshot
+    .filter(
+      (c) =>
+        c.status === 'scheduled' &&
+        new Date(c.fire_at).getTime() >= now - 60_000,
+    )
+    .slice(0, 12)
 }
 
 function bump() {
@@ -56,11 +66,12 @@ export function listCheckpoints(): ScheduledCheckpoint[] {
   return snapshot
 }
 
-export function listUpcomingCheckpoints(limit = 12): ScheduledCheckpoint[] {
-  const now = Date.now()
-  return snapshot
-    .filter((c) => c.status === 'scheduled' && new Date(c.fire_at).getTime() >= now - 60_000)
-    .slice(0, limit)
+/**
+ * Stable upcoming list (capped at 12 on rebuild).
+ * Safe as useSyncExternalStore getSnapshot — do not .slice() here.
+ */
+export function listUpcomingCheckpoints(_limit = 12): ScheduledCheckpoint[] {
+  return upcomingSnapshot
 }
 
 export function listFiredOpenCheckpoints(): ScheduledCheckpoint[] {

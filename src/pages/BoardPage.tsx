@@ -5,7 +5,7 @@ import {
   PIPELINE_STAGES,
   type PipelineCard,
 } from '@/domain/pipelineStages'
-import { listTrips, listTripsStable, subscribeTrips } from '@/lib/tripStore'
+import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
 import {
   deleteRequest,
   listRequests,
@@ -36,17 +36,30 @@ import {
 import { listOpenNeedsInfo, subscribeNeedsInfo } from '@/lib/needsInfoStore'
 
 export default function BoardPage() {
-  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTrips)
-  const requests = useSyncExternalStore(subscribeRequests, listRequests, () => [])
-  const exceptions = useSyncExternalStore(subscribeExceptions, listExceptions, () => [])
-  const upcomingChecks = useSyncExternalStore(
-    subscribeCheckpoints,
-    () => listUpcomingCheckpoints(8),
-    () => [],
+  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
+  const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
+  const exceptions = useSyncExternalStore(
+    subscribeExceptions,
+    listExceptions,
+    listExceptions,
   )
-  const onShift = useSyncExternalStore(subscribeShift, getOnShift, () => null)
-  const intake = useSyncExternalStore(subscribeIntake, listPendingIntake, () => [])
-  const openTasks = useSyncExternalStore(subscribeNeedsInfo, listOpenNeedsInfo, () => [])
+  const upcomingAll = useSyncExternalStore(
+    subscribeCheckpoints,
+    listUpcomingCheckpoints,
+    listUpcomingCheckpoints,
+  )
+  const upcomingChecks = useMemo(() => upcomingAll.slice(0, 8), [upcomingAll])
+  const onShift = useSyncExternalStore(subscribeShift, getOnShift, getOnShift)
+  const intake = useSyncExternalStore(
+    subscribeIntake,
+    listPendingIntake,
+    listPendingIntake,
+  )
+  const openTasks = useSyncExternalStore(
+    subscribeNeedsInfo,
+    listOpenNeedsInfo,
+    listOpenNeedsInfo,
+  )
 
   const [shiftName, setShiftName] = useState('')
   const [shiftPhone, setShiftPhone] = useState('+15555550100')

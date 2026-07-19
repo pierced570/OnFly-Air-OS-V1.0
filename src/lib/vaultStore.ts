@@ -90,8 +90,14 @@ export function subscribeVault(fn: () => void): () => void {
   }
 }
 
+/** Stable reference between writes — required by useSyncExternalStore. */
 export function listVaultEntries(): VaultEntry[] {
   return cachedEntries
+}
+
+/** Consecutive getSnapshot identity check (React #185 guard). */
+export function vaultSnapshotIsStable(): boolean {
+  return listVaultEntries() === listVaultEntries()
 }
 
 export function clearVault(): void {

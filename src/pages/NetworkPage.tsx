@@ -99,14 +99,14 @@ export default function NetworkPage() {
   const complianceRows = useSyncExternalStore(
     subscribeOperatorCompliance,
     listOperatorCompliance,
-    () => [],
+    listOperatorCompliance,
   )
   const drafts = useSyncExternalStore(
     subscribeOperatorDrafts,
     listOperatorDrafts,
-    () => [],
+    listOperatorDrafts,
   )
-  useSyncExternalStore(subscribeTrips, listTripsStable, () => [])
+  useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
 
   const adsbLive = isRealAdsbEnabled()
 

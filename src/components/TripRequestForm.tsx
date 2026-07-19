@@ -67,7 +67,7 @@ export function TripRequestForm({
   const clientOptions = useSyncExternalStore(
     subscribeClients,
     listSessionClients,
-    () => [],
+    listSessionClients,
   )
 
   function setPaxCount(n: number) {
