@@ -41,6 +41,13 @@ export async function hydrateTrips(): Promise<number> {
   const partRows = await safeQuery('trip_participants.hydrate', () =>
     db().from('trip_participants').select('*').in('trip_id', ids),
   )
+  const docRows = await safeQuery('documents.hydrate', () =>
+    db()
+      .from('documents')
+      .select('id,trip_id,kind,storage_path,parsed,rendered_at,created_at')
+      .in('trip_id', ids)
+      .limit(500),
+  )
 
   const legsByTrip = new Map<string, TripLegRow[]>()
   if (Array.isArray(legRows)) {
@@ -126,6 +133,24 @@ export async function hydrateTrips(): Promise<number> {
     }
   }
 
+  const docsByTrip = new Map<string, TripStoreRow['documents']>()
+  if (Array.isArray(docRows)) {
+    for (const r of docRows as Record<string, unknown>[]) {
+      const tripId = String(r.trip_id)
+      if (!tripId) continue
+      const parsed = (r.parsed as Record<string, unknown>) || {}
+      const list = docsByTrip.get(tripId) ?? []
+      list.push({
+        id: String(r.id),
+        kind: (String(r.kind || 'other') as TripStoreRow['documents'][0]['kind']),
+        title: String(parsed.title || r.kind || 'Document'),
+        at: String(r.rendered_at || r.created_at || new Date().toISOString()),
+        url: String(r.storage_path || `#doc-${String(r.id).slice(0, 8)}`),
+      })
+      docsByTrip.set(tripId, list)
+    }
+  }
+
   const mapped: TripStoreRow[] = tripRows.map((r: Record<string, unknown>) => {
     const meta = (r.session_meta as Record<string, unknown>) || {}
     const hard = meta.hard_quote as TripStoreRow['hard_quote'] | undefined
@@ -154,7 +179,7 @@ export async function hydrateTrips(): Promise<number> {
       legs: legsByTrip.get(String(r.id)) ?? [],
       participants: partsByTrip.get(String(r.id)) ?? [],
       thread: [],
-      documents: [],
+      documents: docsByTrip.get(String(r.id)) ?? [],
       invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
       client_id: r.client_id ? String(r.client_id) : undefined,
     }

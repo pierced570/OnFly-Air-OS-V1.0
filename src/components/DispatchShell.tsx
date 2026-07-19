@@ -76,6 +76,15 @@ export function DispatchShell({ children }: { children: ReactNode }) {
     return () => stop?.()
   }, [])
 
+  // WX T-3h / T-1h schedule tick (edge/pg_cron also fire; this covers open desks)
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void import('@/lib/wxBriefSchedule').then((m) => m.tickWxBriefs())
+    }, 60_000)
+    void import('@/lib/wxBriefSchedule').then((m) => m.tickWxBriefs())
+    return () => window.clearInterval(id)
+  }, [])
+
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow

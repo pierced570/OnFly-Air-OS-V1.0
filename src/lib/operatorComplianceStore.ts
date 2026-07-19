@@ -211,6 +211,15 @@ export async function setOperatorDocFile(
   }
   row.updated_at = new Date().toISOString()
   bump()
+  void import('@/lib/db/persistOperator').then((m) =>
+    m.persistOperatorComplianceDoc({
+      operatorId,
+      kind,
+      storagePath,
+      expiresOn: slot.expiresOn,
+      fileName: slot.fileName,
+    }),
+  )
   return slot
 }
 
@@ -248,6 +257,9 @@ export function setNamedInsurer(operatorId: string, value: boolean): void {
   row.named_insurer = value
   row.updated_at = new Date().toISOString()
   bump()
+  void import('@/lib/db/persistOperator').then((m) =>
+    m.persistNamedInsurer(operatorId, value),
+  )
 }
 
 export function markCoiReminderSent(

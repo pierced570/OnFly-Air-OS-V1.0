@@ -79,6 +79,11 @@ export function saveOperatorDraft(
   }
   rows.set(row.id, row)
   bump()
+  void import('@/lib/db/persistOperator').then((m) =>
+    m.persistOperatorDraft(row).catch((e) =>
+      console.warn('[operator] persist failed', e),
+    ),
+  )
   return row
 }
 

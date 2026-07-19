@@ -198,5 +198,29 @@ export async function sendEstimatedQuote(
     at,
   })
 
+  // Durable quotes row (tax_breakdown + options)
+  void import('@/lib/db/persistQuote').then((m) =>
+    m.persistQuoteRow({
+      tripId: trip.id,
+      kind,
+      total: opts.total,
+      airSubtotal: opts.airSubtotal,
+      taxLines: opts.taxLines.map((l) => ({
+        code: l.code,
+        label: l.note,
+        amount: l.amount,
+      })),
+      options: opts.candidates.slice(0, 5).map((c) => ({
+        tail: c.tail,
+        type_name: c.type_name,
+        price: c.price,
+        eta_end: c.eta_end,
+        aircraft_id: c.aircraft_id,
+        operator_id: c.operator_id,
+      })),
+      acceptToken: opts.acceptUrl?.split('/').pop() ?? null,
+    }),
+  )
+
   return { emailIds, to, trip, subject }
 }

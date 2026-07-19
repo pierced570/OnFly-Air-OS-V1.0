@@ -230,6 +230,31 @@ export async function acceptHardQuote(token: string) {
     })
   })
 
+  // Dedicated trip SMS number from DID pool
+  try {
+    const { assignTripThreadNumber } = await import('@/lib/threadNumbers')
+    const tn = await assignTripThreadNumber(trip.id)
+    if (tn) {
+      mutateTrip(trip.id, (t) => {
+        t.events.push({
+          at: new Date().toISOString(),
+          actor: 'system',
+          kind: 'thread_number_assigned',
+          payload: { e164: tn.e164, label: tn.label },
+        })
+        t.participants.push({
+          id: crypto.randomUUID(),
+          role: 'other',
+          name: 'Trip thread',
+          cell: tn.e164,
+          email: '',
+        })
+      })
+    }
+  } catch (e) {
+    console.warn('[thread] assign failed', e)
+  }
+
   // ETA sheet + portal track links → tracker / supply-chain (no QB invoice here)
   const { runOnBookedAutomations } = await import('@/lib/onBooked')
   await runOnBookedAutomations(trip.id)

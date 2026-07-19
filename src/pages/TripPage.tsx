@@ -292,13 +292,27 @@ export default function TripPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Participants</h2>
+          <h2 className="text-xs uppercase tracking-wider text-muted">Thread</h2>
+          {(() => {
+            const tn = [...trip.events]
+              .reverse()
+              .find((e) => e.kind === 'thread_number_assigned')
+            const e164 = tn?.payload?.e164
+            return e164 ? (
+              <p className="avionic mt-2 text-sm text-gold">{String(e164)}</p>
+            ) : (
+              <p className="mt-2 text-xs text-muted">
+                Trip line assigns on book (DID pool).
+              </p>
+            )
+          })()}
           <ul className="mt-3 space-y-2 text-sm">
             {trip.participants.map((p) => (
               <li key={p.id} className="flex justify-between gap-2">
                 <span className="text-cream">{p.name}</span>
                 <span className="text-xs text-muted">
                   {p.role}
+                  {p.cell ? ` · ${p.cell}` : ''}
                   {p.email ? ` · ${p.email}` : ''}
                 </span>
               </li>

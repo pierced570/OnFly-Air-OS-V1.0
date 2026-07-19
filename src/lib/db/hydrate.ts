@@ -32,6 +32,7 @@ export async function hydrateOperatingData(): Promise<{
   }
 
   await Promise.all([loadTaxRates(), loadPricingPriors()])
+  void import('@/lib/scorecards').then((m) => m.loadScorecards())
 
   const clientRows = await safeQuery('clients', () =>
     db()

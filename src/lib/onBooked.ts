@@ -28,6 +28,11 @@ export async function runOnBookedAutomations(tripId: string): Promise<{
   // Timers for T-minus check-ins with pilot / ground / on-shift
   const scheduled = scheduleCheckpointsForTrip(tripId)
 
+  // T-3h / T-1h WX briefs from air-leg EST
+  void import('@/lib/wxBriefSchedule').then((m) =>
+    m.scheduleWxBriefsForTrip(tripId),
+  )
+
   const recipients = resolveTrackerRecipients(trip)
   if (!recipients.length) {
     mutateTrip(tripId, (t) => {
@@ -63,6 +68,7 @@ function resolveTrackerRecipients(trip: TripStoreRow): string[] {
 function attachManifestDocument(trip: TripStoreRow): void {
   if (trip.documents.some((d) => d.kind === 'manifest')) return
   const selected = trip.offers.find((o) => o.state === 'selected')
+  const pieces = piecesFromTrip(trip)
   const model = buildManifestModel({
     tripRef: trip.ref,
     lane: trip.lane,
@@ -72,28 +78,63 @@ function attachManifestDocument(trip: TripStoreRow): void {
     tail: selected?.tail || trip.quick?.tail || 'TBD',
     typeName:
       selected?.type_name || trip.quick?.aircraft_type || 'TBD',
-    pieces: [],
+    pieces,
     etaSummary: trip.legs.map((l) => ({
       label: l.label,
       est_end: l.est_end,
     })),
   })
   const html = renderManifestHtml(model)
-  const url =
-    typeof URL !== 'undefined' && typeof Blob !== 'undefined'
-      ? URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-      : `/trips/${trip.id}/manifest`
+  const url = `/trips/${trip.id}/manifest`
   addTripDocument(trip.id, {
     kind: 'manifest',
     title: `Manifest · T-${trip.ref}`,
     url,
   })
+  // Keep HTML available for print page via sessionStorage
+  try {
+    sessionStorage.setItem(`onfly.manifest.${trip.id}`, html)
+  } catch {
+    /* ignore */
+  }
   mutateTrip(trip.id, (t) => {
     t.events.push({
       at: new Date().toISOString(),
       actor: 'system',
       kind: 'manifest_created',
-      payload: { trip_ref: trip.ref },
+      payload: { trip_ref: trip.ref, pieces: pieces.length },
     })
   })
+}
+
+function piecesFromTrip(trip: TripStoreRow): Array<{
+  count: number
+  length_in: number
+  width_in: number
+  height_in: number
+  weight_lbs: number
+  stackable?: boolean
+}> {
+  // Prefer pieces stashed on selected candidate / session when present
+  const cand = trip.candidates[0] as { pieces?: unknown } | undefined
+  const raw = Array.isArray(cand?.pieces) ? cand!.pieces : []
+  const out: Array<{
+    count: number
+    length_in: number
+    width_in: number
+    height_in: number
+    weight_lbs: number
+    stackable?: boolean
+  }> = []
+  for (const p of raw as Array<Record<string, unknown>>) {
+    out.push({
+      count: Number(p.count ?? p.qty ?? 1) || 1,
+      length_in: Number(p.l_in ?? p.length_in ?? 0) || 0,
+      width_in: Number(p.w_in ?? p.width_in ?? 0) || 0,
+      height_in: Number(p.h_in ?? p.height_in ?? 0) || 0,
+      weight_lbs: Number(p.weight_lbs ?? p.wt ?? 0) || 0,
+      stackable: p.stackable !== false,
+    })
+  }
+  return out
 }

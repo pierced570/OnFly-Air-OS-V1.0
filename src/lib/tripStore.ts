@@ -823,6 +823,13 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
     url: created.url,
     created_at: new Date().toISOString(),
   }
+  void import('@/lib/db/persistQuote').then((m) =>
+    m.persistInvoiceRow({
+      tripId,
+      qbInvoiceId: inv.qb_invoice_id,
+      total,
+    }),
+  )
   const wasDelivered = t.state === 'delivered'
   mutateTrip(tripId, (row) => {
     row.invoice = inv
