@@ -439,6 +439,16 @@ export default function NewTripPage() {
                     ETA {eta.local} <span className="avionic">({eta.zulu})</span>
                   </div>
                 )}
+                <div className="mt-1 avionic text-[11px] text-muted">
+                  {c.circuit_nm.toLocaleString()} NM × $
+                  {c.rate_per_nm.toFixed(2)}/NM ({c.rate_source}) → op $
+                  {c.cost.toLocaleString(undefined, {
+                    maximumFractionDigits: 0,
+                  })}
+                  {c.cost > 0
+                    ? ` + ${Math.round((c.price / c.cost - 1) * 100)}% margin`
+                    : ''}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <FlightChip
                     phase={c.phase}

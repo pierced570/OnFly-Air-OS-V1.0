@@ -27,6 +27,8 @@ function stubCand(): Candidate {
     reasoning: [],
     eta_end: new Date().toISOString(),
     circuit_nm: 100,
+    rate_per_nm: 10,
+    rate_source: 'assumption',
   }
 }
 

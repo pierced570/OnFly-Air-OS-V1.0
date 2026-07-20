@@ -17,11 +17,20 @@ export type AircraftRow = {
   type_name: string | null
   category: string | null
   engines: string | null
+  cargo_pax: string | null
+  seats: number | null
   base_icao: string | null
   cruise_kts: number | null
-  mtow_lbs: number | null
+  range_nm: number | null
   max_payload_lbs: number | null
-  seats: number | null
+  mtow_lbs: number | null
+  door_w_in: number | null
+  door_h_in: number | null
+  /** History $/NM from CSV avg_op_per_nm_circuit when present. */
+  avg_op_per_nm_circuit: number | null
+  /** Assumed market $/NM from CSV med_assumed_op_per_nm. */
+  med_assumed_op_per_nm: number | null
+  rate_source: 'history' | 'assumption' | null
   fet_applies: boolean | null
   needs_info: NeedsInfoItem[]
   active: boolean
