@@ -82,6 +82,13 @@ function migrateStaff(list: StaffMember[]): StaffMember[] {
     if (s.id === OWNER_STAFF_ID) {
       row = { ...s, phone: PIERCE_PHONE }
     }
+    // Grant Chat alongside Trips for existing dispatch seats
+    if (
+      row.sections.includes('trips') &&
+      !row.sections.includes('chat')
+    ) {
+      row = { ...row, sections: [...row.sections, 'chat'] }
+    }
     return enforceOwnerRules(row)
   })
 

@@ -15,6 +15,7 @@ const nav: {
   end?: boolean
 }[] = [
   { to: '/', label: 'Board', section: 'board', end: true },
+  { to: '/chat', label: 'Chat', section: 'chat' },
   { to: '/quick-dispatch', label: 'Quick Dispatch', section: 'quick_dispatch' },
   { to: '/intake', label: 'Intake', section: 'intake' },
   { to: '/financials', label: 'Financials', section: 'financials' },

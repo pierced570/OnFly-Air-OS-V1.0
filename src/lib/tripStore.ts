@@ -754,6 +754,43 @@ export function listTrips() {
   return [...trips.values()].sort((a, b) => b.ref - a.ref)
 }
 
+const CHAT_STATES = new Set<TripState>([
+  'offers_out',
+  'quoted_hard',
+  'booked',
+  'in_progress',
+  'delivered',
+])
+
+/**
+ * Trips that belong in the Chat menu — active ops threads first,
+ * then bookable/in-progress trips the dispatcher can join.
+ */
+export function listChatTrips(): TripStoreRow[] {
+  const score = (t: TripStoreRow) => {
+    const live = t.thread_number && !t.thread_disbanded_at ? 3 : 0
+    const hasMsgs = t.thread.length ? 2 : 0
+    const liveState = CHAT_STATES.has(t.state) ? 1 : 0
+    return live + hasMsgs + liveState
+  }
+  const lastAt = (t: TripStoreRow) =>
+    t.thread.at(-1)?.at ?? t.events.at(-1)?.at ?? ''
+
+  return [...trips.values()]
+    .filter(
+      (t) =>
+        score(t) > 0 ||
+        t.thread.length > 0 ||
+        Boolean(t.thread_number) ||
+        CHAT_STATES.has(t.state),
+    )
+    .sort((a, b) => {
+      const ds = score(b) - score(a)
+      if (ds !== 0) return ds
+      return lastAt(b).localeCompare(lastAt(a)) || b.ref - a.ref
+    })
+}
+
 export function mutateTrip(id: string, fn: (t: TripStoreRow) => void) {
   const t = trips.get(id)
   if (!t) throw new Error('trip not found')
