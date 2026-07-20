@@ -59,3 +59,34 @@ describe('parseDims', () => {
     expect(r.pieces[0]?.input_unit).toBe('in')
   })
 })
+
+describe('dims triple helpers', () => {
+  it('parseDimsTriple reads qty L×W×H weight', () => {
+    expect(parseDimsTriple('2 skids 48x40x60 @ 800ea')).toMatchObject({
+      count: 2,
+      l: '48',
+      w: '40',
+      h: '60',
+      weight: '800',
+    })
+  })
+
+  it('composeDimsLine round-trips into parseDims', () => {
+    const line = composeDimsLine({
+      count: 3,
+      l: '48',
+      w: '40',
+      h: '60',
+      weightLbs: 800,
+      unit: 'in',
+    })
+    const r = parseDims(line)
+    expect(r.pieces[0]).toMatchObject({
+      count: 3,
+      l_in: 48,
+      w_in: 40,
+      h_in: 60,
+      weight_lbs: 800,
+    })
+  })
+})
