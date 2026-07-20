@@ -69,17 +69,34 @@ describe('validateClientOnboard', () => {
     d.dual_pilot_required = true
     d.freight_only = true
     d.multi_engine_only = true
+    d.single_engine_turboprop_only = false
     d.no_single_engine_night = true
+    d.turboprop_preferred = true
+    d.jet_ok = true
+    d.aircraft_other_notes = 'No gravel strips'
     d.hazmat_allowed = false
     d.declared_value_norm = 'under $50k'
     d.requires_po = true
     const rules = rulesFromOnboardDraft(d)
     expect(rules.dual_pilot_required).toBe(true)
     expect(rules.freight_only).toBe(true)
+    expect(rules.single_engine_turboprop_only).toBe(false)
     expect(rules.hazmat_allowed).toBe(false)
     expect(rules.declared_value_norm).toBe('under $50k')
     expect(rules.other_rules).toContain('PO required on invoices')
+    expect(rules.other_rules).toContain('Turboprop preferred')
+    expect(rules.other_rules).toContain('Jet OK')
+    expect(rules.other_rules).toContain('No gravel strips')
     expect(payTermsLabel('net_60')).toBe('Net 60')
+  })
+
+  it('maps single-engine turboprop-only hard rule', () => {
+    const d = emptyClientOnboardDraft()
+    d.single_engine_turboprop_only = true
+    d.single_engine_piston_ok = true
+    const rules = rulesFromOnboardDraft(d)
+    expect(rules.single_engine_turboprop_only).toBe(true)
+    expect(rules.other_rules).toContain('Single-engine piston OK')
   })
 
   it('extracts city hints from lanes', () => {

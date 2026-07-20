@@ -107,6 +107,7 @@ export async function persistClient(client: ClientProfile): Promise<void> {
       dual_pilot_required: client.rules.dual_pilot_required,
       freight_only: client.rules.freight_only,
       multi_engine_only: client.rules.multi_engine_only,
+      single_engine_turboprop_only: client.rules.single_engine_turboprop_only,
       no_single_engine_night: client.rules.no_single_engine_night,
       hazmat_allowed: client.rules.hazmat_allowed,
       other_rules: { list: client.rules.other_rules },

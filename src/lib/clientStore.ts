@@ -33,6 +33,8 @@ export type ClientRules = {
   dual_pilot_required: boolean
   freight_only: boolean
   multi_engine_only: boolean
+  /** Single-engine allowed only when turboprop (Chunk 6 interview). */
+  single_engine_turboprop_only: boolean
   no_single_engine_night: boolean
   hazmat_allowed: boolean
   hazmat_notes: string
@@ -44,6 +46,7 @@ export const DEFAULT_CLIENT_RULES: ClientRules = {
   dual_pilot_required: false,
   freight_only: false,
   multi_engine_only: false,
+  single_engine_turboprop_only: false,
   no_single_engine_night: false,
   hazmat_allowed: true,
   hazmat_notes: '',
@@ -83,7 +86,6 @@ export type ClientExtendedProfile = {
   update_channel?: 'email' | 'sms' | 'both'
   shipping_flags?: {
     hazmat_sometimes?: boolean
-    temp_control?: boolean
     oversized?: boolean
     high_declared_value?: boolean
   }
@@ -248,6 +250,8 @@ export function clientRuleChips(clientId: string): string[] {
   if (c.rules.dual_pilot_required) chips.push('Dual pilot required')
   if (c.rules.freight_only) chips.push('Freight only')
   if (c.rules.multi_engine_only) chips.push('Multi-engine only')
+  if (c.rules.single_engine_turboprop_only)
+    chips.push('SE OK only if turboprop')
   if (c.rules.no_single_engine_night) chips.push('No SE night')
   if (!c.rules.hazmat_allowed) chips.push('No hazmat')
   else if (c.rules.hazmat_notes) chips.push(`Hazmat: ${c.rules.hazmat_notes}`)

@@ -160,7 +160,6 @@ export async function submitClientOnboard(
       vendor_packet_to: draft.vendor_packet_to.trim() || undefined,
       update_channel: draft.update_channel,
       shipping_flags: {
-        temp_control: draft.temp_control,
         oversized: draft.oversized,
         high_declared_value: Boolean(draft.declared_value_norm.trim()),
         hazmat_sometimes: draft.hazmat_allowed && Boolean(draft.hazmat_notes),

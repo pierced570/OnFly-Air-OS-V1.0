@@ -416,6 +416,18 @@ function ClientDetail({
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
+              checked={client.rules.single_engine_turboprop_only}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { single_engine_turboprop_only: e.target.checked },
+                })
+              }
+            />
+            SE OK if turboprop
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
               checked={client.rules.no_single_engine_night}
               onChange={(e) =>
                 updateClient(client.id, {

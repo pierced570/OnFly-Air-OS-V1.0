@@ -62,15 +62,24 @@ export type ClientOnboardDraft = {
   dual_pilot_required: boolean
   freight_only: boolean
   multi_engine_only: boolean
+  /** Single-engine OK only when turboprop (hard filter). */
+  single_engine_turboprop_only: boolean
   no_single_engine_night: boolean
+  /** Soft prefs → other_rules chips */
+  single_engine_piston_ok: boolean
+  turboprop_preferred: boolean
+  jet_ok: boolean
+  cargo_door_required: boolean
+  pressurized_preferred: boolean
   hazmat_allowed: boolean
   hazmat_notes: string
   declared_value_norm: string
+  /** Free-form aircraft / cargo notes → other_rules */
+  aircraft_other_notes: string
 
   // Shipping profile
   no_frequent_lanes: boolean
   lanes: ClientLane[]
-  temp_control: boolean
   oversized: boolean
 
   // Preferences
@@ -107,13 +116,19 @@ export function emptyClientOnboardDraft(): ClientOnboardDraft {
     dual_pilot_required: false,
     freight_only: false,
     multi_engine_only: false,
+    single_engine_turboprop_only: false,
     no_single_engine_night: false,
+    single_engine_piston_ok: false,
+    turboprop_preferred: false,
+    jet_ok: false,
+    cargo_door_required: false,
+    pressurized_preferred: false,
     hazmat_allowed: true,
     hazmat_notes: '',
     declared_value_norm: '',
+    aircraft_other_notes: '',
     no_frequent_lanes: false,
     lanes: [{ origin: '', destination: '' }],
-    temp_control: false,
     oversized: false,
     update_channel: 'email',
     anything_else: '',
@@ -214,6 +229,7 @@ export type OnboardRulesSlice = {
   dual_pilot_required: boolean
   freight_only: boolean
   multi_engine_only: boolean
+  single_engine_turboprop_only: boolean
   no_single_engine_night: boolean
   hazmat_allowed: boolean
   hazmat_notes: string
@@ -231,13 +247,20 @@ export function rulesFromOnboardDraft(
     other.push('Card on file requested (send secure link)')
   }
   if (draft.card_on_file === false) other.push('No card on file')
-  if (draft.temp_control) other.push('Temp control')
   if (draft.oversized) other.push('Oversized freight')
+  if (draft.single_engine_piston_ok) other.push('Single-engine piston OK')
+  if (draft.turboprop_preferred) other.push('Turboprop preferred')
+  if (draft.jet_ok) other.push('Jet OK')
+  if (draft.cargo_door_required) other.push('Cargo door required')
+  if (draft.pressurized_preferred) other.push('Pressurized preferred')
+  const notes = draft.aircraft_other_notes.trim()
+  if (notes) other.push(notes)
 
   return {
     dual_pilot_required: draft.dual_pilot_required,
     freight_only: draft.freight_only,
     multi_engine_only: draft.multi_engine_only,
+    single_engine_turboprop_only: draft.single_engine_turboprop_only,
     no_single_engine_night: draft.no_single_engine_night,
     hazmat_allowed: draft.hazmat_allowed,
     hazmat_notes: draft.hazmat_notes.trim(),

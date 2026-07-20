@@ -80,6 +80,9 @@ export async function hydrateOperatingData(): Promise<{
           dual_pilot_required: Boolean(rulesRaw?.dual_pilot_required),
           freight_only: Boolean(rulesRaw?.freight_only),
           multi_engine_only: Boolean(rulesRaw?.multi_engine_only),
+          single_engine_turboprop_only: Boolean(
+            rulesRaw?.single_engine_turboprop_only,
+          ),
           no_single_engine_night: Boolean(rulesRaw?.no_single_engine_night),
           hazmat_allowed:
             rulesRaw?.hazmat_allowed == null
@@ -88,6 +91,14 @@ export async function hydrateOperatingData(): Promise<{
           declared_value_norm: rulesRaw?.max_declared_value
             ? String(rulesRaw.max_declared_value)
             : '',
+          other_rules: (() => {
+            const raw = rulesRaw?.other_rules
+            if (Array.isArray(raw)) return raw.map(String)
+            if (raw && typeof raw === 'object' && Array.isArray((raw as { list?: unknown }).list)) {
+              return ((raw as { list: unknown[] }).list).map(String)
+            }
+            return []
+          })(),
         },
         qb_customer_id: r.qb_customer_id ? String(r.qb_customer_id) : null,
         profile:

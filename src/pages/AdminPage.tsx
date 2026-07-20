@@ -757,6 +757,7 @@ function ClientWizard() {
   const [dual, setDual] = useState(false)
   const [freight, setFreight] = useState(false)
   const [multi, setMulti] = useState(false)
+  const [seTurboprop, setSeTurboprop] = useState(false)
   const [noSeNight, setNoSeNight] = useState(false)
   const [hazmatOk, setHazmatOk] = useState(true)
   const [hazmatNotes, setHazmatNotes] = useState('')
@@ -813,6 +814,7 @@ function ClientWizard() {
         dual_pilot_required: dual,
         freight_only: freight,
         multi_engine_only: multi,
+        single_engine_turboprop_only: seTurboprop,
         no_single_engine_night: noSeNight,
         hazmat_allowed: hazmatOk,
         hazmat_notes: hazmatNotes,
@@ -943,11 +945,23 @@ function ClientWizard() {
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
+              checked={seTurboprop}
+              onChange={(e) => setSeTurboprop(e.target.checked)}
+            />
+            Single-engine OK only if turboprop
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
               checked={noSeNight}
               onChange={(e) => setNoSeNight(e.target.checked)}
             />
             No single-engine at night
           </label>
+          <p className="text-xs text-muted">
+            Soft prefs (jet OK, cargo door, etc.) live on the public /client
+            form Other notes + preference checkboxes.
+          </p>
         </div>
       )}
       {step === 4 && (
