@@ -32,6 +32,26 @@ export type PoAssignedBy = 'client' | 'onfly'
 
 export type UpdateChannel = 'email' | 'sms' | 'both'
 
+/** Per-mission-type aircraft policy (freight column vs passenger column). */
+export type MissionAircraftPolicy = {
+  dual_pilot_only: boolean
+  multi_engine_only: boolean
+  single_engine_ok: boolean
+  single_engine_turboprop_ok: boolean
+  /** Soft — dispatch may deviate with explicit client permission. */
+  exceptions_with_permission: boolean
+}
+
+export function emptyMissionAircraftPolicy(): MissionAircraftPolicy {
+  return {
+    dual_pilot_only: false,
+    multi_engine_only: false,
+    single_engine_ok: false,
+    single_engine_turboprop_ok: false,
+    exceptions_with_permission: false,
+  }
+}
+
 /**
  * Public `/client` draft — same subjects dispatchers enter on Admin + Clients:
  * company, people (ops/AP/supply/emergency), billing, routing rules, lanes, prefs.
@@ -67,23 +87,18 @@ export type ClientOnboardDraft = {
   vendor_number_notes: string
   vendor_packet_to: string
 
-  // Routing rules (Admin ClientWizard / client_rules)
-  dual_pilot_required: boolean
+  /**
+   * Aircraft policy split: freight trips vs passenger trips.
+   * Maps into client_rules (freight → hard filters) + other_rules chips.
+   */
+  freight_policy: MissionAircraftPolicy
+  passenger_policy: MissionAircraftPolicy
+  /** No passenger trips — freight column only applies. */
   freight_only: boolean
-  multi_engine_only: boolean
-  /** Single-engine OK only when turboprop (hard filter). */
-  single_engine_turboprop_only: boolean
-  no_single_engine_night: boolean
-  /** Soft prefs → other_rules chips */
-  single_engine_piston_ok: boolean
-  turboprop_preferred: boolean
-  jet_ok: boolean
-  cargo_door_required: boolean
-  pressurized_preferred: boolean
   hazmat_allowed: boolean
   hazmat_notes: string
   declared_value_norm: string
-  /** Free-form aircraft / cargo notes → other_rules */
+  /** Free-form notes → other_rules */
   aircraft_other_notes: string
 
   // Shipping profile
@@ -123,16 +138,9 @@ export function emptyClientOnboardDraft(): ClientOnboardDraft {
     needs_vendor_number: null,
     vendor_number_notes: '',
     vendor_packet_to: '',
-    dual_pilot_required: false,
+    freight_policy: emptyMissionAircraftPolicy(),
+    passenger_policy: emptyMissionAircraftPolicy(),
     freight_only: false,
-    multi_engine_only: false,
-    single_engine_turboprop_only: false,
-    no_single_engine_night: false,
-    single_engine_piston_ok: false,
-    turboprop_preferred: false,
-    jet_ok: false,
-    cargo_door_required: false,
-    pressurized_preferred: false,
     hazmat_allowed: true,
     hazmat_notes: '',
     declared_value_norm: '',
@@ -244,7 +252,42 @@ export type OnboardRulesSlice = {
   other_rules: string[]
 }
 
-/** Map onboard answers → client_rules (same shape Admin wizard writes). */
+function policyChips(
+  label: 'Freight' | 'Passenger',
+  p: MissionAircraftPolicy,
+): string[] {
+  const chips: string[] = []
+  if (p.dual_pilot_only) chips.push(`${label}: dual pilot only`)
+  if (p.multi_engine_only) chips.push(`${label}: multi-engine only`)
+  if (p.single_engine_ok) chips.push(`${label}: single-engine OK`)
+  if (p.single_engine_turboprop_ok) {
+    chips.push(`${label}: single-engine turboprop OK`)
+  }
+  if (p.exceptions_with_permission) {
+    chips.push(`${label}: exceptions with permission`)
+  }
+  return chips
+}
+
+/**
+ * Hard filters from a policy column.
+ * multi-engine only wins; else SE turboprop-only when turboprop OK but not general SE.
+ */
+export function hardFiltersFromPolicy(p: MissionAircraftPolicy): {
+  dual_pilot_required: boolean
+  multi_engine_only: boolean
+  single_engine_turboprop_only: boolean
+} {
+  const multi = p.multi_engine_only
+  return {
+    dual_pilot_required: p.dual_pilot_only,
+    multi_engine_only: multi,
+    single_engine_turboprop_only:
+      !multi && p.single_engine_turboprop_ok && !p.single_engine_ok,
+  }
+}
+
+/** Map onboard answers → client_rules (freight column drives hard filters). */
 export function rulesFromOnboardDraft(
   draft: ClientOnboardDraft,
 ): OnboardRulesSlice {
@@ -258,20 +301,21 @@ export function rulesFromOnboardDraft(
     other.push('Needs vendor number in client AP system')
   }
   if (draft.oversized) other.push('Oversized freight')
-  if (draft.single_engine_piston_ok) other.push('Single-engine piston OK')
-  if (draft.turboprop_preferred) other.push('Turboprop preferred')
-  if (draft.jet_ok) other.push('Jet OK')
-  if (draft.cargo_door_required) other.push('Cargo door required')
-  if (draft.pressurized_preferred) other.push('Pressurized preferred')
+  other.push(...policyChips('Freight', draft.freight_policy))
+  if (!draft.freight_only) {
+    other.push(...policyChips('Passenger', draft.passenger_policy))
+  }
   const notes = draft.aircraft_other_notes.trim()
   if (notes) other.push(notes)
 
+  const hard = hardFiltersFromPolicy(draft.freight_policy)
+
   return {
-    dual_pilot_required: draft.dual_pilot_required,
+    dual_pilot_required: hard.dual_pilot_required,
     freight_only: draft.freight_only,
-    multi_engine_only: draft.multi_engine_only,
-    single_engine_turboprop_only: draft.single_engine_turboprop_only,
-    no_single_engine_night: draft.no_single_engine_night,
+    multi_engine_only: hard.multi_engine_only,
+    single_engine_turboprop_only: hard.single_engine_turboprop_only,
+    no_single_engine_night: false,
     hazmat_allowed: draft.hazmat_allowed,
     hazmat_notes: draft.hazmat_notes.trim(),
     declared_value_norm: draft.declared_value_norm.trim(),

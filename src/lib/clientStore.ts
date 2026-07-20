@@ -87,6 +87,21 @@ export type ClientExtendedProfile = {
   vendor_number_notes?: string
   vendor_packet_to?: string
   update_channel?: 'email' | 'sms' | 'both'
+  /** Freight vs passenger aircraft policies from /client setup. */
+  freight_policy?: {
+    dual_pilot_only: boolean
+    multi_engine_only: boolean
+    single_engine_ok: boolean
+    single_engine_turboprop_ok: boolean
+    exceptions_with_permission: boolean
+  }
+  passenger_policy?: {
+    dual_pilot_only: boolean
+    multi_engine_only: boolean
+    single_engine_ok: boolean
+    single_engine_turboprop_ok: boolean
+    exceptions_with_permission: boolean
+  }
   shipping_flags?: {
     hazmat_sometimes?: boolean
     oversized?: boolean

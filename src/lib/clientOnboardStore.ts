@@ -169,6 +169,8 @@ export async function submitClientOnboard(
       vendor_number_notes: draft.vendor_number_notes.trim() || undefined,
       vendor_packet_to: draft.vendor_packet_to.trim() || undefined,
       update_channel: draft.update_channel,
+      freight_policy: { ...draft.freight_policy },
+      passenger_policy: { ...draft.passenger_policy },
       shipping_flags: {
         oversized: draft.oversized,
         high_declared_value: Boolean(draft.declared_value_norm.trim()),

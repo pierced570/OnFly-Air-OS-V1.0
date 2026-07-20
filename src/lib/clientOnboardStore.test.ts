@@ -33,7 +33,13 @@ describe('submitClientOnboard', () => {
     ]
     d.po_assigned_by = 'client'
     d.po_prefix = 'PSA'
-    d.dual_pilot_required = true
+    d.freight_policy = {
+      dual_pilot_only: true,
+      multi_engine_only: false,
+      single_engine_ok: false,
+      single_engine_turboprop_ok: false,
+      exceptions_with_permission: false,
+    }
     d.freight_only = true
     d.hazmat_allowed = true
     d.hazmat_notes = 'Sometimes'
@@ -53,6 +59,7 @@ describe('submitClientOnboard', () => {
     expect(client.profile.frequent_lanes?.[0]?.origin).toBe('KCAK')
     expect(client.profile.requires_po).toBe(true)
     expect(client.profile.po_assigned_by).toBe('client')
+    expect(client.profile.freight_policy?.dual_pilot_only).toBe(true)
     expect(client.profile.address?.city).toBe('Akron')
     expect(getClient(client.id)?.id).toBe(client.id)
     expect(taskIds.length).toBeGreaterThan(0)
