@@ -77,6 +77,16 @@ export default function PortalRequestPage() {
             <p className="mt-1 text-sm text-muted">
               Ref <span className="avionic text-ink">R-{done.ref}</span> · {done.lane}
             </p>
+            {done.forklift?.level !== 'none' && done.forklift?.label && (
+              <p
+                className={[
+                  'mt-2 text-sm font-medium',
+                  done.forklift.level === 'required' ? 'text-late' : 'text-gold',
+                ].join(' ')}
+              >
+                {done.forklift.label}
+              </p>
+            )}
           </header>
 
           {estimating && (

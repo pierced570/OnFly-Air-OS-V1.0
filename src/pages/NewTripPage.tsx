@@ -3,9 +3,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   formatPieceDims,
   parseDims,
+  piecesHaveWeights,
   type DimLengthUnit,
   type Piece,
 } from '@/domain/dimsParser'
+import { forkliftHandlingFromPieces } from '@/domain/forkliftHandling'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import { createMapsAdapter } from '@/adapters/maps'
@@ -21,6 +23,7 @@ import { formatStopLocal } from '@/domain/timeFmt'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { getRequest, submitTripRequest } from '@/lib/requestStore'
 import type { TripRequestDraft, TripRequestRecord } from '@/domain/tripRequest'
+import { cargoPiecesFromDraft } from '@/domain/tripRequest'
 
 function resolveAirport(icaoRaw: string) {
   const icao = icaoRaw.trim().toUpperCase()
@@ -71,6 +74,23 @@ export default function NewTripPage() {
     [dimsText, dimUnit],
   )
 
+  const piecesForQuote = useMemo(() => {
+    if (!request) return parsed.pieces
+    return cargoPiecesFromDraft({
+      ...request,
+      cargo_notes: dimsText || request.cargo_notes,
+      dim_unit: dimUnit,
+    })
+  }, [request, dimsText, dimUnit, parsed.pieces])
+
+  const forkliftNote = useMemo(
+    () =>
+      request?.forklift?.level !== 'none' && request?.forklift?.label
+        ? request.forklift
+        : forkliftHandlingFromPieces(piecesForQuote),
+    [request, piecesForQuote],
+  )
+
   const payloadKind =
     request && !request.cargo_only
       ? request.cargo_notes.trim()
@@ -95,9 +115,13 @@ export default function NewTripPage() {
     const pieces =
       approvedPieces ??
       piecesApproved ??
-      (payloadKind === 'pax' ? [] : parsed.pieces)
+      (payloadKind === 'pax' ? [] : piecesForQuote)
     if (payloadKind !== 'pax' && !pieces.length) {
       setError('Add cargo dims (e.g. 3 skids 48x40x60 @ 800ea), then approve')
+      return
+    }
+    if (payloadKind !== 'pax' && !piecesHaveWeights(pieces)) {
+      setError('Cargo weight required on every piece before estimates run')
       return
     }
     if (payloadKind !== 'pax' && !approvedPieces && !piecesApproved) {
@@ -224,13 +248,19 @@ export default function NewTripPage() {
   }
 
   function approvePiecesAndQuote() {
-    if (!parsed.pieces.length) {
+    if (!piecesForQuote.length) {
       setError('Nothing parsed yet — enter dims like “3 skids 48x40x60 @ 800ea”')
       return
     }
-    setPiecesApproved(parsed.pieces)
+    if (!piecesHaveWeights(piecesForQuote)) {
+      setError(
+        'Cargo weight required — add @ N ea in the dims or Weight each on the request',
+      )
+      return
+    }
+    setPiecesApproved(piecesForQuote)
     setError(null)
-    void runQuote(parsed.pieces)
+    void runQuote(piecesForQuote)
   }
 
   return (
@@ -267,6 +297,18 @@ export default function NewTripPage() {
                   {request.lane} · {request.summary}
                   {request.client_name ? ` · ${request.client_name}` : ''}
                 </p>
+                {forkliftNote.level !== 'none' && forkliftNote.label && (
+                  <p
+                    className={[
+                      'mt-2 text-xs font-medium',
+                      forkliftNote.level === 'required'
+                        ? 'text-late'
+                        : 'text-gold',
+                    ].join(' ')}
+                  >
+                    {forkliftNote.label}
+                  </p>
+                )}
                 <button
                   type="button"
                   className="mt-2 text-xs text-gold"
@@ -321,7 +363,7 @@ export default function NewTripPage() {
                       </span>
                       <span className="text-xs text-gold">{parsed.confidence}</span>
                     </div>
-                    {parsed.pieces.length === 0 ? (
+                    {piecesForQuote.length === 0 ? (
                       <p className="text-xs text-muted">
                         No pieces parsed yet — use e.g.{' '}
                         <span className="avionic text-cream">
@@ -331,12 +373,24 @@ export default function NewTripPage() {
                         </span>
                       </p>
                     ) : (
-                      parsed.pieces.map((p, i) => (
+                      piecesForQuote.map((p, i) => (
                         <div key={i} className="avionic text-cream">
                           {p.count}× {formatPieceDims(p, dimUnit)} @{' '}
-                          {p.weight_lbs} lb
+                          {p.weight_lbs > 0 ? `${p.weight_lbs} lb` : 'weight?'}
                         </div>
                       ))
+                    )}
+                    {forkliftNote.level !== 'none' && forkliftNote.label && (
+                      <p
+                        className={[
+                          'mt-2 text-xs',
+                          forkliftNote.level === 'required'
+                            ? 'text-late'
+                            : 'text-gold',
+                        ].join(' ')}
+                      >
+                        {forkliftNote.label}
+                      </p>
                     )}
                   </div>
                 </>
@@ -345,7 +399,11 @@ export default function NewTripPage() {
               {payloadKind !== 'pax' ? (
                 <button
                   type="button"
-                  disabled={busy || !parsed.pieces.length}
+                  disabled={
+                    busy ||
+                    !piecesForQuote.length ||
+                    !piecesHaveWeights(piecesForQuote)
+                  }
                   onClick={approvePiecesAndQuote}
                   className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
                 >

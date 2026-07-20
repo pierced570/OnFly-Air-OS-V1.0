@@ -1,9 +1,10 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import {
   ASAP_MAX_HOURS,
   emptyTripRequestDraft,
+  forkliftFromDraft,
   newLeg,
   validateTripRequest,
   type TripRequestDraft,
@@ -63,6 +64,8 @@ export function TripRequestForm({
     draft.service_mode === 'd2d' || draft.service_mode === 'mixed'
 
   const paxCount = draft.pax.length
+
+  const forkliftPreview = useMemo(() => forkliftFromDraft(draft), [draft])
 
   const clientOptions = useSyncExternalStore(
     subscribeClients,
@@ -561,6 +564,16 @@ export function TripRequestForm({
             review.
           </p>
         )}
+        {forkliftPreview.level !== 'none' && forkliftPreview.label && (
+          <p
+            className={[
+              'mt-2 text-xs',
+              forkliftPreview.level === 'required' ? 'text-late' : 'text-gold',
+            ].join(' ')}
+          >
+            {forkliftPreview.label}
+          </p>
+        )}
       </section>
 
       {/* Cargo / pax */}
@@ -675,14 +688,32 @@ export function TripRequestForm({
                 className={inputCls}
               />
             </label>
+            <label className={`${labelCls} max-w-[12rem]`}>
+              Weight each (lb) <span className="text-late">*</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                required
+                value={draft.cargo_weight_lbs}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    cargo_weight_lbs:
+                      e.target.value === '' ? '' : Number(e.target.value),
+                  }))
+                }
+                placeholder="Required"
+                className={inputCls}
+              />
+            </label>
             <p className="text-[11px] text-muted">
-              L×W×H are in{' '}
+              Weight is required on every cargo request. L×W×H are in{' '}
               <span className="text-[var(--text)]">
                 {(draft.dim_unit ?? 'in') === 'ft' ? 'feet' : 'inches'}
               </span>
-              . You can also write <span className="avionic">ft</span> or{' '}
-              <span className="avionic">in</span> after the dims. Door fit always
-              uses inches.
+              . Pieces 100–200 lb → forklift recommended; over 200 lb → forklift
+              required for dispatch.
             </p>
           </div>
         )}

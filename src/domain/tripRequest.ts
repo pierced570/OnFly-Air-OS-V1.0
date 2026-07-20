@@ -2,7 +2,16 @@
  * Shared trip-request model for client portal + dispatcher intake.
  */
 
-import type { DimLengthUnit } from '@/domain/dimsParser'
+import {
+  parseDims,
+  piecesHaveWeights,
+  type DimLengthUnit,
+  type Piece,
+} from '@/domain/dimsParser'
+import {
+  forkliftHandlingFromPieces,
+  type ForkliftHandling,
+} from '@/domain/forkliftHandling'
 
 export type TimingMode = 'asap' | 'scheduled'
 export type TripDirection = 'one_way' | 'round_trip'
@@ -42,6 +51,11 @@ export type TripRequestDraft = {
   pax: PaxRow[]
   hazmat: boolean
   cargo_notes: string
+  /**
+   * Required for cargo: weight of each object (lb). Used when dims text omits
+   * `@ N ea`, and always shown on the form so weight is never skipped.
+   */
+  cargo_weight_lbs: number | ''
   /** Length unit for cargo_notes L×W×H (stored pieces always convert to inches). */
   dim_unit: DimLengthUnit
   notes: string
@@ -58,6 +72,8 @@ export type TripRequestRecord = TripRequestDraft & {
   summary: string
   /** Client asked for operator-confirmed hard quote times/numbers. */
   hard_quote_requested_at: string | null
+  /** Derived at submit from piece weights — dispatcher note. */
+  forklift: ForkliftHandling
 }
 
 export const ASAP_MAX_HOURS = 4
@@ -91,9 +107,48 @@ export function emptyTripRequestDraft(): TripRequestDraft {
     pax: [],
     hazmat: false,
     cargo_notes: '',
+    cargo_weight_lbs: '',
     dim_unit: 'in',
     notes: '',
   }
+}
+
+/** Cargo needs weight when freight is on the request (cargo-only or notes present). */
+export function draftNeedsCargoWeight(draft: TripRequestDraft): boolean {
+  return draft.cargo_only || Boolean(draft.cargo_notes.trim())
+}
+
+/**
+ * Pieces for routing / forklift: parse dims, fill missing unit weights from
+ * the required cargo_weight_lbs field when provided.
+ */
+export function cargoPiecesFromDraft(draft: TripRequestDraft): Piece[] {
+  const parsed = parseDims(draft.cargo_notes || '', { unit: draft.dim_unit })
+  const fallback =
+    draft.cargo_weight_lbs === '' ? 0 : Number(draft.cargo_weight_lbs)
+  if (!parsed.pieces.length) {
+    if (fallback > 0) {
+      return [
+        {
+          l_in: 0,
+          w_in: 0,
+          h_in: 0,
+          weight_lbs: fallback,
+          count: 1,
+          stackable: false,
+        },
+      ]
+    }
+    return []
+  }
+  return parsed.pieces.map((p) => ({
+    ...p,
+    weight_lbs: p.weight_lbs > 0 ? p.weight_lbs : fallback,
+  }))
+}
+
+export function forkliftFromDraft(draft: TripRequestDraft): ForkliftHandling {
+  return forkliftHandlingFromPieces(cargoPiecesFromDraft(draft))
 }
 
 /** ASAP = anything under 4 hours from now. */
@@ -151,6 +206,8 @@ export function summaryFromDraft(draft: TripRequestDraft): string {
     )
   }
   if (draft.hazmat) bits.push('hazmat')
+  const lift = forkliftFromDraft(draft)
+  if (lift.summary_bit) bits.push(lift.summary_bit)
   return bits.join(' · ')
 }
 
@@ -245,6 +302,25 @@ export function validateTripRequest(
         issues.push({ field: `pax.${i}.dob`, message: `Passenger ${i + 1}: DOB required` })
       }
     })
+  }
+
+  if (draftNeedsCargoWeight(draft)) {
+    const pieces = cargoPiecesFromDraft(draft)
+    const fieldWeightOk =
+      draft.cargo_weight_lbs !== '' && Number(draft.cargo_weight_lbs) > 0
+    const parsedOk = piecesHaveWeights(pieces)
+    if (!fieldWeightOk && !parsedOk) {
+      issues.push({
+        field: 'cargo_weight',
+        message:
+          'Cargo weight required (lb each) — e.g. 48x40x60 @ 150ea or enter Weight each',
+      })
+    } else if (!fieldWeightOk && pieces.some((p) => p.weight_lbs <= 0)) {
+      issues.push({
+        field: 'cargo_weight',
+        message: 'Every cargo piece needs a weight in lb',
+      })
+    }
   }
 
   return issues

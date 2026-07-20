@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   ASAP_MAX_HOURS,
   emptyTripRequestDraft,
+  forkliftFromDraft,
   isAsapReady,
+  summaryFromDraft,
   validateTripRequest,
 } from './tripRequest'
 
@@ -16,9 +18,42 @@ describe('tripRequest', () => {
 
   it('requires email + ICAOs on portal draft', () => {
     const d = emptyTripRequestDraft()
+    d.cargo_weight_lbs = 50
     const issues = validateTripRequest(d, { requireEmail: true })
     expect(issues.some((i) => i.field === 'email')).toBe(true)
     expect(issues.some((i) => i.field === 'leg.0.origin')).toBe(true)
+  })
+
+  it('cargo requires weight', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_notes = '1 skid 48x40x48'
+    expect(validateTripRequest(d).some((i) => i.field === 'cargo_weight')).toBe(
+      true,
+    )
+    d.cargo_weight_lbs = 150
+    expect(validateTripRequest(d).some((i) => i.field === 'cargo_weight')).toBe(
+      false,
+    )
+  })
+
+  it('accepts weight embedded in dims text', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_notes = '1 skid 48x40x48 @ 90ea'
+    expect(validateTripRequest(d).length).toBe(0)
+    expect(forkliftFromDraft(d).level).toBe('none')
+  })
+
+  it('summarizes forklift required from heavy pieces', () => {
+    const d = emptyTripRequestDraft()
+    d.cargo_notes = '1 crate 48x40x48 @ 250ea'
+    expect(summaryFromDraft(d)).toContain('forklift required')
+    expect(forkliftFromDraft(d).level).toBe('required')
   })
 
   it('round trip requires hours on ground', () => {
@@ -26,6 +61,7 @@ describe('tripRequest', () => {
     d.email = 'a@b.co'
     d.legs[0]!.origin_icao = 'KCAK'
     d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_weight_lbs = 40
     d.direction = 'round_trip'
     d.hours_on_ground = ''
     expect(
@@ -50,6 +86,7 @@ describe('tripRequest', () => {
     const d = emptyTripRequestDraft()
     d.email = 'a@b.co'
     d.service_mode = 'd2d'
+    d.cargo_weight_lbs = 75
     expect(validateTripRequest(d).some((i) => i.field === 'leg.0.pickup')).toBe(
       true,
     )
@@ -68,6 +105,7 @@ describe('tripRequest', () => {
     const d = emptyTripRequestDraft()
     d.email = 'a@b.co'
     d.service_mode = 'mixed'
+    d.cargo_weight_lbs = 75
     d.legs[0]!.origin_icao = 'KCAK'
     d.legs[0]!.dest_icao = 'KMDW'
     expect(validateTripRequest(d).some((i) => i.field === 'leg.0.pickup')).toBe(
