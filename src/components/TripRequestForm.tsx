@@ -487,9 +487,9 @@ export function TripRequestForm({
           ))}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-          <label className="flex items-center gap-3 text-sm text-[var(--text)]">
-            <span>Roundtrip</span>
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+          <label className="flex h-11 items-center gap-3 text-sm leading-none text-[var(--text)]">
+            <span className="leading-none">Roundtrip</span>
             <button
               type="button"
               role="switch"
@@ -502,16 +502,16 @@ export function TripRequestForm({
                 }))
               }
               className={[
-                'relative h-6 w-11 rounded-full transition-colors',
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-0 p-0 transition-colors',
                 draft.direction === 'round_trip' ? 'bg-gold' : 'bg-border',
               ].join(' ')}
             >
               <span
                 className={[
-                  'absolute top-0.5 h-5 w-5 rounded-full bg-surface-2 shadow transition-transform',
+                  'pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-surface-2 shadow transition-transform',
                   draft.direction === 'round_trip'
                     ? 'translate-x-5'
-                    : 'translate-x-0.5',
+                    : 'translate-x-0',
                 ].join(' ')}
               />
             </button>
