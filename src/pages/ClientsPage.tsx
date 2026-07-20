@@ -1,8 +1,9 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import {
   addClient,
   addClientContact,
+  ensureClientsSeeded,
   listClients,
   removeClientContact,
   subscribeClients,
@@ -85,6 +86,10 @@ export default function ClientsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [newName, setNewName] = useState('')
+
+  useEffect(() => {
+    void ensureClientsSeeded()
+  }, [])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()

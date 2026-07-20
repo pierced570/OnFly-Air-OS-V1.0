@@ -5,8 +5,8 @@
  *  - ap → invoices only
  *  - supply_chain → tracker / ETA pushes
  *
- * Starts empty — hydrated from Supabase (or user adds clients). The large
- * financials.json fixture is NOT imported here so Board boot stays light.
+ * Supabase hydrate is preferred. When DB is empty / offline, we lazily seed
+ * unique client names from financials.json (dynamic import — not on Board boot).
  */
 
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
@@ -125,11 +125,12 @@ function bump(persistId?: string) {
   }
 }
 
-/** Replace in-memory directory with Supabase rows (keeps financial seed if empty). */
+/** Replace in-memory directory with Supabase rows (no-op if empty — keeps fixture seed). */
 export function replaceClientsFromDb(rows: ClientProfile[]): void {
   if (!rows.length) return
   clients.clear()
   for (const r of rows) clients.set(r.id, r)
+  fixtureSeedDone = true
   rebuild()
   for (const l of listeners) l()
 }
@@ -142,6 +143,107 @@ function defaultPrefs(role: ContactRole): ContactNotifyPrefs {
     return { request_alert: false, invoice: true, tracker: false }
   }
   return { request_alert: false, invoice: false, tracker: true }
+}
+
+const FIXTURE_SKIP = new Set([
+  'po enter in error',
+  'enter in error',
+  'unknown',
+  'n/a',
+  'na',
+])
+
+let fixtureSeedDone = false
+let fixtureSeedPromise: Promise<number> | null = null
+
+type FinancialsFixture = {
+  records: Array<{
+    client_name?: string | null
+    pay_terms?: string | null
+    operator_po?: string | null
+  }>
+}
+
+/**
+ * Lazy-load financials.json and seed unique clients when the directory is empty.
+ * Safe to call repeatedly; no-ops after DB hydrate or a successful seed.
+ */
+export async function ensureClientsSeeded(): Promise<number> {
+  if (clients.size > 0 || fixtureSeedDone) return clients.size
+  if (fixtureSeedPromise) return fixtureSeedPromise
+  fixtureSeedPromise = (async () => {
+    try {
+      const mod = await import('@/fixtures/financials.json')
+      const fixture = (mod.default ?? mod) as FinancialsFixture
+      if (clients.size > 0) {
+        fixtureSeedDone = true
+        return clients.size
+      }
+      const byName = new Map<
+        string,
+        { pay_terms: string; last_po: string | null }
+      >()
+      for (const r of fixture.records ?? []) {
+        const name = (r.client_name || '').trim()
+        if (!name) continue
+        if (FIXTURE_SKIP.has(name.toLowerCase())) continue
+        if (!byName.has(name)) {
+          byName.set(name, {
+            pay_terms: String(r.pay_terms || 'Net 30'),
+            last_po: r.operator_po ? String(r.operator_po) : null,
+          })
+        }
+      }
+      for (const name of [...byName.keys()].sort()) {
+        const meta = byName.get(name)!
+        const id = `client-${name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .slice(0, 24)}`
+        if (clients.has(id)) continue
+        clients.set(id, {
+          id,
+          name,
+          email: '',
+          invoice_email: '',
+          contacts: [],
+          last_po: meta.last_po,
+          po_prefix: guessPoPrefix(meta.last_po),
+          pay_terms: meta.pay_terms,
+          notes: '',
+          rules: { ...DEFAULT_CLIENT_RULES },
+          qb_customer_id: null,
+          profile: { source: 'import' },
+        })
+      }
+      fixtureSeedDone = true
+      rebuild()
+      for (const l of listeners) l()
+      return clients.size
+    } catch (e) {
+      console.warn('[clients] fixture seed failed', e)
+      fixtureSeedDone = true
+      return clients.size
+    } finally {
+      fixtureSeedPromise = null
+    }
+  })()
+  return fixtureSeedPromise
+}
+
+/** Kick off fixture seed after first paint when nothing is in memory yet. */
+export function scheduleClientsFixtureSeed(): void {
+  if (typeof window === 'undefined') return
+  // Vitest / node — hydrate or explicit ensureClientsSeeded only
+  if (import.meta.env?.MODE === 'test' || import.meta.env?.VITEST) return
+  const run = () => {
+    void ensureClientsSeeded()
+  }
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => run(), { timeout: 3000 })
+  } else {
+    setTimeout(run, 100)
+  }
 }
 
 export function subscribeClients(fn: () => void): () => void {

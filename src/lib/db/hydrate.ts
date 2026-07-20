@@ -28,7 +28,9 @@ export async function hydrateOperatingData(): Promise<{
   trips: number
 }> {
   if (!canPersist()) {
-    return { ok: false, clients: 0, fbos: 0, tasks: 0, leads: 0, trips: 0 }
+    const { ensureClientsSeeded } = await import('@/lib/clientStore')
+    const seeded = await ensureClientsSeeded()
+    return { ok: false, clients: seeded, fbos: 0, tasks: 0, leads: 0, trips: 0 }
   }
 
   await Promise.all([loadTaxRates(), loadPricingPriors()])
@@ -98,6 +100,10 @@ export async function hydrateOperatingData(): Promise<{
     })
     replaceClientsFromDb(mapped)
     clients = mapped.length
+  } else {
+    // DB empty / offline — restore historical clients from financials fixture.
+    const { ensureClientsSeeded } = await import('@/lib/clientStore')
+    clients = await ensureClientsSeeded()
   }
 
   const fboRows = await safeQuery('fbos', () =>
