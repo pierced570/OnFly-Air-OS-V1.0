@@ -7,6 +7,7 @@ import {
   type Piece,
 } from '@/domain/dimsParser'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
+import { DimsTripleInput } from '@/components/DimsTripleInput'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import { createMapsAdapter } from '@/adapters/maps'
 import { generateCandidates, type Candidate } from '@/domain/routing'
@@ -289,31 +290,15 @@ export default function NewTripPage() {
                       setCandidates(null)
                     }}
                   />
-                  <label className="block text-xs uppercase tracking-wider text-muted">
-                    Pieces (dims parser)
-                    <textarea
-                      value={dimsText}
-                      onChange={(e) => {
-                        setDimsText(e.target.value)
-                        setPiecesApproved(null)
-                        setCandidates(null)
-                      }}
-                      rows={2}
-                      placeholder={
-                        dimUnit === 'ft'
-                          ? '3 skids 4x3.5x5 @ 800ea'
-                          : '3 skids 48x40x60 @ 800ea'
-                      }
-                      className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
-                    />
-                  </label>
-                  <p className="text-[11px] text-muted">
-                    Entering{' '}
-                    <span className="text-cream">
-                      {dimUnit === 'ft' ? 'feet' : 'inches'}
-                    </span>
-                    . Preview shows both when feet are used (door fit = inches).
-                  </p>
+                  <DimsTripleInput
+                    value={dimsText}
+                    unit={dimUnit}
+                    onChange={(next) => {
+                      setDimsText(next)
+                      setPiecesApproved(null)
+                      setCandidates(null)
+                    }}
+                  />
                   <div className="rounded-md border border-border/60 bg-ink/40 p-3 text-sm">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs uppercase tracking-wider text-muted">

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { formatPieceDims, parseDims, totalWeightLbs } from './dimsParser'
+import {
+  composeDimsLine,
+  formatPieceDims,
+  parseDims,
+  parseDimsTriple,
+  totalWeightLbs,
+} from './dimsParser'
 
 describe('parseDims', () => {
   it('parses "3 skids 48x40x60 @ 800ea" as inches by default', () => {
