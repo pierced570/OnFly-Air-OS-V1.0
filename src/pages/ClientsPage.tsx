@@ -11,6 +11,7 @@ import {
   type ClientProfile,
   type ContactRole,
 } from '@/lib/clientStore'
+import { ClientInvitePanel } from '@/components/ClientInvitePanel'
 
 const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
@@ -32,38 +33,49 @@ function clientSetupUrl(): string {
 
 function ClientSetupLinkCard() {
   const [copied, setCopied] = useState(false)
+  const [showInvite, setShowInvite] = useState(false)
   const url = clientSetupUrl()
   return (
-    <div className="rounded-lg border border-gold/30 bg-gold/10 p-3">
-      <div className="text-xs uppercase tracking-wider text-gold">
-        Send to new customers
+    <div className="space-y-3">
+      <div className="rounded-lg border border-gold/30 bg-gold/10 p-3">
+        <div className="text-xs uppercase tracking-wider text-gold">
+          Send to new customers
+        </div>
+        <p className="mt-1 text-xs text-muted">
+          Email a branded welcome with the setup form, or copy the link.
+        </p>
+        <p className="avionic mt-2 break-all text-xs text-cream">{url}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
+            onClick={() => setShowInvite((v) => !v)}
+          >
+            {showInvite ? 'Hide email invite' : 'Email welcome + form'}
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+            onClick={() => {
+              void navigator.clipboard?.writeText(url).then(() => {
+                setCopied(true)
+                window.setTimeout(() => setCopied(false), 2000)
+              })
+            }}
+          >
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
+          <Link
+            to="/client"
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open
+          </Link>
+        </div>
       </div>
-      <p className="mt-1 text-xs text-muted">
-        Client setup page (not the portal). Copy and text/email this link.
-      </p>
-      <p className="avionic mt-2 break-all text-xs text-cream">{url}</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
-          onClick={() => {
-            void navigator.clipboard?.writeText(url).then(() => {
-              setCopied(true)
-              window.setTimeout(() => setCopied(false), 2000)
-            })
-          }}
-        >
-          {copied ? 'Copied' : 'Copy link'}
-        </button>
-        <Link
-          to="/client"
-          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open
-        </Link>
-      </div>
+      {showInvite && <ClientInvitePanel compact />}
     </div>
   )
 }
