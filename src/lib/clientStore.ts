@@ -81,7 +81,10 @@ export type ClientExtendedProfile = {
   }>
   no_frequent_lanes?: boolean
   requires_po?: boolean
-  card_on_file?: boolean | null
+  /** client = they provide PO; onfly = we generate */
+  po_assigned_by?: 'client' | 'onfly' | null
+  needs_vendor_number?: boolean | null
+  vendor_number_notes?: string
   vendor_packet_to?: string
   update_channel?: 'email' | 'sms' | 'both'
   shipping_flags?: {

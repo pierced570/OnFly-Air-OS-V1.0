@@ -753,7 +753,9 @@ function ClientWizard() {
   const [name, setName] = useState('')
   const [pay, setPay] = useState('Net 30')
   const [poPrefix, setPoPrefix] = useState('')
-  const [requiresPo, setRequiresPo] = useState(false)
+  const [poAssignedBy, setPoAssignedBy] = useState<'client' | 'onfly' | ''>('')
+  const [needsVendorNumber, setNeedsVendorNumber] = useState(false)
+  const [vendorNumberNotes, setVendorNumberNotes] = useState('')
   const [dual, setDual] = useState(false)
   const [freight, setFreight] = useState(false)
   const [multi, setMulti] = useState(false)
@@ -803,7 +805,9 @@ function ClientWizard() {
       })
     }
     const other: string[] = []
-    if (requiresPo) other.push('PO required on invoices')
+    if (poAssignedBy === 'client') other.push('PO assigned by client')
+    if (poAssignedBy === 'onfly') other.push('PO assigned by OnFly')
+    if (needsVendorNumber) other.push('Needs vendor number in client AP system')
     const client = addClient({
       name,
       pay_terms: pay,
@@ -824,7 +828,10 @@ function ClientWizard() {
       contacts,
       profile: {
         source: 'admin',
-        requires_po: requiresPo,
+        requires_po: poAssignedBy === 'client',
+        po_assigned_by: poAssignedBy || null,
+        needs_vendor_number: needsVendorNumber,
+        vendor_number_notes: vendorNumberNotes.trim() || undefined,
       },
     })
     for (const field of skipped) {
@@ -892,15 +899,32 @@ function ClientWizard() {
               <option>Other</option>
             </select>
           </label>
-          <label className="flex items-center gap-2 text-sm text-cream sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={requiresPo}
-              onChange={(e) => setRequiresPo(e.target.checked)}
-            />
-            Invoices require a PO number
-          </label>
-          {requiresPo && (
+          <fieldset className="sm:col-span-2 space-y-2">
+            <legend className="text-xs uppercase tracking-wider text-muted">
+              Who assigns PO numbers?
+            </legend>
+            <div className="flex flex-wrap gap-4 text-sm text-cream">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="admin_po_by"
+                  checked={poAssignedBy === 'client'}
+                  onChange={() => setPoAssignedBy('client')}
+                />
+                Client provides PO
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="admin_po_by"
+                  checked={poAssignedBy === 'onfly'}
+                  onChange={() => setPoAssignedBy('onfly')}
+                />
+                OnFly assigns PO
+              </label>
+            </div>
+          </fieldset>
+          {poAssignedBy === 'onfly' && (
             <label className={wizardLabel}>
               PO prefix
               <input
@@ -911,6 +935,30 @@ function ClientWizard() {
               />
             </label>
           )}
+          <fieldset className="sm:col-span-2 space-y-2">
+            <legend className="text-xs uppercase tracking-wider text-muted">
+              Vendor number in their system?
+            </legend>
+            <label className="flex items-center gap-2 text-sm text-cream">
+              <input
+                type="checkbox"
+                checked={needsVendorNumber}
+                onChange={(e) => setNeedsVendorNumber(e.target.checked)}
+              />
+              Needs OnFly as vendor / vendor #
+            </label>
+            {needsVendorNumber && (
+              <label className={wizardLabel}>
+                Registration notes
+                <input
+                  className={wizardInput}
+                  value={vendorNumberNotes}
+                  onChange={(e) => setVendorNumberNotes(e.target.value)}
+                  placeholder="Portal URL or AP contact"
+                />
+              </label>
+            )}
+          </fieldset>
           <p className="sm:col-span-2 text-xs text-muted">
             Same subjects as public{' '}
             <Link to="/client" className="text-gold">

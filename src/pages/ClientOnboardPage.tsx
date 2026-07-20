@@ -114,7 +114,7 @@ export default function ClientOnboardPage() {
           </h1>
           <p className={`mt-2 max-w-xl ${hintCls}`}>
             Company, people, billing, and aircraft rules — the same profile our
-            dispatchers maintain. We never ask for card numbers here.
+            dispatchers maintain.
           </p>
         </div>
       </header>
@@ -317,51 +317,99 @@ export default function ClientOnboardPage() {
                 <option value="other">Other (we&apos;ll confirm)</option>
               </select>
             </label>
-            <label className={checkCls}>
-              <input
-                type="checkbox"
-                checked={draft.requires_po}
-                onChange={(e) => patch({ requires_po: e.target.checked })}
-              />
-              Invoices require a PO number
-            </label>
-            {draft.requires_po && (
-              <label className={labelCls}>
-                Preferred PO prefix (letters)
-                <input
-                  className={`${inputCls} font-mono uppercase`}
-                  value={draft.po_prefix}
-                  onChange={(e) => patch({ po_prefix: e.target.value })}
-                  placeholder="e.g. PSA"
-                  maxLength={8}
-                />
-              </label>
-            )}
+
             <fieldset>
-              <legend className={labelCls}>Card on file?</legend>
-              <div className="mt-3 flex flex-wrap gap-4 text-sm text-[#0c0c0e]">
-                {(
-                  [
-                    [true, 'Yes — send secure link'],
-                    [false, 'No'],
-                    [null, 'Not sure'],
-                  ] as const
-                ).map(([val, label]) => (
-                  <label key={String(val)} className={checkCls}>
-                    <input
-                      type="radio"
-                      name="card"
-                      checked={draft.card_on_file === val}
-                      onChange={() => patch({ card_on_file: val })}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <p className={`mt-2 ${hintCls}`}>
-                We never collect card numbers on this form.
+              <legend className={labelCls}>Who assigns PO numbers?</legend>
+              <p className={`mt-1 ${hintCls}`}>
+                Every company is different — tell us who issues the PO.
               </p>
+              <div className="mt-3 flex flex-col gap-3 text-sm text-[#0c0c0e]">
+                <label className={checkCls}>
+                  <input
+                    type="radio"
+                    name="po_by"
+                    checked={draft.po_assigned_by === 'client'}
+                    onChange={() => patch({ po_assigned_by: 'client' })}
+                  />
+                  <span>
+                    <span className="font-medium">Our company</span>
+                    <span className="mt-0.5 block text-[#5c574c]">
+                      We provide the PO — put it on the invoice when we send it
+                    </span>
+                  </span>
+                </label>
+                <label className={checkCls}>
+                  <input
+                    type="radio"
+                    name="po_by"
+                    checked={draft.po_assigned_by === 'onfly'}
+                    onChange={() => patch({ po_assigned_by: 'onfly' })}
+                  />
+                  <span>
+                    <span className="font-medium">OnFly</span>
+                    <span className="mt-0.5 block text-[#5c574c]">
+                      You assign / generate PO numbers for us
+                    </span>
+                  </span>
+                </label>
+              </div>
+              {draft.po_assigned_by === 'onfly' && (
+                <label className={`${labelCls} mt-3`}>
+                  Preferred PO prefix (optional)
+                  <input
+                    className={`${inputCls} font-mono uppercase`}
+                    value={draft.po_prefix}
+                    onChange={(e) => patch({ po_prefix: e.target.value })}
+                    placeholder="e.g. PSA"
+                    maxLength={8}
+                  />
+                </label>
+              )}
             </fieldset>
+
+            <fieldset>
+              <legend className={labelCls}>
+                Vendor number in your system?
+              </legend>
+              <p className={`mt-1 ${hintCls}`}>
+                Do you need OnFly registered as a vendor / a vendor number in
+                your AP or procurement system before invoices can be paid?
+              </p>
+              <div className="mt-3 flex flex-col gap-3 text-sm text-[#0c0c0e] sm:flex-row sm:flex-wrap sm:gap-4">
+                <label className={checkCls}>
+                  <input
+                    type="radio"
+                    name="vendor_num"
+                    checked={draft.needs_vendor_number === true}
+                    onChange={() => patch({ needs_vendor_number: true })}
+                  />
+                  Yes — we need a vendor number / registration
+                </label>
+                <label className={checkCls}>
+                  <input
+                    type="radio"
+                    name="vendor_num"
+                    checked={draft.needs_vendor_number === false}
+                    onChange={() => patch({ needs_vendor_number: false })}
+                  />
+                  No
+                </label>
+              </div>
+              {draft.needs_vendor_number === true && (
+                <label className={`${labelCls} mt-3`}>
+                  How do we register / where do we get the vendor #?
+                  <input
+                    className={inputCls}
+                    value={draft.vendor_number_notes}
+                    onChange={(e) =>
+                      patch({ vendor_number_notes: e.target.value })
+                    }
+                    placeholder="Portal URL, AP contact, or instructions"
+                  />
+                </label>
+              )}
+            </fieldset>
+
             <label className={labelCls}>
               Vendor registration / where to send our W-9 + banking packet
               <input

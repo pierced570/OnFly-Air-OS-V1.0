@@ -76,18 +76,27 @@ describe('validateClientOnboard', () => {
     d.aircraft_other_notes = 'No gravel strips'
     d.hazmat_allowed = false
     d.declared_value_norm = 'under $50k'
-    d.requires_po = true
+    d.po_assigned_by = 'client'
     const rules = rulesFromOnboardDraft(d)
     expect(rules.dual_pilot_required).toBe(true)
     expect(rules.freight_only).toBe(true)
     expect(rules.single_engine_turboprop_only).toBe(false)
     expect(rules.hazmat_allowed).toBe(false)
     expect(rules.declared_value_norm).toBe('under $50k')
-    expect(rules.other_rules).toContain('PO required on invoices')
+    expect(rules.other_rules).toContain('PO assigned by client')
     expect(rules.other_rules).toContain('Turboprop preferred')
     expect(rules.other_rules).toContain('Jet OK')
     expect(rules.other_rules).toContain('No gravel strips')
     expect(payTermsLabel('net_60')).toBe('Net 60')
+  })
+
+  it('maps vendor-number + OnFly PO assignment', () => {
+    const d = emptyClientOnboardDraft()
+    d.po_assigned_by = 'onfly'
+    d.needs_vendor_number = true
+    const rules = rulesFromOnboardDraft(d)
+    expect(rules.other_rules).toContain('PO assigned by OnFly')
+    expect(rules.other_rules).toContain('Needs vendor number in client AP system')
   })
 
   it('maps single-engine turboprop-only hard rule', () => {

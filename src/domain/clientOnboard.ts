@@ -27,6 +27,9 @@ export type ClientOnboardPerson = {
 
 export type PayTermsRequest = 'prepay' | 'net_15' | 'net_30' | 'net_60' | 'other'
 
+/** Who issues PO numbers on invoices — every client is different. */
+export type PoAssignedBy = 'client' | 'onfly'
+
 export type UpdateChannel = 'email' | 'sms' | 'both'
 
 /**
@@ -53,9 +56,15 @@ export type ClientOnboardDraft = {
 
   // Billing (Clients: pay_terms, invoice_email, po_prefix)
   pay_terms: PayTermsRequest
-  requires_po: boolean
+  /** Who assigns PO numbers — client-provided vs OnFly-generated. */
+  po_assigned_by: PoAssignedBy | null
   po_prefix: string
-  card_on_file: boolean | null
+  /**
+   * Client needs OnFly registered as a vendor / a vendor # in their AP system.
+   * null = not answered yet.
+   */
+  needs_vendor_number: boolean | null
+  vendor_number_notes: string
   vendor_packet_to: string
 
   // Routing rules (Admin ClientWizard / client_rules)
@@ -109,9 +118,10 @@ export function emptyClientOnboardDraft(): ClientOnboardDraft {
     emergency: { name: '', email: '', phone: '' },
     emergency_same_as_ops: false,
     pay_terms: 'net_30',
-    requires_po: false,
+    po_assigned_by: null,
     po_prefix: '',
-    card_on_file: null,
+    needs_vendor_number: null,
+    vendor_number_notes: '',
     vendor_packet_to: '',
     dual_pilot_required: false,
     freight_only: false,
@@ -210,9 +220,6 @@ export function validateClientOnboard(
       })
     }
   }
-  if (draft.requires_po && !draft.po_prefix.trim()) {
-    // Soft: not blocking — dispatcher can set later; no hard fail
-  }
   return issues
 }
 
@@ -242,11 +249,14 @@ export function rulesFromOnboardDraft(
   draft: ClientOnboardDraft,
 ): OnboardRulesSlice {
   const other: string[] = []
-  if (draft.requires_po) other.push('PO required on invoices')
-  if (draft.card_on_file === true) {
-    other.push('Card on file requested (send secure link)')
+  if (draft.po_assigned_by === 'client') {
+    other.push('PO assigned by client')
+  } else if (draft.po_assigned_by === 'onfly') {
+    other.push('PO assigned by OnFly')
   }
-  if (draft.card_on_file === false) other.push('No card on file')
+  if (draft.needs_vendor_number === true) {
+    other.push('Needs vendor number in client AP system')
+  }
   if (draft.oversized) other.push('Oversized freight')
   if (draft.single_engine_piston_ok) other.push('Single-engine piston OK')
   if (draft.turboprop_preferred) other.push('Turboprop preferred')
