@@ -17,6 +17,8 @@ export type AircraftRow = {
   type_name: string | null
   category: string | null
   engines: string | null
+  /** Cargo / pax / both when known from the fleet file. */
+  cargo_pax?: string | null
   base_icao: string | null
   cruise_kts: number | null
   mtow_lbs: number | null

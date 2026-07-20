@@ -20,7 +20,7 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
         supabase
           .from('aircraft')
           .select(
-            'id,operator_id,tail,type_name,category,engines,base_icao,cruise_kts,mtow_lbs,max_payload_lbs,seats,needs_info,active,operators(name)',
+            'id,operator_id,tail,type_name,category,engines,cargo_pax,base_icao,cruise_kts,mtow_lbs,max_payload_lbs,seats,needs_info,active,operators(name)',
           ),
       ])
     // Only use live DB when it actually has fleet rows — empty project
@@ -43,6 +43,7 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
           type_name: (a.type_name as string | null) ?? null,
           category: (a.category as string | null) ?? null,
           engines: (a.engines as string | null) ?? null,
+          cargo_pax: (a.cargo_pax as string | null) ?? null,
           base_icao: (a.base_icao as string | null) ?? null,
           cruise_kts: (a.cruise_kts as number | null) ?? null,
           mtow_lbs: (a.mtow_lbs as number | null) ?? null,
