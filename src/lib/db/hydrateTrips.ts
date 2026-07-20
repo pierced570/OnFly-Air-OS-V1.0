@@ -169,6 +169,11 @@ export async function hydrateTrips(): Promise<number> {
         wait_ok: r.wait_ok == null ? null : Boolean(r.wait_ok),
         max_wait_hrs: r.max_wait_hrs == null ? null : Number(r.max_wait_hrs),
         price_net: r.price_net == null ? null : Number(r.price_net),
+        fee_scope:
+          notes.fee_scope === 'aircraft_only' || notes.fee_scope === 'aircraft_and_fees'
+            ? notes.fee_scope
+            : null,
+        notes: notes.offer_notes == null ? null : String(notes.offer_notes),
         magic_token: String(r.magic_token || ''),
         bookingGated: Boolean(notes.bookingGated),
         needsInfo: Array.isArray(notes.needsInfo)
