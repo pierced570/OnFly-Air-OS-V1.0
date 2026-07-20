@@ -125,6 +125,17 @@ describe('validateClientOnboard', () => {
     )
   })
 
+  it('hardFiltersFromPolicy maps passenger dual/multi', () => {
+    const hard = hardFiltersFromPolicy({
+      ...emptyMissionAircraftPolicy(),
+      dual_pilot_only: true,
+      multi_engine_only: true,
+    })
+    expect(hard.dual_pilot_required).toBe(true)
+    expect(hard.multi_engine_only).toBe(true)
+    expect(hard.single_engine_turboprop_only).toBe(false)
+  })
+
   it('extracts city hints from lanes', () => {
     expect(
       laneCityHints([

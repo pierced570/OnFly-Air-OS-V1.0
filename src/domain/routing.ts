@@ -139,6 +139,22 @@ function isSingleEngine(engines: string | null): boolean {
   return /single/i.test(engines) && !/multi/i.test(engines)
 }
 
+/** Rough civil-night window in stop-local TZ (before 06:00 or at/after 22:00). */
+export function isLocalNightHour(isoUtc: string, tz?: string | null): boolean {
+  try {
+    const hour = Number(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: tz?.trim() || 'UTC',
+        hour: 'numeric',
+        hourCycle: 'h23',
+      }).format(new Date(isoUtc)),
+    )
+    return hour < 6 || hour >= 22
+  } catch {
+    return false
+  }
+}
+
 export async function generateCandidates(
   trip: TripForRouting,
   fleet: AircraftCandidateSource[],
@@ -262,7 +278,7 @@ export async function generateCandidates(
       confidence -= 0.1
     }
 
-    // insurance
+    // insurance — expired gates booking; missing is NEEDS-INFO only (flag, don't exclude)
     if (ac.insurance_expiry) {
       const exp = new Date(ac.insurance_expiry)
       if (exp.getTime() < Date.now()) {
@@ -271,8 +287,18 @@ export async function generateCandidates(
         reasoning.push('insurance expired — ping OK, booking gated')
       }
     } else {
-      bookingGated = true
       needsInfo.push('insurance')
+      confidence -= 0.05
+    }
+
+    // seats vs pax
+    if (trip.pax_count != null && trip.pax_count > 0) {
+      if (ac.seats != null && trip.pax_count > ac.seats) {
+        hardFail = true
+      } else if (ac.seats == null) {
+        needsInfo.push('seats')
+        confidence -= 0.1
+      }
     }
 
     if (hardFail) continue
@@ -350,6 +376,23 @@ export async function generateCandidates(
       mode: trip.mode,
     }
     const chain = await buildChain(routing, maps, DEFAULT_LEG_DEFAULTS)
+
+    // No single-engine night — after chain so we know stop-local air times
+    if (rules.no_single_engine_night) {
+      if (isSingleEngine(ac.engines)) {
+        const nightAir = chain.some(
+          (l) =>
+            l.type === 'air_leg' &&
+            (isLocalNightHour(l.est_start, l.from.tz) ||
+              isLocalNightHour(l.est_end, l.to.tz)),
+        )
+        if (nightAir) continue
+      } else if (!ac.engines) {
+        needsInfo.push('engines (SE night rule)')
+        confidence -= 0.1
+      }
+    }
+
     const eta_end = chain[chain.length - 1]?.est_end ?? trip.ready_at
 
     results.push({

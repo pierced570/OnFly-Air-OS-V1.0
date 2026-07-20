@@ -139,11 +139,7 @@ export default function OffersPage() {
                     disabled={o.bookingGated}
                     className="rounded bg-gold px-2 py-1 text-xs font-medium text-ink disabled:opacity-40"
                     onClick={() =>
-                      void selectOfferAndHardQuote(
-                        trip.id,
-                        o.id,
-                        Math.round((o.price_net ?? 0) / 0.85),
-                      )
+                      void selectOfferAndHardQuote(trip.id, o.id)
                         .then(refresh)
                         .catch((e) => setError(String(e)))
                     }

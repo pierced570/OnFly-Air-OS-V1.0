@@ -15,6 +15,9 @@ import {
 } from '@/domain/offers'
 import { safeTransitionTrip, payloadKindOf } from '@/lib/tripStore'
 import { DISCLOSURE_295_24_TEMPLATE } from '@/domain/offers'
+import { buildQuoteTotals, priceFromMargin } from '@/domain/quote'
+import { PRICING_CONSTANTS } from '@/domain/routing'
+import { getTaxRates } from '@/lib/taxRatesStore'
 
 export async function sendAvailabilityPings(tripId: string) {
   const trip = getTrip(tripId)
@@ -108,17 +111,86 @@ export async function submitOperatorQuote(
       payload: { ...input, offer_id: o.id },
     })
   })
-  // Quoted TTP replaces assumed acft_ttp → recompute (same numbers on magic link + board)
-  const { applyOfferTtpToTrip } = await import('@/lib/tripStore')
+  // Quoted TTP + live leg replace assumed chain durations → recompute
+  const { applyOfferTtpToTrip, applyOfferLiveLegToTrip } = await import(
+    '@/lib/tripStore'
+  )
   applyOfferTtpToTrip(trip.id, offer.id, input.time_to_position_min)
+  applyOfferLiveLegToTrip(trip.id, offer.id, input.live_leg_min)
   return getTrip(trip.id)!
 }
 
-export async function selectOfferAndHardQuote(tripId: string, offerId: string, clientTotal: number) {
+/** Client hard-quote total = target margin on operator net + table-driven tax (FET). */
+export function hardQuoteTotalsForOffer(
+  trip: NonNullable<ReturnType<typeof getTrip>>,
+  offer: OfferRow,
+): {
+  airSubtotal: number
+  total: number
+  taxLines: { code: string; amount: number; note?: string }[]
+} {
+  const kind = payloadKindOf(trip)
+  const net = offer.price_net ?? 0
+  const marginPct = PRICING_CONSTANTS.targetMargin * 100
+  const airSubtotal = priceFromMargin(net, marginPct)
+  const selectedCand =
+    trip.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
+    trip.candidates.find((c) => c.tail === offer.tail) ??
+    trip.candidates[0]
+  const paxMatch = trip.payload_summary.match(/(\d+)\s*pax/i)
+  const paxCount = paxMatch
+    ? Number(paxMatch[1])
+    : kind === 'pax' || kind === 'both'
+      ? 1
+      : 0
+  const totals = buildQuoteTotals(
+    {
+      ...(selectedCand ?? {
+        operator_id: '',
+        operator_name: '',
+        aircraft_id: '',
+        tail: offer.tail,
+        type_name: offer.type_name,
+        mtow_lbs: null,
+        chain: [],
+        confidence: 1,
+        needsInfo: [],
+        bookingGated: false,
+        reasoning: [],
+        eta_end: '',
+        circuit_nm: 0,
+      }),
+      cost: net,
+      price: airSubtotal,
+    },
+    {
+      markupMode: 'dollars',
+      markupValue: airSubtotal - net,
+      payloadKind: kind,
+      mtowLbs: selectedCand?.mtow_lbs ?? null,
+      paxCount,
+      segments: 1,
+      rates: getTaxRates(),
+    },
+  )
+  return {
+    airSubtotal: totals.airSubtotal,
+    total: totals.total,
+    taxLines: totals.tax.lines.map((l) => ({
+      code: l.code,
+      amount: l.amount,
+      note: l.note,
+    })),
+  }
+}
+
+export async function selectOfferAndHardQuote(tripId: string, offerId: string) {
   const trip = getTrip(tripId)!
   const offer = trip.offers.find((o) => o.id === offerId)!
   if (offer.bookingGated) throw new Error('booking gated — insurance/compliance')
   const kind = payloadKindOf(trip)
+  const priced = hardQuoteTotalsForOffer(trip, offer)
+  const clientTotal = priced.total
   const accept_token = crypto.randomUUID().replace(/-/g, '').slice(0, 20)
   mutateTrip(tripId, (t) => {
     for (const o of t.offers) {
@@ -157,9 +229,9 @@ export async function selectOfferAndHardQuote(tripId: string, offerId: string, c
         payloadKind: kind,
         candidates: trip.candidates,
         selected: selectedCand,
-        airSubtotal: clientTotal,
+        airSubtotal: priced.airSubtotal,
         total: clientTotal,
-        taxLines: [],
+        taxLines: priced.taxLines,
         clientId: trip.client_id,
         kind: 'hard',
         acceptUrl: `/accept/${accept_token}`,
@@ -190,7 +262,7 @@ export async function acceptHardQuote(token: string) {
   })
   safeTransitionTrip(trip.id, 'booked', 'client', { accept_token: token })
   {
-    const { materializeTripLegsFromChain, getTrip: gt, applyOfferTtpToTrip } =
+    const { materializeTripLegsFromChain, getTrip: gt, applyOfferTtpToTrip, applyOfferLiveLegToTrip } =
       await import('@/lib/tripStore')
     const booked = gt(trip.id)
     const selectedOffer = booked?.offers.find((o) => o.state === 'selected')
@@ -198,10 +270,13 @@ export async function acceptHardQuote(token: string) {
       booked?.candidates.find((c) => c.aircraft_id === selectedOffer?.aircraft_id) ??
       booked?.candidates.find((c) => c.chain?.length)
     if (cand?.chain?.length) {
-      // Winning quote TTP already on candidate; copy chain onto trip
+      // Winning quote TTP + live leg already on candidate; copy chain onto trip
       materializeTripLegsFromChain(trip.id, cand.chain)
       if (selectedOffer?.time_to_position_min != null) {
         applyOfferTtpToTrip(trip.id, selectedOffer.id, selectedOffer.time_to_position_min)
+      }
+      if (selectedOffer?.live_leg_min != null) {
+        applyOfferLiveLegToTrip(trip.id, selectedOffer.id, selectedOffer.live_leg_min)
       }
     }
   }

@@ -14,18 +14,41 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
   if (cached) return cached
 
   if (isSupabaseConfigured && supabase) {
-    const [{ data: operators, error: oErr }, { data: aircraft, error: aErr }] =
-      await Promise.all([
-        supabase.from('operators').select('id,name,base_icao,needs_info'),
-        supabase
-          .from('aircraft')
-          .select(
-            'id,operator_id,tail,type_name,category,engines,base_icao,cruise_kts,mtow_lbs,max_payload_lbs,seats,needs_info,active,operators(name)',
-          ),
-      ])
+    const [
+      { data: operators, error: oErr },
+      { data: aircraft, error: aErr },
+      { data: typeSpecs, error: tErr },
+      { data: rates, error: rErr },
+    ] = await Promise.all([
+      supabase.from('operators').select('id,name,base_icao,needs_info'),
+      supabase
+        .from('aircraft')
+        .select(
+          'id,operator_id,tail,type_name,category,engines,base_icao,cruise_kts,mtow_lbs,max_payload_lbs,seats,needs_info,active,cargo_pax,crew,range_nm,door_w_in,door_h_in,insurance_expiry,operators(name)',
+        ),
+      supabase.from('type_specs').select('*'),
+      supabase
+        .from('rates_block')
+        .select('operator_id,type_name,rate_per_nm,effective_from,effective_to'),
+    ])
     // Only use live DB when it actually has fleet rows — empty project
     // must fall through to the bundled fixture or intake/quote recommend nothing.
     if (!oErr && !aErr && operators && aircraft && aircraft.length > 0) {
+      const rateByKey = new Map<string, number>()
+      if (!rErr && rates) {
+        const today = new Date().toISOString().slice(0, 10)
+        for (const row of rates) {
+          const from = row.effective_from ? String(row.effective_from) : null
+          const to = row.effective_to ? String(row.effective_to) : null
+          if (from && from > today) continue
+          if (to && to < today) continue
+          const rpm = row.rate_per_nm == null ? null : Number(row.rate_per_nm)
+          if (rpm == null || !Number.isFinite(rpm)) continue
+          const key = `${row.operator_id}::${String(row.type_name ?? '').trim()}`
+          if (!rateByKey.has(key)) rateByKey.set(key, rpm)
+        }
+      }
+
       const ops: OperatorRow[] = operators.map((o) => ({
         id: o.id as string,
         name: o.name as string,
@@ -35,12 +58,14 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
       }))
       const acs: AircraftRow[] = aircraft.map((a) => {
         const opRel = a.operators as unknown as { name: string } | null
+        const typeName = (a.type_name as string | null) ?? null
+        const rateKey = `${a.operator_id}::${(typeName ?? '').trim()}`
         return {
           id: a.id as string,
           operator_id: a.operator_id as string,
           operator_name: opRel?.name ?? '',
           tail: a.tail as string,
-          type_name: (a.type_name as string | null) ?? null,
+          type_name: typeName,
           category: (a.category as string | null) ?? null,
           engines: (a.engines as string | null) ?? null,
           base_icao: (a.base_icao as string | null) ?? null,
@@ -51,6 +76,15 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
           fet_applies: null,
           needs_info: (a.needs_info as AircraftRow['needs_info']) ?? [],
           active: Boolean(a.active),
+          cargo_pax: (a.cargo_pax as string | null) ?? null,
+          crew: (a.crew as string | null) ?? null,
+          range_nm: (a.range_nm as number | null) ?? null,
+          door_w_in: a.door_w_in == null ? null : Number(a.door_w_in),
+          door_h_in: a.door_h_in == null ? null : Number(a.door_h_in),
+          insurance_expiry: a.insurance_expiry
+            ? String(a.insurance_expiry)
+            : null,
+          rate_per_nm: rateByKey.get(rateKey) ?? null,
         }
       })
       cached = {
@@ -58,7 +92,7 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
         operators: ops,
         aircraft: acs,
         airports: [],
-        type_specs: [],
+        type_specs: !tErr && typeSpecs ? (typeSpecs as Array<Record<string, unknown>>) : [],
         counts: {
           operators: ops.length,
           aircraft: acs.length,

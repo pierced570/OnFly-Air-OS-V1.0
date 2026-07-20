@@ -37,6 +37,18 @@ function idOf(row: unknown): string | null {
   return null
 }
 
+/** Best-effort numeric for max_declared_value; free-text stays in other_rules. */
+function parseDeclaredValueNumeric(raw: string): number | null {
+  const s = raw.trim()
+  if (!s) return null
+  const m = s.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*k\b/i)
+  if (m) return Number(m[1]) * 1000
+  const n = s.replace(/[^0-9.]/g, '')
+  if (!n) return null
+  const v = Number(n)
+  return Number.isFinite(v) && v > 0 ? v : null
+}
+
 async function resolveClientDbId(client: ClientProfile): Promise<string | null> {
   const legacy = client.id
   const isUuid =
@@ -110,7 +122,12 @@ export async function persistClient(client: ClientProfile): Promise<void> {
       single_engine_turboprop_only: client.rules.single_engine_turboprop_only,
       no_single_engine_night: client.rules.no_single_engine_night,
       hazmat_allowed: client.rules.hazmat_allowed,
-      other_rules: { list: client.rules.other_rules },
+      max_declared_value: parseDeclaredValueNumeric(client.rules.declared_value_norm),
+      other_rules: {
+        list: client.rules.other_rules,
+        hazmat_notes: client.rules.hazmat_notes || '',
+        declared_value_norm: client.rules.declared_value_norm || '',
+      },
     }),
   )
 

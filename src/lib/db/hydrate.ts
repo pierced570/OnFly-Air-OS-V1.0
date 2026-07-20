@@ -88,9 +88,25 @@ export async function hydrateOperatingData(): Promise<{
             rulesRaw?.hazmat_allowed == null
               ? true
               : Boolean(rulesRaw.hazmat_allowed),
-          declared_value_norm: rulesRaw?.max_declared_value
-            ? String(rulesRaw.max_declared_value)
-            : '',
+          hazmat_notes: (() => {
+            const raw = rulesRaw?.other_rules
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+              const notes = (raw as { hazmat_notes?: unknown }).hazmat_notes
+              if (typeof notes === 'string') return notes
+            }
+            return ''
+          })(),
+          declared_value_norm: (() => {
+            const raw = rulesRaw?.other_rules
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+              const norm = (raw as { declared_value_norm?: unknown })
+                .declared_value_norm
+              if (typeof norm === 'string' && norm.trim()) return norm
+            }
+            return rulesRaw?.max_declared_value
+              ? String(rulesRaw.max_declared_value)
+              : ''
+          })(),
           other_rules: (() => {
             const raw = rulesRaw?.other_rules
             if (Array.isArray(raw)) return raw.map(String)

@@ -25,6 +25,13 @@ export type AircraftRow = {
   fet_applies: boolean | null
   needs_info: NeedsInfoItem[]
   active: boolean
+  cargo_pax?: string | null
+  crew?: string | null
+  range_nm?: number | null
+  door_w_in?: number | null
+  door_h_in?: number | null
+  insurance_expiry?: string | null
+  rate_per_nm?: number | null
 }
 
 export type NetworkFixture = {

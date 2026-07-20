@@ -9,6 +9,9 @@
  * financials.json fixture is NOT imported here so Board boot stays light.
  */
 
+import { hardFiltersFromPolicy } from '@/domain/clientOnboard'
+import type { ClientRules as RoutingClientRules } from '@/domain/routing'
+
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
 
 export type ContactNotifyPrefs = {
@@ -258,6 +261,55 @@ export function updateClient(
   if (!row.profile) row.profile = {}
   bump(id)
   return row
+}
+
+/**
+ * Routing hard filters for a trip's payload kind.
+ * Cargo (and freight-only clients) use stored `rules` (freight column).
+ * Passenger trips overlay `profile.passenger_policy`.
+ * Both → stricter merge of freight rules + passenger policy.
+ */
+export function clientRulesForRouting(
+  client: ClientProfile | undefined,
+  payloadKind: 'cargo' | 'pax' | 'both',
+): RoutingClientRules {
+  if (!client) return {}
+  const base: RoutingClientRules = {
+    dual_pilot_required: client.rules.dual_pilot_required,
+    freight_only: client.rules.freight_only,
+    multi_engine_only: client.rules.multi_engine_only,
+    single_engine_turboprop_only: client.rules.single_engine_turboprop_only,
+    no_single_engine_night: client.rules.no_single_engine_night,
+    hazmat_allowed: client.rules.hazmat_allowed,
+  }
+  if (payloadKind === 'cargo') return base
+
+  const paxPol = client.profile.passenger_policy
+  if (!paxPol) return base
+  const hard = hardFiltersFromPolicy(paxPol)
+
+  if (payloadKind === 'pax') {
+    return {
+      ...base,
+      dual_pilot_required: hard.dual_pilot_required,
+      multi_engine_only: hard.multi_engine_only,
+      single_engine_turboprop_only: hard.single_engine_turboprop_only,
+    }
+  }
+
+  const multi = Boolean(base.multi_engine_only || hard.multi_engine_only)
+  return {
+    ...base,
+    dual_pilot_required: Boolean(
+      base.dual_pilot_required || hard.dual_pilot_required,
+    ),
+    multi_engine_only: multi,
+    single_engine_turboprop_only: multi
+      ? false
+      : Boolean(
+          base.single_engine_turboprop_only || hard.single_engine_turboprop_only,
+        ),
+  }
 }
 
 /** Chips for quote screens. */
