@@ -38,8 +38,11 @@ import type { EtaDefaults } from '@/domain/etaChain'
 type WizardKind = 'invite' | 'operator' | 'client' | 'fbo'
 
 function EtaDefaultsPanel() {
-  useSyncExternalStore(subscribeEtaDefaults, getEtaDefaults, getEtaDefaults)
-  const defaults = getEtaDefaults()
+  const defaults = useSyncExternalStore(
+    subscribeEtaDefaults,
+    getEtaDefaults,
+    getEtaDefaults,
+  )
   const keys = Object.keys(ETA_DEFAULT_LABELS) as (keyof EtaDefaults)[]
 
   return (
