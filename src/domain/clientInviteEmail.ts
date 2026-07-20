@@ -22,7 +22,7 @@ export function defaultClientInviteTemplate(
     onboardUrl: '/client',
     phone: '(858) 529-7860',
     intro:
-      'Welcome to OnFly Air — on-demand, time-critical air freight with a vetted Part 135 carrier network. We move AOG and logistics for MROs, airlines, and manufacturers with pilot-led dispatch and clear ETAs.',
+      'Welcome to OnFly Air — ASAP Aircraft Services with a vetted Part 135 carrier network. We move AOG and logistics for MROs, airlines, and manufacturers with pilot-led dispatch and clear ETAs.',
     closingMessage:
       'It takes a few minutes. Once your profile is in, you can request trips and track live deliveries from the client portal.',
     ...overrides,
@@ -86,7 +86,7 @@ export function renderClientInviteEmailHtml(tpl: ClientInviteTemplate): string {
         <tr><td style="background:#0c0c0e;padding:24px 28px;text-align:center">
           <div style="font-size:11px;letter-spacing:0.2em;color:#c9a227;font-weight:700">ONFLY AIR</div>
           <div style="margin-top:8px;font-size:13px;color:#f7f2e3;letter-spacing:0.04em;opacity:0.85">
-            Time-critical air freight
+            ASAP Aircraft Services
           </div>
         </td></tr>
         <tr><td style="padding:32px 28px 12px">
