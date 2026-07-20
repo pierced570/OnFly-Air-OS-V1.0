@@ -121,6 +121,7 @@ export function AirportSelect({
             ? inputClassName
             : 'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
         }
+      />
       {value && !known && (
         <p className="mt-1 text-[11px] text-late">
           {allowUnknown
