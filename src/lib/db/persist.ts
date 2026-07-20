@@ -178,22 +178,20 @@ export async function persistFbo(fbo: FboRow): Promise<void> {
 
 export async function persistShiftStart(shift: ShiftRow): Promise<void> {
   if (!canPersist()) return
-  await safeQuery('shifts.deactivate', () =>
-    db()
-      .from('shifts')
-      .update({ active: false, ends_at: new Date().toISOString() })
-      .eq('active', true),
-  )
-  await safeQuery('shifts.insert', () =>
-    db().from('shifts').insert({
-      id: shift.id,
-      person: shift.person_name,
-      phone: shift.phone,
-      starts_at: shift.started_at,
-      ends_at: null,
-      active: true,
-      notes: shift.notes,
-    }),
+  // Multi-dispatcher: do not deactivate other active shifts
+  await safeQuery('shifts.upsert', () =>
+    db().from('shifts').upsert(
+      {
+        id: shift.id,
+        person: shift.person_name,
+        phone: shift.phone,
+        starts_at: shift.started_at,
+        ends_at: null,
+        active: true,
+        notes: shift.notes,
+      },
+      { onConflict: 'id' },
+    ),
   )
 }
 
@@ -204,6 +202,33 @@ export async function persistShiftEnd(shiftId: string): Promise<void> {
       .from('shifts')
       .update({ active: false, ends_at: new Date().toISOString() })
       .eq('id', shiftId),
+  )
+}
+
+export async function persistStaffPresence(row: {
+  staff_id: string
+  name: string
+  phone: string
+  last_seen_at: string
+}): Promise<void> {
+  if (!canPersist()) return
+  await safeQuery('staff_presence.upsert', () =>
+    db().from('staff_presence').upsert(
+      {
+        staff_id: row.staff_id,
+        name: row.name,
+        phone: row.phone,
+        last_seen_at: row.last_seen_at,
+      },
+      { onConflict: 'staff_id' },
+    ),
+  )
+}
+
+export async function clearStaffPresence(staffId: string): Promise<void> {
+  if (!canPersist()) return
+  await safeQuery('staff_presence.delete', () =>
+    db().from('staff_presence').delete().eq('staff_id', staffId),
   )
 }
 

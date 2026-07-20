@@ -76,6 +76,29 @@ export function DispatchShell({ children }: { children: ReactNode }) {
     return () => stop?.()
   }, [])
 
+  // Presence heartbeat — keeps this dispatcher on the Board "Logged in" list
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    const beat = () => {
+      if (cancelled || !session) return
+      void import('@/lib/presenceStore').then((m) => {
+        m.touchPresence({
+          staff_id: session.id,
+          name: session.name,
+          phone: session.phone,
+        })
+        m.prunePresence()
+      })
+    }
+    beat()
+    const id = window.setInterval(beat, 30_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [session])
+
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow
