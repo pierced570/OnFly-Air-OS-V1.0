@@ -10,7 +10,7 @@ describe('airports catalog', () => {
     const a = lookupAirport('KCAK')
     expect(a?.city).toBe('Akron')
     expect(a?.state).toBe('OH')
-    expect(formatAirportShort(a!)).toBe('KCAK — Akron, OH')
+    expect(formatAirportShort(a!)).toMatch(/^KCAK \(CAK\) — Akron, OH/)
   })
 
   it('searches by city name', () => {
@@ -22,5 +22,29 @@ describe('airports catalog', () => {
     const hits = searchAirports('kteb')
     expect(hits[0]?.icao).toBe('KTEB')
     expect(hits[0]?.city).toBe('Teterboro')
+  })
+
+  it('finds White Plains via HPN / KHPN / city', () => {
+    const byIata = searchAirports('HPN')
+    expect(byIata[0]?.icao).toBe('KHPN')
+    expect(byIata[0]?.city).toBe('White Plains')
+    expect(byIata[0]?.state).toBe('NY')
+
+    const byIcao = searchAirports('KHPN')
+    expect(byIcao[0]?.icao).toBe('KHPN')
+
+    const byCity = searchAirports('white plains')
+    expect(byCity.some((h) => h.icao === 'KHPN')).toBe(true)
+
+    expect(lookupAirport('HPN')?.icao).toBe('KHPN')
+    expect(lookupAirport('KHPN')?.iata).toBe('HPN')
+  })
+
+  it('covers a broad US catalog (not a tiny hand list)', () => {
+    const sample = searchAirports('K', 50)
+    expect(sample.length).toBeGreaterThan(20)
+    expect(lookupAirport('KORD')).not.toBeNull()
+    expect(lookupAirport('KLAX')).not.toBeNull()
+    expect(lookupAirport('CYYZ')).not.toBeNull()
   })
 })
