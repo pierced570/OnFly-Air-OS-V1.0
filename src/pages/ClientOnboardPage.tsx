@@ -17,6 +17,7 @@ import {
   type UpdateChannel,
 } from '@/domain/clientOnboard'
 import { submitClientOnboard } from '@/lib/clientOnboardStore'
+import { BrandLockup } from '@/components/BrandLockup'
 
 const inputCls =
   'mt-1 w-full rounded-md border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-gold'
@@ -60,11 +61,11 @@ export default function ClientOnboardPage() {
   if (done) {
     return (
       <div className="min-h-screen bg-cream text-ink" data-theme="client">
-        <header className="border-b border-border px-6 py-4">
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">
-            OnFly Air
+        <header className="border-b border-border bg-cream px-6 py-5">
+          <div className="mx-auto max-w-lg">
+            <BrandLockup />
+            <h1 className="mt-4 text-xl font-semibold">You&apos;re set up</h1>
           </div>
-          <h1 className="text-xl font-semibold">You&apos;re set up</h1>
         </header>
         <main className="mx-auto max-w-lg space-y-4 p-6">
           <p className="text-sm text-muted">
@@ -93,15 +94,16 @@ export default function ClientOnboardPage() {
 
   return (
     <div className="min-h-screen bg-cream text-ink" data-theme="client">
-      <header className="border-b border-border px-6 py-4">
-        <div className="text-xs uppercase tracking-[0.2em] text-gold">
-          OnFly Air
+      <header className="border-b border-border bg-cream px-6 py-5">
+        <div className="mx-auto max-w-2xl">
+          <BrandLockup />
+          <h1 className="mt-4 text-xl font-semibold">Client setup</h1>
+          <p className="mt-1 max-w-xl text-sm text-muted">
+            Thank you for choosing OnFly Air. This form puts your contacts,
+            billing, and routing preferences on file — so when you need us, we
+            quote first and ask questions never.
+          </p>
         </div>
-        <h1 className="text-xl font-semibold">Client setup</h1>
-        <p className="mt-1 text-sm text-muted">
-          Company, people, billing, and aircraft rules — the same profile our
-          dispatchers maintain. We never ask for card numbers here.
-        </p>
       </header>
 
       <main className="mx-auto max-w-2xl p-4 sm:p-6">

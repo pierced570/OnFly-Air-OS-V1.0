@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BRAND_TAGLINE,
   clientInviteEmailSubject,
   defaultClientInviteTemplate,
   renderClientInviteEmailHtml,
@@ -9,9 +10,10 @@ import { sendClientOnboardInvite } from '@/lib/clientInviteEmail'
 import { getMockSentEmails } from '@/adapters/email'
 
 describe('client invite email', () => {
-  it('renders welcome + form CTA without operator/cost language', () => {
+  it('renders welcome copy + logo + form CTA without operator/cost language', () => {
     const tpl = defaultClientInviteTemplate({
       onboardUrl: 'https://app.onflyair.com/client',
+      logoUrl: 'https://app.onflyair.com/brand/onfly-mark.svg',
       companyName: 'Acme MRO',
       recipientName: 'Jordan',
     })
@@ -19,9 +21,15 @@ describe('client invite email', () => {
     const text = renderClientInviteEmailText(tpl)
     expect(html).toContain('Welcome to OnFly Air')
     expect(html).toContain('https://app.onflyair.com/client')
+    expect(html).toContain('https://app.onflyair.com/brand/onfly-mark.svg')
     expect(html).toContain('Complete your client setup')
     expect(html).toContain('Acme MRO')
     expect(html).toContain('Hello Jordan')
+    expect(html).toContain('When freight can\'t wait')
+    expect(html).toContain('quote first and ask questions never')
+    expect(html).toContain('dispatcher, not a phone tree')
+    expect(html).toContain(BRAND_TAGLINE)
+    expect(html).toContain('Button not working?')
     expect(html).toContain('vetted Part 135')
     expect(html.toLowerCase()).not.toContain(' bidding')
     expect(html.toLowerCase()).not.toContain('vendor cost')
@@ -29,7 +37,10 @@ describe('client invite email', () => {
     expect(html.toLowerCase()).not.toMatch(/\bbid\b/)
     expect(text).toContain('Welcome to OnFly Air')
     expect(text).toContain('https://app.onflyair.com/client')
-    expect(clientInviteEmailSubject({ companyName: 'Acme MRO' })).toMatch(/Acme MRO/)
+    expect(text).toContain(BRAND_TAGLINE)
+    expect(clientInviteEmailSubject({ companyName: 'Acme MRO' })).toMatch(
+      /Acme MRO/,
+    )
   })
 
   it('sends via email adapter', async () => {
@@ -37,7 +48,10 @@ describe('client invite email', () => {
     const result = await sendClientOnboardInvite({
       to: 'ops@acme.example',
       companyName: 'Acme MRO',
-      template: { onboardUrl: 'https://app.test/client' },
+      template: {
+        onboardUrl: 'https://app.test/client',
+        logoUrl: 'https://app.test/brand/onfly-mark.svg',
+      },
     })
     expect(result.to).toBe('ops@acme.example')
     expect(result.onboardUrl).toBe('https://app.test/client')
@@ -46,6 +60,7 @@ describe('client invite email', () => {
     expect(last.subject).toMatch(/Welcome to OnFly Air/)
     expect(last.subject).toMatch(/Acme MRO/)
     expect(last.html).toContain('https://app.test/client')
+    expect(last.html).toContain('onfly-mark.svg')
     expect(last.text).toContain('Welcome to OnFly Air')
   })
 
