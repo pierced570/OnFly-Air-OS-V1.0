@@ -32,6 +32,8 @@ function cand(
     reasoning: [],
     eta_end: '2026-01-01T03:00:00Z',
     circuit_nm: 100,
+    rate_per_nm: 10,
+    rate_source: 'assumption',
     ...partial,
   }
 }
