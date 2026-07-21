@@ -18,6 +18,7 @@ const nav: {
   { to: '/quick-dispatch', label: 'Quick Dispatch', section: 'quick_dispatch' },
   { to: '/intake', label: 'Intake', section: 'intake' },
   { to: '/financials', label: 'Financials', section: 'financials' },
+  { to: '/referrals', label: 'Referrals', section: 'referrals' },
   { to: '/clients', label: 'Clients', section: 'clients' },
   { to: '/leads', label: 'Leads', section: 'leads' },
   { to: '/fbos', label: 'FBOs', section: 'fbos' },
