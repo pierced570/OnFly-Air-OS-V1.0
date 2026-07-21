@@ -39,6 +39,7 @@ const IntakeReviewPage = lazy(() => import('@/pages/IntakeReviewPage'))
 const ManifestPage = lazy(() => import('@/pages/ManifestPage'))
 const OnboardPage = lazy(() => import('@/pages/OnboardPage'))
 const ClientOnboardPage = lazy(() => import('@/pages/ClientOnboardPage'))
+const VendorPacketPage = lazy(() => import('@/pages/VendorPacketPage'))
 
 function Fallback() {
   return (
@@ -58,7 +59,9 @@ function isPublic(pathname: string) {
     pathname === '/client' ||
     pathname.startsWith('/client/') ||
     pathname === '/onboard' ||
-    pathname.startsWith('/onboard/')
+    pathname.startsWith('/onboard/') ||
+    pathname === '/vendor' ||
+    pathname.startsWith('/vendor/')
   )
 }
 
@@ -70,7 +73,9 @@ function isClientThemePath(pathname: string) {
     pathname.startsWith('/client/') ||
     pathname.startsWith('/accept/') ||
     pathname === '/onboard' ||
-    pathname.startsWith('/onboard/')
+    pathname.startsWith('/onboard/') ||
+    pathname === '/vendor' ||
+    pathname.startsWith('/vendor/')
   )
 }
 
@@ -124,6 +129,7 @@ export function App() {
         {/* Legacy portal onboard URL */}
         <Route path="/portal/onboard" element={<Navigate to="/client" replace />} />
         <Route path="/onboard" element={<OnboardPage />} />
+        <Route path="/vendor" element={<VendorPacketPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

@@ -5,7 +5,7 @@
 
 export type NeedsInfoTask = {
   id: string
-  entity_type: 'operator' | 'aircraft' | 'client' | 'fbo' | 'trip'
+  entity_type: 'operator' | 'aircraft' | 'client' | 'fbo' | 'trip' | 'vendor'
   entity_id: string
   entity_label: string
   field: string

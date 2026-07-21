@@ -82,6 +82,7 @@ export default function AdminTasksPage() {
           <option value="operator">Operators</option>
           <option value="aircraft">Aircraft</option>
           <option value="client">Clients</option>
+          <option value="vendor">Vendors</option>
           <option value="fbo">FBOs</option>
           <option value="trip">Trips</option>
         </select>
