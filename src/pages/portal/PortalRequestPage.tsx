@@ -13,6 +13,7 @@ import {
   type PortalRequestEstimate,
 } from '@/lib/estimatePortalRequest'
 import { requestHardQuote, submitTripRequest } from '@/lib/requestStore'
+import { BrandLockup } from '@/components/BrandLockup'
 
 export default function PortalRequestPage() {
   const [done, setDone] = useState<TripRequestRecord | null>(null)
@@ -78,7 +79,7 @@ export default function PortalRequestPage() {
     return (
       <div className="min-h-screen bg-cream text-ink" data-theme="client">
         <div className="mx-auto max-w-2xl space-y-5 p-4 sm:p-6">
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">OnFly Air</div>
+          <BrandLockup showTagline={false} />
           <header>
             <h1 className="text-2xl font-semibold">Instant estimate</h1>
             <p className="mt-1 text-sm text-muted">

@@ -4,6 +4,7 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { completeLegCheckIn, getTripByLegToken } from '@/lib/tripStore'
+import { BrandLockup } from '@/components/BrandLockup'
 
 export default function OneTapPage() {
   const { legToken } = useParams()
@@ -43,7 +44,10 @@ export default function OneTapPage() {
       data-theme="dispatcher"
     >
       <div className="w-full max-w-sm space-y-4 text-center">
-        <div className="text-xs uppercase tracking-[0.2em] text-gold">OnFly check-in</div>
+        <div className="flex flex-col items-center gap-2">
+          <BrandLockup variant="mark" className="!h-12 !w-12" />
+          <div className="text-xs uppercase tracking-[0.2em] text-gold">Check-in</div>
+        </div>
         <p className="text-sm text-muted">
           T-{trip.ref} · {leg.label}
         </p>

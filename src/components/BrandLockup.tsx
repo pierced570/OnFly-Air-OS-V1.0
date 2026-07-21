@@ -1,51 +1,78 @@
-import { BRAND_TAGLINE } from '@/domain/clientInviteEmail'
+import {
+  BRAND_LOGO_LIGHT_PATH,
+  BRAND_LOGO_PATH,
+  BRAND_MARK_PATH,
+  BRAND_TAGLINE,
+} from '@/domain/brand'
 
 type Props = {
-  /** Dark ink bar (email-style) vs cream page header */
-  variant?: 'bar' | 'page'
+  /**
+   * `full` — light wordmark for cream/white forms & billing (default).
+   * `mark` — mini aircraft-in-ring for nav / compact chrome.
+   * `bar` — dark wordmark centered on ink (emails / dark strips).
+   */
+  variant?: 'full' | 'mark' | 'bar' | 'page'
   className?: string
+  /** Show ASAP tagline under the logo (full/bar only). */
+  showTagline?: boolean
 }
 
-/** OnFly mark + ONFLY Air wordmark + ASAP tagline. */
-export function BrandLockup({ variant = 'page', className = '' }: Props) {
-  if (variant === 'bar') {
+/**
+ * OnFly brand lockup.
+ * Light full wordmark on cream forms; dark wordmark on ink bars; mark for chrome.
+ * Never stack a second ASAP line under the wordmark on forms — tagline is bar/email only.
+ */
+export function BrandLockup({
+  variant = 'full',
+  className = '',
+  showTagline,
+}: Props) {
+  const mode = variant === 'page' ? 'full' : variant
+  // Forms/portal default: logo only. Email ink bar may show the ASAP tagline once.
+  const tagline = showTagline ?? mode === 'bar'
+
+  if (mode === 'bar') {
     return (
       <div className={`bg-ink px-6 py-6 text-center ${className}`}>
         <img
-          src="/brand/onfly-mark.svg"
+          src={BRAND_LOGO_PATH}
           alt="OnFly Air"
-          width={56}
-          height={56}
-          className="mx-auto mb-3 rounded-[10px]"
+          className="mx-auto h-14 w-auto max-w-[min(100%,280px)] object-contain"
         />
-        <div className="text-[1.65rem] font-bold tracking-[0.06em]">
-          <span className="text-cream">ONFLY</span>
-          <span className="text-gold"> Air</span>
-        </div>
-        <div className="mt-2 text-[10px] font-semibold tracking-[0.18em] text-gold">
-          {BRAND_TAGLINE}
-        </div>
+        {tagline && (
+          <div className="mt-3 text-[10px] font-semibold tracking-[0.18em] text-gold">
+            {BRAND_TAGLINE}
+          </div>
+        )}
       </div>
     )
   }
 
-  return (
-    <div className={`flex items-center gap-3 ${className}`}>
+  if (mode === 'mark') {
+    return (
       <img
-        src="/brand/onfly-mark.svg"
-        alt=""
+        src={BRAND_MARK_PATH}
+        alt="OnFly Air"
         width={40}
         height={40}
-        className="shrink-0 rounded-lg"
+        className={`h-10 w-10 shrink-0 object-contain ${className}`}
       />
-      <div>
-        <div className="text-lg font-bold tracking-[0.04em] text-ink">
-          ONFLY<span className="text-gold"> Air</span>
-        </div>
-        <div className="text-[9px] font-semibold tracking-[0.14em] text-gold">
+    )
+  }
+
+  // full — cream/white forms & billing (dark FL so it never washes out)
+  return (
+    <div className={`flex flex-col items-start gap-2 ${className}`}>
+      <img
+        src={BRAND_LOGO_LIGHT_PATH}
+        alt="OnFly Air"
+        className="h-12 w-auto max-w-[min(100%,280px)] object-contain sm:h-14"
+      />
+      {tagline && (
+        <div className="text-[9px] font-semibold tracking-[0.14em] text-gold sm:text-[10px]">
           {BRAND_TAGLINE}
         </div>
-      </div>
+      )}
     </div>
   )
 }

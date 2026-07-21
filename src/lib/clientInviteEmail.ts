@@ -4,6 +4,7 @@
 
 import { createEmailAdapter } from '@/adapters/email'
 import {
+  BRAND_LOGO_PATH,
   BRAND_MARK_PATH,
   clientInviteEmailSubject,
   defaultClientInviteTemplate,
@@ -32,14 +33,25 @@ export function resolveClientOnboardUrl(override?: string): string {
   return '/client'
 }
 
-/** Absolute URL for the brand mark (required for email <img>). */
-export function resolveBrandMarkUrl(override?: string): string {
+function absoluteBrandUrl(path: string, override?: string): string {
   if (override?.trim()) return override.trim()
-  const envUrl = import.meta.env?.VITE_BRAND_MARK_URL as string | undefined
-  if (envUrl?.trim()) return envUrl.trim()
   const origin = appOrigin()
-  if (origin) return `${origin}${BRAND_MARK_PATH}`
-  return BRAND_MARK_PATH
+  if (origin) return `${origin}${path}`
+  return path
+}
+
+/** Absolute URL for the mini brand mark. */
+export function resolveBrandMarkUrl(override?: string): string {
+  const envUrl = import.meta.env?.VITE_BRAND_MARK_URL as string | undefined
+  if (!override?.trim() && envUrl?.trim()) return envUrl.trim()
+  return absoluteBrandUrl(BRAND_MARK_PATH, override)
+}
+
+/** Absolute URL for the full ONFLYAIR wordmark (forms / email headers). */
+export function resolveBrandLogoUrl(override?: string): string {
+  const envUrl = import.meta.env?.VITE_BRAND_LOGO_URL as string | undefined
+  if (!override?.trim() && envUrl?.trim()) return envUrl.trim()
+  return absoluteBrandUrl(BRAND_LOGO_PATH, override)
 }
 
 export function buildClientInviteTemplate(
@@ -47,10 +59,12 @@ export function buildClientInviteTemplate(
 ): ClientInviteTemplate {
   const onboardUrl = resolveClientOnboardUrl(overrides?.onboardUrl)
   const logoUrl = resolveBrandMarkUrl(overrides?.logoUrl)
+  const fullLogoUrl = resolveBrandLogoUrl(overrides?.fullLogoUrl)
   return defaultClientInviteTemplate({
     ...overrides,
     onboardUrl,
     logoUrl,
+    fullLogoUrl,
   })
 }
 

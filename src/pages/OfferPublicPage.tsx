@@ -9,6 +9,7 @@ import {
 import { submitOperatorQuote } from '@/lib/offerFlow'
 import { applyQuotedTtp, projectedDeliveryUtc } from '@/domain/etaChain'
 import { formatZuluLocal } from '@/domain/timeFmt'
+import { BrandLockup } from '@/components/BrandLockup'
 
 export default function OfferPublicPage() {
   const { token } = useParams()
@@ -62,7 +63,10 @@ export default function OfferPublicPage() {
     <div className="min-h-screen bg-ink px-4 py-8 text-cream" data-theme="dispatcher">
       <div className="mx-auto max-w-md space-y-6">
         <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">OnFly trip offer</div>
+          <div className="flex items-center justify-center gap-2">
+            <BrandLockup variant="mark" className="!h-8 !w-8" />
+            <div className="text-xs uppercase tracking-[0.2em] text-gold">Trip offer</div>
+          </div>
           <h1 className="mt-2 text-2xl font-semibold">{trip.lane}</h1>
           <p className="mt-1 text-sm text-muted">
             {trip.payload_summary} · ready {trip.ready_label}

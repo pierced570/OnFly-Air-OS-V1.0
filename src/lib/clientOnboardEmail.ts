@@ -3,8 +3,18 @@
  * Public form lives at /client (not the portal).
  */
 
+import { BRAND_LOGO_PATH } from '@/domain/brand'
 import { createCommsAdapter } from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
+
+function absoluteLogoUrl(): string {
+  const appUrl =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta.env?.VITE_APP_URL as string | undefined)) ||
+    (typeof window !== 'undefined' ? window.location.origin : '')
+  const origin = (appUrl || '').replace(/\/$/, '')
+  return origin ? `${origin}${BRAND_LOGO_PATH}` : BRAND_LOGO_PATH
+}
 
 export type ClientOnboardInviteTemplate = {
   buttonText: string
@@ -48,7 +58,7 @@ export function renderClientOnboardEmailHtml(
     <tr><td align="center">
       <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5dfd0">
         <tr><td style="background:#0c0c0e;padding:22px 24px;text-align:center">
-          <div style="font-size:20px;letter-spacing:0.14em;color:#c9a227;font-weight:700">ONFLY AIR</div>
+          <img src="${escapeHtml(absoluteLogoUrl())}" alt="OnFly Air" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0" />
         </td></tr>
         <tr><td style="padding:28px 28px 8px">
           <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#0c0c0e;font-weight:600">Client setup</h1>

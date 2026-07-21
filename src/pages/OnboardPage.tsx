@@ -6,6 +6,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { BrandLockup } from '@/components/BrandLockup'
 import { AirportSelect } from '@/components/AirportSelect'
 import { submitOperatorOnboard } from '@/lib/operatorOnboardStore'
 import {
@@ -185,7 +186,7 @@ export default function OnboardPage() {
     return (
       <div className="min-h-screen bg-cream px-4 py-10 text-ink" data-theme="client">
         <div className="mx-auto max-w-lg space-y-4 text-center">
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">OnFly Air</div>
+          <div className="flex justify-center"><BrandLockup showTagline={false} /></div>
           <h1 className="text-2xl font-semibold">Thanks — you’re in review</h1>
           <p className="text-sm text-muted">
             We received your onboarding packet. Dispatch will follow up once docs
@@ -203,10 +204,8 @@ export default function OnboardPage() {
   return (
     <div className="min-h-screen bg-cream text-ink" data-theme="client">
       <header className="border-b border-border bg-ink px-4 py-6 text-center text-cream">
-        <div className="text-lg font-semibold tracking-[0.12em] text-gold">
-          ONFLY AIR
-        </div>
-        <div className="mt-1 text-xs tracking-wide text-cream/80">
+        <BrandLockup variant="bar" className="!bg-transparent !px-0 !py-0" />
+        <div className="mt-2 text-xs tracking-wide text-cream/80">
           Operator Network
         </div>
       </header>

@@ -67,7 +67,7 @@ export function renderOperatorOnboardEmailHtml(
     <tr><td align="center">
       <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5dfd0">
         <tr><td style="background:#0c0c0e;padding:22px 24px;text-align:center">
-          <div style="font-size:20px;letter-spacing:0.14em;color:#c9a227;font-weight:700">ONFLY AIR</div>
+          <img src="https://onflyair.com/wp-content/uploads/2024/02/onflyair-ff-01.png" alt="OnFly Air" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0" />
         </td></tr>
         <tr><td style="padding:28px 28px 8px">
           <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#0c0c0e;font-weight:600">Join our operator network</h1>
