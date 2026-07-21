@@ -18,6 +18,8 @@ function stubCand(partial: Partial<Candidate> & { cost: number; price: number })
     reasoning: [],
     eta_end: '',
     circuit_nm: 100,
+    rate_per_nm: 10,
+    rate_source: 'assumption',
     ...partial,
   }
 }

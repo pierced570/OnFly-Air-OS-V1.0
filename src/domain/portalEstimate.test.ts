@@ -53,6 +53,8 @@ function cand(
     reasoning: ['secret cost math'],
     eta_end: '2026-07-19T16:00:00.000Z',
     circuit_nm: 400,
+    rate_per_nm: 10,
+    rate_source: 'assumption',
     ...rest,
   }
 }

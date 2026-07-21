@@ -88,6 +88,9 @@ export type Candidate = {
   label?: 'cheapest' | 'fastest' | 'best'
   eta_end: string
   circuit_nm: number
+  /** $/NM used for this candidate's cost. */
+  rate_per_nm: number
+  rate_source: 'block_rate' | 'history' | 'assumption' | 'pricing_priors'
   /** Advisory ADS-B phase / position chips */
   phase?: FlightPhase
   inPosition?: boolean
@@ -311,14 +314,22 @@ export async function generateCandidates(
       ac.rate_per_nm ??
       prior ??
       (ac.type_name?.match(/King Air/i) ? 12 : ac.type_name?.match(/310/i) ? 9 : 11)
+    let rateSource: Candidate['rate_source'] = 'assumption'
     if (ac.rate_per_nm != null) {
-      reasoning.push(`rate $${rate}/NM (${ac.rate_source ?? 'file'})`)
+      rateSource =
+        ac.rate_source === 'block_rate' ||
+        ac.rate_source === 'history' ||
+        ac.rate_source === 'assumption'
+          ? ac.rate_source
+          : 'history'
+      reasoning.push(`rate $${rate}/NM (${rateSource})`)
     } else if (prior != null) {
+      rateSource = 'pricing_priors'
       reasoning.push(`rate $${Number(rate).toFixed(2)}/NM (pricing_priors)`)
     } else {
       needsInfo.push('rate assumption')
       confidence -= 0.05
-      reasoning.push(`assumed $${rate}/NM (${ac.rate_source ?? 'assumption'})`)
+      reasoning.push(`assumed $${rate}/NM (fallback)`)
     }
 
     const opCost = circuitNm * rate
@@ -411,6 +422,8 @@ export async function generateCandidates(
       reasoning,
       eta_end,
       circuit_nm: Math.round(circuitNm),
+      rate_per_nm: rate,
+      rate_source: rateSource,
       phase: status?.phase,
       inPosition: status?.inPositionOfBase,
       laddBlocked: status?.laddBlocked,

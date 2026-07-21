@@ -99,6 +99,45 @@ function buildRateByKey(
   return rateByKey
 }
 
+async function loadFixtureNetwork(): Promise<NetworkFixture> {
+  const mod = await import('@/fixtures/network.json')
+  return mod.default as NetworkFixture
+}
+
+/**
+ * Live `aircraft` has no history $/NM columns — overlay CSV fixture rates
+ * (and missing door/range/cargo_pax) by tail. Never clobbers rates_block.
+ */
+function mergeFixtureFleetFields(
+  live: AircraftRow[],
+  fixture: NetworkFixture,
+): AircraftRow[] {
+  const byTail = new Map(
+    fixture.aircraft.map((a) => [a.tail.trim().toUpperCase(), a] as const),
+  )
+  return live.map((a) => {
+    const f = byTail.get(a.tail.trim().toUpperCase())
+    if (!f) return a
+    const hasBlock =
+      a.rate_per_nm != null && Number.isFinite(Number(a.rate_per_nm))
+    return {
+      ...a,
+      cargo_pax: a.cargo_pax ?? f.cargo_pax,
+      range_nm: a.range_nm ?? f.range_nm,
+      door_w_in: a.door_w_in ?? f.door_w_in,
+      door_h_in: a.door_h_in ?? f.door_h_in,
+      avg_op_per_nm_circuit:
+        f.avg_op_per_nm_circuit ?? a.avg_op_per_nm_circuit ?? null,
+      med_assumed_op_per_nm:
+        f.med_assumed_op_per_nm ?? a.med_assumed_op_per_nm ?? null,
+      rate_source: hasBlock
+        ? 'block_rate'
+        : (f.rate_source ?? a.rate_source ?? null),
+      fet_applies: a.fet_applies ?? f.fet_applies,
+    }
+  })
+}
+
 export async function loadNetwork(): Promise<LoadedNetwork> {
   if (cached) return cached
 
@@ -130,6 +169,8 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
     // Only use live DB when it actually has fleet rows — empty project
     // must fall through to the bundled fixture or intake/quote recommend nothing.
     if (!oErr && !aErr && operators && aircraft && aircraft.length > 0) {
+      const fixture = await loadFixtureNetwork()
+
       const contactByOp = new Map<
         string,
         { name: string | null; cell: string | null; email: string | null }
@@ -146,7 +187,9 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
         }
       }
 
-      const rateByKey = !rErr ? buildRateByKey(rates as Array<Record<string, unknown>> | null) : new Map<string, number>()
+      const rateByKey = !rErr
+        ? buildRateByKey(rates as Array<Record<string, unknown>> | null)
+        : new Map<string, number>()
 
       const ops: OperatorRow[] = operators.map((o) => {
         const ct = contactByOp.get(o.id as string)
@@ -163,46 +206,59 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
           notes: (o.notes as string | null) ?? null,
         }
       })
-      let acs: AircraftRow[] = aircraft.map((a) => {
-        const opRel = a.operators as unknown as { name: string } | null
-        const typeName = (a.type_name as string | null) ?? null
-        const rateKey = `${a.operator_id}::${(typeName ?? '').trim()}`
-        return {
-          id: a.id as string,
-          operator_id: a.operator_id as string,
-          operator_name: opRel?.name ?? '',
-          tail: a.tail as string,
-          type_name: typeName,
-          category: (a.category as string | null) ?? null,
-          engines: (a.engines as string | null) ?? null,
-          cargo_pax: (a.cargo_pax as string | null) ?? null,
-          crew: (a.crew as string | null) ?? null,
-          base_icao: (a.base_icao as string | null) ?? null,
-          cruise_kts: (a.cruise_kts as number | null) ?? null,
-          range_nm: (a.range_nm as number | null) ?? null,
-          mtow_lbs: (a.mtow_lbs as number | null) ?? null,
-          max_payload_lbs: (a.max_payload_lbs as number | null) ?? null,
-          seats: (a.seats as number | null) ?? null,
-          door_type: (a.door_type as string | null) ?? null,
-          door_w_in: a.door_w_in == null ? null : Number(a.door_w_in),
-          door_h_in: a.door_h_in == null ? null : Number(a.door_h_in),
-          cabin_l_ft: (a.cabin_l_ft as number | null) ?? null,
-          cabin_w_ft: (a.cabin_w_ft as number | null) ?? null,
-          cabin_h_ft: (a.cabin_h_ft as number | null) ?? null,
-          cabin_vol_cuft: (a.cabin_vol_cuft as number | null) ?? null,
-          insurance_expiry: a.insurance_expiry
-            ? String(a.insurance_expiry)
-            : null,
-          rate_per_nm: rateByKey.get(rateKey) ?? null,
-          fet_applies: null,
-          needs_info: (a.needs_info as AircraftRow['needs_info']) ?? [],
-          active: Boolean(a.active),
-        }
-      })
-      const typeSpecs = (!sErr && specs ? specs : []) as Array<
+
+      let acs: AircraftRow[] = mergeFixtureFleetFields(
+        aircraft.map((a) => {
+          const opRel = a.operators as unknown as { name: string } | null
+          const typeName = (a.type_name as string | null) ?? null
+          const rateKey = `${a.operator_id}::${(typeName ?? '').trim()}`
+          const blockRate = rateByKey.get(rateKey) ?? null
+          return {
+            id: a.id as string,
+            operator_id: a.operator_id as string,
+            operator_name: opRel?.name ?? '',
+            tail: a.tail as string,
+            type_name: typeName,
+            category: (a.category as string | null) ?? null,
+            engines: (a.engines as string | null) ?? null,
+            cargo_pax: (a.cargo_pax as string | null) ?? null,
+            crew: (a.crew as string | null) ?? null,
+            base_icao: (a.base_icao as string | null) ?? null,
+            cruise_kts: (a.cruise_kts as number | null) ?? null,
+            range_nm: (a.range_nm as number | null) ?? null,
+            mtow_lbs: (a.mtow_lbs as number | null) ?? null,
+            max_payload_lbs: (a.max_payload_lbs as number | null) ?? null,
+            seats: (a.seats as number | null) ?? null,
+            door_type: (a.door_type as string | null) ?? null,
+            door_w_in: a.door_w_in == null ? null : Number(a.door_w_in),
+            door_h_in: a.door_h_in == null ? null : Number(a.door_h_in),
+            cabin_l_ft: (a.cabin_l_ft as number | null) ?? null,
+            cabin_w_ft: (a.cabin_w_ft as number | null) ?? null,
+            cabin_h_ft: (a.cabin_h_ft as number | null) ?? null,
+            cabin_vol_cuft: (a.cabin_vol_cuft as number | null) ?? null,
+            insurance_expiry: a.insurance_expiry
+              ? String(a.insurance_expiry)
+              : null,
+            rate_per_nm: blockRate,
+            rate_source: blockRate != null ? ('block_rate' as const) : null,
+            avg_op_per_nm_circuit: null,
+            med_assumed_op_per_nm: null,
+            fet_applies: null,
+            needs_info: (a.needs_info as AircraftRow['needs_info']) ?? [],
+            active: Boolean(a.active),
+          }
+        }),
+        fixture,
+      )
+
+      let typeSpecs = (!sErr && specs ? specs : []) as Array<
         Record<string, unknown>
       >
+      if (typeSpecs.length === 0) {
+        typeSpecs = fixture.type_specs ?? []
+      }
       acs = enrichAircraftFromSpecs(acs, typeSpecs)
+
       cached = {
         importedAt: new Date().toISOString(),
         operators: ops,
@@ -224,8 +280,7 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
   }
 
   // Lazy-load fixture only when DB is empty / unavailable (~400KB)
-  const mod = await import('@/fixtures/network.json')
-  const fixture = mod.default as NetworkFixture
+  const fixture = await loadFixtureNetwork()
   const enriched = enrichAircraftFromSpecs(
     fixture.aircraft,
     fixture.type_specs ?? [],
@@ -238,4 +293,8 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
   syncWatchedFromFleet(enriched)
   bump()
   return cached
+}
+
+export function __resetNetworkCacheForTests(): void {
+  cached = null
 }

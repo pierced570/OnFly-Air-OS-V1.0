@@ -2,6 +2,7 @@ import { loadNetwork } from '@/lib/networkData'
 import type { AircraftCandidateSource } from '@/domain/routing'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import type { MissionAircraft } from '@/domain/missionFit'
+import type { AircraftRow } from '@/lib/types'
 
 type TypeSpec = {
   type_name: string
@@ -34,6 +35,60 @@ function typeSpecMap(
   return m
 }
 
+/**
+ * Prefer live block rate (`rates_block` → `rate_per_nm`), then history avg
+ * $/NM, then assumed market $/NM from the fleet CSV fixture.
+ */
+export function rateFromAircraft(
+  a: Pick<
+    AircraftRow,
+    | 'rate_per_nm'
+    | 'avg_op_per_nm_circuit'
+    | 'med_assumed_op_per_nm'
+    | 'rate_source'
+  >,
+): {
+  rate_per_nm: number | null
+  rate_source: AircraftCandidateSource['rate_source']
+} {
+  const block = a.rate_per_nm == null ? null : Number(a.rate_per_nm)
+  // `rate_per_nm` is only written from rates_block (or sheet edits) — not from
+  // history/assumed fixture columns — so a finite value means block rate.
+  if (
+    block != null &&
+    Number.isFinite(block) &&
+    a.rate_source !== 'history' &&
+    a.rate_source !== 'assumption'
+  ) {
+    return { rate_per_nm: block, rate_source: 'block_rate' }
+  }
+  if (
+    a.avg_op_per_nm_circuit != null &&
+    Number.isFinite(a.avg_op_per_nm_circuit)
+  ) {
+    return { rate_per_nm: a.avg_op_per_nm_circuit, rate_source: 'history' }
+  }
+  if (
+    a.med_assumed_op_per_nm != null &&
+    Number.isFinite(a.med_assumed_op_per_nm)
+  ) {
+    return {
+      rate_per_nm: a.med_assumed_op_per_nm,
+      rate_source:
+        a.rate_source === 'history' || a.rate_source === 'assumption'
+          ? a.rate_source
+          : 'assumption',
+    }
+  }
+  if (block != null && Number.isFinite(block)) {
+    return {
+      rate_per_nm: block,
+      rate_source: a.rate_source === 'history' ? 'history' : 'assumption',
+    }
+  }
+  return { rate_per_nm: null, rate_source: null }
+}
+
 export async function loadFleetForRouting(): Promise<AircraftCandidateSource[]> {
   const net = await loadNetwork()
   const specs = typeSpecMap(net.type_specs ?? [])
@@ -42,7 +97,7 @@ export async function loadFleetForRouting(): Promise<AircraftCandidateSource[]> 
       ? (lookupAirport(a.base_icao) ?? AIRPORTS[a.base_icao])
       : null
     const spec = a.type_name ? specs.get(a.type_name) : undefined
-    const rate = a.rate_per_nm == null ? null : Number(a.rate_per_nm)
+    const { rate_per_nm, rate_source } = rateFromAircraft(a)
     return {
       id: a.id,
       operator_id: a.operator_id,
@@ -65,11 +120,8 @@ export async function loadFleetForRouting(): Promise<AircraftCandidateSource[]> 
       door_h_in: a.door_h_in ?? spec?.door_h_in ?? null,
       crew: a.crew ?? null,
       insurance_expiry: a.insurance_expiry ?? null,
-      rate_per_nm: rate != null && Number.isFinite(rate) ? rate : null,
-      rate_source:
-        rate != null && Number.isFinite(rate)
-          ? ('block_rate' as const)
-          : ('assumption' as const),
+      rate_per_nm,
+      rate_source,
     }
   })
 }

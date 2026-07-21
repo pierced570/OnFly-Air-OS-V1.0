@@ -39,7 +39,13 @@ export type AircraftRow = {
   cabin_h_ft?: number | null
   cabin_vol_cuft?: number | null
   insurance_expiry?: string | null
+  /** Live block rate from rates_block when present. */
   rate_per_nm?: number | null
+  /** History $/NM from CSV avg_op_per_nm_circuit when present. */
+  avg_op_per_nm_circuit?: number | null
+  /** Assumed market $/NM from CSV med_assumed_op_per_nm. */
+  med_assumed_op_per_nm?: number | null
+  rate_source?: 'history' | 'assumption' | 'block_rate' | null
   notes?: string | null
   fet_applies: boolean | null
   needs_info: NeedsInfoItem[]

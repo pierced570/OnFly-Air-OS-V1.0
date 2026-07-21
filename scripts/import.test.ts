@@ -63,6 +63,18 @@ describe('fleet importer', () => {
     expect(fixture.counts.operators).toBe(47)
     expect(fixture.counts.aircraft).toBe(420)
   })
+
+  it('carries per-tail history / assumed $/NM into the fixture', () => {
+    const fixture = buildNetworkFixture(parseFleetCsv(CSV))
+    const withRate = fixture.aircraft.filter(
+      (a) => a.avg_op_per_nm_circuit != null || a.med_assumed_op_per_nm != null,
+    )
+    expect(withRate.length).toBeGreaterThan(100)
+    const n15 = fixture.aircraft.find((a) => a.tail === 'N15TV')
+    expect(n15?.avg_op_per_nm_circuit).toBe(9.06)
+    expect(n15?.door_w_in).toBe(26)
+    expect(n15?.cargo_pax).toBeNull()
+  })
 })
 
 describe('airport tz lookup', () => {
