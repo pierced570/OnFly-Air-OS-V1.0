@@ -427,6 +427,7 @@ export default function FinancialsPage() {
               <th className="px-2 py-2 text-right">Op owed</th>
               <th className="px-2 py-2 text-right">Margin</th>
               <th className="px-2 py-2 text-right">Investor owed</th>
+              <th className="px-2 py-2 text-right">Referral</th>
               <th className="px-2 py-2">Status</th>
               <th className="px-2 py-2">Drawers</th>
             </tr>
@@ -477,6 +478,21 @@ export default function FinancialsPage() {
                 <span className="text-gold">
                   {usd(
                     selectedRows.reduce((s, r) => s + r.jonny_money_owed, 0),
+                  )}
+                </span>
+              </span>
+              <span>
+                Referral{' '}
+                <span className="text-gold">
+                  {usd(
+                    selectedRows.reduce(
+                      (s, r) =>
+                        s +
+                        (r.referral_paid_out
+                          ? 0
+                          : r.referral_share_amount || 0),
+                      0,
+                    ),
                   )}
                 </span>
               </span>
@@ -623,11 +639,29 @@ function MobileFinancialCard({
                 {r.jonny_money_owed > 0 ? usd(r.jonny_money_owed) : '—'}
               </span>
             </div>
+            {r.referral_name && (
+              <div className="col-span-2">
+                <span className="text-muted">Referral </span>
+                <span className="text-cream">{r.referral_name}</span>
+                <span className="avionic text-gold">
+                  {' '}
+                  {usd(r.referral_share_amount || 0)}
+                  {r.referral_paid_out ? ' paid' : ''}
+                </span>
+              </div>
+            )}
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
             <StatusPill label="Client" ok={clientOk} tone="onplan" />
             <StatusPill label="Op" ok={opOk} tone="gold" />
             <StatusPill label="Inv" ok={invOk} tone="attn" />
+            {Boolean(r.referral_name) && (
+              <StatusPill
+                label="Ref"
+                ok={r.referral_paid_out || (r.referral_share_amount || 0) <= 0}
+                tone="gold"
+              />
+            )}
             {alreadyInvoiced && <StatusPill label="QB" ok tone="gold" />}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -747,11 +781,36 @@ function FragmentRow({
         <td className="avionic px-2 py-2 text-right font-semibold text-gold">
           {r.jonny_money_owed > 0 ? usd(r.jonny_money_owed) : '—'}
         </td>
+        <td className="px-2 py-2 text-right">
+          {r.referral_name ? (
+            <div>
+              <div className="truncate text-xs text-cream">{r.referral_name}</div>
+              <div
+                className={[
+                  'avionic text-xs font-semibold',
+                  r.referral_paid_out ? 'text-muted line-through' : 'text-gold',
+                ].join(' ')}
+              >
+                {usd(r.referral_share_amount || 0)}
+                {r.referral_paid_out ? ' ✓' : ''}
+              </div>
+            </div>
+          ) : (
+            <span className="text-muted">—</span>
+          )}
+        </td>
         <td className="px-2 py-2">
           <div className="flex flex-wrap gap-1">
             <StatusPill label="Client" ok={clientOk} tone="onplan" />
             <StatusPill label="Op" ok={opOk} tone="gold" />
             <StatusPill label="Inv" ok={invOk} tone="attn" />
+            {Boolean(r.referral_name) && (
+              <StatusPill
+                label="Ref"
+                ok={r.referral_paid_out || (r.referral_share_amount || 0) <= 0}
+                tone="gold"
+              />
+            )}
             {alreadyInvoiced && (
               <StatusPill label="QB" ok tone="gold" />
             )}
@@ -796,7 +855,7 @@ function FragmentRow({
       </tr>
       {drawer && (
         <tr className="border-t border-border/40 bg-ink/60">
-          <td colSpan={15} className="px-3 py-3">
+          <td colSpan={16} className="px-3 py-3">
             {drawer === 'edit' ? (
               <EditDrawer r={r} />
             ) : drawer === 'op' ? (
@@ -959,6 +1018,23 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
                 e.target.value || null,
               )
             }
+            placeholder="Partner name"
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Referral share ($)
+          <input
+            key={`rfs-${r.id}-${r.referral_share_amount}`}
+            type="number"
+            className={`${field} avionic`}
+            defaultValue={r.referral_share_amount || 0}
+            onBlur={(e) =>
+              updateFinancialField(
+                r.id,
+                'referral_share_amount',
+                Number(e.target.value) || 0,
+              )
+            }
           />
         </label>
         <label className="text-xs text-muted">
@@ -1108,6 +1184,16 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
+            checked={r.referral_paid_out}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'referral_paid_out', e.target.checked)
+            }
+          />
+          Referral paid out
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
             checked={r.bill_logged_in_qb}
             onChange={(e) =>
               updateFinancialField(r.id, 'bill_logged_in_qb', e.target.checked)
@@ -1121,6 +1207,11 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
         {' · '}
         Investor owed{' '}
         <span className="avionic text-gold">{usd(r.jonny_money_owed)}</span>
+        {' · '}
+        Referral share{' '}
+        <span className="avionic text-gold">
+          {usd(r.referral_share_amount || 0)}
+        </span>
         {' · '}
         OFA profit{' '}
         <span className="avionic text-cream">{usd(r.ofa_profit_per_trip)}</span>
@@ -1311,9 +1402,24 @@ function ClientDrawer({
           />
           Investor paid
         </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={r.referral_paid_out}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'referral_paid_out', e.target.checked)
+            }
+          />
+          Referral paid out
+        </label>
         <span className="rounded-full border border-gold/40 px-2 py-0.5 text-xs text-gold">
           Inv ({r.funded_by ?? '—'}): {usd(r.jonny_money_owed || r.jonny_invested)}
         </span>
+        {r.referral_name && (
+          <span className="rounded-full border border-gold/40 px-2 py-0.5 text-xs text-gold">
+            Ref ({r.referral_name}): {usd(r.referral_share_amount || 0)}
+          </span>
+        )}
       </div>
     </div>
   )

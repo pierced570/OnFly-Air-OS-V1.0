@@ -29,6 +29,8 @@ import {
 import { tripInvoiceLines } from '@/domain/qbInvoice'
 import { raiseException } from '@/lib/exceptionStore'
 import { getEtaDefaults } from '@/lib/etaDefaultsStore'
+import { getReferral } from '@/lib/referralStore'
+import { computeReferralShareAmount } from '@/domain/referrals'
 import { roleOnOpsThread } from '@/domain/tripThread'
 
 const STORAGE_KEY = 'onfly.trips.v1'
@@ -218,6 +220,9 @@ export type QuickDispatchMeta = {
   cc_emails: string[]
   send_invoice: boolean
   referred_by: string
+  /** Optional one-off profit share $ (otherwise uses referral directory default). */
+  referral_share_amount?: number | null
+  referral_id?: string | null
   notes: string
   legs: Array<{
     origin_icao: string
@@ -319,6 +324,13 @@ export type TripStoreRow = {
   documents: TripDocument[]
   invoice: TripInvoice | null
   client_id?: string
+  /** Referral partner attached at book (profit share → financials). */
+  referral?: {
+    id: string | null
+    name: string
+    share_amount: number | null
+  } | null
+  po_number?: string | null
 }
 
 function syncLegsFromChain(t: TripStoreRow, chain: ChainLeg[]): void {
@@ -537,6 +549,21 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
       accept_token: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
       payload_kind: meta.cargo_only ? 'cargo' : 'pax',
     },
+    referral: (() => {
+      const person = meta.referral_id ? getReferral(meta.referral_id) : undefined
+      if (!person) return null
+      const share = computeReferralShareAmount({
+        share_mode: person.share_mode,
+        share_value: person.share_value,
+        margin: meta.client_price - meta.vendor_cost,
+        override_amount: meta.referral_share_amount,
+      })
+      return {
+        id: person.id,
+        name: person.name,
+        share_amount: share,
+      }
+    })(),
     events: [
       {
         at: new Date().toISOString(),
@@ -560,6 +587,9 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   trips.set(id, row)
   bump()
   schedulePersist(id)
+  void import('@/lib/ensureFinancialFromTrip').then((m) =>
+    m.ensureFinancialFromBookedTrip(getTrip(id)!),
+  )
   return row
 }
 
