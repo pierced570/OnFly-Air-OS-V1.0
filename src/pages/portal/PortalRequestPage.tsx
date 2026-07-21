@@ -60,6 +60,13 @@ export default function PortalRequestPage() {
     setEstimating(true)
     setEstimate(null)
     try {
+      // Phase A: create Trip on Board with banded shortlist (same spine as estimate)
+      try {
+        const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
+        await createRoutedTripFromRequest(row)
+      } catch (routeErr) {
+        console.warn('[portal] routed trip deferred', routeErr)
+      }
       const est = await estimatePortalRequest(row)
       setEstimate(est)
     } finally {

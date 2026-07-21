@@ -3,6 +3,7 @@
  */
 
 import type { Candidate } from '@/domain/routing'
+import type { BandShortlist } from '@/domain/shortlistBands'
 import type { ChainLeg, ServicePattern } from '@/domain/etaChain'
 import {
   applyActual,
@@ -29,7 +30,11 @@ import {
 import { tripInvoiceLines } from '@/domain/qbInvoice'
 import { raiseException } from '@/lib/exceptionStore'
 import { getEtaDefaults } from '@/lib/etaDefaultsStore'
+import { getReferral } from '@/lib/referralStore'
+import { computeReferralShareAmount } from '@/domain/referrals'
 import { roleOnOpsThread } from '@/domain/tripThread'
+import { listOnboardSubmissions } from '@/lib/operatorOnboardStore'
+import { listOperatorDrafts } from '@/lib/operatorDraftStore'
 
 const STORAGE_KEY = 'onfly.trips.v1'
 
@@ -179,6 +184,8 @@ export type OfferState =
   | 'stood_down'
   | 'expired'
 
+export type FeeScope = 'aircraft_only' | 'aircraft_and_fees'
+
 export type OfferRow = {
   id: string
   trip_id: string
@@ -195,6 +202,9 @@ export type OfferRow = {
   wait_ok: boolean | null
   max_wait_hrs: number | null
   price_net: number | null
+  /** Aircraft-only vs aircraft + all fees (operator landing). */
+  fee_scope: FeeScope | null
+  notes: string | null
   magic_token: string
   bookingGated: boolean
   needsInfo: string[]
@@ -218,6 +228,9 @@ export type QuickDispatchMeta = {
   cc_emails: string[]
   send_invoice: boolean
   referred_by: string
+  /** Optional one-off profit share $ (otherwise uses referral directory default). */
+  referral_share_amount?: number | null
+  referral_id?: string | null
   notes: string
   legs: Array<{
     origin_icao: string
@@ -302,6 +315,14 @@ export type TripStoreRow = {
     disclosure_text?: string
     disclosure_at?: string
     payload_kind: 'cargo' | 'pax' | 'both'
+    /** Client-safe multi-option cards (no operator cost / name / margin). */
+    options?: Array<{
+      offer_id: string
+      label: string
+      client_total: number
+      eta_end: string | null
+      fee_scope: FeeScope | null
+    }>
   }
   lost_reason?: string
   quick?: QuickDispatchMeta
@@ -319,6 +340,21 @@ export type TripStoreRow = {
   documents: TripDocument[]
   invoice: TripInvoice | null
   client_id?: string
+  /** Portal / dispatch request that spawned this trip. */
+  request_id?: string
+  /** Closest piston / turboprop / jet shortlist (Phase A). */
+  shortlist?: BandShortlist | null
+  po_number?: string | null
+  declared_value_usd?: number | null
+  hard_deadline_at?: string | null
+  forklift_recommended?: boolean
+  forklift_required?: boolean
+  /** Referral partner attached at book (profit share → financials). */
+  referral?: {
+    id: string | null
+    name: string
+    share_amount: number | null
+  } | null
 }
 
 function syncLegsFromChain(t: TripStoreRow, chain: ChainLeg[]): void {
@@ -372,6 +408,14 @@ function loadLocal(): void {
         released_at: p.released_at ?? null,
         invite_sent_at: p.invite_sent_at ?? null,
       }))
+      if (!Array.isArray(row.offers)) row.offers = []
+      row.offers = row.offers.map((o) => ({
+        ...o,
+        fee_scope: o.fee_scope ?? null,
+        notes: o.notes ?? null,
+      }))
+      if (row.shortlist === undefined) row.shortlist = null
+      if (row.request_id === undefined) row.request_id = undefined
       trips.set(row.id, row)
       if (typeof row.ref === 'number' && row.ref >= refSeq) refSeq = row.ref + 1
     }
@@ -398,6 +442,170 @@ export function subscribeTrips(fn: () => void): () => void {
 
 export function listTripsStable(): TripStoreRow[] {
   return snapshot
+}
+
+/** Resolve RFQ contact from onboard / drafts; fallback is stable E.164 from operator id. */
+export function resolveOperatorContactCell(
+  operatorId: string,
+  operatorName: string,
+): string {
+  const onboard = listOnboardSubmissions().find(
+    (s) =>
+      s.company_name.trim().toLowerCase() === operatorName.trim().toLowerCase(),
+  )
+  if (onboard) {
+    const normalized = normalizePhone(
+      onboard.after_hours_phone ||
+        onboard.primary_contact?.phone ||
+        onboard.company_phone,
+    )
+    if (normalized) return normalized
+  }
+  const draft = listOperatorDrafts().find(
+    (d) => d.name.trim().toLowerCase() === operatorName.trim().toLowerCase(),
+  )
+  const fromDraft = normalizePhone(draft?.contacts?.[0]?.cell)
+  if (fromDraft) return fromDraft
+
+  // Deterministic mock contact (not the old shared +1555 pool) so SMS simulator still works.
+  let hash = 0
+  for (const ch of operatorId || operatorName) hash = (hash * 31 + ch.charCodeAt(0)) | 0
+  const n = Math.abs(hash) % 9000000
+  return `+1415${String(1000000 + n).slice(-7)}`
+}
+
+function normalizePhone(raw: string | undefined | null): string | null {
+  if (!raw?.trim()) return null
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 10) return `+1${digits}`
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
+  if (raw.trim().startsWith('+') && digits.length >= 10) return `+${digits}`
+  return null
+}
+
+export function buildOfferRow(
+  tripId: string,
+  c: Candidate,
+  _index: number,
+): OfferRow {
+  return {
+    id: crypto.randomUUID(),
+    trip_id: tripId,
+    operator_id: c.operator_id,
+    operator_name: c.operator_name,
+    aircraft_id: c.aircraft_id,
+    tail: c.tail,
+    type_name: c.type_name,
+    state: 'pinged',
+    ping_sent_at: null,
+    replied_at: null,
+    time_to_position_min: null,
+    live_leg_min: null,
+    wait_ok: null,
+    max_wait_hrs: null,
+    price_net: null,
+    fee_scope: null,
+    notes: null,
+    magic_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
+    bookingGated: c.bookingGated,
+    needsInfo: c.needsInfo,
+    contact_cell: resolveOperatorContactCell(c.operator_id, c.operator_name),
+  }
+}
+
+/**
+ * Create trip at draft with banded shortlist, then transition → routed.
+ * No offers yet — dispatcher approves shortlist to spool.
+ */
+export function createRoutedTripWithShortlist(opts: {
+  request_id?: string
+  client_id?: string
+  lane: string
+  payload_summary: string
+  ready_label: string
+  payload_kind: 'cargo' | 'pax' | 'both'
+  candidates: Candidate[]
+  shortlist: BandShortlist
+  po_number?: string
+  declared_value_usd?: number | null
+  hard_deadline_at?: string | null
+  forklift_recommended?: boolean
+  forklift_required?: boolean
+}): TripStoreRow {
+  const id = crypto.randomUUID()
+  const chain = copyChainToTrip(
+    opts.candidates.find((c) => c.chain?.length)?.chain ?? [],
+  )
+  const defaults = getEtaDefaults()
+  const legs = chain.length ? asTripLegs(materializeChainToLegs(chain)) : []
+  const row: TripStoreRow = {
+    id,
+    ref: ++refSeq,
+    state: 'draft',
+    lane: opts.lane,
+    payload_summary: opts.payload_summary,
+    ready_label: opts.ready_label,
+    candidates: opts.candidates,
+    offers: [],
+    client_id: opts.client_id,
+    request_id: opts.request_id,
+    shortlist: opts.shortlist,
+    po_number: opts.po_number ?? null,
+    declared_value_usd: opts.declared_value_usd ?? null,
+    hard_deadline_at: opts.hard_deadline_at ?? null,
+    forklift_recommended: opts.forklift_recommended ?? false,
+    forklift_required: opts.forklift_required ?? false,
+    eta_chain: chain,
+    service_pattern: null,
+    promised_delivery: projectedDeliveryUtc(chain),
+    eta_defaults_snapshot: { ...defaults },
+    thread_number: null,
+    thread_disbanded_at: null,
+    legs,
+    participants: [
+      {
+        id: crypto.randomUUID(),
+        role: 'dispatcher',
+        name: 'On-shift',
+        cell: '',
+        email: '',
+        in_thread: true,
+        released_at: null,
+        invite_sent_at: null,
+      },
+    ],
+    thread: [],
+    documents: [],
+    invoice: null,
+    events: [
+      {
+        at: new Date().toISOString(),
+        actor: 'system',
+        kind: 'created_from_request',
+        payload: {
+          request_id: opts.request_id ?? null,
+          client_id: opts.client_id ?? null,
+          shortlist_tails: [
+            opts.shortlist.piston?.tail,
+            opts.shortlist.turboprop?.tail,
+            opts.shortlist.jet?.tail,
+          ].filter(Boolean),
+        },
+      },
+      {
+        at: new Date().toISOString(),
+        actor: 'system',
+        kind: 'payload_kind',
+        payload: { payload_kind: opts.payload_kind },
+      },
+    ],
+  }
+  trips.set(id, row)
+  bump()
+  schedulePersist(id)
+  return safeTransitionTrip(id, 'routed', 'system', {
+    reason: 'Banded shortlist ready for approve → spool',
+  })
 }
 
 export function createTripFromCandidates(opts: {
@@ -427,28 +635,11 @@ export function createTripFromCandidates(opts: {
     payload_summary: opts.payload_summary,
     ready_label: opts.ready_label,
     candidates: opts.candidates,
-    offers: opts.candidates.slice(0, 5).map((c, i) => ({
-      id: crypto.randomUUID(),
-      trip_id: id,
-      operator_id: c.operator_id,
-      operator_name: c.operator_name,
-      aircraft_id: c.aircraft_id,
-      tail: c.tail,
-      type_name: c.type_name,
-      state: 'pinged',
-      ping_sent_at: null,
-      replied_at: null,
-      time_to_position_min: null,
-      live_leg_min: null,
-      wait_ok: null,
-      max_wait_hrs: null,
-      price_net: null,
-      magic_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
-      bookingGated: c.bookingGated,
-      needsInfo: c.needsInfo,
-      contact_cell: `+1555000${String(1000 + i).slice(-4)}`,
-    })),
+    offers: opts.candidates.slice(0, 5).map((c, i) =>
+      buildOfferRow(id, c, i),
+    ),
     client_id: opts.client_id,
+    shortlist: null,
     eta_chain: chain,
     service_pattern: opts.service_pattern ?? null,
     promised_delivery: projectedDeliveryUtc(chain),
@@ -537,6 +728,21 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
       accept_token: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
       payload_kind: meta.cargo_only ? 'cargo' : 'pax',
     },
+    referral: (() => {
+      const person = meta.referral_id ? getReferral(meta.referral_id) : undefined
+      if (!person) return null
+      const share = computeReferralShareAmount({
+        share_mode: person.share_mode,
+        share_value: person.share_value,
+        margin: meta.client_price - meta.vendor_cost,
+        override_amount: meta.referral_share_amount,
+      })
+      return {
+        id: person.id,
+        name: person.name,
+        share_amount: share,
+      }
+    })(),
     events: [
       {
         at: new Date().toISOString(),
@@ -560,6 +766,9 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   trips.set(id, row)
   bump()
   schedulePersist(id)
+  void import('@/lib/ensureFinancialFromTrip').then((m) =>
+    m.ensureFinancialFromBookedTrip(getTrip(id)!),
+  )
   return row
 }
 
@@ -679,6 +888,54 @@ export function applyOfferTtpToTrip(
   })
 }
 
+/** Apply operator-quoted live leg minutes onto the first air_leg. */
+export function applyOfferLiveLegToTrip(
+  tripId: string,
+  offerId: string,
+  liveLegMin: number,
+): void {
+  if (!(liveLegMin > 0)) return
+  mutateTrip(tripId, (t) => {
+    const offer = t.offers.find((o) => o.id === offerId)
+    if (!offer) return
+
+    const cand =
+      t.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
+      t.candidates.find((c) => c.tail === offer.tail)
+
+    const applyTo = (chain: typeof t.eta_chain) => {
+      const air = chain.find((l) => l.type === 'air_leg')
+      if (!air) return null
+      return editDuration(chain, air.seq, liveLegMin, 'quoted')
+    }
+
+    if (cand?.chain?.length) {
+      const updated = applyTo(cand.chain)
+      if (updated) {
+        cand.chain = updated.chain
+        cand.eta_end = projectedDeliveryUtc(updated.chain) ?? cand.eta_end
+      }
+    }
+
+    if (t.eta_chain.length) {
+      const updated = applyTo(t.eta_chain)
+      if (updated) {
+        syncLegsFromChain(t, updated.chain)
+        t.events.push({
+          at: new Date().toISOString(),
+          actor: offer.operator_name,
+          kind: 'eta_live_leg_quoted',
+          payload: {
+            offer_id: offerId,
+            live_leg_min: liveLegMin,
+            slipped_min: updated.slippedMinutes,
+          },
+        })
+      }
+    }
+  })
+}
+
 /** Dispatcher edits an assumption cell on the trip sheet. */
 export function editTripEtaDuration(
   tripId: string,
@@ -752,6 +1009,43 @@ export function getTripByAcceptToken(token: string) {
 
 export function listTrips() {
   return [...trips.values()].sort((a, b) => b.ref - a.ref)
+}
+
+const CHAT_STATES = new Set<TripState>([
+  'offers_out',
+  'quoted_hard',
+  'booked',
+  'in_progress',
+  'delivered',
+])
+
+/**
+ * Trips that belong in the Chat menu — active ops threads first,
+ * then bookable/in-progress trips the dispatcher can join.
+ */
+export function listChatTrips(): TripStoreRow[] {
+  const score = (t: TripStoreRow) => {
+    const live = t.thread_number && !t.thread_disbanded_at ? 3 : 0
+    const hasMsgs = t.thread.length ? 2 : 0
+    const liveState = CHAT_STATES.has(t.state) ? 1 : 0
+    return live + hasMsgs + liveState
+  }
+  const lastAt = (t: TripStoreRow) =>
+    t.thread.at(-1)?.at ?? t.events.at(-1)?.at ?? ''
+
+  return [...trips.values()]
+    .filter(
+      (t) =>
+        score(t) > 0 ||
+        t.thread.length > 0 ||
+        Boolean(t.thread_number) ||
+        CHAT_STATES.has(t.state),
+    )
+    .sort((a, b) => {
+      const ds = score(b) - score(a)
+      if (ds !== 0) return ds
+      return lastAt(b).localeCompare(lastAt(a)) || b.ref - a.ref
+    })
 }
 
 export function mutateTrip(id: string, fn: (t: TripStoreRow) => void) {
@@ -1044,7 +1338,12 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   if (!(total > 0)) return null
   const { createAccountingAdapter } = await import('@/adapters/accounting')
   const acct = createAccountingAdapter()
-  const clientName = t.quick?.client_name ?? 'Client'
+  const clientName =
+    t.quick?.client_name ??
+    (t.client_id
+      ? (await import('@/lib/clientStore')).getClient(t.client_id)?.name
+      : undefined) ??
+    'Client'
   const po = t.quick?.po?.trim() || `T-${t.ref}`
   const txnDate = new Date().toISOString().slice(0, 10)
   const lines = tripInvoiceLines({

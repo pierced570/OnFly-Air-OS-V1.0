@@ -23,6 +23,7 @@ import {
 import { watchTailsFromD085 } from '@/lib/watchedTailsStore'
 import { createAccountingAdapter } from '@/adapters/accounting'
 import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
+import { ClientInvitePanel } from '@/components/ClientInvitePanel'
 import { listAdapterDoorStatus } from '@/lib/adapterStatus'
 import type { D085AircraftRow } from '@/domain/d085Parse'
 import {
@@ -38,8 +39,11 @@ import type { EtaDefaults } from '@/domain/etaChain'
 type WizardKind = 'invite' | 'operator' | 'client' | 'fbo'
 
 function EtaDefaultsPanel() {
-  useSyncExternalStore(subscribeEtaDefaults, getEtaDefaults, getEtaDefaults)
-  const defaults = getEtaDefaults()
+  const defaults = useSyncExternalStore(
+    subscribeEtaDefaults,
+    getEtaDefaults,
+    getEtaDefaults,
+  )
   const keys = Object.keys(ETA_DEFAULT_LABELS) as (keyof EtaDefaults)[]
 
   return (
@@ -104,6 +108,9 @@ const FBO_STEPS = ['Airport', 'Hours', 'Forklift', 'Fees', 'Summary']
 
 export default function AdminPage() {
   const [kind, setKind] = useState<WizardKind>('invite')
+  const [inviteAudience, setInviteAudience] = useState<'client' | 'operator'>(
+    'client',
+  )
   const doors = useMemo(() => listAdapterDoorStatus(), [])
 
   return (
@@ -111,8 +118,8 @@ export default function AdminPage() {
       <header>
         <h1 className="text-2xl font-semibold text-cream">Admin wizards</h1>
         <p className="mt-1 text-sm text-muted">
-          Invite operators by email, or run guided interviews — skip writes
-          NEEDS-INFO, never blank tables.
+          Invite clients or operators by email, or run guided interviews — skip
+          writes NEEDS-INFO, never blank tables.
         </p>
         <p className="mt-2 text-sm text-muted">
           Day-to-day contact flags:{' '}
@@ -192,7 +199,37 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {kind === 'invite' && <OperatorInvitePanel key="inv" />}
+      {kind === 'invite' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ['client', 'Client welcome'],
+                ['operator', 'Operator network'],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setInviteAudience(k)}
+                className={[
+                  'rounded-md px-3 py-1.5 text-xs',
+                  inviteAudience === k
+                    ? 'bg-gold/20 text-gold ring-1 ring-gold/40'
+                    : 'bg-surface text-muted',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {inviteAudience === 'client' ? (
+            <ClientInvitePanel key="client-inv" />
+          ) : (
+            <OperatorInvitePanel key="op-inv" />
+          )}
+        </div>
+      )}
       {kind === 'operator' && <OperatorWizard key="op" />}
       {kind === 'client' && <ClientWizard key="cl" />}
       {kind === 'fbo' && <FboWizard key="fbo" />}
@@ -753,10 +790,13 @@ function ClientWizard() {
   const [name, setName] = useState('')
   const [pay, setPay] = useState('Net 30')
   const [poPrefix, setPoPrefix] = useState('')
-  const [requiresPo, setRequiresPo] = useState(false)
+  const [poAssignedBy, setPoAssignedBy] = useState<'client' | 'onfly' | ''>('')
+  const [needsVendorNumber, setNeedsVendorNumber] = useState(false)
+  const [vendorNumberNotes, setVendorNumberNotes] = useState('')
   const [dual, setDual] = useState(false)
   const [freight, setFreight] = useState(false)
   const [multi, setMulti] = useState(false)
+  const [seTurboprop, setSeTurboprop] = useState(false)
   const [noSeNight, setNoSeNight] = useState(false)
   const [hazmatOk, setHazmatOk] = useState(true)
   const [hazmatNotes, setHazmatNotes] = useState('')
@@ -802,7 +842,9 @@ function ClientWizard() {
       })
     }
     const other: string[] = []
-    if (requiresPo) other.push('PO required on invoices')
+    if (poAssignedBy === 'client') other.push('PO assigned by client')
+    if (poAssignedBy === 'onfly') other.push('PO assigned by OnFly')
+    if (needsVendorNumber) other.push('Needs vendor number in client AP system')
     const client = addClient({
       name,
       pay_terms: pay,
@@ -813,6 +855,7 @@ function ClientWizard() {
         dual_pilot_required: dual,
         freight_only: freight,
         multi_engine_only: multi,
+        single_engine_turboprop_only: seTurboprop,
         no_single_engine_night: noSeNight,
         hazmat_allowed: hazmatOk,
         hazmat_notes: hazmatNotes,
@@ -822,7 +865,10 @@ function ClientWizard() {
       contacts,
       profile: {
         source: 'admin',
-        requires_po: requiresPo,
+        requires_po: poAssignedBy === 'client',
+        po_assigned_by: poAssignedBy || null,
+        needs_vendor_number: needsVendorNumber,
+        vendor_number_notes: vendorNumberNotes.trim() || undefined,
       },
     })
     for (const field of skipped) {
@@ -890,15 +936,32 @@ function ClientWizard() {
               <option>Other</option>
             </select>
           </label>
-          <label className="flex items-center gap-2 text-sm text-cream sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={requiresPo}
-              onChange={(e) => setRequiresPo(e.target.checked)}
-            />
-            Invoices require a PO number
-          </label>
-          {requiresPo && (
+          <fieldset className="sm:col-span-2 space-y-2">
+            <legend className="text-xs uppercase tracking-wider text-muted">
+              Who assigns PO numbers?
+            </legend>
+            <div className="flex flex-wrap gap-4 text-sm text-cream">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="admin_po_by"
+                  checked={poAssignedBy === 'client'}
+                  onChange={() => setPoAssignedBy('client')}
+                />
+                Client provides PO
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="admin_po_by"
+                  checked={poAssignedBy === 'onfly'}
+                  onChange={() => setPoAssignedBy('onfly')}
+                />
+                OnFly assigns PO
+              </label>
+            </div>
+          </fieldset>
+          {poAssignedBy === 'onfly' && (
             <label className={wizardLabel}>
               PO prefix
               <input
@@ -909,6 +972,30 @@ function ClientWizard() {
               />
             </label>
           )}
+          <fieldset className="sm:col-span-2 space-y-2">
+            <legend className="text-xs uppercase tracking-wider text-muted">
+              Vendor number in their system?
+            </legend>
+            <label className="flex items-center gap-2 text-sm text-cream">
+              <input
+                type="checkbox"
+                checked={needsVendorNumber}
+                onChange={(e) => setNeedsVendorNumber(e.target.checked)}
+              />
+              Needs OnFly as vendor / vendor #
+            </label>
+            {needsVendorNumber && (
+              <label className={wizardLabel}>
+                Registration notes
+                <input
+                  className={wizardInput}
+                  value={vendorNumberNotes}
+                  onChange={(e) => setVendorNumberNotes(e.target.value)}
+                  placeholder="Portal URL or AP contact"
+                />
+              </label>
+            )}
+          </fieldset>
           <p className="sm:col-span-2 text-xs text-muted">
             Same subjects as public{' '}
             <Link to="/client" className="text-gold">
@@ -943,11 +1030,23 @@ function ClientWizard() {
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
+              checked={seTurboprop}
+              onChange={(e) => setSeTurboprop(e.target.checked)}
+            />
+            Single-engine OK only if turboprop
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
               checked={noSeNight}
               onChange={(e) => setNoSeNight(e.target.checked)}
             />
             No single-engine at night
           </label>
+          <p className="text-xs text-muted">
+            Soft prefs (jet OK, cargo door, etc.) live on the public /client
+            form Other notes + preference checkboxes.
+          </p>
         </div>
       )}
       {step === 4 && (

@@ -25,6 +25,15 @@ export async function runOnBookedAutomations(tripId: string): Promise<{
 
   attachManifestDocument(trip)
 
+  try {
+    const { ensureFinancialFromBookedTrip } = await import(
+      '@/lib/ensureFinancialFromTrip'
+    )
+    ensureFinancialFromBookedTrip(trip)
+  } catch (e) {
+    console.warn('[onBooked] financial ledger upsert failed', e)
+  }
+
   // Timers for T-minus check-ins with pilot / ground / on-shift
   const scheduled = scheduleCheckpointsForTrip(tripId)
 

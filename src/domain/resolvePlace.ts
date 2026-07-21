@@ -15,8 +15,21 @@ function pickBest(hits: AirportInfo[], cityHint: string): AirportInfo | null {
     ? hits.filter((h) => h.city.toLowerCase() === city)
     : []
   const pool = cityHits.length ? cityHits : hits
-  const intl = pool.find((h) => /intl|international/i.test(h.name))
-  return intl ?? pool[0] ?? null
+  return [...pool].sort((a, b) => rankAirport(b) - rankAirport(a))[0] ?? null
+}
+
+/** Prefer airline/regional fields over tiny GA when resolving a city name. */
+function rankAirport(a: AirportInfo): number {
+  let s = 0
+  if (a.iata) s += 40
+  if (/regional/i.test(a.name)) s += 35
+  if (/intl|international/i.test(a.name)) s += 20
+  if (/canton|metro|international airport$/i.test(a.name)) s += 10
+  if (/municipal|private|heliport|field$/i.test(a.name) && !/regional|intl/i.test(a.name)) {
+    s -= 20
+  }
+  if (/fulton/i.test(a.name)) s -= 15
+  return s
 }
 
 /** Resolve "Akron, OH", "KHPN", "HPN", or "White Plains" → catalog row. */

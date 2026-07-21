@@ -37,7 +37,13 @@ export type TripRequestDraft = {
   direction: TripDirection
   hours_on_ground: number | ''
   service_mode: ServiceMode
+  /** Outbound legs (user-edited). */
   legs: TripLegDraft[]
+  /**
+   * Return legs when direction is round_trip — routes mirror outbound
+   * (reversed); date/time may be set independently for scheduled trips.
+   */
+  return_legs: TripLegDraft[]
   cargo_only: boolean
   pax: PaxRow[]
   hazmat: boolean
@@ -45,6 +51,14 @@ export type TripRequestDraft = {
   /** Length unit for cargo_notes L×W×H (stored pieces always convert to inches). */
   dim_unit: DimLengthUnit
   notes: string
+  /** Client PO — needed for invoice / hard quote. */
+  po_number: string
+  /** Declared cargo value USD (optional until required by client rules). */
+  declared_value_usd: number | ''
+  /** Hard delivery deadline (UTC ISO or local datetime-local string). */
+  hard_deadline_at: string
+  forklift_recommended: boolean
+  forklift_required: boolean
 }
 
 export type TripRequestRecord = TripRequestDraft & {
@@ -77,6 +91,56 @@ export function newLeg(partial?: Partial<TripLegDraft>): TripLegDraft {
   }
 }
 
+/** Swap origin/dest (and door addresses) for a return leg. */
+export function mirrorLeg(leg: TripLegDraft): TripLegDraft {
+  return newLeg({
+    origin_icao: leg.dest_icao,
+    dest_icao: leg.origin_icao,
+    pickup_address: leg.dropoff_address,
+    dropoff_address: leg.pickup_address,
+    pickup_tbd: leg.dropoff_tbd,
+    dropoff_tbd: leg.pickup_tbd,
+  })
+}
+
+/**
+ * Return itinerary = reverse outbound order with endpoints swapped
+ * (A→B→C becomes C→B→A).
+ */
+export function buildReturnLegs(outbound: TripLegDraft[]): TripLegDraft[] {
+  return [...outbound].reverse().map(mirrorLeg)
+}
+
+/**
+ * Keep return date/time (and stable ids) while refreshing mirrored routes
+ * from the current outbound legs.
+ */
+export function syncReturnLegs(
+  outbound: TripLegDraft[],
+  existingReturn: TripLegDraft[] = [],
+): TripLegDraft[] {
+  return buildReturnLegs(outbound).map((mirrored, i) => {
+    const prev = existingReturn[i]
+    if (!prev) return mirrored
+    return {
+      ...mirrored,
+      id: prev.id,
+      date: prev.date,
+      pickup_time: prev.pickup_time,
+    }
+  })
+}
+
+/** Full lane: outbound + return when round trip. */
+export function itineraryLegs(draft: TripRequestDraft): TripLegDraft[] {
+  if (draft.direction !== 'round_trip') return draft.legs
+  const returns =
+    draft.return_legs.length > 0
+      ? draft.return_legs
+      : buildReturnLegs(draft.legs)
+  return [...draft.legs, ...returns]
+}
+
 export function emptyTripRequestDraft(): TripRequestDraft {
   return {
     email: '',
@@ -87,12 +151,18 @@ export function emptyTripRequestDraft(): TripRequestDraft {
     hours_on_ground: '',
     service_mode: 'a2a',
     legs: [newLeg()],
+    return_legs: [],
     cargo_only: true,
     pax: [],
     hazmat: false,
     cargo_notes: '',
     dim_unit: 'in',
     notes: '',
+    po_number: '',
+    declared_value_usd: '',
+    hard_deadline_at: '',
+    forklift_recommended: false,
+    forklift_required: false,
   }
 }
 
@@ -131,7 +201,7 @@ function shortPlace(address: string, icao: string): string {
 }
 
 export function laneFromDraft(draft: TripRequestDraft): string {
-  return draft.legs
+  return itineraryLegs(draft)
     .map((l) => {
       const o = shortPlace(l.pickup_address, l.origin_icao)
       const d = shortPlace(l.dropoff_address, l.dest_icao)
@@ -223,6 +293,20 @@ export function validateTripRequest(
       issues.push({
         field: 'hours_on_ground',
         message: 'Round trip needs hours on the ground',
+      })
+    }
+    const returns =
+      draft.return_legs.length > 0
+        ? draft.return_legs
+        : buildReturnLegs(draft.legs)
+    if (draft.timing === 'scheduled') {
+      returns.forEach((leg, i) => {
+        if (!leg.date) {
+          issues.push({
+            field: `return.${i}.date`,
+            message: `Return leg ${i + 1}: date required for scheduled`,
+          })
+        }
       })
     }
   }

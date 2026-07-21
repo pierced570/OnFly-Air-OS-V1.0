@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
+    "generate:airports": "tsx scripts/generate-airports.ts",
     "import:fleet": "tsx scripts/import.ts",
     "import:fleet:fixtures": "tsx scripts/import.ts --fixtures-only",
     "db:migrate": "tsx scripts/apply-migration.ts",
@@ -19,7 +20,8 @@
     "import:fbos": "tsx scripts/import-fbos-csv.ts",
     "deploy:send-email": "tsx scripts/deploy-send-email.ts",
     "deploy:vendors": "tsx scripts/deploy-vendor-functions.ts",
-    "sync:vercel-env": "tsx scripts/sync-vercel-env.ts"
+    "sync:vercel-env": "tsx scripts/sync-vercel-env.ts",
+    "sync:vault-bootstrap": "tsx scripts/sync-vault-bootstrap.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.6",
@@ -44,6 +46,7 @@
     "pg": "^8.22.0",
     "tsx": "^4.23.1",
     "typescript": "~6.0.2",
+    "tz-lookup": "^6.1.25",
     "vite": "^8.1.1",
     "vitest": "^4.1.10"
   }
