@@ -524,6 +524,21 @@ function ClientDetail({
               placeholder="W-9 / banking destination"
             />
           </label>
+          {profile.needs_vendor_number && (
+            <label className={label}>
+              Vendor # instructions
+              <input
+                className={input}
+                value={profile.vendor_number_notes ?? ''}
+                onChange={(e) =>
+                  patchProfile({
+                    vendor_number_notes: e.target.value || undefined,
+                  })
+                }
+                placeholder="Portal / AP contact for vendor registration"
+              />
+            </label>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -655,13 +670,35 @@ function ClientDetail({
         </div>
 
         <div className="flex flex-wrap gap-4 text-sm text-cream">
+          <label className={label}>
+            PO assigned by
+            <select
+              className={input}
+              value={profile.po_assigned_by ?? ''}
+              onChange={(e) => {
+                const v = e.target.value
+                const po_assigned_by =
+                  v === 'client' || v === 'onfly' ? v : null
+                patchProfile({
+                  po_assigned_by,
+                  requires_po: po_assigned_by === 'client',
+                })
+              }}
+            >
+              <option value="">— confirm —</option>
+              <option value="client">Client provides PO</option>
+              <option value="onfly">OnFly assigns PO</option>
+            </select>
+          </label>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={Boolean(profile.requires_po)}
-              onChange={(e) => patchProfile({ requires_po: e.target.checked })}
+              checked={Boolean(profile.needs_vendor_number)}
+              onChange={(e) =>
+                patchProfile({ needs_vendor_number: e.target.checked })
+              }
             />
-            PO required
+            Needs vendor #
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -838,6 +875,18 @@ function ClientDetail({
               }
             />
             Multi-engine only
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={client.rules.single_engine_turboprop_only}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { single_engine_turboprop_only: e.target.checked },
+                })
+              }
+            />
+            SE OK if turboprop
           </label>
           <label className="flex items-center gap-2">
             <input

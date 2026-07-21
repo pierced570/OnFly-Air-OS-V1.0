@@ -9,6 +9,9 @@
  * seeds directory names from financials.json (lazy) so Financials clients appear here.
  */
 
+import { hardFiltersFromPolicy } from '@/domain/clientOnboard'
+import type { ClientRules as RoutingClientRules } from '@/domain/routing'
+
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
 
 export type ContactNotifyPrefs = {
@@ -33,6 +36,8 @@ export type ClientRules = {
   dual_pilot_required: boolean
   freight_only: boolean
   multi_engine_only: boolean
+  /** Single-engine allowed only when turboprop (Chunk 6 interview). */
+  single_engine_turboprop_only: boolean
   no_single_engine_night: boolean
   hazmat_allowed: boolean
   hazmat_notes: string
@@ -44,6 +49,7 @@ export const DEFAULT_CLIENT_RULES: ClientRules = {
   dual_pilot_required: false,
   freight_only: false,
   multi_engine_only: false,
+  single_engine_turboprop_only: false,
   no_single_engine_night: false,
   hazmat_allowed: true,
   hazmat_notes: '',
@@ -78,12 +84,29 @@ export type ClientExtendedProfile = {
   }>
   no_frequent_lanes?: boolean
   requires_po?: boolean
-  card_on_file?: boolean | null
+  /** client = they provide PO; onfly = we generate */
+  po_assigned_by?: 'client' | 'onfly' | null
+  needs_vendor_number?: boolean | null
+  vendor_number_notes?: string
   vendor_packet_to?: string
   update_channel?: 'email' | 'sms' | 'both'
+  /** Freight vs passenger aircraft policies from /client setup. */
+  freight_policy?: {
+    dual_pilot_only: boolean
+    multi_engine_only: boolean
+    single_engine_ok: boolean
+    single_engine_turboprop_ok: boolean
+    exceptions_with_permission: boolean
+  }
+  passenger_policy?: {
+    dual_pilot_only: boolean
+    multi_engine_only: boolean
+    single_engine_ok: boolean
+    single_engine_turboprop_ok: boolean
+    exceptions_with_permission: boolean
+  }
   shipping_flags?: {
     hazmat_sometimes?: boolean
-    temp_control?: boolean
     oversized?: boolean
     high_declared_value?: boolean
   }
@@ -347,6 +370,55 @@ export function updateClient(
   return row
 }
 
+/**
+ * Routing hard filters for a trip's payload kind.
+ * Cargo (and freight-only clients) use stored `rules` (freight column).
+ * Passenger trips overlay `profile.passenger_policy`.
+ * Both → stricter merge of freight rules + passenger policy.
+ */
+export function clientRulesForRouting(
+  client: ClientProfile | undefined,
+  payloadKind: 'cargo' | 'pax' | 'both',
+): RoutingClientRules {
+  if (!client) return {}
+  const base: RoutingClientRules = {
+    dual_pilot_required: client.rules.dual_pilot_required,
+    freight_only: client.rules.freight_only,
+    multi_engine_only: client.rules.multi_engine_only,
+    single_engine_turboprop_only: client.rules.single_engine_turboprop_only,
+    no_single_engine_night: client.rules.no_single_engine_night,
+    hazmat_allowed: client.rules.hazmat_allowed,
+  }
+  if (payloadKind === 'cargo') return base
+
+  const paxPol = client.profile.passenger_policy
+  if (!paxPol) return base
+  const hard = hardFiltersFromPolicy(paxPol)
+
+  if (payloadKind === 'pax') {
+    return {
+      ...base,
+      dual_pilot_required: hard.dual_pilot_required,
+      multi_engine_only: hard.multi_engine_only,
+      single_engine_turboprop_only: hard.single_engine_turboprop_only,
+    }
+  }
+
+  const multi = Boolean(base.multi_engine_only || hard.multi_engine_only)
+  return {
+    ...base,
+    dual_pilot_required: Boolean(
+      base.dual_pilot_required || hard.dual_pilot_required,
+    ),
+    multi_engine_only: multi,
+    single_engine_turboprop_only: multi
+      ? false
+      : Boolean(
+          base.single_engine_turboprop_only || hard.single_engine_turboprop_only,
+        ),
+  }
+}
+
 /** Chips for quote screens. */
 export function clientRuleChips(clientId: string): string[] {
   const c = clients.get(clientId)
@@ -355,6 +427,8 @@ export function clientRuleChips(clientId: string): string[] {
   if (c.rules.dual_pilot_required) chips.push('Dual pilot required')
   if (c.rules.freight_only) chips.push('Freight only')
   if (c.rules.multi_engine_only) chips.push('Multi-engine only')
+  if (c.rules.single_engine_turboprop_only)
+    chips.push('SE OK only if turboprop')
   if (c.rules.no_single_engine_night) chips.push('No SE night')
   if (!c.rules.hazmat_allowed) chips.push('No hazmat')
   else if (c.rules.hazmat_notes) chips.push(`Hazmat: ${c.rules.hazmat_notes}`)

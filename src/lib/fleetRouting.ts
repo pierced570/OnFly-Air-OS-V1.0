@@ -42,6 +42,7 @@ export async function loadFleetForRouting(): Promise<AircraftCandidateSource[]> 
       ? (lookupAirport(a.base_icao) ?? AIRPORTS[a.base_icao])
       : null
     const spec = a.type_name ? specs.get(a.type_name) : undefined
+    const rate = a.rate_per_nm == null ? null : Number(a.rate_per_nm)
     return {
       id: a.id,
       operator_id: a.operator_id,
@@ -50,21 +51,25 @@ export async function loadFleetForRouting(): Promise<AircraftCandidateSource[]> 
       type_name: a.type_name,
       category: a.category,
       engines: a.engines,
-      cargo_pax: null,
+      cargo_pax: a.cargo_pax ?? null,
       seats: a.seats,
       base_icao: a.base_icao,
       base: ap
         ? { lat: ap.lat, lon: ap.lon, icao: ap.icao, tz: ap.tz }
         : undefined,
       cruise_kts: a.cruise_kts ?? spec?.cruise_kts ?? null,
-      range_nm: spec?.range_nm ?? null,
+      range_nm: a.range_nm ?? spec?.range_nm ?? null,
       max_payload_lbs: a.max_payload_lbs ?? spec?.max_payload_lbs ?? null,
       mtow_lbs: a.mtow_lbs ?? spec?.mtow_lbs ?? null,
       door_w_in: a.door_w_in ?? spec?.door_w_in ?? null,
       door_h_in: a.door_h_in ?? spec?.door_h_in ?? null,
-      crew: null,
-      rate_per_nm: null,
-      rate_source: 'assumption' as const,
+      crew: a.crew ?? null,
+      insurance_expiry: a.insurance_expiry ?? null,
+      rate_per_nm: rate != null && Number.isFinite(rate) ? rate : null,
+      rate_source:
+        rate != null && Number.isFinite(rate)
+          ? ('block_rate' as const)
+          : ('assumption' as const),
     }
   })
 }

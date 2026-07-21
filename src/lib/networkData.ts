@@ -80,6 +80,25 @@ function enrichAircraftFromSpecs(
   })
 }
 
+function buildRateByKey(
+  rates: Array<Record<string, unknown>> | null,
+): Map<string, number> {
+  const rateByKey = new Map<string, number>()
+  if (!rates) return rateByKey
+  const today = new Date().toISOString().slice(0, 10)
+  for (const row of rates) {
+    const from = row.effective_from ? String(row.effective_from) : null
+    const to = row.effective_to ? String(row.effective_to) : null
+    if (from && from > today) continue
+    if (to && to < today) continue
+    const rpm = row.rate_per_nm == null ? null : Number(row.rate_per_nm)
+    if (rpm == null || !Number.isFinite(rpm)) continue
+    const key = `${row.operator_id}::${String(row.type_name ?? '').trim()}`
+    if (!rateByKey.has(key)) rateByKey.set(key, rpm)
+  }
+  return rateByKey
+}
+
 export async function loadNetwork(): Promise<LoadedNetwork> {
   if (cached) return cached
 
@@ -89,6 +108,7 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
       { data: aircraft, error: aErr },
       { data: specs, error: sErr },
       { data: contacts, error: cErr },
+      { data: rates, error: rErr },
     ] = await Promise.all([
       supabase
         .from('operators')
@@ -96,13 +116,16 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
       supabase
         .from('aircraft')
         .select(
-          'id,operator_id,tail,type_name,category,engines,cargo_pax,base_icao,cruise_kts,range_nm,mtow_lbs,max_payload_lbs,seats,door_type,door_w_in,door_h_in,cabin_l_ft,cabin_w_ft,cabin_h_ft,cabin_vol_cuft,needs_info,active,operators(name)',
+          'id,operator_id,tail,type_name,category,engines,cargo_pax,crew,base_icao,cruise_kts,range_nm,mtow_lbs,max_payload_lbs,seats,door_type,door_w_in,door_h_in,cabin_l_ft,cabin_w_ft,cabin_h_ft,cabin_vol_cuft,insurance_expiry,needs_info,active,operators(name)',
         ),
       supabase.from('type_specs').select('*'),
       supabase
         .from('operator_contacts')
         .select('operator_id,name,role,cell,email')
         .order('created_at', { ascending: true }),
+      supabase
+        .from('rates_block')
+        .select('operator_id,type_name,rate_per_nm,effective_from,effective_to'),
     ])
     // Only use live DB when it actually has fleet rows — empty project
     // must fall through to the bundled fixture or intake/quote recommend nothing.
@@ -123,6 +146,8 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
         }
       }
 
+      const rateByKey = !rErr ? buildRateByKey(rates as Array<Record<string, unknown>> | null) : new Map<string, number>()
+
       const ops: OperatorRow[] = operators.map((o) => {
         const ct = contactByOp.get(o.id as string)
         return {
@@ -140,15 +165,18 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
       })
       let acs: AircraftRow[] = aircraft.map((a) => {
         const opRel = a.operators as unknown as { name: string } | null
+        const typeName = (a.type_name as string | null) ?? null
+        const rateKey = `${a.operator_id}::${(typeName ?? '').trim()}`
         return {
           id: a.id as string,
           operator_id: a.operator_id as string,
           operator_name: opRel?.name ?? '',
           tail: a.tail as string,
-          type_name: (a.type_name as string | null) ?? null,
+          type_name: typeName,
           category: (a.category as string | null) ?? null,
           engines: (a.engines as string | null) ?? null,
           cargo_pax: (a.cargo_pax as string | null) ?? null,
+          crew: (a.crew as string | null) ?? null,
           base_icao: (a.base_icao as string | null) ?? null,
           cruise_kts: (a.cruise_kts as number | null) ?? null,
           range_nm: (a.range_nm as number | null) ?? null,
@@ -156,12 +184,16 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
           max_payload_lbs: (a.max_payload_lbs as number | null) ?? null,
           seats: (a.seats as number | null) ?? null,
           door_type: (a.door_type as string | null) ?? null,
-          door_w_in: (a.door_w_in as number | null) ?? null,
-          door_h_in: (a.door_h_in as number | null) ?? null,
+          door_w_in: a.door_w_in == null ? null : Number(a.door_w_in),
+          door_h_in: a.door_h_in == null ? null : Number(a.door_h_in),
           cabin_l_ft: (a.cabin_l_ft as number | null) ?? null,
           cabin_w_ft: (a.cabin_w_ft as number | null) ?? null,
           cabin_h_ft: (a.cabin_h_ft as number | null) ?? null,
           cabin_vol_cuft: (a.cabin_vol_cuft as number | null) ?? null,
+          insurance_expiry: a.insurance_expiry
+            ? String(a.insurance_expiry)
+            : null,
+          rate_per_nm: rateByKey.get(rateKey) ?? null,
           fet_applies: null,
           needs_info: (a.needs_info as AircraftRow['needs_info']) ?? [],
           active: Boolean(a.active),

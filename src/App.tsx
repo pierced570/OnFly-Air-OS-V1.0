@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DispatchShell } from '@/components/DispatchShell'
 import { StaffGate } from '@/components/StaffGate'
@@ -61,9 +61,27 @@ function isPublic(pathname: string) {
   )
 }
 
+/** Cream client surfaces — keep <html> theme in sync so tokens aren't dark. */
+function isClientThemePath(pathname: string) {
+  return (
+    pathname.startsWith('/portal') ||
+    pathname === '/client' ||
+    pathname.startsWith('/client/') ||
+    pathname.startsWith('/accept/') ||
+    pathname === '/onboard' ||
+    pathname.startsWith('/onboard/')
+  )
+}
+
 export function App() {
   const loc = useLocation()
   const publicRoute = isPublic(loc.pathname)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = isClientThemePath(loc.pathname)
+      ? 'client'
+      : 'dispatcher'
+  }, [loc.pathname])
 
   const routes = (
     <Suspense fallback={<Fallback />}>

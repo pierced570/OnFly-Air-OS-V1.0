@@ -13,16 +13,23 @@ import {
   type ClientAddress,
   type ClientOnboardDraft,
   type ClientOnboardPerson,
+  type MissionAircraftPolicy,
   type PayTermsRequest,
   type UpdateChannel,
 } from '@/domain/clientOnboard'
 import { submitClientOnboard } from '@/lib/clientOnboardStore'
 
 const inputCls =
-  'mt-1 w-full rounded-md border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-gold'
-const labelCls = 'block text-xs font-medium text-muted'
+  'mt-1.5 w-full rounded-md border border-[#d4cfc0] bg-white px-3 py-3 text-base text-[#0c0c0e] placeholder:text-[#8a8680] outline-none transition-colors focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/25'
+const labelCls = 'block text-sm font-semibold text-[#2a2a2e]'
+const hintCls = 'text-sm leading-relaxed text-[#5c574c]'
 const sectionCls =
-  'rounded-lg border border-border bg-surface-2/40 p-4 sm:p-5 space-y-3'
+  'space-y-4 rounded-xl border border-[#e5dfd0] bg-white p-5 shadow-sm sm:p-6'
+const checkCls =
+  'flex items-start gap-3 text-sm leading-snug text-[#0c0c0e] [&_input]:mt-0.5 [&_input]:h-4 [&_input]:w-4 [&_input]:shrink-0'
+const airportInputCls =
+  'mt-1.5 w-full rounded-md border border-[#d4cfc0] bg-white px-3 py-3 text-base text-[#0c0c0e] outline-none focus:border-[#c9a227]'
+const sectionTitleCls = 'text-lg font-semibold tracking-tight text-[#0c0c0e]'
 
 export default function ClientOnboardPage() {
   const [draft, setDraft] = useState<ClientOnboardDraft>(() =>
@@ -59,29 +66,33 @@ export default function ClientOnboardPage() {
 
   if (done) {
     return (
-      <div className="min-h-screen bg-cream text-ink" data-theme="client">
-        <header className="border-b border-border px-6 py-4">
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">
+      <div className="min-h-screen bg-[#f7f2e3] text-[#0c0c0e]" data-theme="client">
+        <header className="border-b border-[#e5dfd0] bg-white px-6 py-5">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c9a227]">
             OnFly Air
           </div>
-          <h1 className="text-xl font-semibold">You&apos;re set up</h1>
+          <p className="mt-1 text-sm text-[#5c574c]">ASAP Aircraft Services</p>
+          <h1 className="mt-3 text-2xl font-semibold text-[#0c0c0e]">
+            You&apos;re set up
+          </h1>
         </header>
         <main className="mx-auto max-w-lg space-y-4 p-6">
-          <p className="text-sm text-muted">
-            <span className="font-medium text-ink">{done.name}</span> is in our
-            client directory. Tracking, invoices, and escalations will use the
-            contacts you provided. Our team may follow up on billing setup.
+          <p className={hintCls}>
+            <span className="font-semibold text-[#0c0c0e]">{done.name}</span> is
+            in our client directory. Tracking, invoices, and escalations will
+            use the contacts you provided. Our team may follow up on billing
+            setup.
           </p>
           <div className="flex flex-wrap gap-2">
             <Link
               to="/portal/request"
-              className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
+              className="rounded-md bg-[#c9a227] px-4 py-2.5 text-sm font-semibold text-[#0c0c0e] hover:bg-[#e3b341]"
             >
               Request a trip
             </Link>
             <Link
               to="/portal"
-              className="rounded-md border border-border px-4 py-2 text-sm text-ink"
+              className="rounded-md border border-[#d4cfc0] bg-white px-4 py-2.5 text-sm font-medium text-[#0c0c0e]"
             >
               Portal home
             </Link>
@@ -92,23 +103,28 @@ export default function ClientOnboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cream text-ink" data-theme="client">
-      <header className="border-b border-border px-6 py-4">
-        <div className="text-xs uppercase tracking-[0.2em] text-gold">
-          OnFly Air
+    <div className="min-h-screen bg-[#f7f2e3] text-[#0c0c0e]" data-theme="client">
+      <header className="border-b border-[#e5dfd0] bg-white px-6 py-5">
+        <div className="mx-auto max-w-2xl">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c9a227]">
+            OnFly Air
+          </div>
+          <p className="mt-1 text-sm text-[#5c574c]">ASAP Aircraft Services</p>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#0c0c0e] sm:text-3xl">
+            Client setup
+          </h1>
+          <p className={`mt-2 max-w-xl ${hintCls}`}>
+            Company, people, billing, and aircraft rules — the same profile our
+            dispatchers maintain.
+          </p>
         </div>
-        <h1 className="text-xl font-semibold">Client setup</h1>
-        <p className="mt-1 text-sm text-muted">
-          Company, people, billing, and aircraft rules — the same profile our
-          dispatchers maintain. We never ask for card numbers here.
-        </p>
       </header>
 
-      <main className="mx-auto max-w-2xl p-4 sm:p-6">
+      <main className="mx-auto max-w-2xl p-4 pb-16 sm:p-6">
         <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
           {/* 1 Company */}
           <section className={sectionCls}>
-            <h2 className="text-sm font-semibold text-ink">1. Company</h2>
+            <h2 className={sectionTitleCls}>1. Company</h2>
             <label className={labelCls}>
               Legal name *
               <input
@@ -118,7 +134,7 @@ export default function ClientOnboardPage() {
                 required
               />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <label className={labelCls}>
                 DBA (if different)
                 <input
@@ -142,7 +158,7 @@ export default function ClientOnboardPage() {
               address={draft.address}
               onChange={(address) => patch({ address })}
             />
-            <label className="flex items-center gap-2 text-sm text-ink">
+            <label className={checkCls}>
               <input
                 type="checkbox"
                 checked={draft.billing_same_as_address}
@@ -172,17 +188,17 @@ export default function ClientOnboardPage() {
 
           {/* 2 People */}
           <section className={sectionCls}>
-            <h2 className="text-sm font-semibold text-ink">2. People</h2>
-            <p className="text-xs text-muted">
-              Ops / requesters get tracking · AP gets invoices · Supply-chain
-              supervisors get trackers · Emergency is 24/7.
+            <h2 className={sectionTitleCls}>2. People</h2>
+            <p className={hintCls}>
+              Ops / requesters get tracking. AP gets invoices. Supply-chain
+              supervisors get trackers. Emergency is 24/7.
             </p>
             <PersonFields
               title="Ops / requester (aircraft & logistics) *"
               person={draft.ops}
               onChange={(p) => patchPerson('ops', p)}
             />
-            <label className="flex items-center gap-2 text-sm text-ink">
+            <label className={checkCls}>
               <input
                 type="checkbox"
                 checked={draft.ap_same_as_ops}
@@ -208,14 +224,14 @@ export default function ClientOnboardPage() {
                 inputMode="tel"
               />
             </label>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className={labelCls}>
                   Supply-chain / supervisor emails (trackers)
                 </span>
                 <button
                   type="button"
-                  className="text-xs text-gold"
+                  className="shrink-0 text-sm font-semibold text-[#c9a227] hover:text-[#e3b341]"
                   onClick={() =>
                     patch({
                       supervisors: [
@@ -229,7 +245,7 @@ export default function ClientOnboardPage() {
                 </button>
               </div>
               {draft.supervisors.map((s, i) => (
-                <div key={i} className="grid gap-2 sm:grid-cols-3">
+                <div key={i} className="grid gap-3 sm:grid-cols-3">
                   <input
                     className={inputCls}
                     placeholder="Name"
@@ -263,7 +279,7 @@ export default function ClientOnboardPage() {
                 </div>
               ))}
             </div>
-            <label className="flex items-center gap-2 text-sm text-ink">
+            <label className={checkCls}>
               <input
                 type="checkbox"
                 checked={draft.emergency_same_as_ops}
@@ -285,7 +301,7 @@ export default function ClientOnboardPage() {
 
           {/* 3 Billing */}
           <section className={sectionCls}>
-            <h2 className="text-sm font-semibold text-ink">3. Billing</h2>
+            <h2 className={sectionTitleCls}>3. Billing</h2>
             <label className={labelCls}>
               Pay terms
               <select
@@ -302,53 +318,99 @@ export default function ClientOnboardPage() {
                 <option value="other">Other (we&apos;ll confirm)</option>
               </select>
             </label>
-            <label className="flex items-center gap-2 text-sm text-ink">
-              <input
-                type="checkbox"
-                checked={draft.requires_po}
-                onChange={(e) => patch({ requires_po: e.target.checked })}
-              />
-              Invoices require a PO number
-            </label>
-            {draft.requires_po && (
-              <label className={labelCls}>
-                Preferred PO prefix (letters)
-                <input
-                  className={`${inputCls} font-mono uppercase`}
-                  value={draft.po_prefix}
-                  onChange={(e) => patch({ po_prefix: e.target.value })}
-                  placeholder="e.g. PSA"
-                  maxLength={8}
-                />
-              </label>
-            )}
+
             <fieldset>
-              <legend className="text-xs font-medium text-muted">
-                Card on file?
-              </legend>
-              <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                {(
-                  [
-                    [true, 'Yes — send secure link'],
-                    [false, 'No'],
-                    [null, 'Not sure'],
-                  ] as const
-                ).map(([val, label]) => (
-                  <label key={String(val)} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="card"
-                      checked={draft.card_on_file === val}
-                      onChange={() => patch({ card_on_file: val })}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <p className="mt-1 text-[11px] text-muted">
-                We never collect card numbers on this form.
+              <legend className={labelCls}>Who assigns PO numbers?</legend>
+              <p className={`mt-1 ${hintCls}`}>
+                Every company is different — tell us who issues the PO.
               </p>
+              <div className="mt-3 flex flex-col gap-3 text-sm text-[#0c0c0e]">
+                <label className={checkCls}>
+                  <input
+                    type="radio"
+                    name="po_by"
+                    checked={draft.po_assigned_by === 'client'}
+                    onChange={() => patch({ po_assigned_by: 'client' })}
+                  />
+                  <span>
+                    <span className="font-medium">Our company</span>
+                    <span className="mt-0.5 block text-[#5c574c]">
+                      We provide the PO — put it on the invoice when we send it
+                    </span>
+                  </span>
+                </label>
+                <label className={checkCls}>
+                  <input
+                    type="radio"
+                    name="po_by"
+                    checked={draft.po_assigned_by === 'onfly'}
+                    onChange={() => patch({ po_assigned_by: 'onfly' })}
+                  />
+                  <span>
+                    <span className="font-medium">OnFly</span>
+                    <span className="mt-0.5 block text-[#5c574c]">
+                      You assign / generate PO numbers for us
+                    </span>
+                  </span>
+                </label>
+              </div>
+              {draft.po_assigned_by === 'onfly' && (
+                <label className={`${labelCls} mt-3`}>
+                  Preferred PO prefix (optional)
+                  <input
+                    className={`${inputCls} font-mono uppercase`}
+                    value={draft.po_prefix}
+                    onChange={(e) => patch({ po_prefix: e.target.value })}
+                    placeholder="e.g. PSA"
+                    maxLength={8}
+                  />
+                </label>
+              )}
             </fieldset>
+
+            <fieldset>
+              <legend className={labelCls}>
+                Vendor number in your system?
+              </legend>
+              <p className={`mt-1 ${hintCls}`}>
+                Do you need OnFly registered as a vendor / a vendor number in
+                your AP or procurement system before invoices can be paid?
+              </p>
+              <div className="mt-3 flex flex-col gap-3 text-sm text-[#0c0c0e] sm:flex-row sm:flex-wrap sm:gap-4">
+                <label className={checkCls}>
+                  <input
+                    type="radio"
+                    name="vendor_num"
+                    checked={draft.needs_vendor_number === true}
+                    onChange={() => patch({ needs_vendor_number: true })}
+                  />
+                  Yes — we need a vendor number / registration
+                </label>
+                <label className={checkCls}>
+                  <input
+                    type="radio"
+                    name="vendor_num"
+                    checked={draft.needs_vendor_number === false}
+                    onChange={() => patch({ needs_vendor_number: false })}
+                  />
+                  No
+                </label>
+              </div>
+              {draft.needs_vendor_number === true && (
+                <label className={`${labelCls} mt-3`}>
+                  How do we register / where do we get the vendor #?
+                  <input
+                    className={inputCls}
+                    value={draft.vendor_number_notes}
+                    onChange={(e) =>
+                      patch({ vendor_number_notes: e.target.value })
+                    }
+                    placeholder="Portal URL, AP contact, or instructions"
+                  />
+                </label>
+              )}
+            </fieldset>
+
             <label className={labelCls}>
               Vendor registration / where to send our W-9 + banking packet
               <input
@@ -360,111 +422,127 @@ export default function ClientOnboardPage() {
             </label>
           </section>
 
-          {/* 4 Aircraft & cargo rules — Admin ClientWizard parity */}
+          {/* 4 Aircraft & cargo rules — freight vs passenger columns */}
           <section className={sectionCls}>
-            <h2 className="text-sm font-semibold text-ink">
-              4. Aircraft & cargo rules
-            </h2>
-            <p className="text-xs text-muted">
-              Same interview dispatch uses when adding a client — applied to
-              every future quote.
+            <h2 className={sectionTitleCls}>4. Aircraft & cargo rules</h2>
+            <p className={hintCls}>
+              Split by mission type — freight rules and passenger rules can
+              differ. Applied to every future quote.
             </p>
-            <div className="flex flex-wrap gap-3 text-sm text-ink">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.dual_pilot_required}
-                  onChange={(e) =>
-                    patch({ dual_pilot_required: e.target.checked })
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              {/* Freight column */}
+              <div className="space-y-3 rounded-lg border border-[#e5dfd0] bg-[#faf8f2] p-4">
+                <div className="text-sm font-semibold text-[#0c0c0e]">
+                  Freight rules
+                </div>
+                <PolicyChecks
+                  policy={draft.freight_policy}
+                  onChange={(freight_policy) => patch({ freight_policy })}
+                  checkCls={checkCls}
+                />
+                <div className="space-y-3 border-t border-[#e5dfd0] pt-3">
+                  <label className={checkCls}>
+                    <input
+                      type="checkbox"
+                      checked={draft.hazmat_allowed}
+                      onChange={(e) =>
+                        patch({ hazmat_allowed: e.target.checked })
+                      }
+                    />
+                    Hazmat allowed
+                  </label>
+                  {draft.hazmat_allowed && (
+                    <label className={labelCls}>
+                      Hazmat notes
+                      <input
+                        className={inputCls}
+                        value={draft.hazmat_notes}
+                        onChange={(e) =>
+                          patch({ hazmat_notes: e.target.value })
+                        }
+                        placeholder="e.g. Sometimes — confirm per trip"
+                      />
+                    </label>
+                  )}
+                  <label className={checkCls}>
+                    <input
+                      type="checkbox"
+                      checked={draft.oversized}
+                      onChange={(e) =>
+                        patch({ oversized: e.target.checked })
+                      }
+                    />
+                    Oversized freight (often)
+                  </label>
+                  <label className={labelCls}>
+                    Typical declared value
+                    <input
+                      className={inputCls}
+                      value={draft.declared_value_norm}
+                      onChange={(e) =>
+                        patch({ declared_value_norm: e.target.value })
+                      }
+                      placeholder="e.g. under $50k / $100–250k"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Passenger column */}
+              <div className="space-y-3 rounded-lg border border-[#e5dfd0] bg-[#faf8f2] p-4">
+                <div className="text-sm font-semibold text-[#0c0c0e]">
+                  Passenger rules
+                </div>
+                <label className={checkCls}>
+                  <input
+                    type="checkbox"
+                    checked={draft.freight_only}
+                    onChange={(e) =>
+                      patch({ freight_only: e.target.checked })
+                    }
+                  />
+                  <span>
+                    <span className="font-medium">Freight only</span>
+                    <span className="mt-0.5 block text-[#5c574c]">
+                      We do not fly passengers — ignore passenger rules below.
+                    </span>
+                  </span>
+                </label>
+                <div
+                  className={
+                    draft.freight_only ? 'pointer-events-none opacity-40' : ''
                   }
-                />
-                Two pilots required
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.freight_only}
-                  onChange={(e) => patch({ freight_only: e.target.checked })}
-                />
-                Freight only — no passengers
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.multi_engine_only}
-                  onChange={(e) =>
-                    patch({ multi_engine_only: e.target.checked })
-                  }
-                />
-                Multi-engine only
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.no_single_engine_night}
-                  onChange={(e) =>
-                    patch({ no_single_engine_night: e.target.checked })
-                  }
-                />
-                No single-engine at night
-              </label>
+                >
+                  <PolicyChecks
+                    policy={draft.passenger_policy}
+                    onChange={(passenger_policy) =>
+                      patch({ passenger_policy })
+                    }
+                    checkCls={checkCls}
+                  />
+                </div>
+              </div>
             </div>
-            <label className="flex items-center gap-2 text-sm text-ink">
-              <input
-                type="checkbox"
-                checked={draft.hazmat_allowed}
-                onChange={(e) => patch({ hazmat_allowed: e.target.checked })}
-              />
-              Hazmat allowed
-            </label>
-            {draft.hazmat_allowed && (
-              <label className={labelCls}>
-                Hazmat notes
-                <input
-                  className={inputCls}
-                  value={draft.hazmat_notes}
-                  onChange={(e) => patch({ hazmat_notes: e.target.value })}
-                  placeholder="e.g. Sometimes — confirm per trip"
-                />
-              </label>
-            )}
+
             <label className={labelCls}>
-              Typical declared value
-              <input
+              Other notes
+              <textarea
                 className={inputCls}
-                value={draft.declared_value_norm}
+                rows={3}
+                value={draft.aircraft_other_notes}
                 onChange={(e) =>
-                  patch({ declared_value_norm: e.target.value })
+                  patch({ aircraft_other_notes: e.target.value })
                 }
-                placeholder="e.g. under $50k / $100–250k"
+                placeholder="Anything else about aircraft, doors, airports, or cargo we should know…"
               />
             </label>
-            <div className="flex flex-wrap gap-3 text-sm text-ink">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.temp_control}
-                  onChange={(e) => patch({ temp_control: e.target.checked })}
-                />
-                Temp control sometimes
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.oversized}
-                  onChange={(e) => patch({ oversized: e.target.checked })}
-                />
-                Oversized freight
-              </label>
-            </div>
           </section>
 
           {/* 5 Shipping lanes */}
           <section className={sectionCls}>
-            <h2 className="text-sm font-semibold text-ink">
-              5. Frequent routes
-            </h2>
-            <label className="flex items-center gap-2 text-sm text-ink">
+            <h2 className={sectionTitleCls}>5. Frequent routes</h2>
+            <label className={checkCls}>
               <input
                 type="checkbox"
                 checked={draft.no_frequent_lanes}
@@ -479,12 +557,13 @@ export default function ClientOnboardPage() {
                 {draft.lanes.map((lane, i) => (
                   <div
                     key={i}
-                    className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2"
+                    className="grid gap-3 rounded-lg border border-[#e5dfd0] bg-[#f7f2e3]/50 p-4 sm:grid-cols-2"
                   >
                     <label className={labelCls}>
                       Origin airport
                       <AirportSelect
                         value={lane.origin}
+                        inputClassName={airportInputCls}
                         onChange={(icao) => {
                           const ap = lookupAirport(icao)
                           const lanes = [...draft.lanes]
@@ -503,6 +582,7 @@ export default function ClientOnboardPage() {
                       Destination airport
                       <AirportSelect
                         value={lane.destination}
+                        inputClassName={airportInputCls}
                         onChange={(icao) => {
                           const ap = lookupAirport(icao)
                           const lanes = [...draft.lanes]
@@ -521,7 +601,7 @@ export default function ClientOnboardPage() {
                 ))}
                 <button
                   type="button"
-                  className="text-xs text-gold"
+                  className="text-sm font-semibold text-[#c9a227] hover:text-[#e3b341]"
                   onClick={() =>
                     patch({
                       lanes: [
@@ -539,7 +619,7 @@ export default function ClientOnboardPage() {
 
           {/* 6 Preferences */}
           <section className={sectionCls}>
-            <h2 className="text-sm font-semibold text-ink">6. Preferences</h2>
+            <h2 className={sectionTitleCls}>6. Preferences</h2>
             <label className={labelCls}>
               Trip updates by
               <select
@@ -565,17 +645,24 @@ export default function ClientOnboardPage() {
             </label>
           </section>
 
-          {error && <p className="text-sm text-late">{error}</p>}
+          {error && (
+            <p className="rounded-md border border-[#c0392b]/30 bg-[#c0392b]/10 px-3 py-2 text-sm text-[#c0392b]">
+              {error}
+            </p>
+          )}
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
               type="submit"
               disabled={busy}
-              className="rounded-md bg-gold px-5 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
+              className="min-h-11 rounded-md bg-[#c9a227] px-6 py-3 text-sm font-semibold text-[#0c0c0e] hover:bg-[#e3b341] disabled:opacity-50"
             >
               {busy ? 'Saving…' : 'Complete onboarding'}
             </button>
-            <Link to="/portal" className="text-sm text-muted hover:text-ink">
+            <Link
+              to="/portal"
+              className="text-sm font-medium text-[#5c574c] hover:text-[#0c0c0e]"
+            >
               Cancel
             </Link>
           </div>
@@ -595,8 +682,8 @@ function AddressFields({
   onChange: (a: ClientAddress) => void
 }) {
   return (
-    <div className="space-y-2">
-      <div className="text-xs font-medium text-muted">{title}</div>
+    <div className="space-y-3">
+      <div className="text-sm font-semibold text-[#2a2a2e]">{title}</div>
       <label className={labelCls}>
         Street
         <input
@@ -639,6 +726,87 @@ function AddressFields({
   )
 }
 
+function PolicyChecks({
+  policy,
+  onChange,
+  checkCls,
+}: {
+  policy: MissionAircraftPolicy
+  onChange: (next: MissionAircraftPolicy) => void
+  checkCls: string
+}) {
+  function set(partial: Partial<MissionAircraftPolicy>) {
+    const next = { ...policy, ...partial }
+    // Multi-engine only clears single-engine options.
+    if (partial.multi_engine_only === true) {
+      next.single_engine_ok = false
+      next.single_engine_turboprop_ok = false
+    }
+    // Broader SE OK makes turboprop-only redundant as a hard filter, but both
+    // can stay checked as preferences — if SE OK turns on, leave turboprop as-is.
+    if (partial.single_engine_ok === true || partial.single_engine_turboprop_ok === true) {
+      next.multi_engine_only = false
+    }
+    onChange(next)
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <label className={checkCls}>
+        <input
+          type="checkbox"
+          checked={policy.dual_pilot_only}
+          onChange={(e) => set({ dual_pilot_only: e.target.checked })}
+        />
+        Dual pilot only
+      </label>
+      <label className={checkCls}>
+        <input
+          type="checkbox"
+          checked={policy.multi_engine_only}
+          onChange={(e) => set({ multi_engine_only: e.target.checked })}
+        />
+        Multi-engine only
+      </label>
+      <label className={checkCls}>
+        <input
+          type="checkbox"
+          checked={policy.single_engine_ok}
+          disabled={policy.multi_engine_only}
+          onChange={(e) => set({ single_engine_ok: e.target.checked })}
+        />
+        Single-engine OK
+      </label>
+      <label className={checkCls}>
+        <input
+          type="checkbox"
+          checked={policy.single_engine_turboprop_ok}
+          disabled={policy.multi_engine_only}
+          onChange={(e) =>
+            set({ single_engine_turboprop_ok: e.target.checked })
+          }
+        />
+        Single-engine turboprop OK
+      </label>
+      <label className={checkCls}>
+        <input
+          type="checkbox"
+          checked={policy.exceptions_with_permission}
+          onChange={(e) =>
+            set({ exceptions_with_permission: e.target.checked })
+          }
+        />
+        <span>
+          Exceptions with specific permission
+          <span className="mt-0.5 block text-[#5c574c]">
+            Dispatch may deviate only when we confirm with you first.
+          </span>
+        </span>
+      </label>
+    </div>
+  )
+}
+
 function PersonFields({
   title,
   person,
@@ -653,30 +821,40 @@ function PersonFields({
   phoneRequired?: boolean
 }) {
   return (
-    <div className="space-y-2 rounded-md border border-border/60 p-3">
-      <div className="text-xs font-medium text-muted">{title}</div>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <input
-          className={inputCls}
-          placeholder="Name"
-          value={person.name}
-          onChange={(e) => onChange({ name: e.target.value })}
-        />
-        <input
-          className={inputCls}
-          placeholder="Email"
-          value={person.email}
-          onChange={(e) => onChange({ email: e.target.value })}
-          required={emailRequired}
-        />
-        <input
-          className={`${inputCls} font-mono`}
-          placeholder="Phone"
-          value={person.phone}
-          onChange={(e) => onChange({ phone: e.target.value })}
-          required={phoneRequired}
-          inputMode="tel"
-        />
+    <div className="space-y-3 rounded-lg border border-[#e5dfd0] bg-[#f7f2e3]/40 p-4">
+      <div className="text-sm font-semibold text-[#2a2a2e]">{title}</div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className={labelCls}>
+          Name
+          <input
+            className={inputCls}
+            value={person.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            autoComplete="name"
+          />
+        </label>
+        <label className={labelCls}>
+          Email
+          <input
+            className={inputCls}
+            type="email"
+            value={person.email}
+            onChange={(e) => onChange({ email: e.target.value })}
+            required={emailRequired}
+            autoComplete="email"
+          />
+        </label>
+        <label className={labelCls}>
+          Phone
+          <input
+            className={`${inputCls} font-mono`}
+            value={person.phone}
+            onChange={(e) => onChange({ phone: e.target.value })}
+            required={phoneRequired}
+            inputMode="tel"
+            autoComplete="tel"
+          />
+        </label>
       </div>
     </div>
   )

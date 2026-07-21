@@ -888,6 +888,54 @@ export function applyOfferTtpToTrip(
   })
 }
 
+/** Apply operator-quoted live leg minutes onto the first air_leg. */
+export function applyOfferLiveLegToTrip(
+  tripId: string,
+  offerId: string,
+  liveLegMin: number,
+): void {
+  if (!(liveLegMin > 0)) return
+  mutateTrip(tripId, (t) => {
+    const offer = t.offers.find((o) => o.id === offerId)
+    if (!offer) return
+
+    const cand =
+      t.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
+      t.candidates.find((c) => c.tail === offer.tail)
+
+    const applyTo = (chain: typeof t.eta_chain) => {
+      const air = chain.find((l) => l.type === 'air_leg')
+      if (!air) return null
+      return editDuration(chain, air.seq, liveLegMin, 'quoted')
+    }
+
+    if (cand?.chain?.length) {
+      const updated = applyTo(cand.chain)
+      if (updated) {
+        cand.chain = updated.chain
+        cand.eta_end = projectedDeliveryUtc(updated.chain) ?? cand.eta_end
+      }
+    }
+
+    if (t.eta_chain.length) {
+      const updated = applyTo(t.eta_chain)
+      if (updated) {
+        syncLegsFromChain(t, updated.chain)
+        t.events.push({
+          at: new Date().toISOString(),
+          actor: offer.operator_name,
+          kind: 'eta_live_leg_quoted',
+          payload: {
+            offer_id: offerId,
+            live_leg_min: liveLegMin,
+            slipped_min: updated.slippedMinutes,
+          },
+        })
+      }
+    }
+  })
+}
+
 /** Dispatcher edits an assumption cell on the trip sheet. */
 export function editTripEtaDuration(
   tripId: string,

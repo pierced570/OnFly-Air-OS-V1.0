@@ -24,6 +24,7 @@ export type AircraftRow = {
   category: string | null
   engines: string | null
   cargo_pax?: string | null
+  crew?: string | null
   base_icao: string | null
   cruise_kts: number | null
   range_nm?: number | null
@@ -37,6 +38,8 @@ export type AircraftRow = {
   cabin_w_ft?: number | null
   cabin_h_ft?: number | null
   cabin_vol_cuft?: number | null
+  insurance_expiry?: string | null
+  rate_per_nm?: number | null
   notes?: string | null
   fet_applies: boolean | null
   needs_info: NeedsInfoItem[]

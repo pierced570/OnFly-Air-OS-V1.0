@@ -90,14 +90,41 @@ export async function hydrateOperatingData(): Promise<{
           dual_pilot_required: Boolean(rulesRaw?.dual_pilot_required),
           freight_only: Boolean(rulesRaw?.freight_only),
           multi_engine_only: Boolean(rulesRaw?.multi_engine_only),
+          single_engine_turboprop_only: Boolean(
+            rulesRaw?.single_engine_turboprop_only,
+          ),
           no_single_engine_night: Boolean(rulesRaw?.no_single_engine_night),
           hazmat_allowed:
             rulesRaw?.hazmat_allowed == null
               ? true
               : Boolean(rulesRaw.hazmat_allowed),
-          declared_value_norm: rulesRaw?.max_declared_value
-            ? String(rulesRaw.max_declared_value)
-            : '',
+          hazmat_notes: (() => {
+            const raw = rulesRaw?.other_rules
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+              const notes = (raw as { hazmat_notes?: unknown }).hazmat_notes
+              if (typeof notes === 'string') return notes
+            }
+            return ''
+          })(),
+          declared_value_norm: (() => {
+            const raw = rulesRaw?.other_rules
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+              const norm = (raw as { declared_value_norm?: unknown })
+                .declared_value_norm
+              if (typeof norm === 'string' && norm.trim()) return norm
+            }
+            return rulesRaw?.max_declared_value
+              ? String(rulesRaw.max_declared_value)
+              : ''
+          })(),
+          other_rules: (() => {
+            const raw = rulesRaw?.other_rules
+            if (Array.isArray(raw)) return raw.map(String)
+            if (raw && typeof raw === 'object' && Array.isArray((raw as { list?: unknown }).list)) {
+              return ((raw as { list: unknown[] }).list).map(String)
+            }
+            return []
+          })(),
         },
         qb_customer_id: r.qb_customer_id ? String(r.qb_customer_id) : null,
         profile:
