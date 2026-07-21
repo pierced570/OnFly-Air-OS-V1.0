@@ -73,7 +73,7 @@ export function stageForTripState(state: TripState): PipelineBucket {
 export function tripStateLabel(state: TripState): string {
   const map: Record<TripState, string> = {
     draft: 'Draft',
-    routed: 'Routed',
+    routed: 'Shortlist ready',
     quoted_estimated: 'Quote sent',
     offers_out: 'Offers out',
     quoted_hard: 'Hard quote',
