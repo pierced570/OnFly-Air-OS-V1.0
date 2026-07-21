@@ -118,6 +118,16 @@ export async function hydrateOperatingData(): Promise<{
               ? String(rulesRaw.max_declared_value)
               : ''
           })(),
+          exceptions_with_permission: (() => {
+            const raw = rulesRaw?.other_rules
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+              return Boolean(
+                (raw as { exceptions_with_permission?: unknown })
+                  .exceptions_with_permission,
+              )
+            }
+            return false
+          })(),
           other_rules: (() => {
             const raw = rulesRaw?.other_rules
             if (Array.isArray(raw)) return raw.map(String)

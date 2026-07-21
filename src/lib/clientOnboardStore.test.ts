@@ -34,15 +34,14 @@ describe('submitClientOnboard', () => {
     d.po_assigned_by = 'client'
     d.po_prefix = 'PSA'
     d.freight_policy = {
-      dual_pilot_only: true,
-      multi_engine_only: false,
-      single_engine_ok: false,
-      single_engine_turboprop_ok: false,
-      exceptions_with_permission: false,
+      no_single_engine: false,
+      no_single_engine_pistons: false,
+      dual_pilot_required: true,
+      other_restriction: false,
+      other_notes: '',
     }
-    d.freight_only = true
-    d.hazmat_allowed = true
-    d.hazmat_notes = 'Sometimes'
+    d.moves_passengers = false
+    d.exceptions_ok = false
     d.declared_value_norm = 'under $100k'
     d.pay_terms = 'net_15'
 
@@ -55,11 +54,12 @@ describe('submitClientOnboard', () => {
     expect(client.contacts.some((c) => c.role === 'ap')).toBe(true)
     expect(client.rules.dual_pilot_required).toBe(true)
     expect(client.rules.freight_only).toBe(true)
+    expect(client.rules.hazmat_allowed).toBe(true)
     expect(client.rules.declared_value_norm).toBe('under $100k')
     expect(client.profile.frequent_lanes?.[0]?.origin).toBe('KCAK')
     expect(client.profile.requires_po).toBe(true)
     expect(client.profile.po_assigned_by).toBe('client')
-    expect(client.profile.freight_policy?.dual_pilot_only).toBe(true)
+    expect(client.profile.freight_policy?.dual_pilot_required).toBe(true)
     expect(client.profile.address?.city).toBe('Akron')
     expect(getClient(client.id)?.id).toBe(client.id)
     expect(taskIds.length).toBeGreaterThan(0)

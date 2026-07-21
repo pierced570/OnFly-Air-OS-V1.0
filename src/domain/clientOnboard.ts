@@ -32,23 +32,69 @@ export type PoAssignedBy = 'client' | 'onfly'
 
 export type UpdateChannel = 'email' | 'sms' | 'both'
 
-/** Per-mission-type aircraft policy (freight column vs passenger column). */
+/**
+ * Opt-out aircraft restrictions (everything allowed unless checked).
+ * Maps into client_rules hard filters when exceptions_ok is false.
+ */
 export type MissionAircraftPolicy = {
-  dual_pilot_only: boolean
-  multi_engine_only: boolean
-  single_engine_ok: boolean
-  single_engine_turboprop_ok: boolean
-  /** Soft — dispatch may deviate with explicit client permission. */
-  exceptions_with_permission: boolean
+  /** No single-engine aircraft → multi_engine_only */
+  no_single_engine: boolean
+  /** No single-engine pistons; SE turboprops OK → single_engine_turboprop_only */
+  no_single_engine_pistons: boolean
+  dual_pilot_required: boolean
+  other_restriction: boolean
+  other_notes: string
 }
 
 export function emptyMissionAircraftPolicy(): MissionAircraftPolicy {
   return {
-    dual_pilot_only: false,
-    multi_engine_only: false,
-    single_engine_ok: false,
-    single_engine_turboprop_ok: false,
-    exceptions_with_permission: false,
+    no_single_engine: false,
+    no_single_engine_pistons: false,
+    dual_pilot_required: false,
+    other_restriction: false,
+    other_notes: '',
+  }
+}
+
+/**
+ * Normalize stored / legacy policy shapes into the restriction model.
+ * Legacy used opt-in flags (single_engine_ok, multi_engine_only, …).
+ */
+export function normalizeMissionPolicy(
+  raw: Partial<MissionAircraftPolicy> & {
+    dual_pilot_only?: boolean
+    multi_engine_only?: boolean
+    single_engine_ok?: boolean
+    single_engine_turboprop_ok?: boolean
+    exceptions_with_permission?: boolean
+  } | null | undefined,
+): MissionAircraftPolicy {
+  const empty = emptyMissionAircraftPolicy()
+  if (!raw) return empty
+  if (
+    'no_single_engine' in raw ||
+    'no_single_engine_pistons' in raw ||
+    'dual_pilot_required' in raw ||
+    'other_restriction' in raw
+  ) {
+    return {
+      no_single_engine: Boolean(raw.no_single_engine),
+      no_single_engine_pistons: Boolean(raw.no_single_engine_pistons),
+      dual_pilot_required: Boolean(raw.dual_pilot_required),
+      other_restriction: Boolean(raw.other_restriction),
+      other_notes: String(raw.other_notes ?? '').trim(),
+    }
+  }
+  // Legacy opt-in → restriction opt-out
+  const multi = Boolean(raw.multi_engine_only)
+  const seOk = Boolean(raw.single_engine_ok)
+  const seTurboOk = Boolean(raw.single_engine_turboprop_ok)
+  return {
+    no_single_engine: multi,
+    no_single_engine_pistons: !multi && seTurboOk && !seOk,
+    dual_pilot_required: Boolean(raw.dual_pilot_only ?? raw.dual_pilot_required),
+    other_restriction: false,
+    other_notes: '',
   }
 }
 
@@ -88,18 +134,19 @@ export type ClientOnboardDraft = {
   vendor_packet_to: string
 
   /**
-   * Aircraft policy split: freight trips vs passenger trips.
-   * Maps into client_rules (freight → hard filters) + other_rules chips.
+   * Aircraft restrictions — freight always; passenger only when moves_passengers.
+   * Nothing checked = no routing constraints.
    */
   freight_policy: MissionAircraftPolicy
   passenger_policy: MissionAircraftPolicy
-  /** No passenger trips — freight column only applies. */
-  freight_only: boolean
-  hazmat_allowed: boolean
-  hazmat_notes: string
+  /** Do you ever move passengers with us? No → freight_only. */
+  moves_passengers: boolean
+  /**
+   * Soft blocks: dispatch may override restrictions with documented client sign-off.
+   * Unchecked = hard filters in candidate generation.
+   */
+  exceptions_ok: boolean
   declared_value_norm: string
-  /** Free-form notes → other_rules */
-  aircraft_other_notes: string
 
   // Shipping profile
   no_frequent_lanes: boolean
@@ -140,11 +187,9 @@ export function emptyClientOnboardDraft(): ClientOnboardDraft {
     vendor_packet_to: '',
     freight_policy: emptyMissionAircraftPolicy(),
     passenger_policy: emptyMissionAircraftPolicy(),
-    freight_only: false,
-    hazmat_allowed: true,
-    hazmat_notes: '',
+    moves_passengers: false,
+    exceptions_ok: false,
     declared_value_norm: '',
-    aircraft_other_notes: '',
     no_frequent_lanes: false,
     lanes: [{ origin: '', destination: '' }],
     oversized: false,
@@ -246,9 +291,12 @@ export type OnboardRulesSlice = {
   multi_engine_only: boolean
   single_engine_turboprop_only: boolean
   no_single_engine_night: boolean
+  /** Always true from onboard — hazmat is asked per shipment. */
   hazmat_allowed: boolean
   hazmat_notes: string
   declared_value_norm: string
+  /** Soft-block mode for checked restrictions. */
+  exceptions_with_permission: boolean
   other_rules: string[]
 }
 
@@ -257,33 +305,32 @@ function policyChips(
   p: MissionAircraftPolicy,
 ): string[] {
   const chips: string[] = []
-  if (p.dual_pilot_only) chips.push(`${label}: dual pilot only`)
-  if (p.multi_engine_only) chips.push(`${label}: multi-engine only`)
-  if (p.single_engine_ok) chips.push(`${label}: single-engine OK`)
-  if (p.single_engine_turboprop_ok) {
-    chips.push(`${label}: single-engine turboprop OK`)
+  if (p.no_single_engine) chips.push(`${label}: no single-engine`)
+  if (p.no_single_engine_pistons) {
+    chips.push(`${label}: no single-engine pistons (SE turboprop OK)`)
   }
-  if (p.exceptions_with_permission) {
-    chips.push(`${label}: exceptions with permission`)
+  if (p.dual_pilot_required) chips.push(`${label}: dual pilot required`)
+  if (p.other_restriction && p.other_notes.trim()) {
+    chips.push(`${label}: ${p.other_notes.trim()}`)
   }
   return chips
 }
 
 /**
- * Hard filters from a policy column.
- * multi-engine only wins; else SE turboprop-only when turboprop OK but not general SE.
+ * Hard filters from a restriction column.
+ * "No single-engine" wins over "no SE pistons".
  */
 export function hardFiltersFromPolicy(p: MissionAircraftPolicy): {
   dual_pilot_required: boolean
   multi_engine_only: boolean
   single_engine_turboprop_only: boolean
 } {
-  const multi = p.multi_engine_only
+  const policy = normalizeMissionPolicy(p)
+  const multi = policy.no_single_engine
   return {
-    dual_pilot_required: p.dual_pilot_only,
+    dual_pilot_required: policy.dual_pilot_required,
     multi_engine_only: multi,
-    single_engine_turboprop_only:
-      !multi && p.single_engine_turboprop_ok && !p.single_engine_ok,
+    single_engine_turboprop_only: !multi && policy.no_single_engine_pistons,
   }
 }
 
@@ -302,23 +349,25 @@ export function rulesFromOnboardDraft(
   }
   if (draft.oversized) other.push('Oversized freight')
   other.push(...policyChips('Freight', draft.freight_policy))
-  if (!draft.freight_only) {
+  if (draft.moves_passengers) {
     other.push(...policyChips('Passenger', draft.passenger_policy))
   }
-  const notes = draft.aircraft_other_notes.trim()
-  if (notes) other.push(notes)
+  if (draft.exceptions_ok) {
+    other.push('Exceptions OK with confirmation')
+  }
 
   const hard = hardFiltersFromPolicy(draft.freight_policy)
 
   return {
     dual_pilot_required: hard.dual_pilot_required,
-    freight_only: draft.freight_only,
+    freight_only: !draft.moves_passengers,
     multi_engine_only: hard.multi_engine_only,
     single_engine_turboprop_only: hard.single_engine_turboprop_only,
     no_single_engine_night: false,
-    hazmat_allowed: draft.hazmat_allowed,
-    hazmat_notes: draft.hazmat_notes.trim(),
+    hazmat_allowed: true,
+    hazmat_notes: '',
     declared_value_norm: draft.declared_value_norm.trim(),
+    exceptions_with_permission: draft.exceptions_ok,
     other_rules: other,
   }
 }

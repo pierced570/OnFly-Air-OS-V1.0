@@ -9,7 +9,7 @@
  * seeds directory names from financials.json (lazy) so Financials clients appear here.
  */
 
-import { hardFiltersFromPolicy } from '@/domain/clientOnboard'
+import { hardFiltersFromPolicy, normalizeMissionPolicy } from '@/domain/clientOnboard'
 import type { ClientRules as RoutingClientRules } from '@/domain/routing'
 
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
@@ -42,6 +42,11 @@ export type ClientRules = {
   hazmat_allowed: boolean
   hazmat_notes: string
   declared_value_norm: string
+  /**
+   * When true, aircraft restrictions soft-block (booking gated) instead of
+   * hard-failing candidates — dispatch can override with client sign-off.
+   */
+  exceptions_with_permission: boolean
   other_rules: string[]
 }
 
@@ -54,6 +59,7 @@ export const DEFAULT_CLIENT_RULES: ClientRules = {
   hazmat_allowed: true,
   hazmat_notes: '',
   declared_value_norm: '',
+  exceptions_with_permission: false,
   other_rules: [],
 }
 
@@ -90,20 +96,20 @@ export type ClientExtendedProfile = {
   vendor_number_notes?: string
   vendor_packet_to?: string
   update_channel?: 'email' | 'sms' | 'both'
-  /** Freight vs passenger aircraft policies from /client setup. */
+  /** Freight vs passenger aircraft restrictions from /client setup. */
   freight_policy?: {
-    dual_pilot_only: boolean
-    multi_engine_only: boolean
-    single_engine_ok: boolean
-    single_engine_turboprop_ok: boolean
-    exceptions_with_permission: boolean
+    no_single_engine: boolean
+    no_single_engine_pistons: boolean
+    dual_pilot_required: boolean
+    other_restriction: boolean
+    other_notes: string
   }
   passenger_policy?: {
-    dual_pilot_only: boolean
-    multi_engine_only: boolean
-    single_engine_ok: boolean
-    single_engine_turboprop_ok: boolean
-    exceptions_with_permission: boolean
+    no_single_engine: boolean
+    no_single_engine_pistons: boolean
+    dual_pilot_required: boolean
+    other_restriction: boolean
+    other_notes: string
   }
   shipping_flags?: {
     hazmat_sometimes?: boolean
@@ -162,7 +168,7 @@ function loadLocal(): void {
     if (!Array.isArray(parsed) || !parsed.length) return
     for (const row of parsed) {
       if (!row?.id || !row.name) continue
-      if (!row.rules) row.rules = { ...DEFAULT_CLIENT_RULES }
+      row.rules = { ...DEFAULT_CLIENT_RULES, ...(row.rules ?? {}) }
       if (!row.profile) row.profile = {}
       if (!Array.isArray(row.contacts)) row.contacts = []
       clients.set(row.id, row)
@@ -391,12 +397,13 @@ export function clientRulesForRouting(
     single_engine_turboprop_only: client.rules.single_engine_turboprop_only,
     no_single_engine_night: client.rules.no_single_engine_night,
     hazmat_allowed: client.rules.hazmat_allowed,
+    exceptions_with_permission: client.rules.exceptions_with_permission,
   }
   if (payloadKind === 'cargo') return base
 
   const paxPol = client.profile.passenger_policy
   if (!paxPol) return base
-  const hard = hardFiltersFromPolicy(paxPol)
+  const hard = hardFiltersFromPolicy(normalizeMissionPolicy(paxPol))
 
   if (payloadKind === 'pax') {
     return {
@@ -429,10 +436,12 @@ export function clientRuleChips(clientId: string): string[] {
   const chips: string[] = []
   if (c.rules.dual_pilot_required) chips.push('Dual pilot required')
   if (c.rules.freight_only) chips.push('Freight only')
-  if (c.rules.multi_engine_only) chips.push('Multi-engine only')
+  if (c.rules.multi_engine_only) chips.push('No single-engine')
   if (c.rules.single_engine_turboprop_only)
-    chips.push('SE OK only if turboprop')
+    chips.push('No single-engine pistons (SE turboprop OK)')
   if (c.rules.no_single_engine_night) chips.push('No SE night')
+  if (c.rules.exceptions_with_permission)
+    chips.push('Exceptions OK with confirmation')
   if (!c.rules.hazmat_allowed) chips.push('No hazmat')
   else if (c.rules.hazmat_notes) chips.push(`Hazmat: ${c.rules.hazmat_notes}`)
   if (c.rules.declared_value_norm)

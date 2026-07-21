@@ -420,124 +420,95 @@ export default function ClientOnboardPage() {
             </label>
           </section>
 
-          {/* 4 Aircraft & cargo rules — freight vs passenger columns */}
+          {/* 4 Aircraft restrictions — opt-out; nothing checked = no constraints */}
           <section className={sectionCls}>
-            <h2 className={sectionTitleCls}>4. Aircraft & cargo rules</h2>
+            <h2 className={sectionTitleCls}>4. Aircraft restrictions</h2>
             <p className={hintCls}>
-              Split by mission type — freight rules and passenger rules can
-              differ. Applied to every future quote.
+              Everything is allowed unless you tell us otherwise. Check only
+              what applies to your shipments.
             </p>
 
-            <div className="grid gap-5 sm:grid-cols-2">
-              {/* Freight column */}
-              <div className="space-y-3 rounded-lg border border-[#e5dfd0] bg-[#faf8f2] p-4">
-                <div className="text-sm font-semibold text-[#0c0c0e]">
-                  Freight rules
-                </div>
-                <PolicyChecks
-                  policy={draft.freight_policy}
-                  onChange={(freight_policy) => patch({ freight_policy })}
-                  checkCls={checkCls}
-                />
-                <div className="space-y-3 border-t border-[#e5dfd0] pt-3">
-                  <label className={checkCls}>
-                    <input
-                      type="checkbox"
-                      checked={draft.hazmat_allowed}
-                      onChange={(e) =>
-                        patch({ hazmat_allowed: e.target.checked })
-                      }
-                    />
-                    Hazmat allowed
-                  </label>
-                  {draft.hazmat_allowed && (
-                    <label className={labelCls}>
-                      Hazmat notes
-                      <input
-                        className={inputCls}
-                        value={draft.hazmat_notes}
-                        onChange={(e) =>
-                          patch({ hazmat_notes: e.target.value })
-                        }
-                        placeholder="e.g. Sometimes — confirm per trip"
-                      />
-                    </label>
-                  )}
-                  <label className={checkCls}>
-                    <input
-                      type="checkbox"
-                      checked={draft.oversized}
-                      onChange={(e) =>
-                        patch({ oversized: e.target.checked })
-                      }
-                    />
-                    Oversized freight (often)
-                  </label>
-                  <label className={labelCls}>
-                    Typical declared value
-                    <input
-                      className={inputCls}
-                      value={draft.declared_value_norm}
-                      onChange={(e) =>
-                        patch({ declared_value_norm: e.target.value })
-                      }
-                      placeholder="e.g. under $50k / $100–250k"
-                    />
-                  </label>
-                </div>
+            <div className="space-y-3 rounded-lg border border-[#e5dfd0] bg-[#faf8f2] p-4">
+              <div className="text-sm font-semibold text-[#0c0c0e]">
+                Freight restrictions
               </div>
+              <RestrictionChecks
+                policy={draft.freight_policy}
+                onChange={(freight_policy) => patch({ freight_policy })}
+                checkCls={checkCls}
+                inputCls={inputCls}
+                labelCls={labelCls}
+              />
+            </div>
 
-              {/* Passenger column */}
-              <div className="space-y-3 rounded-lg border border-[#e5dfd0] bg-[#faf8f2] p-4">
-                <div className="text-sm font-semibold text-[#0c0c0e]">
-                  Passenger rules
+            <div className="space-y-3 rounded-lg border border-[#e5dfd0] bg-[#faf8f2] p-4">
+              <div className="text-sm font-semibold text-[#0c0c0e]">
+                Passengers
+              </div>
+              <fieldset className="space-y-2">
+                <legend className="text-sm text-[#0c0c0e]">
+                  Do you ever move passengers with us?
+                </legend>
+                <div className="flex flex-wrap gap-4">
+                  <label className={checkCls}>
+                    <input
+                      type="radio"
+                      name="moves_passengers"
+                      checked={!draft.moves_passengers}
+                      onChange={() => patch({ moves_passengers: false })}
+                    />
+                    No
+                  </label>
+                  <label className={checkCls}>
+                    <input
+                      type="radio"
+                      name="moves_passengers"
+                      checked={draft.moves_passengers}
+                      onChange={() => patch({ moves_passengers: true })}
+                    />
+                    Yes
+                  </label>
                 </div>
-                <label className={checkCls}>
-                  <input
-                    type="checkbox"
-                    checked={draft.freight_only}
-                    onChange={(e) =>
-                      patch({ freight_only: e.target.checked })
-                    }
-                  />
-                  <span>
-                    <span className="font-medium">Freight only</span>
-                    <span className="mt-0.5 block text-[#5c574c]">
-                      We do not fly passengers — ignore passenger rules below.
-                    </span>
-                  </span>
-                </label>
-                <div
-                  className={
-                    draft.freight_only ? 'pointer-events-none opacity-40' : ''
-                  }
-                >
-                  <PolicyChecks
+              </fieldset>
+              {draft.moves_passengers && (
+                <div className="space-y-3 border-t border-[#e5dfd0] pt-3">
+                  <div className="text-sm font-medium text-[#2a2a2e]">
+                    Passenger trip restrictions
+                  </div>
+                  <RestrictionChecks
                     policy={draft.passenger_policy}
                     onChange={(passenger_policy) =>
                       patch({ passenger_policy })
                     }
                     checkCls={checkCls}
+                    inputCls={inputCls}
+                    labelCls={labelCls}
                   />
                 </div>
-              </div>
+              )}
             </div>
 
-            <label className={labelCls}>
-              Other notes
-              <textarea
-                className={inputCls}
-                rows={3}
-                value={draft.aircraft_other_notes}
+            <label className={checkCls}>
+              <input
+                type="checkbox"
+                checked={draft.exceptions_ok}
                 onChange={(e) =>
-                  patch({ aircraft_other_notes: e.target.value })
+                  patch({ exceptions_ok: e.target.checked })
                 }
-                placeholder="Anything else about aircraft, doors, airports, or cargo we should know…"
               />
+              <span>
+                <span className="font-medium">
+                  Exceptions OK if you confirm with us first
+                </span>
+                <span className="mt-0.5 block text-[#5c574c]">
+                  Restrictions become soft blocks — dispatch can override with
+                  documented client sign-off. Leave unchecked for hard filters.
+                </span>
+              </span>
             </label>
           </section>
 
-          {/* 5 Shipping lanes */}
+          {/* 5 Shipping lanes + cargo profile */}
           <section className={sectionCls}>
             <h2 className={sectionTitleCls}>5. Frequent routes</h2>
             <label className={checkCls}>
@@ -613,6 +584,36 @@ export default function ClientOnboardPage() {
                 </button>
               </div>
             )}
+
+            <div className="space-y-3 border-t border-[#e5dfd0] pt-4">
+              <div className="text-sm font-semibold text-[#0c0c0e]">
+                Shipping profile
+              </div>
+              <p className={hintCls}>
+                Helps us pick the right aircraft — not permission gates.
+              </p>
+              <label className={checkCls}>
+                <input
+                  type="checkbox"
+                  checked={draft.oversized}
+                  onChange={(e) =>
+                    patch({ oversized: e.target.checked })
+                  }
+                />
+                Oversized freight (often)
+              </label>
+              <label className={labelCls}>
+                Typical declared value
+                <input
+                  className={inputCls}
+                  value={draft.declared_value_norm}
+                  onChange={(e) =>
+                    patch({ declared_value_norm: e.target.value })
+                  }
+                  placeholder="e.g. under $50k / $100–250k"
+                />
+              </label>
+            </div>
           </section>
 
           {/* 6 Preferences */}
@@ -724,26 +725,30 @@ function AddressFields({
   )
 }
 
-function PolicyChecks({
+function RestrictionChecks({
   policy,
   onChange,
   checkCls,
+  inputCls,
+  labelCls,
 }: {
   policy: MissionAircraftPolicy
   onChange: (next: MissionAircraftPolicy) => void
   checkCls: string
+  inputCls: string
+  labelCls: string
 }) {
   function set(partial: Partial<MissionAircraftPolicy>) {
     const next = { ...policy, ...partial }
-    // Multi-engine only clears single-engine options.
-    if (partial.multi_engine_only === true) {
-      next.single_engine_ok = false
-      next.single_engine_turboprop_ok = false
+    // "No single-engine" subsumes piston-only restriction.
+    if (partial.no_single_engine === true) {
+      next.no_single_engine_pistons = false
     }
-    // Broader SE OK makes turboprop-only redundant as a hard filter, but both
-    // can stay checked as preferences — if SE OK turns on, leave turboprop as-is.
-    if (partial.single_engine_ok === true || partial.single_engine_turboprop_ok === true) {
-      next.multi_engine_only = false
+    if (partial.no_single_engine_pistons === true) {
+      next.no_single_engine = false
+    }
+    if (partial.other_restriction === false) {
+      next.other_notes = ''
     }
     onChange(next)
   }
@@ -753,54 +758,49 @@ function PolicyChecks({
       <label className={checkCls}>
         <input
           type="checkbox"
-          checked={policy.dual_pilot_only}
-          onChange={(e) => set({ dual_pilot_only: e.target.checked })}
+          checked={policy.no_single_engine}
+          onChange={(e) => set({ no_single_engine: e.target.checked })}
         />
-        Dual pilot only
+        No single-engine aircraft
       </label>
       <label className={checkCls}>
         <input
           type="checkbox"
-          checked={policy.multi_engine_only}
-          onChange={(e) => set({ multi_engine_only: e.target.checked })}
-        />
-        Multi-engine only
-      </label>
-      <label className={checkCls}>
-        <input
-          type="checkbox"
-          checked={policy.single_engine_ok}
-          disabled={policy.multi_engine_only}
-          onChange={(e) => set({ single_engine_ok: e.target.checked })}
-        />
-        Single-engine OK
-      </label>
-      <label className={checkCls}>
-        <input
-          type="checkbox"
-          checked={policy.single_engine_turboprop_ok}
-          disabled={policy.multi_engine_only}
+          checked={policy.no_single_engine_pistons}
+          disabled={policy.no_single_engine}
           onChange={(e) =>
-            set({ single_engine_turboprop_ok: e.target.checked })
+            set({ no_single_engine_pistons: e.target.checked })
           }
         />
-        Single-engine turboprop OK
+        No single-engine pistons (single-engine turboprops OK)
       </label>
       <label className={checkCls}>
         <input
           type="checkbox"
-          checked={policy.exceptions_with_permission}
-          onChange={(e) =>
-            set({ exceptions_with_permission: e.target.checked })
-          }
+          checked={policy.dual_pilot_required}
+          onChange={(e) => set({ dual_pilot_required: e.target.checked })}
         />
-        <span>
-          Exceptions with specific permission
-          <span className="mt-0.5 block text-[#5c574c]">
-            Dispatch may deviate only when we confirm with you first.
-          </span>
-        </span>
+        Dual pilot required
       </label>
+      <label className={checkCls}>
+        <input
+          type="checkbox"
+          checked={policy.other_restriction}
+          onChange={(e) => set({ other_restriction: e.target.checked })}
+        />
+        Other restriction
+      </label>
+      {policy.other_restriction && (
+        <label className={labelCls}>
+          Describe the restriction
+          <input
+            className={inputCls}
+            value={policy.other_notes}
+            onChange={(e) => set({ other_notes: e.target.value })}
+            placeholder="e.g. No gravel strips, pressurized only…"
+          />
+        </label>
+      )}
     </div>
   )
 }
