@@ -1,9 +1,9 @@
 /**
  * Spreadsheet-style Network backend view — one row per tail.
- * Door dims, contacts, bases editable; new operators still via Admin wizard.
+ * Every column is editable inline; new operators still via Admin wizard.
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type KeyboardEvent } from 'react'
 import type { NetworkSheetRow } from '@/domain/networkSheet'
 import {
   ensureNetworkSheetLoaded,
@@ -24,6 +24,14 @@ function parseNum(raw: string): number | null {
   if (!t) return null
   const n = Number(t)
   return Number.isFinite(n) ? n : null
+}
+
+/** Enter commits like a spreadsheet cell. */
+function onEnterBlur(e: KeyboardEvent<HTMLInputElement>) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    e.currentTarget.blur()
+  }
 }
 
 function DoorCell({
@@ -47,6 +55,7 @@ function DoorCell({
       }
       defaultValue={v ?? ''}
       key={`${row.aircraft_id}-${field}-${v}`}
+      onKeyDown={onEnterBlur}
       onBlur={(e) =>
         updateSheetAircraftField(row.aircraft_id, field, parseNum(e.target.value))
       }
@@ -85,6 +94,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
         r.operator_name.toLowerCase().includes(needle) ||
         r.tail.toLowerCase().includes(needle) ||
         (r.type_name ?? '').toLowerCase().includes(needle) ||
+        (r.category ?? '').toLowerCase().includes(needle) ||
         (r.contact_cell ?? '').includes(needle) ||
         (r.base_icao ?? '').toLowerCase().includes(needle),
     )
@@ -101,9 +111,10 @@ export function NetworkSheetView({ filter }: { filter: string }) {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted">
-        {filtered.length} aircraft · gold door numbers are type-library defaults
-        (edit to lock per-tail) · contact edits apply to every tail for that
-        operator · new operators still via Admin wizard
+        {filtered.length} aircraft · click any cell to edit · gold door numbers
+        are type-library defaults (edit to lock per-tail) · operator / contact
+        edits apply to every tail for that operator · new operators still via
+        Admin wizard
       </p>
       <div className="board-rail max-h-[70vh] overflow-auto rounded-lg border border-border">
         <table className="w-full min-w-[1600px] border-collapse text-left text-xs">
@@ -137,19 +148,70 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                 key={r.aircraft_id}
                 className="border-t border-border/40 hover:bg-gold/5"
               >
-                <td className="sticky left-0 z-[1] bg-ink px-2 py-1 font-medium text-cream">
-                  {r.operator_name}
+                <td className="sticky left-0 z-[1] bg-ink px-1 py-1">
+                  <input
+                    className={`${cellText} min-w-[9rem] font-medium`}
+                    defaultValue={r.operator_name}
+                    key={`${r.operator_id}-name-${r.operator_name}`}
+                    title="Renames this operator on every tail"
+                    onKeyDown={onEnterBlur}
+                    onBlur={(e) => {
+                      const next = e.target.value.trim()
+                      if (!next || next === r.operator_name) return
+                      updateSheetOperatorField(r.operator_id, 'name', next)
+                    }}
+                  />
                 </td>
-                <td className="px-2 py-1">
-                  <span className="avionic text-gold">{r.tail}</span>
+                <td className="px-1 py-1">
+                  <input
+                    className={`${cellInput} text-gold`}
+                    defaultValue={r.tail}
+                    key={`${r.aircraft_id}-tail-${r.tail}`}
+                    onKeyDown={onEnterBlur}
+                    onBlur={(e) => {
+                      const next = e.target.value.trim().toUpperCase()
+                      if (!next || next === r.tail) return
+                      updateSheetAircraftField(r.aircraft_id, 'tail', next)
+                    }}
+                  />
                 </td>
-                <td className="px-2 py-1 text-muted">{r.type_name ?? '—'}</td>
-                <td className="px-2 py-1 text-muted">{r.category ?? '—'}</td>
+                <td className="px-1 py-1">
+                  <input
+                    className={cellText}
+                    defaultValue={r.type_name ?? ''}
+                    key={`${r.aircraft_id}-type-${r.type_name}`}
+                    title="Changing type reloads library door defaults until you lock them"
+                    onKeyDown={onEnterBlur}
+                    onBlur={(e) =>
+                      updateSheetAircraftField(
+                        r.aircraft_id,
+                        'type_name',
+                        e.target.value.trim() || null,
+                      )
+                    }
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <input
+                    className={cellText}
+                    defaultValue={r.category ?? ''}
+                    key={`${r.aircraft_id}-cat-${r.category}`}
+                    onKeyDown={onEnterBlur}
+                    onBlur={(e) =>
+                      updateSheetAircraftField(
+                        r.aircraft_id,
+                        'category',
+                        e.target.value.trim() || null,
+                      )
+                    }
+                  />
+                </td>
                 <td className="px-1 py-1">
                   <input
                     className={`${cellInput} uppercase`}
                     defaultValue={r.base_icao ?? ''}
                     key={`${r.aircraft_id}-base-${r.base_icao}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -164,6 +226,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellText}
                     defaultValue={r.cargo_pax ?? ''}
                     key={`${r.aircraft_id}-cp-${r.cargo_pax}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -184,6 +247,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellText}
                     defaultValue={r.door_type ?? ''}
                     key={`${r.aircraft_id}-dt-${r.door_type}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -198,6 +262,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellInput}
                     defaultValue={r.cabin_l_ft ?? ''}
                     key={`${r.aircraft_id}-cl-${r.cabin_l_ft}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -212,6 +277,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellInput}
                     defaultValue={r.cabin_w_ft ?? ''}
                     key={`${r.aircraft_id}-cw-${r.cabin_w_ft}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -226,6 +292,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellInput}
                     defaultValue={r.cabin_h_ft ?? ''}
                     key={`${r.aircraft_id}-ch-${r.cabin_h_ft}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -240,6 +307,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellInput}
                     defaultValue={r.max_payload_lbs ?? ''}
                     key={`${r.aircraft_id}-pl-${r.max_payload_lbs}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -254,6 +322,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellInput}
                     defaultValue={r.mtow_lbs ?? ''}
                     key={`${r.aircraft_id}-mt-${r.mtow_lbs}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -268,6 +337,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellInput}
                     defaultValue={r.cruise_kts ?? ''}
                     key={`${r.aircraft_id}-cr-${r.cruise_kts}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetAircraftField(
                         r.aircraft_id,
@@ -282,6 +352,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellText}
                     defaultValue={r.contact_name ?? ''}
                     key={`${r.operator_id}-cn-${r.contact_name}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetOperatorField(
                         r.operator_id,
@@ -296,6 +367,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellInput}
                     defaultValue={r.contact_cell ?? ''}
                     key={`${r.operator_id}-cc-${r.contact_cell}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetOperatorField(
                         r.operator_id,
@@ -311,6 +383,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellText}
                     defaultValue={r.contact_email ?? ''}
                     key={`${r.operator_id}-ce-${r.contact_email}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetOperatorField(
                         r.operator_id,
@@ -326,6 +399,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     className={cellText}
                     defaultValue={r.ops_email ?? ''}
                     key={`${r.operator_id}-oe-${r.ops_email}`}
+                    onKeyDown={onEnterBlur}
                     onBlur={(e) =>
                       updateSheetOperatorField(
                         r.operator_id,

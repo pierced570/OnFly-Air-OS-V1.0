@@ -6,6 +6,9 @@
 import type { AircraftRow, NeedsInfoItem, OperatorRow } from '@/lib/types'
 
 export type NetworkSheetAircraftPatch = {
+  tail?: string | null
+  type_name?: string | null
+  category?: string | null
   door_type?: string | null
   door_w_in?: number | null
   door_h_in?: number | null
@@ -25,6 +28,7 @@ export type NetworkSheetAircraftPatch = {
 }
 
 export type NetworkSheetOperatorPatch = {
+  name?: string | null
   contact_name?: string | null
   contact_cell?: string | null
   contact_email?: string | null
@@ -156,9 +160,11 @@ export function buildNetworkSheetRows(opts: {
   const rows: NetworkSheetRow[] = []
   for (const a of opts.aircraft) {
     const op = opById.get(a.operator_id)
-    const spec = a.type_name ? specs.get(a.type_name) : undefined
     const ap = aPatches[a.id] ?? {}
     const opPatch = oPatches[a.operator_id] ?? {}
+    const typeName =
+      ap.type_name !== undefined ? ap.type_name : a.type_name
+    const spec = typeName ? specs.get(typeName) : undefined
 
     const doorW = pickNum(
       ap.door_w_in !== undefined ? ap.door_w_in : a.door_w_in,
@@ -176,10 +182,17 @@ export function buildNetworkSheetRows(opts: {
     rows.push({
       aircraft_id: a.id,
       operator_id: a.operator_id,
-      operator_name: a.operator_name || op?.name || '',
-      tail: a.tail,
-      type_name: a.type_name,
-      category: a.category,
+      operator_name:
+        opPatch.name !== undefined && opPatch.name != null
+          ? opPatch.name
+          : a.operator_name || op?.name || '',
+      tail:
+        ap.tail !== undefined && ap.tail != null && String(ap.tail).trim()
+          ? String(ap.tail).trim().toUpperCase()
+          : a.tail,
+      type_name: typeName,
+      category:
+        ap.category !== undefined ? ap.category : a.category,
       engines: a.engines,
       cargo_pax:
         ap.cargo_pax !== undefined

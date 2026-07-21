@@ -63,4 +63,24 @@ describe('buildNetworkSheetRows', () => {
     expect(rows[0].contact_cell).toBe('+15551212')
     expect(rows[0].contact_name).toBe('Sam')
   })
+
+  it('applies editable operator name, tail, type, and category patches', () => {
+    const rows = buildNetworkSheetRows({
+      operators: [op],
+      aircraft: [ac],
+      type_specs: [],
+      aircraftPatches: {
+        ac1: {
+          tail: 'n999zz',
+          type_name: 'King Air 200',
+          category: 'Turboprop',
+        },
+      },
+      operatorPatches: { op1: { name: 'Renamed Air' } },
+    })
+    expect(rows[0].operator_name).toBe('Renamed Air')
+    expect(rows[0].tail).toBe('N999ZZ')
+    expect(rows[0].type_name).toBe('King Air 200')
+    expect(rows[0].category).toBe('Turboprop')
+  })
 })
