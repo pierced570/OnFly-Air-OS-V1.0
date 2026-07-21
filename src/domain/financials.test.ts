@@ -15,6 +15,7 @@ function base(partial: Partial<FinancialRecord> = {}): FinancialRecord {
     vendor_name: 'Axio',
     pay_terms: 'Net 30',
     referral_name: null,
+    referral_share_amount: 0,
     client_subtotal_pre_tax: null,
     tax_total: 0,
     tax_breakdown: [],

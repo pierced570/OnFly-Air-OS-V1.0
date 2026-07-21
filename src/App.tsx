@@ -29,6 +29,7 @@ const RadarPage = lazy(() => import('@/pages/RadarPage'))
 const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
+const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
 const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 const LeadsPage = lazy(() => import('@/pages/LeadsPage'))
 const FbosPage = lazy(() => import('@/pages/FbosPage'))
@@ -89,6 +90,7 @@ export function App() {
         <Route path="/trips/new" element={<NewTripPage />} />
         <Route path="/quick-dispatch" element={<QuickDispatchPage />} />
         <Route path="/financials" element={<FinancialsPage />} />
+        <Route path="/referrals" element={<ReferralsPage />} />
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/fbos" element={<FbosPage />} />

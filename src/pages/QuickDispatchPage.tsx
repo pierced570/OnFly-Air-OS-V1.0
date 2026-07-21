@@ -15,6 +15,12 @@ import {
 } from '@/lib/clientStore'
 import { createQuickDispatchTrip } from '@/lib/tripStore'
 import { sendQuickDispatchEtaSheetAndPortalLinks } from '@/lib/etaSheetSender'
+import {
+  getReferral,
+  listActiveReferrals,
+  subscribeReferrals,
+} from '@/lib/referralStore'
+import { computeReferralShareAmount } from '@/domain/referrals'
 
 type Leg = {
   id: string
@@ -57,6 +63,11 @@ function parseCc(raw: string): string[] {
 export default function QuickDispatchPage() {
   const nav = useNavigate()
   const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
+  const referrers = useSyncExternalStore(
+    subscribeReferrals,
+    listActiveReferrals,
+    listActiveReferrals,
+  )
 
   const [clientId, setClientId] = useState('')
   const [showNew, setShowNew] = useState(false)
@@ -82,7 +93,8 @@ export default function QuickDispatchPage() {
   const [sendInvoice, setSendInvoice] = useState(true)
   const [invoiceEmail, setInvoiceEmail] = useState('')
   const [cc, setCc] = useState('')
-  const [referredBy, setReferredBy] = useState('')
+  const [referredById, setReferredById] = useState('')
+  const [referralShareOverride, setReferralShareOverride] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -100,6 +112,20 @@ export default function QuickDispatchPage() {
     if (!Number.isFinite(v) || !Number.isFinite(p)) return null
     return p - v
   }, [vendorCost, clientPrice])
+
+  const selectedReferrer = referredById ? getReferral(referredById) : undefined
+  const previewShare =
+    selectedReferrer && margin != null
+      ? computeReferralShareAmount({
+          share_mode: selectedReferrer.share_mode,
+          share_value: selectedReferrer.share_value,
+          margin,
+          override_amount:
+            referralShareOverride === ''
+              ? null
+              : Number(referralShareOverride),
+        })
+      : null
 
   function selectClient(id: string) {
     setClientId(id)
@@ -171,7 +197,12 @@ export default function QuickDispatchPage() {
         invoice_email: invoiceEmail.trim(),
         cc_emails: ccList,
         send_invoice: sendInvoice,
-        referred_by: referredBy,
+        referred_by: selectedReferrer?.name ?? '',
+        referral_id: selectedReferrer?.id ?? null,
+        referral_share_amount:
+          referralShareOverride === ''
+            ? null
+            : Number(referralShareOverride) || 0,
         notes: notes.trim(),
         legs: legs.map((l) => ({
           origin_icao: l.origin_icao.trim().toUpperCase(),
@@ -682,23 +713,64 @@ export default function QuickDispatchPage() {
 
       <section className="space-y-2">
         <div className="text-xs font-medium uppercase tracking-wider text-muted">
-          Referral
+          Referral / profit share
         </div>
         <label className={label}>
           Referred by
           <select
             className={input}
-            value={referredBy}
-            onChange={(e) => setReferredBy(e.target.value)}
+            value={referredById}
+            onChange={(e) => {
+              setReferredById(e.target.value)
+              setReferralShareOverride('')
+            }}
           >
             <option value="">None — no referral</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.name}>
-                {c.name}
+            {referrers.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+                {r.share_mode === 'percent_margin'
+                  ? ` (${r.share_value}% margin)`
+                  : r.share_value
+                    ? ` ($${r.share_value})`
+                    : ''}
               </option>
             ))}
           </select>
+          <span className="mt-1 block text-[11px] text-muted">
+            Manage partners on{' '}
+            <Link to="/referrals" className="text-gold">
+              Referrals
+            </Link>
+            .
+          </span>
         </label>
+        {selectedReferrer && (
+          <label className={label}>
+            Share amount ($)
+            <input
+              type="number"
+              className={`${input} avionic`}
+              value={referralShareOverride}
+              onChange={(e) => setReferralShareOverride(e.target.value)}
+              placeholder={
+                previewShare != null
+                  ? `Default ${previewShare.toFixed(0)}`
+                  : 'Optional override'
+              }
+            />
+            {previewShare != null && referralShareOverride === '' && (
+              <span className="mt-1 block text-[11px] text-gold">
+                Will record {previewShare.toLocaleString(undefined, {
+                  style: 'currency',
+                  currency: 'USD',
+                  maximumFractionDigits: 0,
+                })}{' '}
+                on Financials
+              </span>
+            )}
+          </label>
+        )}
         <label className={label}>
           Notes
           <textarea

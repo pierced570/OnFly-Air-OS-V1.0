@@ -5,8 +5,8 @@
  *  - ap → invoices only
  *  - supply_chain → tracker / ETA pushes
  *
- * Starts empty — hydrated from Supabase (or user adds clients). The large
- * financials.json fixture is NOT imported here so Board boot stays light.
+ * Boots from localStorage (if any), then Supabase hydrate. When both are empty,
+ * seeds directory names from financials.json (lazy) so Financials clients appear here.
  */
 
 import { hardFiltersFromPolicy } from '@/domain/clientOnboard'
@@ -131,6 +131,8 @@ export type ClientProfile = {
   profile: ClientExtendedProfile
 }
 
+const STORAGE_KEY = 'onfly.clients.v1'
+
 const clients = new Map<string, ClientProfile>()
 const listeners = new Set<() => void>()
 let snapshot: ClientProfile[] = []
@@ -139,8 +141,37 @@ function rebuild() {
   snapshot = [...clients.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
+function persistLocal(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...clients.values()]))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function loadLocal(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as ClientProfile[]
+    if (!Array.isArray(parsed) || !parsed.length) return
+    for (const row of parsed) {
+      if (!row?.id || !row.name) continue
+      if (!row.rules) row.rules = { ...DEFAULT_CLIENT_RULES }
+      if (!row.profile) row.profile = {}
+      if (!Array.isArray(row.contacts)) row.contacts = []
+      clients.set(row.id, row)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function bump(persistId?: string) {
   rebuild()
+  persistLocal()
   for (const l of listeners) l()
   if (persistId) {
     const row = clients.get(persistId)
@@ -148,11 +179,87 @@ function bump(persistId?: string) {
   }
 }
 
-/** Replace in-memory directory with Supabase rows (keeps financial seed if empty). */
+loadLocal()
+rebuild()
+
+/** Replace in-memory directory with Supabase rows. */
 export function replaceClientsFromDb(rows: ClientProfile[]): void {
   if (!rows.length) return
   clients.clear()
   for (const r of rows) clients.set(r.id, r)
+  rebuild()
+  persistLocal()
+  for (const l of listeners) l()
+}
+
+/**
+ * Ensure financials ledger client names appear in the directory.
+ * Merges missing names (does not wipe session/DB clients like "Tester").
+ */
+export async function ensureClientsDirectorySeeded(): Promise<number> {
+  const fixture = (await import('@/fixtures/financials.json')).default as {
+    records: Array<{ client_name?: string; pay_terms?: string | null }>
+  }
+  const skip = new Set(['', 'po enter in error'])
+  const byName = new Map<string, { pay_terms: string }>()
+  for (const r of fixture.records ?? []) {
+    const name = (r.client_name ?? '').trim()
+    if (!name || skip.has(name.toLowerCase())) continue
+    const pay = (r.pay_terms ?? '').trim() || 'Net 30'
+    if (!byName.has(name)) byName.set(name, { pay_terms: pay })
+  }
+
+  const existingNames = new Set(
+    [...clients.values()].map((c) => c.name.trim().toLowerCase()),
+  )
+  let added = 0
+  for (const [name, meta] of [...byName.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0]),
+  )) {
+    if (existingNames.has(name.toLowerCase())) continue
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40)
+    const id = `fin-${slug || crypto.randomUUID().slice(0, 8)}`
+    if (clients.has(id)) continue
+    clients.set(id, {
+      id,
+      name,
+      email: '',
+      invoice_email: '',
+      contacts: [],
+      last_po: null,
+      po_prefix: null,
+      pay_terms: meta.pay_terms,
+      notes:
+        'Seeded from financials ledger — complete profile via /client or edit here.',
+      rules: { ...DEFAULT_CLIENT_RULES },
+      qb_customer_id: null,
+      profile: { source: 'import' },
+    })
+    existingNames.add(name.toLowerCase())
+    added++
+  }
+  if (added) {
+    rebuild()
+    persistLocal()
+    for (const l of listeners) l()
+  }
+  return added
+}
+
+/** Test-only: wipe in-memory + localStorage directory. */
+export function __resetClientsForTests(): void {
+  clients.clear()
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
   rebuild()
   for (const l of listeners) l()
 }

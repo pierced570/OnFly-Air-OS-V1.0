@@ -5,6 +5,8 @@
 import type { Lead } from '@/domain/leads'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import {
+  ensureClientsDirectorySeeded,
+  listClients,
   replaceClientsFromDb,
   type ClientProfile,
   type ContactRole,
@@ -28,7 +30,15 @@ export async function hydrateOperatingData(): Promise<{
   trips: number
 }> {
   if (!canPersist()) {
-    return { ok: false, clients: 0, fbos: 0, tasks: 0, leads: 0, trips: 0 }
+    const seeded = await ensureClientsDirectorySeeded()
+    return {
+      ok: false,
+      clients: seeded || listClients().length,
+      fbos: 0,
+      tasks: 0,
+      leads: 0,
+      trips: 0,
+    }
   }
 
   await Promise.all([loadTaxRates(), loadPricingPriors()])
@@ -125,6 +135,11 @@ export async function hydrateOperatingData(): Promise<{
     })
     replaceClientsFromDb(mapped)
     clients = mapped.length
+  }
+
+  if (clients === 0) {
+    const seeded = await ensureClientsDirectorySeeded()
+    clients = seeded || listClients().length
   }
 
   const fboRows = await safeQuery('fbos', () =>

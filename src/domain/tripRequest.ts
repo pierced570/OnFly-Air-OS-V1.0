@@ -45,6 +45,14 @@ export type TripRequestDraft = {
   /** Length unit for cargo_notes L×W×H (stored pieces always convert to inches). */
   dim_unit: DimLengthUnit
   notes: string
+  /** Client PO — needed for invoice / hard quote. */
+  po_number: string
+  /** Declared cargo value USD (optional until required by client rules). */
+  declared_value_usd: number | ''
+  /** Hard delivery deadline (UTC ISO or local datetime-local string). */
+  hard_deadline_at: string
+  forklift_recommended: boolean
+  forklift_required: boolean
 }
 
 export type TripRequestRecord = TripRequestDraft & {
@@ -93,6 +101,11 @@ export function emptyTripRequestDraft(): TripRequestDraft {
     cargo_notes: '',
     dim_unit: 'in',
     notes: '',
+    po_number: '',
+    declared_value_usd: '',
+    hard_deadline_at: '',
+    forklift_recommended: false,
+    forklift_required: false,
   }
 }
 

@@ -88,6 +88,18 @@ export default function NewTripPage() {
     }
     if (draft.dim_unit) setDimUnit(draft.dim_unit)
     setCandidates(null)
+    // Phase A: create Trip draft→routed with banded shortlist on the Board
+    try {
+      const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
+      const { trip } = await createRoutedTripFromRequest(row)
+      nav(`/trips/${trip.id}`)
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Request saved — could not auto-route; run estimate below',
+      )
+    }
   }
 
   async function runQuote(approvedPieces?: Piece[]) {

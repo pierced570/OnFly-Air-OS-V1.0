@@ -1,23 +1,35 @@
 /**
- * Dev phone simulator — all mock SMS in/out for a trip.
+ * Trip offers + booking flow — availability pings, hard quote, accept cascade.
+ * All trip state changes go through safeTransitionTrip.
  */
 import { createCommsAdapter, getMockCommsLog } from '@/adapters/comms'
-import {
-  getTrip,
-  mutateTrip,
-  type OfferRow,
-} from '@/lib/tripStore'
+import { createEmailAdapter } from '@/adapters/email'
+import type { Candidate } from '@/domain/routing'
 import {
   availabilityPingBody,
   parseAvailabilityReply,
   quoteLinkBody,
   standDownBody,
+  DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
-import { safeTransitionTrip, payloadKindOf } from '@/lib/tripStore'
-import { DISCLOSURE_295_24_TEMPLATE } from '@/domain/offers'
-import { buildQuoteTotals, priceFromMargin } from '@/domain/quote'
-import { PRICING_CONSTANTS } from '@/domain/routing'
-import { getTaxRates } from '@/lib/taxRatesStore'
+import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
+import { clientTotalForOffer } from '@/lib/offerPricing'
+import {
+  buildOfferRow,
+  getTrip,
+  mutateTrip,
+  payloadKindOf,
+  safeTransitionTrip,
+  type FeeScope,
+  type OfferRow,
+} from '@/lib/tripStore'
+
+export function buildOffersFromCandidates(
+  tripId: string,
+  candidates: Candidate[],
+): OfferRow[] {
+  return candidates.map((c, i) => buildOfferRow(tripId, c, i))
+}
 
 export async function sendAvailabilityPings(tripId: string) {
   const trip = getTrip(tripId)
@@ -29,6 +41,7 @@ export async function sendAvailabilityPings(tripId: string) {
   const now = new Date().toISOString()
   const fresh = getTrip(tripId)!
   for (const o of fresh.offers) {
+    if (o.state === 'stood_down' || o.state === 'unavailable') continue
     const body = availabilityPingBody(fresh.lane, fresh.payload_summary, fresh.ready_label)
     await comms.send({ channel: 'sms', to: o.contact_cell, body })
     mutateTrip(tripId, (t) => {
@@ -53,7 +66,6 @@ export async function simulateOperatorReply(tripId: string, offerId: string, bod
   const offer = trip.offers.find((o) => o.id === offerId)!
   const now = new Date().toISOString()
   const comms = createCommsAdapter()
-  // log inbound
   await comms.send({
     channel: 'sms',
     to: 'ONFLY',
@@ -91,6 +103,8 @@ export async function submitOperatorQuote(
     price_net: number
     wait_ok: boolean
     max_wait_hrs: number | null
+    fee_scope: FeeScope
+    notes?: string | null
   },
 ) {
   const found = (await import('@/lib/tripStore')).getTripByOfferToken(token)
@@ -103,6 +117,8 @@ export async function submitOperatorQuote(
     o.price_net = input.price_net
     o.wait_ok = input.wait_ok
     o.max_wait_hrs = input.max_wait_hrs
+    o.fee_scope = input.fee_scope
+    o.notes = input.notes?.trim() || null
     o.state = 'quoted'
     t.events.push({
       at: new Date().toISOString(),
@@ -111,112 +127,127 @@ export async function submitOperatorQuote(
       payload: { ...input, offer_id: o.id },
     })
   })
-  // Quoted TTP + live leg replace assumed chain durations → recompute
-  const { applyOfferTtpToTrip, applyOfferLiveLegToTrip } = await import(
-    '@/lib/tripStore'
-  )
+  const { applyOfferTtpToTrip } = await import('@/lib/tripStore')
   applyOfferTtpToTrip(trip.id, offer.id, input.time_to_position_min)
-  applyOfferLiveLegToTrip(trip.id, offer.id, input.live_leg_min)
   return getTrip(trip.id)!
 }
 
-/** Client hard-quote total = target margin on operator net + table-driven tax (FET). */
-export function hardQuoteTotalsForOffer(
-  trip: NonNullable<ReturnType<typeof getTrip>>,
-  offer: OfferRow,
-): {
-  airSubtotal: number
-  total: number
-  taxLines: { code: string; amount: number; note?: string }[]
-} {
-  const kind = payloadKindOf(trip)
-  const net = offer.price_net ?? 0
-  const marginPct = PRICING_CONSTANTS.targetMargin * 100
-  const airSubtotal = priceFromMargin(net, marginPct)
-  const selectedCand =
-    trip.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
-    trip.candidates.find((c) => c.tail === offer.tail) ??
-    trip.candidates[0]
-  const paxMatch = trip.payload_summary.match(/(\d+)\s*pax/i)
-  const paxCount = paxMatch
-    ? Number(paxMatch[1])
-    : kind === 'pax' || kind === 'both'
-      ? 1
-      : 0
-  const totals = buildQuoteTotals(
-    {
-      ...(selectedCand ?? {
-        operator_id: '',
-        operator_name: '',
-        aircraft_id: '',
-        tail: offer.tail,
-        type_name: offer.type_name,
-        mtow_lbs: null,
-        chain: [],
-        confidence: 1,
-        needsInfo: [],
-        bookingGated: false,
-        reasoning: [],
-        eta_end: '',
-        circuit_nm: 0,
-      }),
-      cost: net,
-      price: airSubtotal,
-    },
-    {
-      markupMode: 'dollars',
-      markupValue: airSubtotal - net,
-      payloadKind: kind,
-      mtowLbs: selectedCand?.mtow_lbs ?? null,
-      paxCount,
-      segments: 1,
-      rates: getTaxRates(),
-    },
+export async function selectOfferAndHardQuote(
+  tripId: string,
+  offerId: string,
+  clientTotal?: number,
+) {
+  return selectOffersAndHardQuote(
+    tripId,
+    [offerId],
+    clientTotal != null ? { [offerId]: clientTotal } : undefined,
   )
-  return {
-    airSubtotal: totals.airSubtotal,
-    total: totals.total,
-    taxLines: totals.tax.lines.map((l) => ({
-      code: l.code,
-      amount: l.amount,
-      note: l.note,
-    })),
-  }
 }
 
-export async function selectOfferAndHardQuote(tripId: string, offerId: string) {
+/** Multi-select offers → client multi-option hard quote (carriers unnamed on client surface). */
+export async function selectOffersAndHardQuote(
+  tripId: string,
+  offerIds: string[],
+  clientTotalsByOffer?: Record<string, number>,
+  toEmails?: string[],
+) {
   const trip = getTrip(tripId)!
-  const offer = trip.offers.find((o) => o.id === offerId)!
-  if (offer.bookingGated) throw new Error('booking gated — insurance/compliance')
-  const kind = payloadKindOf(trip)
-  const priced = hardQuoteTotalsForOffer(trip, offer)
-  const clientTotal = priced.total
-  const accept_token = crypto.randomUUID().replace(/-/g, '').slice(0, 20)
-  mutateTrip(tripId, (t) => {
-    for (const o of t.offers) {
-      if (o.id === offerId) o.state = 'selected'
+  if (!offerIds.length) throw new Error('select at least one offer')
+  const selectedOffers = offerIds.map((id) => {
+    const o = trip.offers.find((x) => x.id === id)
+    if (!o) throw new Error(`offer not found: ${id}`)
+    if (o.bookingGated) throw new Error('booking gated — insurance/compliance')
+    if (o.state !== 'quoted' && o.state !== 'selected') {
+      throw new Error(`offer ${o.tail} is not quoted yet`)
     }
-  })
-  safeTransitionTrip(tripId, 'quoted_hard', 'dispatcher', { offer_id: offerId })
-  mutateTrip(tripId, (t) => {
-    t.hard_quote = {
-      total: clientTotal,
-      accept_token,
-      payload_kind: kind,
-      disclosure_text: kind === 'pax' || kind === 'both' ? DISCLOSURE_295_24_TEMPLATE : undefined,
-    }
-  })
-  const comms = createCommsAdapter()
-  await comms.send({
-    channel: 'sms',
-    to: '+1555CLIENT',
-    body: `OnFly hard quote ${trip.lane}: $${clientTotal.toFixed(0)}. Accept: /accept/${accept_token}`,
+    return o
   })
 
-  // Email client hard quote + ETA sheet (same function as estimated quotes)
+  const kind = payloadKindOf(trip)
+  const accept_token = crypto.randomUUID().replace(/-/g, '').slice(0, 20)
+
+  const options = selectedOffers.map((o, i) => {
+    const priced = clientTotalForOffer(o, trip)
+    const client =
+      clientTotalsByOffer?.[o.id] != null
+        ? Math.round(clientTotalsByOffer[o.id]!)
+        : priced.client
+    const cand = trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)
+    return {
+      offer_id: o.id,
+      label: `Option ${String.fromCharCode(65 + i)}`,
+      client_total: client,
+      eta_end: cand?.eta_end ?? trip.promised_delivery,
+      fee_scope: o.fee_scope,
+    }
+  })
+  const primaryTotal = Math.min(...options.map((o) => o.client_total))
+
+  mutateTrip(tripId, (t) => {
+    for (const o of t.offers) {
+      if (offerIds.includes(o.id)) o.state = 'selected'
+    }
+  })
+
+  if (trip.state === 'offers_out') {
+    safeTransitionTrip(tripId, 'quoted_hard', 'dispatcher', {
+      offer_ids: offerIds,
+    })
+  }
+
+  mutateTrip(tripId, (t) => {
+    t.hard_quote = {
+      total: primaryTotal,
+      accept_token,
+      payload_kind: kind,
+      disclosure_text:
+        kind === 'pax' || kind === 'both' ? DISCLOSURE_295_24_TEMPLATE : undefined,
+      options,
+    }
+  })
+
+  const recipients = resolveHardQuoteRecipients(trip, toEmails)
+  const comms = createCommsAdapter()
+  const email = createEmailAdapter()
+  const optionLines = options
+    .map(
+      (o) =>
+        `${o.label}: $${o.client_total.toFixed(0)}${o.eta_end ? ` · ETA ${o.eta_end.slice(0, 16)}Z` : ''}`,
+    )
+    .join('\n')
+
+  for (const cell of recipientCells(trip)) {
+    await comms.send({
+      channel: 'sms',
+      to: cell,
+      body: `OnFly hard quote ${trip.lane}:\n${optionLines}\nAccept: /accept/${accept_token}`,
+    })
+  }
+
+  if (recipients.length) {
+    for (const to of recipients) {
+      await email.send({
+        to,
+        subject: `OnFly quote · ${trip.lane}`,
+        text: [
+          `Hard quote for ${trip.lane}.`,
+          `A vetted Part 135 carrier — options below (carrier unnamed until acceptance).`,
+          '',
+          optionLines,
+          '',
+          `Accept: /accept/${accept_token}`,
+          trip.po_number ? `PO: ${trip.po_number}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      })
+    }
+  }
+
+  const primaryOffer = selectedOffers[0]!
   const selectedCand =
-    trip.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
-    trip.candidates.find((c) => c.tail === offer.tail) ??
+    trip.candidates.find((c) => c.aircraft_id === primaryOffer.aircraft_id) ??
+    trip.candidates.find((c) => c.tail === primaryOffer.tail) ??
     trip.candidates[0]
   if (selectedCand?.chain?.length) {
     try {
@@ -229,13 +260,14 @@ export async function selectOfferAndHardQuote(tripId: string, offerId: string) {
         payloadKind: kind,
         candidates: trip.candidates,
         selected: selectedCand,
-        airSubtotal: priced.airSubtotal,
-        total: clientTotal,
-        taxLines: priced.taxLines,
+        airSubtotal: primaryTotal,
+        total: primaryTotal,
+        taxLines: [],
         clientId: trip.client_id,
         kind: 'hard',
         acceptUrl: `/accept/${accept_token}`,
         tripId,
+        to: recipients.length ? recipients : undefined,
       })
     } catch (e) {
       console.warn('[hard quote] email with ETA skipped', e)
@@ -243,6 +275,49 @@ export async function selectOfferAndHardQuote(tripId: string, offerId: string) {
   }
 
   return getTrip(tripId)!
+}
+
+function resolveHardQuoteRecipients(
+  trip: NonNullable<ReturnType<typeof getTrip>>,
+  override?: string[],
+): string[] {
+  if (override?.length) {
+    return [
+      ...new Set(
+        override.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')),
+      ),
+    ]
+  }
+  const fromClient = trip.client_id
+    ? [
+        ...listRequestAlertEmails(trip.client_id),
+        ...listInvoiceEmails(trip.client_id),
+        getClient(trip.client_id)?.email ?? '',
+        getClient(trip.client_id)?.invoice_email ?? '',
+      ]
+    : []
+  return [
+    ...new Set(
+      fromClient.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')),
+    ),
+  ]
+}
+
+function recipientCells(trip: NonNullable<ReturnType<typeof getTrip>>): string[] {
+  const cells: string[] = []
+  if (trip.client_id) {
+    const c = getClient(trip.client_id)
+    for (const contact of c?.contacts ?? []) {
+      if (
+        contact.cell &&
+        (contact.role === 'requester' || contact.notify_prefs?.request_alert)
+      ) {
+        cells.push(contact.cell)
+      }
+    }
+  }
+  if (!cells.length) cells.push('+1555CLIENT')
+  return cells
 }
 
 export async function acceptHardQuote(token: string) {
@@ -262,7 +337,7 @@ export async function acceptHardQuote(token: string) {
   })
   safeTransitionTrip(trip.id, 'booked', 'client', { accept_token: token })
   {
-    const { materializeTripLegsFromChain, getTrip: gt, applyOfferTtpToTrip, applyOfferLiveLegToTrip } =
+    const { materializeTripLegsFromChain, getTrip: gt, applyOfferTtpToTrip } =
       await import('@/lib/tripStore')
     const booked = gt(trip.id)
     const selectedOffer = booked?.offers.find((o) => o.state === 'selected')
@@ -270,35 +345,39 @@ export async function acceptHardQuote(token: string) {
       booked?.candidates.find((c) => c.aircraft_id === selectedOffer?.aircraft_id) ??
       booked?.candidates.find((c) => c.chain?.length)
     if (cand?.chain?.length) {
-      // Winning quote TTP + live leg already on candidate; copy chain onto trip
       materializeTripLegsFromChain(trip.id, cand.chain)
       if (selectedOffer?.time_to_position_min != null) {
         applyOfferTtpToTrip(trip.id, selectedOffer.id, selectedOffer.time_to_position_min)
       }
-      if (selectedOffer?.live_leg_min != null) {
-        applyOfferLiveLegToTrip(trip.id, selectedOffer.id, selectedOffer.live_leg_min)
-      }
     }
   }
   const comms = createCommsAdapter()
+  const email = createEmailAdapter()
   const fresh = getTrip(trip.id)!
-  // confirmations
+  const selected = fresh.offers.find((o) => o.state === 'selected')
+  const trackPath = `/portal/track/${fresh.id}`
+
   await comms.send({
     channel: 'sms',
     to: '+1555CLIENT',
-    body: `OnFly booked ${fresh.lane}. ETA sheet going to ops contacts.`,
+    body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
   })
-  const selected = fresh.offers.find((o) => o.state === 'selected')
+
   if (selected) {
     await comms.send({
       channel: 'sms',
       to: selected.contact_cell,
-      body: `OnFly confirmed ${fresh.lane}. You are assigned. Dispatch will call to confirm.`,
+      body: `OnFly: mission is a go for ${fresh.lane}. Tail ${selected.tail} assigned. Dispatch will confirm details.`,
     })
   }
-  // stand-downs
+
   for (const o of fresh.offers) {
-    if (o.state === 'available' || o.state === 'quoted') {
+    if (o.id === selected?.id) continue
+    if (
+      o.state === 'available' ||
+      o.state === 'quoted' ||
+      o.state === 'pinged'
+    ) {
       await comms.send({
         channel: 'sms',
         to: o.contact_cell,
@@ -310,6 +389,32 @@ export async function acceptHardQuote(token: string) {
       })
     }
   }
+
+  const timeline = fresh.legs
+    .map(
+      (l) =>
+        `${l.label}: ${l.est_start?.slice(0, 16) ?? '—'} → ${l.est_end?.slice(0, 16) ?? '—'}`,
+    )
+    .join('\n')
+  const opsRecipients = resolveOpsEmails(fresh)
+  if (opsRecipients.length) {
+    for (const to of opsRecipients) {
+      await email.send({
+        to,
+        subject: `Mission go · T-${fresh.ref} · ${fresh.lane}`,
+        text: [
+          `Trip T-${fresh.ref} is booked.`,
+          `Tail: ${selected?.tail ?? 'TBD'} · ${selected?.type_name ?? ''}`,
+          `Lane: ${fresh.lane}`,
+          `Track: ${trackPath}`,
+          '',
+          'Timeline:',
+          timeline || '(ETA chain pending)',
+        ].join('\n'),
+      })
+    }
+  }
+
   mutateTrip(trip.id, (t) => {
     t.events.push({
       at: new Date().toISOString(),
@@ -319,24 +424,23 @@ export async function acceptHardQuote(token: string) {
     })
   })
 
-  // Spin up SMS thread pool number + intro path
   {
     const { ensureTripThread, getTrip: gt } = await import('@/lib/tripStore')
     await ensureTripThread(trip.id)
     const booked = gt(trip.id)
-    const selected = booked?.offers.find((o) => o.state === 'selected')
-    if (selected && booked) {
+    const sel = booked?.offers.find((o) => o.state === 'selected')
+    if (sel && booked) {
       const { addTripParticipant, inviteTripParticipant } = await import(
         '@/lib/tripStore'
       )
       const already = booked.participants.some(
-        (p) => p.role === 'operator_ops' && p.name === selected.operator_name,
+        (p) => p.role === 'operator_ops' && p.name === sel.operator_name,
       )
       if (!already) {
         const p = addTripParticipant(trip.id, {
-          name: selected.operator_name,
+          name: sel.operator_name,
           role: 'operator_ops',
-          cell: selected.contact_cell,
+          cell: sel.contact_cell,
           in_thread: true,
         })
         await inviteTripParticipant(trip.id, p.id)
@@ -344,11 +448,34 @@ export async function acceptHardQuote(token: string) {
     }
   }
 
-  // ETA sheet + portal track links → tracker / supply-chain (no QB invoice here)
+  try {
+    const { createInvoiceForTrip } = await import('@/lib/tripStore')
+    await createInvoiceForTrip(trip.id)
+  } catch (e) {
+    console.warn('[accept] invoice failed', e)
+  }
+
   const { runOnBookedAutomations } = await import('@/lib/onBooked')
   await runOnBookedAutomations(trip.id)
 
   return getTrip(trip.id)!
+}
+
+function resolveOpsEmails(trip: NonNullable<ReturnType<typeof getTrip>>): string[] {
+  const out: string[] = []
+  if (trip.client_id) {
+    out.push(...listInvoiceEmails(trip.client_id))
+    const c = getClient(trip.client_id)
+    for (const contact of c?.contacts ?? []) {
+      if (contact.role === 'supply_chain' && contact.email) out.push(contact.email)
+    }
+  }
+  for (const p of trip.participants) {
+    if (p.email && (p.role === 'dispatcher' || p.role === 'ops')) out.push(p.email)
+  }
+  return [
+    ...new Set(out.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))),
+  ]
 }
 
 export function simulatorMessagesForTrip(tripId: string) {
