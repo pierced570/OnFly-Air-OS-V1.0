@@ -15,6 +15,7 @@ const nav: {
   end?: boolean
 }[] = [
   { to: '/', label: 'Board', section: 'board', end: true },
+  { to: '/chat', label: 'Chat', section: 'chat' },
   { to: '/quick-dispatch', label: 'Quick Dispatch', section: 'quick_dispatch' },
   { to: '/intake', label: 'Intake', section: 'intake' },
   { to: '/financials', label: 'Financials', section: 'financials' },
@@ -76,6 +77,29 @@ export function DispatchShell({ children }: { children: ReactNode }) {
     })
     return () => stop?.()
   }, [])
+
+  // Presence heartbeat — keeps this dispatcher on the Board "Logged in" list
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    const beat = () => {
+      if (cancelled || !session) return
+      void import('@/lib/presenceStore').then((m) => {
+        m.touchPresence({
+          staff_id: session.id,
+          name: session.name,
+          phone: session.phone,
+        })
+        m.prunePresence()
+      })
+    }
+    beat()
+    const id = window.setInterval(beat, 30_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [session])
 
   useEffect(() => {
     if (!open) return

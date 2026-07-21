@@ -24,10 +24,17 @@ import {
 } from '@/lib/checkpointStore'
 import {
   endShift,
-  getOnShift,
+  endShiftForPerson,
+  listOnShift,
   startShift,
   subscribeShift,
 } from '@/lib/shiftStore'
+import {
+  listLoggedIn,
+  prunePresence,
+  subscribePresence,
+} from '@/lib/presenceStore'
+import { getSession, subscribeStaff } from '@/lib/staffStore'
 import {
   deleteIntakeDraft,
   listPendingIntake,
@@ -51,7 +58,17 @@ export default function BoardPage() {
     listUpcomingCheckpoints,
   )
   const upcomingChecks = useMemo(() => upcomingAll.slice(0, 8), [upcomingAll])
-  const onShift = useSyncExternalStore(subscribeShift, getOnShift, getOnShift)
+  const onShiftRoster = useSyncExternalStore(
+    subscribeShift,
+    listOnShift,
+    listOnShift,
+  )
+  const loggedIn = useSyncExternalStore(
+    subscribePresence,
+    listLoggedIn,
+    listLoggedIn,
+  )
+  const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
   const intake = useSyncExternalStore(
     subscribeIntake,
     listPendingIntake,
@@ -69,6 +86,29 @@ export default function BoardPage() {
   useEffect(() => {
     syncExceptionsFromTrips(trips)
   }, [trips])
+
+  useEffect(() => {
+    prunePresence()
+    void import('@/lib/db/hydrate').then((m) => void m.refreshDeskPresence())
+    const id = window.setInterval(() => {
+      prunePresence()
+      void import('@/lib/db/hydrate').then((m) => void m.refreshDeskPresence())
+    }, 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (!session) return
+    setShiftName(session.name)
+    if (session.phone) setShiftPhone(session.phone)
+  }, [session])
+
+  const iAmOnShift = Boolean(
+    session &&
+      onShiftRoster.some(
+        (s) => s.person_name.toLowerCase() === session.name.toLowerCase(),
+      ),
+  )
 
   const columns = useMemo(
     () =>
@@ -190,46 +230,113 @@ export default function BoardPage() {
 
         <div className="rounded-lg border border-border bg-surface p-3">
           <div className="text-xs uppercase tracking-wider text-muted">
-            On shift
+            Desk
           </div>
-          {onShift ? (
-            <div className="mt-2 space-y-2">
-              <p className="text-sm text-cream">{onShift.person_name}</p>
-              <p className="avionic text-xs text-muted">{onShift.phone}</p>
+
+          <div className="mt-3">
+            <div className="text-[10px] uppercase tracking-wider text-gold">
+              Logged in ({loggedIn.length})
+            </div>
+            {loggedIn.length === 0 ? (
+              <p className="mt-1 text-xs text-muted">Nobody online</p>
+            ) : (
+              <ul className="mt-1.5 space-y-1">
+                {loggedIn.map((p) => (
+                  <li
+                    key={p.staff_id}
+                    className="flex items-baseline justify-between gap-2 text-sm text-cream"
+                  >
+                    <span>
+                      {p.name}
+                      {session?.id === p.staff_id && (
+                        <span className="ml-1 text-[10px] text-gold">you</span>
+                      )}
+                    </span>
+                    {p.phone ? (
+                      <span className="avionic shrink-0 text-[10px] text-muted">
+                        {p.phone}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="mt-4 border-t border-border pt-3">
+            <div className="text-[10px] uppercase tracking-wider text-gold">
+              On shift ({onShiftRoster.length})
+            </div>
+            {onShiftRoster.length === 0 ? (
+              <p className="mt-1 text-xs text-muted">Nobody on shift</p>
+            ) : (
+              <ul className="mt-1.5 space-y-2">
+                {onShiftRoster.map((s) => (
+                  <li key={s.id} className="text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-cream">
+                        {s.person_name}
+                        {session &&
+                          s.person_name.toLowerCase() ===
+                            session.name.toLowerCase() && (
+                            <span className="ml-1 text-[10px] text-gold">
+                              you
+                            </span>
+                          )}
+                      </span>
+                      <button
+                        type="button"
+                        className="tap shrink-0 text-[10px] text-late"
+                        onClick={() => endShift(s.id)}
+                      >
+                        End
+                      </button>
+                    </div>
+                    {s.phone ? (
+                      <p className="avionic text-[10px] text-muted">{s.phone}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {!iAmOnShift && (
+              <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
+                <input
+                  value={shiftName}
+                  onChange={(e) => setShiftName(e.target.value)}
+                  placeholder="Dispatcher name"
+                  className="w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream placeholder:text-muted"
+                />
+                <input
+                  value={shiftPhone}
+                  onChange={(e) => setShiftPhone(e.target.value)}
+                  placeholder="Ring phone"
+                  className="avionic w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
+                />
+                <button
+                  type="button"
+                  className="text-xs text-gold"
+                  onClick={() => {
+                    if (!shiftName.trim()) return
+                    startShift(shiftName, shiftPhone)
+                  }}
+                >
+                  Start my shift
+                </button>
+              </div>
+            )}
+
+            {iAmOnShift && session && (
               <button
                 type="button"
-                className="tap rounded-md text-sm text-late"
-                onClick={() => endShift()}
+                className="tap mt-3 text-xs text-late"
+                onClick={() => endShiftForPerson(session.name)}
               >
-                End shift
+                End my shift
               </button>
-            </div>
-          ) : (
-            <div className="mt-2 space-y-2">
-              <input
-                value={shiftName}
-                onChange={(e) => setShiftName(e.target.value)}
-                placeholder="Dispatcher name"
-                className="w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream placeholder:text-muted"
-              />
-              <input
-                value={shiftPhone}
-                onChange={(e) => setShiftPhone(e.target.value)}
-                placeholder="Ring phone"
-                className="avionic w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
-              />
-              <button
-                type="button"
-                className="text-xs text-gold"
-                onClick={() => {
-                  if (!shiftName.trim()) return
-                  startShift(shiftName, shiftPhone)
-                }}
-              >
-                Start shift
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-3 text-sm">

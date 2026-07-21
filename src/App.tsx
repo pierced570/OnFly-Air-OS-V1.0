@@ -4,6 +4,7 @@ import { DispatchShell } from '@/components/DispatchShell'
 import { StaffGate } from '@/components/StaffGate'
 
 const BoardPage = lazy(() => import('@/pages/BoardPage'))
+const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NetworkPage = lazy(() => import('@/pages/NetworkPage'))
 const TripPage = lazy(() => import('@/pages/TripPage'))
 const AdminPage = lazy(() => import('@/pages/AdminPage'))
@@ -87,6 +88,8 @@ export function App() {
     <Suspense fallback={<Fallback />}>
       <Routes>
         <Route path="/" element={<BoardPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/chat/:tripId" element={<ChatPage />} />
         <Route path="/trips/new" element={<NewTripPage />} />
         <Route path="/quick-dispatch" element={<QuickDispatchPage />} />
         <Route path="/financials" element={<FinancialsPage />} />

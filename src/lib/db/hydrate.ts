@@ -18,7 +18,8 @@ import { replaceIntakeFromDb, type IntakeDraft } from '@/lib/intakeStore'
 import { replaceLeadsFromDb } from '@/lib/leadStore'
 import { replaceNeedsInfoFromDb, type NeedsInfoTask } from '@/lib/needsInfoStore'
 import { loadPricingPriors } from '@/lib/pricingPriorsStore'
-import { hydrateShiftFromDb } from '@/lib/shiftStore'
+import { hydrateShiftsFromDb } from '@/lib/shiftStore'
+import { hydratePresenceFromDb } from '@/lib/presenceStore'
 import { loadTaxRates } from '@/lib/taxRatesStore'
 
 export async function hydrateOperatingData(): Promise<{
@@ -207,18 +208,37 @@ export async function hydrateOperatingData(): Promise<{
       .select('*')
       .eq('active', true)
       .order('starts_at', { ascending: false })
-      .limit(1),
+      .limit(20),
   )
-  if (shiftRows && Array.isArray(shiftRows) && shiftRows[0]) {
-    const s = shiftRows[0] as Record<string, unknown>
-    hydrateShiftFromDb({
-      id: String(s.id),
-      person_name: String(s.person ?? 'Dispatcher'),
-      phone: String(s.phone ?? ''),
-      started_at: String(s.starts_at ?? new Date().toISOString()),
-      ended_at: null,
-      notes: String(s.notes ?? ''),
-    })
+  if (shiftRows && Array.isArray(shiftRows) && shiftRows.length) {
+    hydrateShiftsFromDb(
+      shiftRows.map((s: Record<string, unknown>) => ({
+        id: String(s.id),
+        person_name: String(s.person ?? 'Dispatcher'),
+        phone: String(s.phone ?? ''),
+        started_at: String(s.starts_at ?? new Date().toISOString()),
+        ended_at: null,
+        notes: String(s.notes ?? ''),
+      })),
+    )
+  }
+
+  const presenceRows = await safeQuery('staff_presence', () =>
+    db()
+      .from('staff_presence')
+      .select('staff_id,name,phone,last_seen_at')
+      .order('last_seen_at', { ascending: false })
+      .limit(50),
+  )
+  if (presenceRows && Array.isArray(presenceRows) && presenceRows.length) {
+    hydratePresenceFromDb(
+      presenceRows.map((r: Record<string, unknown>) => ({
+        staff_id: String(r.staff_id),
+        name: String(r.name ?? ''),
+        phone: String(r.phone ?? ''),
+        last_seen_at: String(r.last_seen_at ?? new Date().toISOString()),
+      })),
+    )
   }
 
   const leadRows = await safeQuery('leads', () =>
@@ -274,4 +294,51 @@ export async function hydrateOperatingData(): Promise<{
   }
 
   return { ok: true, clients, fbos, tasks, leads, trips }
+}
+
+/** Lightweight Board poll — active shifts + logged-in presence only. */
+export async function refreshDeskPresence(): Promise<void> {
+  if (!canPersist()) return
+
+  const [shiftRows, presenceRows] = await Promise.all([
+    safeQuery('shifts.active', () =>
+      db()
+        .from('shifts')
+        .select('*')
+        .eq('active', true)
+        .order('starts_at', { ascending: false })
+        .limit(20),
+    ),
+    safeQuery('staff_presence', () =>
+      db()
+        .from('staff_presence')
+        .select('staff_id,name,phone,last_seen_at')
+        .order('last_seen_at', { ascending: false })
+        .limit(50),
+    ),
+  ])
+
+  if (shiftRows && Array.isArray(shiftRows)) {
+    hydrateShiftsFromDb(
+      shiftRows.map((s: Record<string, unknown>) => ({
+        id: String(s.id),
+        person_name: String(s.person ?? 'Dispatcher'),
+        phone: String(s.phone ?? ''),
+        started_at: String(s.starts_at ?? new Date().toISOString()),
+        ended_at: null,
+        notes: String(s.notes ?? ''),
+      })),
+    )
+  }
+
+  if (presenceRows && Array.isArray(presenceRows)) {
+    hydratePresenceFromDb(
+      presenceRows.map((r: Record<string, unknown>) => ({
+        staff_id: String(r.staff_id),
+        name: String(r.name ?? ''),
+        phone: String(r.phone ?? ''),
+        last_seen_at: String(r.last_seen_at ?? new Date().toISOString()),
+      })),
+    )
+  }
 }
