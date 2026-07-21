@@ -127,6 +127,7 @@ export async function persistClient(client: ClientProfile): Promise<void> {
         list: client.rules.other_rules,
         hazmat_notes: client.rules.hazmat_notes || '',
         declared_value_norm: client.rules.declared_value_norm || '',
+        exceptions_with_permission: client.rules.exceptions_with_permission,
       },
     }),
   )

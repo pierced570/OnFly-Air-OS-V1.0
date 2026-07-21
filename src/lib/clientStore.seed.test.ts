@@ -50,6 +50,7 @@ describe('ensureClientsDirectorySeeded', () => {
           hazmat_allowed: true,
           hazmat_notes: '',
           declared_value_norm: '',
+          exceptions_with_permission: false,
           other_rules: [],
         },
         qb_customer_id: null,

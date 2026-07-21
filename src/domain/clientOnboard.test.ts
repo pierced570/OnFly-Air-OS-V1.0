@@ -4,6 +4,7 @@ import {
   emptyMissionAircraftPolicy,
   hardFiltersFromPolicy,
   laneCityHints,
+  normalizeMissionPolicy,
   payTermsLabel,
   rulesFromOnboardDraft,
   validateClientOnboard,
@@ -66,43 +67,49 @@ describe('validateClientOnboard', () => {
     )
   })
 
-  it('maps freight policy to hard filters + chips', () => {
+  it('maps freight restrictions to hard filters + chips', () => {
     const d = emptyClientOnboardDraft()
     d.freight_policy = {
       ...emptyMissionAircraftPolicy(),
-      dual_pilot_only: true,
-      multi_engine_only: true,
-      exceptions_with_permission: true,
+      no_single_engine: true,
+      dual_pilot_required: true,
     }
     d.passenger_policy = {
       ...emptyMissionAircraftPolicy(),
-      single_engine_ok: true,
+      no_single_engine_pistons: true,
     }
-    d.freight_only = false
-    d.hazmat_allowed = false
+    d.moves_passengers = true
+    d.exceptions_ok = true
     d.declared_value_norm = 'under $50k'
-    d.aircraft_other_notes = 'No gravel strips'
+    d.freight_policy = {
+      ...d.freight_policy,
+      other_restriction: true,
+      other_notes: 'No gravel strips',
+    }
     d.po_assigned_by = 'client'
     const rules = rulesFromOnboardDraft(d)
     expect(rules.dual_pilot_required).toBe(true)
     expect(rules.multi_engine_only).toBe(true)
     expect(rules.single_engine_turboprop_only).toBe(false)
-    expect(rules.hazmat_allowed).toBe(false)
+    expect(rules.freight_only).toBe(false)
+    expect(rules.hazmat_allowed).toBe(true)
+    expect(rules.exceptions_with_permission).toBe(true)
     expect(rules.declared_value_norm).toBe('under $50k')
-    expect(rules.other_rules).toContain('Freight: dual pilot only')
-    expect(rules.other_rules).toContain('Freight: multi-engine only')
-    expect(rules.other_rules).toContain('Freight: exceptions with permission')
-    expect(rules.other_rules).toContain('Passenger: single-engine OK')
-    expect(rules.other_rules).toContain('No gravel strips')
+    expect(rules.other_rules).toContain('Freight: no single-engine')
+    expect(rules.other_rules).toContain('Freight: dual pilot required')
+    expect(rules.other_rules).toContain('Freight: No gravel strips')
+    expect(rules.other_rules).toContain(
+      'Passenger: no single-engine pistons (SE turboprop OK)',
+    )
+    expect(rules.other_rules).toContain('Exceptions OK with confirmation')
     expect(payTermsLabel('net_60')).toBe('Net 60')
   })
 
-  it('maps SE turboprop-only when freight allows turboprop but not all SE', () => {
+  it('maps no SE pistons → single_engine_turboprop_only', () => {
     const d = emptyClientOnboardDraft()
     d.freight_policy = {
       ...emptyMissionAircraftPolicy(),
-      single_engine_turboprop_ok: true,
-      single_engine_ok: false,
+      no_single_engine_pistons: true,
     }
     const rules = rulesFromOnboardDraft(d)
     expect(rules.single_engine_turboprop_only).toBe(true)
@@ -111,12 +118,12 @@ describe('validateClientOnboard', () => {
     )
   })
 
-  it('skips passenger chips when freight_only', () => {
+  it('defaults to freight_only when passengers = No', () => {
     const d = emptyClientOnboardDraft()
-    d.freight_only = true
+    expect(d.moves_passengers).toBe(false)
     d.passenger_policy = {
       ...emptyMissionAircraftPolicy(),
-      dual_pilot_only: true,
+      dual_pilot_required: true,
     }
     const rules = rulesFromOnboardDraft(d)
     expect(rules.freight_only).toBe(true)
@@ -125,15 +132,25 @@ describe('validateClientOnboard', () => {
     )
   })
 
-  it('hardFiltersFromPolicy maps passenger dual/multi', () => {
-    const hard = hardFiltersFromPolicy({
-      ...emptyMissionAircraftPolicy(),
+  it('nothing checked → no hard filter constraints', () => {
+    const rules = rulesFromOnboardDraft(emptyClientOnboardDraft())
+    expect(rules.dual_pilot_required).toBe(false)
+    expect(rules.multi_engine_only).toBe(false)
+    expect(rules.single_engine_turboprop_only).toBe(false)
+    expect(rules.exceptions_with_permission).toBe(false)
+  })
+
+  it('normalizes legacy opt-in policy shapes', () => {
+    const legacy = normalizeMissionPolicy({
       dual_pilot_only: true,
       multi_engine_only: true,
+      single_engine_ok: false,
+      single_engine_turboprop_ok: false,
+      exceptions_with_permission: true,
     })
-    expect(hard.dual_pilot_required).toBe(true)
-    expect(hard.multi_engine_only).toBe(true)
-    expect(hard.single_engine_turboprop_only).toBe(false)
+    expect(legacy.no_single_engine).toBe(true)
+    expect(legacy.dual_pilot_required).toBe(true)
+    expect(legacy.no_single_engine_pistons).toBe(false)
   })
 
   it('extracts city hints from lanes', () => {

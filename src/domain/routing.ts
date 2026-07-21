@@ -27,6 +27,8 @@ export type ClientRules = {
   single_engine_turboprop_only?: boolean
   no_single_engine_night?: boolean
   hazmat_allowed?: boolean
+  /** Soft-block client aircraft restrictions instead of hard-fail. */
+  exceptions_with_permission?: boolean
 }
 
 export type AircraftCandidateSource = {
@@ -212,26 +214,52 @@ export async function generateCandidates(
 
     // client rules
     const rules = trip.client_rules ?? {}
+    const softClientRules = Boolean(rules.exceptions_with_permission)
+    const applyClientRestriction = (label: string, violated: boolean) => {
+      if (!violated) return
+      if (softClientRules) {
+        needsInfo.push(label)
+        bookingGated = true
+        confidence -= 0.1
+        reasoning.push(`${label} — exceptions OK with client confirmation`)
+      } else {
+        hardFail = true
+      }
+    }
+
     if (rules.freight_only && trip.payload_kind === 'pax') hardFail = true
-    if (rules.multi_engine_only && !isMultiEngine(ac.engines)) {
+    if (rules.multi_engine_only) {
       if (ac.engines == null) {
         needsInfo.push('engines')
         confidence -= 0.15
-      } else hardFail = true
+      } else {
+        applyClientRestriction(
+          'client: no single-engine',
+          !isMultiEngine(ac.engines),
+        )
+      }
     }
     if (rules.single_engine_turboprop_only) {
-      if (!isSingleEngine(ac.engines) || !isTurboprop(ac.engines, ac.category)) {
-        if (!ac.engines) {
-          needsInfo.push('engines')
-          confidence -= 0.15
-        } else hardFail = true
+      if (!ac.engines) {
+        needsInfo.push('engines')
+        confidence -= 0.15
+      } else {
+        applyClientRestriction(
+          'client: no single-engine pistons',
+          !isSingleEngine(ac.engines) ||
+            !isTurboprop(ac.engines, ac.category),
+        )
       }
     }
     if (rules.dual_pilot_required) {
-      if (ac.crew && /single/i.test(ac.crew) && !/dual/i.test(ac.crew)) hardFail = true
       if (!ac.crew) {
         needsInfo.push('crew')
         confidence -= 0.1
+      } else {
+        applyClientRestriction(
+          'client: dual pilot required',
+          /single/i.test(ac.crew) && !/dual/i.test(ac.crew),
+        )
       }
     }
     if (trip.hazmat && rules.hazmat_allowed === false) hardFail = true

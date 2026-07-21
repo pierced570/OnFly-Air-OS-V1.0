@@ -174,7 +174,6 @@ export async function submitClientOnboard(
       shipping_flags: {
         oversized: draft.oversized,
         high_declared_value: Boolean(draft.declared_value_norm.trim()),
-        hazmat_sometimes: draft.hazmat_allowed && Boolean(draft.hazmat_notes),
       },
     },
   })
