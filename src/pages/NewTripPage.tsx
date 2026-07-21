@@ -3,12 +3,15 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   formatPieceDims,
   parseDims,
+  piecesHaveWeights,
   type DimLengthUnit,
   type Piece,
 } from '@/domain/dimsParser'
+import { forkliftHandlingFromPieces } from '@/domain/forkliftHandling'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
+import { DimsTripleInput } from '@/components/DimsTripleInput'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
-import { createMapsAdapter } from '@/adapters/maps'
+import { createMapsAdapter, resolveDoorLatLon } from '@/adapters/maps'
 import { generateCandidates, type Candidate } from '@/domain/routing'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { getTaxRates } from '@/lib/taxRatesStore'
@@ -21,6 +24,7 @@ import { formatStopLocal } from '@/domain/timeFmt'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { getRequest, submitTripRequest } from '@/lib/requestStore'
 import type { TripRequestDraft, TripRequestRecord } from '@/domain/tripRequest'
+import { cargoPiecesFromDraft } from '@/domain/tripRequest'
 
 function resolveAirport(icaoRaw: string) {
   const icao = icaoRaw.trim().toUpperCase()
@@ -71,6 +75,23 @@ export default function NewTripPage() {
     [dimsText, dimUnit],
   )
 
+  const piecesForQuote = useMemo(() => {
+    if (!request) return parsed.pieces
+    return cargoPiecesFromDraft({
+      ...request,
+      cargo_notes: dimsText || request.cargo_notes,
+      dim_unit: dimUnit,
+    })
+  }, [request, dimsText, dimUnit, parsed.pieces])
+
+  const forkliftNote = useMemo(
+    () =>
+      request?.forklift?.level !== 'none' && request?.forklift?.label
+        ? request.forklift
+        : forkliftHandlingFromPieces(piecesForQuote),
+    [request, piecesForQuote],
+  )
+
   const payloadKind =
     request && !request.cargo_only
       ? request.cargo_notes.trim()
@@ -88,6 +109,18 @@ export default function NewTripPage() {
     }
     if (draft.dim_unit) setDimUnit(draft.dim_unit)
     setCandidates(null)
+    // Phase A: create Trip draft→routed with banded shortlist on the Board
+    try {
+      const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
+      const { trip } = await createRoutedTripFromRequest(row)
+      nav(`/trips/${trip.id}`)
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Request saved — could not auto-route; run estimate below',
+      )
+    }
   }
 
   async function runQuote(approvedPieces?: Piece[]) {
@@ -95,9 +128,13 @@ export default function NewTripPage() {
     const pieces =
       approvedPieces ??
       piecesApproved ??
-      (payloadKind === 'pax' ? [] : parsed.pieces)
+      (payloadKind === 'pax' ? [] : piecesForQuote)
     if (payloadKind !== 'pax' && !pieces.length) {
       setError('Add cargo dims (e.g. 3 skids 48x40x60 @ 800ea), then approve')
+      return
+    }
+    if (payloadKind !== 'pax' && !piecesHaveWeights(pieces)) {
+      setError('Cargo weight required on every piece before estimates run')
       return
     }
     if (payloadKind !== 'pax' && !approvedPieces && !piecesApproved) {
@@ -129,13 +166,33 @@ export default function NewTripPage() {
       const fleet = await loadFleetForRouting()
       const maps = createMapsAdapter()
       const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
-      const { getClient } = await import('@/lib/clientStore')
+      const { getClient, clientRulesForRouting } = await import('@/lib/clientStore')
       const { fboFeesForAirport } = await import('@/lib/fboStore')
       const client = request.client_id ? getClient(request.client_id) : undefined
       const originFees = fboFeesForAirport(originAp.icao)
       const destFees = fboFeesForAirport(destAp.icao)
       const t0 = performance.now()
       const priors = await loadPricingPriors()
+      const doorShipper =
+        mode !== 'a2a'
+          ? await resolveDoorLatLon(
+              maps,
+              leg.pickup_address,
+              originAp.lat,
+              originAp.lon,
+              originAp.tz,
+            )
+          : undefined
+      const doorConsignee =
+        mode !== 'a2a'
+          ? await resolveDoorLatLon(
+              maps,
+              leg.dropoff_address,
+              destAp.lat,
+              destAp.lon,
+              destAp.tz,
+            )
+          : undefined
       const cands = await generateCandidates(
         {
           mode,
@@ -144,7 +201,7 @@ export default function NewTripPage() {
           pax_count: paxCount,
           hazmat: request.hazmat,
           ready_at: request.ready_at,
-          client_rules: client?.rules,
+          client_rules: clientRulesForRouting(client, payloadKind),
           origin: {
             kind: mode === 'a2a' ? 'airport' : 'address',
             text: leg.pickup_address || originAp.icao,
@@ -161,14 +218,8 @@ export default function NewTripPage() {
             lon: destAp.lon,
             tz: destAp.tz,
           },
-          shipper:
-            mode !== 'a2a'
-              ? { lat: originAp.lat, lon: originAp.lon, tz: originAp.tz }
-              : undefined,
-          consignee:
-            mode !== 'a2a'
-              ? { lat: destAp.lat, lon: destAp.lon, tz: destAp.tz }
-              : undefined,
+          shipper: doorShipper,
+          consignee: doorConsignee,
         },
         fleet,
         maps,
@@ -224,13 +275,19 @@ export default function NewTripPage() {
   }
 
   function approvePiecesAndQuote() {
-    if (!parsed.pieces.length) {
+    if (!piecesForQuote.length) {
       setError('Nothing parsed yet — enter dims like “3 skids 48x40x60 @ 800ea”')
       return
     }
-    setPiecesApproved(parsed.pieces)
+    if (!piecesHaveWeights(piecesForQuote)) {
+      setError(
+        'Cargo weight required — add @ N ea in the dims or Weight each on the request',
+      )
+      return
+    }
+    setPiecesApproved(piecesForQuote)
     setError(null)
-    void runQuote(parsed.pieces)
+    void runQuote(piecesForQuote)
   }
 
   return (
@@ -267,6 +324,18 @@ export default function NewTripPage() {
                   {request.lane} · {request.summary}
                   {request.client_name ? ` · ${request.client_name}` : ''}
                 </p>
+                {forkliftNote.level !== 'none' && forkliftNote.label && (
+                  <p
+                    className={[
+                      'mt-2 text-xs font-medium',
+                      forkliftNote.level === 'required'
+                        ? 'text-late'
+                        : 'text-gold',
+                    ].join(' ')}
+                  >
+                    {forkliftNote.label}
+                  </p>
+                )}
                 <button
                   type="button"
                   className="mt-2 text-xs text-gold"
@@ -289,31 +358,15 @@ export default function NewTripPage() {
                       setCandidates(null)
                     }}
                   />
-                  <label className="block text-xs uppercase tracking-wider text-muted">
-                    Pieces (dims parser)
-                    <textarea
-                      value={dimsText}
-                      onChange={(e) => {
-                        setDimsText(e.target.value)
-                        setPiecesApproved(null)
-                        setCandidates(null)
-                      }}
-                      rows={2}
-                      placeholder={
-                        dimUnit === 'ft'
-                          ? '3 skids 4x3.5x5 @ 800ea'
-                          : '3 skids 48x40x60 @ 800ea'
-                      }
-                      className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
-                    />
-                  </label>
-                  <p className="text-[11px] text-muted">
-                    Entering{' '}
-                    <span className="text-cream">
-                      {dimUnit === 'ft' ? 'feet' : 'inches'}
-                    </span>
-                    . Preview shows both when feet are used (door fit = inches).
-                  </p>
+                  <DimsTripleInput
+                    value={dimsText}
+                    unit={dimUnit}
+                    onChange={(next) => {
+                      setDimsText(next)
+                      setPiecesApproved(null)
+                      setCandidates(null)
+                    }}
+                  />
                   <div className="rounded-md border border-border/60 bg-ink/40 p-3 text-sm">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs uppercase tracking-wider text-muted">
@@ -321,7 +374,7 @@ export default function NewTripPage() {
                       </span>
                       <span className="text-xs text-gold">{parsed.confidence}</span>
                     </div>
-                    {parsed.pieces.length === 0 ? (
+                    {piecesForQuote.length === 0 ? (
                       <p className="text-xs text-muted">
                         No pieces parsed yet — use e.g.{' '}
                         <span className="avionic text-cream">
@@ -331,12 +384,24 @@ export default function NewTripPage() {
                         </span>
                       </p>
                     ) : (
-                      parsed.pieces.map((p, i) => (
+                      piecesForQuote.map((p, i) => (
                         <div key={i} className="avionic text-cream">
                           {p.count}× {formatPieceDims(p, dimUnit)} @{' '}
-                          {p.weight_lbs} lb
+                          {p.weight_lbs > 0 ? `${p.weight_lbs} lb` : 'weight?'}
                         </div>
                       ))
+                    )}
+                    {forkliftNote.level !== 'none' && forkliftNote.label && (
+                      <p
+                        className={[
+                          'mt-2 text-xs',
+                          forkliftNote.level === 'required'
+                            ? 'text-late'
+                            : 'text-gold',
+                        ].join(' ')}
+                      >
+                        {forkliftNote.label}
+                      </p>
                     )}
                   </div>
                 </>
@@ -345,7 +410,11 @@ export default function NewTripPage() {
               {payloadKind !== 'pax' ? (
                 <button
                   type="button"
-                  disabled={busy || !parsed.pieces.length}
+                  disabled={
+                    busy ||
+                    !piecesForQuote.length ||
+                    !piecesHaveWeights(piecesForQuote)
+                  }
                   onClick={approvePiecesAndQuote}
                   className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
                 >

@@ -5,7 +5,6 @@ import {
   getTrip,
   listTripsStable,
   mutateTrip,
-  postThreadMessage,
   safeTransitionTrip,
   subscribeTrips,
 } from '@/lib/tripStore'
@@ -17,6 +16,7 @@ import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
 import { PipelineStrip } from '@/components/PipelineStrip'
 import { EtaSheetPanel } from '@/components/EtaSheetPanel'
 import { ParticipantsPanel } from '@/components/ParticipantsPanel'
+import { TripThreadPanel } from '@/components/TripThreadPanel'
 import {
   acknowledgeCheckpoint,
   listCheckpoints,
@@ -33,7 +33,6 @@ export default function TripPage() {
     listCheckpoints,
   )
   const trip = id ? getTrip(id) : null
-  const [threadBody, setThreadBody] = useState('')
   const [invoiceBusy, setInvoiceBusy] = useState(false)
   const [wxBriefs, setWxBriefs] = useState<WxBrief[]>([])
   const tripChecks = useMemo(
@@ -414,62 +413,7 @@ export default function TripPage() {
         </section>
       )}
 
-      <section className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-xs uppercase tracking-wider text-muted">Trip thread</h2>
-        <p className="mt-1 text-xs text-muted">
-          Paste field updates — regex parses wheels-up / loaded / POD (mock relay).
-        </p>
-        <ul className="mt-3 max-h-48 space-y-2 overflow-auto">
-          {trip.thread.length === 0 && (
-            <li className="text-sm text-muted">No messages yet.</li>
-          )}
-          {trip.thread.map((m) => (
-            <li key={m.id} className="border-b border-border/40 pb-2 text-sm">
-              <div className="flex gap-2 text-xs text-muted">
-                <span className="avionic">{new Date(m.at).toISOString().slice(11, 19)}Z</span>
-                <span>{m.from}</span>
-                {m.parsed_kind && (
-                  <span className="text-gold">parsed: {m.parsed_kind}</span>
-                )}
-              </div>
-              <p className="text-cream">{m.body}</p>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-3 flex gap-2">
-          <input
-            className="min-w-0 flex-1 rounded border border-border bg-ink px-3 py-2 text-sm text-cream"
-            placeholder="wheels up / arrived / delivered…"
-            value={threadBody}
-            onChange={(e) => setThreadBody(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && threadBody.trim()) {
-                postThreadMessage(trip.id, {
-                  from: 'dispatcher',
-                  channel: 'web',
-                  body: threadBody,
-                })
-                setThreadBody('')
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="rounded bg-gold px-3 py-2 text-sm text-ink"
-            onClick={() => {
-              if (!threadBody.trim()) return
-              postThreadMessage(trip.id, {
-                from: 'dispatcher',
-                channel: 'web',
-                body: threadBody,
-              })
-              setThreadBody('')
-            }}
-          >
-            Post
-          </button>
-        </div>
-      </section>
+      <TripThreadPanel trip={trip} />
 
       <section className="rounded-lg border border-border bg-surface p-4">
         <h2 className="text-xs uppercase tracking-wider text-muted">Event log</h2>

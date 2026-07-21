@@ -44,6 +44,7 @@ import { parseDims, type DimLengthUnit } from '@/domain/dimsParser'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { rankOperatorsForMission } from '@/domain/missionFit'
 import { loadFleetForMissionFit } from '@/lib/fleetRouting'
+import { NetworkSheetView } from '@/components/NetworkSheetView'
 import {
   VERTICAL_IDS,
   VERTICAL_LABELS,
@@ -52,7 +53,7 @@ import {
   type VerticalId,
 } from '@/domain/operatorVerticals'
 
-type ViewMode = 'board' | 'list'
+type ViewMode = 'board' | 'list' | 'sheet'
 
 type OpBundle = {
   op: OperatorRow
@@ -398,6 +399,16 @@ export default function NetworkPage() {
             >
               List
             </button>
+            <button
+              type="button"
+              onClick={() => setView('sheet')}
+              className={[
+                'flex-1 rounded px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
+                view === 'sheet' ? 'bg-gold text-ink' : 'text-muted hover:text-cream',
+              ].join(' ')}
+            >
+              Sheet
+            </button>
           </div>
           <Link to="/admin" className="text-sm text-gold hover:text-gold-lt">
             Add operator →
@@ -405,6 +416,23 @@ export default function NetworkPage() {
         </div>
       </header>
 
+      {view === 'sheet' ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:p-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="min-w-[12rem] flex-1 text-xs text-muted">
+              Filter
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Operator / tail / type / cell…"
+                className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
+              />
+            </label>
+          </div>
+          <NetworkSheetView filter={q} />
+        </div>
+      ) : (
+        <>
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:p-4">
         <div className="text-xs uppercase tracking-wider text-muted">
           Mission fit
@@ -633,6 +661,8 @@ export default function NetworkPage() {
             />
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   )

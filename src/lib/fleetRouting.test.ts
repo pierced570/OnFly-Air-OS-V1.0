@@ -28,6 +28,17 @@ describe('fleetRouting rates', () => {
     ).toEqual({ rate_per_nm: 8.05, rate_source: 'assumption' })
   })
 
+  it('prefers rates_block $/NM over history/assumed', () => {
+    expect(
+      rateFromAircraft({
+        rate_per_nm: 11.5,
+        rate_source: 'block_rate',
+        avg_op_per_nm_circuit: 7.2,
+        med_assumed_op_per_nm: 10,
+      }),
+    ).toEqual({ rate_per_nm: 11.5, rate_source: 'block_rate' })
+  })
+
   it('loads fixture fleet with file rates and door dims', async () => {
     const fleet = await loadFleetForRouting()
     const withRate = fleet.filter((a) => a.rate_per_nm != null)

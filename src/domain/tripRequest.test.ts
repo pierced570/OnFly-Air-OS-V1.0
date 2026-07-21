@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   ASAP_MAX_HOURS,
+  buildReturnLegs,
   emptyTripRequestDraft,
+  forkliftFromDraft,
   isAsapReady,
+  summaryFromDraft,
+  laneFromDraft,
+  syncReturnLegs,
   validateTripRequest,
 } from './tripRequest'
 
@@ -16,9 +21,42 @@ describe('tripRequest', () => {
 
   it('requires email + ICAOs on portal draft', () => {
     const d = emptyTripRequestDraft()
+    d.cargo_weight_lbs = 50
     const issues = validateTripRequest(d, { requireEmail: true })
     expect(issues.some((i) => i.field === 'email')).toBe(true)
     expect(issues.some((i) => i.field === 'leg.0.origin')).toBe(true)
+  })
+
+  it('cargo requires weight', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_notes = '1 skid 48x40x48'
+    expect(validateTripRequest(d).some((i) => i.field === 'cargo_weight')).toBe(
+      true,
+    )
+    d.cargo_weight_lbs = 150
+    expect(validateTripRequest(d).some((i) => i.field === 'cargo_weight')).toBe(
+      false,
+    )
+  })
+
+  it('accepts weight embedded in dims text', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_notes = '1 skid 48x40x48 @ 90ea'
+    expect(validateTripRequest(d).length).toBe(0)
+    expect(forkliftFromDraft(d).level).toBe('none')
+  })
+
+  it('summarizes forklift required from heavy pieces', () => {
+    const d = emptyTripRequestDraft()
+    d.cargo_notes = '1 crate 48x40x48 @ 250ea'
+    expect(summaryFromDraft(d)).toContain('forklift required')
+    expect(forkliftFromDraft(d).level).toBe('required')
   })
 
   it('round trip requires hours on ground', () => {
@@ -26,11 +64,57 @@ describe('tripRequest', () => {
     d.email = 'a@b.co'
     d.legs[0]!.origin_icao = 'KCAK'
     d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_weight_lbs = 40
     d.direction = 'round_trip'
+    d.return_legs = buildReturnLegs(d.legs)
     d.hours_on_ground = ''
     expect(
       validateTripRequest(d).some((i) => i.field === 'hours_on_ground'),
     ).toBe(true)
+  })
+
+  it('mirrors outbound into return legs (reversed)', () => {
+    const d = emptyTripRequestDraft()
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.legs.push({
+      ...d.legs[0]!,
+      id: 'leg-2',
+      origin_icao: 'KMDW',
+      dest_icao: 'KORD',
+    })
+    const ret = buildReturnLegs(d.legs)
+    expect(ret).toHaveLength(2)
+    expect(ret[0]).toMatchObject({ origin_icao: 'KORD', dest_icao: 'KMDW' })
+    expect(ret[1]).toMatchObject({ origin_icao: 'KMDW', dest_icao: 'KCAK' })
+  })
+
+  it('lane includes return when round trip', () => {
+    const d = emptyTripRequestDraft()
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.direction = 'round_trip'
+    d.hours_on_ground = 2
+    d.return_legs = buildReturnLegs(d.legs)
+    expect(laneFromDraft(d)).toBe('KCAK→KMDW · KMDW→KCAK')
+  })
+
+  it('syncReturnLegs preserves return date/time', () => {
+    const d = emptyTripRequestDraft()
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    const first = buildReturnLegs(d.legs)
+    first[0]!.date = '2026-08-01'
+    first[0]!.pickup_time = '14:00'
+    d.legs[0]!.dest_icao = 'KORD'
+    const synced = syncReturnLegs(d.legs, first)
+    expect(synced[0]).toMatchObject({
+      origin_icao: 'KORD',
+      dest_icao: 'KCAK',
+      date: '2026-08-01',
+      pickup_time: '14:00',
+      id: first[0]!.id,
+    })
   })
 
   it('passenger mode requires name weight dob', () => {
@@ -50,6 +134,7 @@ describe('tripRequest', () => {
     const d = emptyTripRequestDraft()
     d.email = 'a@b.co'
     d.service_mode = 'd2d'
+    d.cargo_weight_lbs = 75
     expect(validateTripRequest(d).some((i) => i.field === 'leg.0.pickup')).toBe(
       true,
     )
@@ -68,6 +153,7 @@ describe('tripRequest', () => {
     const d = emptyTripRequestDraft()
     d.email = 'a@b.co'
     d.service_mode = 'mixed'
+    d.cargo_weight_lbs = 75
     d.legs[0]!.origin_icao = 'KCAK'
     d.legs[0]!.dest_icao = 'KMDW'
     expect(validateTripRequest(d).some((i) => i.field === 'leg.0.pickup')).toBe(
