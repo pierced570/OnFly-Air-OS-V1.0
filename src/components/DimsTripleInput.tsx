@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
-  composeDimsLine,
-  parseDimsTriple,
+  composeDimsLines,
+  emptyDimsTripleRow,
+  parseDimsLines,
   type DimLengthUnit,
+  type DimsTripleRow,
 } from '@/domain/dimsParser'
 
 const box =
@@ -12,7 +14,7 @@ const xSep =
   'shrink-0 px-1 text-lg font-semibold text-gold select-none sm:px-1.5'
 
 type Props = {
-  /** Composed free-text line (kept for parsers / cargo_notes). */
+  /** Composed free-text line(s) — `;` separates skids (kept for parsers / cargo_notes). */
   value: string
   onChange: (composed: string) => void
   unit: DimLengthUnit
@@ -21,9 +23,21 @@ type Props = {
   showQtyWeight?: boolean
 }
 
+function rowsEqual(a: DimsTripleRow[], b: DimsTripleRow[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every(
+    (r, i) =>
+      r.count === b[i]?.count &&
+      r.l === b[i]?.l &&
+      r.w === b[i]?.w &&
+      r.h === b[i]?.h &&
+      r.weight === b[i]?.weight,
+  )
+}
+
 /**
- * Cargo L × W × H entry — three boxes with gold X separators so the
- * L×W×H order is obvious. Still emits a parseable dims string.
+ * Cargo L × W × H entry — one or more skid rows with gold X separators.
+ * Still emits a parseable dims string (`skid; skid; …`).
  */
 export function DimsTripleInput({
   value,
@@ -32,164 +46,207 @@ export function DimsTripleInput({
   className = '',
   showQtyWeight = true,
 }: Props) {
-  const parsed = parseDimsTriple(value)
-  const [count, setCount] = useState(String(parsed.count || 1))
-  const [l, setL] = useState(parsed.l)
-  const [w, setW] = useState(parsed.w)
-  const [h, setH] = useState(parsed.h)
-  const [weight, setWeight] = useState(parsed.weight)
+  const [rows, setRows] = useState<DimsTripleRow[]>(() => parseDimsLines(value))
 
-  // Re-hydrate when parent clears or loads a full L×W×H line (e.g. request).
-  // Skip partial emits ("48", "48x40") so typing one box doesn't wipe the others.
+  // Re-hydrate from parent (clear / load request). Keep trailing empty rows
+  // the user just added via "+ Add skid".
   useEffect(() => {
     if (!value.trim()) {
-      setCount('1')
-      setL('')
-      setW('')
-      setH('')
-      setWeight('')
+      setRows((prev) => {
+        const blank = emptyDimsTripleRow()
+        if (prev.length === 1 && rowsEqual(prev, [blank])) return prev
+        return [blank]
+      })
       return
     }
-    const next = parseDimsTriple(value)
-    if (!next.l || !next.w || !next.h) return
-    setCount(String(next.count || 1))
-    setL(next.l)
-    setW(next.w)
-    setH(next.h)
-    setWeight(next.weight)
+    const next = parseDimsLines(value)
+    const allComplete = next.every((r) => r.l && r.w && r.h)
+    if (!allComplete) return
+    setRows((prev) => {
+      const trailingEmpty = prev.filter(
+        (r, i) =>
+          i >= next.length && !r.l && !r.w && !r.h && !String(r.weight).trim(),
+      )
+      const merged = [...next, ...trailingEmpty]
+      return rowsEqual(prev, merged) ? prev : merged
+    })
   }, [value])
 
-  function emit(
-    next: Partial<{ count: string; l: string; w: string; h: string; weight: string }>,
-  ) {
-    const c = next.count ?? count
-    const ll = next.l ?? l
-    const ww = next.w ?? w
-    const hh = next.h ?? h
-    const wt = next.weight ?? weight
-    onChange(
-      composeDimsLine({
-        count: Number(c) || 1,
-        l: ll,
-        w: ww,
-        h: hh,
-        weightLbs: wt.trim() ? Number(wt) : null,
-        unit,
-      }),
-    )
+  function emit(nextRows: DimsTripleRow[]) {
+    setRows(nextRows)
+    onChange(composeDimsLines(nextRows, unit))
+  }
+
+  function patchRow(index: number, patch: Partial<DimsTripleRow>) {
+    emit(rows.map((r, i) => (i === index ? { ...r, ...patch } : r)))
+  }
+
+  function addSkid(prefill?: Partial<DimsTripleRow>) {
+    // Local row first — empty lines are omitted from cargo_notes until typed.
+    setRows((prev) => [...prev, { ...emptyDimsTripleRow(), ...prefill }])
+  }
+
+  function removeRow(index: number) {
+    if (rows.length <= 1) {
+      emit([emptyDimsTripleRow()])
+      return
+    }
+    emit(rows.filter((_, i) => i !== index))
   }
 
   const unitLabel = unit === 'ft' ? 'ft' : 'in'
 
   return (
-    <div className={`space-y-2 ${className}`}>
-      <div className="text-xs font-medium text-muted">
-        Cargo dims (L × W × H)
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
-        {showQtyWeight && (
-          <label className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-muted">
-            Qty
-            <input
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={count}
-              onChange={(e) => {
-                setCount(e.target.value)
-                emit({ count: e.target.value })
-              }}
-              className={box}
-              aria-label="Piece count"
-            />
-          </label>
-        )}
-        <div className="flex min-w-0 flex-1 items-end gap-0.5 sm:gap-1">
-          <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
-            L ({unitLabel})
-            <input
-              type="number"
-              min={0}
-              step="any"
-              inputMode="decimal"
-              value={l}
-              onChange={(e) => {
-                setL(e.target.value)
-                emit({ l: e.target.value })
-              }}
-              placeholder={unit === 'ft' ? '4' : '48'}
-              className={box}
-              aria-label={`Length in ${unitLabel}`}
-            />
-          </label>
-          <span className={xSep} aria-hidden>
-            ×
-          </span>
-          <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
-            W ({unitLabel})
-            <input
-              type="number"
-              min={0}
-              step="any"
-              inputMode="decimal"
-              value={w}
-              onChange={(e) => {
-                setW(e.target.value)
-                emit({ w: e.target.value })
-              }}
-              placeholder={unit === 'ft' ? '3.5' : '40'}
-              className={box}
-              aria-label={`Width in ${unitLabel}`}
-            />
-          </label>
-          <span className={xSep} aria-hidden>
-            ×
-          </span>
-          <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
-            H ({unitLabel})
-            <input
-              type="number"
-              min={0}
-              step="any"
-              inputMode="decimal"
-              value={h}
-              onChange={(e) => {
-                setH(e.target.value)
-                emit({ h: e.target.value })
-              }}
-              placeholder={unit === 'ft' ? '5' : '60'}
-              className={box}
-              aria-label={`Height in ${unitLabel}`}
-            />
-          </label>
+    <div className={`space-y-3 ${className}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-medium text-muted">
+          Cargo dims (L × W × H)
         </div>
-        {showQtyWeight && (
-          <label className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-muted">
-            Lb ea
-            <input
-              type="number"
-              min={0}
-              step="any"
-              inputMode="decimal"
-              value={weight}
-              onChange={(e) => {
-                setWeight(e.target.value)
-                emit({ weight: e.target.value })
-              }}
-              placeholder="800"
-              className={box}
-              aria-label="Weight pounds each"
-            />
-          </label>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              addSkid(
+                unit === 'ft'
+                  ? { l: '4', w: '3.33' }
+                  : { l: '48', w: '40' },
+              )
+            }
+            className="rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-[var(--text)] hover:border-gold/50"
+          >
+            + 48×40 skid
+          </button>
+          <button
+            type="button"
+            onClick={() => addSkid()}
+            className="rounded-md bg-gold/15 px-2.5 py-1 text-[11px] font-semibold text-gold hover:bg-gold/25"
+          >
+            + Add skid
+          </button>
+        </div>
       </div>
+
+      <div className="space-y-3">
+        {rows.map((row, index) => (
+          <div
+            key={index}
+            className="space-y-1.5 rounded-lg border border-border/60 bg-surface-2/30 p-2.5 sm:p-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                Skid {index + 1}
+                {rows.length > 1 ? ` of ${rows.length}` : ''}
+              </div>
+              {rows.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeRow(index)}
+                  className="text-[11px] text-muted hover:text-late"
+                  aria-label={`Remove skid ${index + 1}`}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              {showQtyWeight && (
+                <label className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-muted">
+                  Qty
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={row.count}
+                    onChange={(e) =>
+                      patchRow(index, { count: e.target.value })
+                    }
+                    className={box}
+                    aria-label={`Skid ${index + 1} piece count`}
+                  />
+                </label>
+              )}
+              <div className="flex min-w-0 flex-1 items-end gap-0.5 sm:gap-1">
+                <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
+                  L ({unitLabel})
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    value={row.l}
+                    onChange={(e) => patchRow(index, { l: e.target.value })}
+                    placeholder={unit === 'ft' ? '4' : '48'}
+                    className={box}
+                    aria-label={`Skid ${index + 1} length in ${unitLabel}`}
+                  />
+                </label>
+                <span className={xSep} aria-hidden>
+                  ×
+                </span>
+                <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
+                  W ({unitLabel})
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    value={row.w}
+                    onChange={(e) => patchRow(index, { w: e.target.value })}
+                    placeholder={unit === 'ft' ? '3.5' : '40'}
+                    className={box}
+                    aria-label={`Skid ${index + 1} width in ${unitLabel}`}
+                  />
+                </label>
+                <span className={xSep} aria-hidden>
+                  ×
+                </span>
+                <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
+                  H ({unitLabel})
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    value={row.h}
+                    onChange={(e) => patchRow(index, { h: e.target.value })}
+                    placeholder={unit === 'ft' ? '5' : '60'}
+                    className={box}
+                    aria-label={`Skid ${index + 1} height in ${unitLabel}`}
+                  />
+                </label>
+              </div>
+              {showQtyWeight && (
+                <label className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-muted">
+                  Lb ea <span className="text-late">*</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    value={row.weight}
+                    onChange={(e) =>
+                      patchRow(index, { weight: e.target.value })
+                    }
+                    placeholder="800"
+                    className={box}
+                    aria-label={`Skid ${index + 1} weight pounds each`}
+                  />
+                </label>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
       <p className="text-[11px] text-muted">
         Enter L × W × H in{' '}
         <span className="text-[var(--text)]">
           {unit === 'ft' ? 'feet' : 'inches'}
         </span>
         . Door fit always uses inches
-        {unit === 'ft' ? ' (we convert for you)' : ''}.
+        {unit === 'ft' ? ' (we convert for you)' : ''}. Use{' '}
+        <span className="text-[var(--text)]">Add skid</span> for different
+        sizes — or raise Qty when pieces match.
       </p>
     </div>
   )

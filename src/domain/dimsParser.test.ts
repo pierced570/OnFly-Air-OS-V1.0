@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   composeDimsLine,
+  composeDimsLines,
   formatPieceDims,
   parseDims,
+  parseDimsLines,
   parseDimsTriple,
   totalWeightLbs,
 } from './dimsParser'
@@ -87,6 +89,43 @@ describe('dims triple helpers', () => {
       w_in: 40,
       h_in: 60,
       weight_lbs: 800,
+    })
+  })
+
+  it('composeDimsLines joins multiple skids for parseDims', () => {
+    const text = composeDimsLines(
+      [
+        { count: '2', l: '48', w: '40', h: '60', weight: '800' },
+        { count: '1', l: '36', w: '36', h: '36', weight: '200' },
+      ],
+      'in',
+    )
+    expect(text).toContain(';')
+    const r = parseDims(text)
+    expect(r.pieces).toHaveLength(2)
+    expect(r.pieces[0]).toMatchObject({ count: 2, l_in: 48, weight_lbs: 800 })
+    expect(r.pieces[1]).toMatchObject({ count: 1, l_in: 36, weight_lbs: 200 })
+    expect(totalWeightLbs(r.pieces)).toBe(1800)
+  })
+
+  it('parseDimsLines splits cargo_notes into skid rows', () => {
+    const rows = parseDimsLines(
+      '2 skids 48x40x60 @ 800ea; 1 skid 36x36x36 @ 200ea',
+    )
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({
+      count: '2',
+      l: '48',
+      w: '40',
+      h: '60',
+      weight: '800',
+    })
+    expect(rows[1]).toMatchObject({
+      count: '1',
+      l: '36',
+      w: '36',
+      h: '36',
+      weight: '200',
     })
   })
 })

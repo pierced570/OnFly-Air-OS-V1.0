@@ -135,6 +135,56 @@ export function composeDimsLine(opts: {
   return head
 }
 
+export type DimsTripleRow = {
+  count: string
+  l: string
+  w: string
+  h: string
+  weight: string
+}
+
+export function emptyDimsTripleRow(): DimsTripleRow {
+  return { count: '1', l: '', w: '', h: '', weight: '' }
+}
+
+/** Split cargo_notes into one triple-row per skid line (`;` or newline). */
+export function parseDimsLines(text: string): DimsTripleRow[] {
+  const trimmed = text.trim()
+  if (!trimmed) return [emptyDimsTripleRow()]
+  const parts = trimmed.split(/[;\n]+/).map((p) => p.trim()).filter(Boolean)
+  if (!parts.length) return [emptyDimsTripleRow()]
+  return parts.map((part) => {
+    const t = parseDimsTriple(part)
+    return {
+      count: String(t.count || 1),
+      l: t.l,
+      w: t.w,
+      h: t.h,
+      weight: t.weight,
+    }
+  })
+}
+
+/** Join skid rows into a parseable cargo_notes string. */
+export function composeDimsLines(
+  rows: DimsTripleRow[],
+  unit?: DimLengthUnit,
+): string {
+  return rows
+    .map((r) =>
+      composeDimsLine({
+        count: Number(r.count) || 1,
+        l: r.l,
+        w: r.w,
+        h: r.h,
+        weightLbs: r.weight.trim() ? Number(r.weight) : null,
+        unit,
+      }),
+    )
+    .filter(Boolean)
+    .join('; ')
+}
+
 export function parseDims(
   text: string,
   opts?: { unit?: DimLengthUnit },

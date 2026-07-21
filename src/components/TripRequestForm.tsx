@@ -4,6 +4,7 @@ import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
 import {
   ASAP_MAX_HOURS,
+  cargoPiecesFromDraft,
   emptyTripRequestDraft,
   forkliftFromDraft,
   newLeg,
@@ -895,30 +896,24 @@ export function TripRequestForm({
               value={draft.cargo_notes}
               unit={draft.dim_unit ?? 'in'}
               onChange={(cargo_notes) =>
-                setDraft((d) => ({ ...d, cargo_notes }))
+                setDraft((d) => {
+                  const pieces = cargoPiecesFromDraft({
+                    ...d,
+                    cargo_notes,
+                  })
+                  const weighted = pieces.filter((p) => p.weight_lbs > 0)
+                  // Keep legacy cargo_weight_lbs in sync when every skid has Lb ea
+                  // (validation accepts either field or per-piece weights).
+                  const cargo_weight_lbs =
+                    weighted.length === pieces.length && weighted.length > 0
+                      ? weighted[0]!.weight_lbs
+                      : d.cargo_weight_lbs
+                  return { ...d, cargo_notes, cargo_weight_lbs }
+                })
               }
             />
-            <label className={`${labelCls} max-w-[12rem]`}>
-              Weight each (lb) <span className="text-late">*</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                required
-                value={draft.cargo_weight_lbs}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    cargo_weight_lbs:
-                      e.target.value === '' ? '' : Number(e.target.value),
-                  }))
-                }
-                placeholder="Required"
-                className={inputCls}
-              />
-            </label>
             <p className="text-[11px] text-muted">
-              Weight is required on every cargo request. Pieces 100–200 lb →
+              Weight (Lb ea) is required on every skid. Pieces 100–200 lb →
               forklift recommended; over 200 lb → forklift required for
               dispatch.
             </p>
