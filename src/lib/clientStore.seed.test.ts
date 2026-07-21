@@ -45,6 +45,7 @@ describe('ensureClientsDirectorySeeded', () => {
           dual_pilot_required: false,
           freight_only: false,
           multi_engine_only: false,
+          single_engine_turboprop_only: false,
           no_single_engine_night: false,
           hazmat_allowed: true,
           hazmat_notes: '',

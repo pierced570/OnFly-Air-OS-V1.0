@@ -76,7 +76,7 @@ function applyOverride(id: string, patch: Partial<FinancialRecord>): void {
 function seed() {
   if (records.size) return
   loadOverrides()
-  for (const r of fixture.records as FinancialRecord[]) {
+  for (const r of fixture.records as unknown as FinancialRecord[]) {
     const base = {
       ...r,
       tax_breakdown: r.tax_breakdown ?? [],

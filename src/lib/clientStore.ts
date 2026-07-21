@@ -107,9 +107,12 @@ export type ClientExtendedProfile = {
   }
   shipping_flags?: {
     hazmat_sometimes?: boolean
+    temp_control?: boolean
     oversized?: boolean
     high_declared_value?: boolean
   }
+  /** @deprecated Prefer needs_vendor_number / PO fields — kept for legacy UI rows. */
+  card_on_file?: boolean | null
   source?: 'portal_onboard' | 'admin' | 'import'
 }
 
