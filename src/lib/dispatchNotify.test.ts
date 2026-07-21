@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { getMockCommsLog } from '@/adapters/comms'
+import { getMockSentEmails } from '@/adapters/email'
 import {
   emptyTripRequestDraft,
   forkliftFromDraft,
 } from '@/domain/tripRequest'
 import {
+  dispatchAlertEmail,
   formatPortalRequestSms,
   notifyPortalRequest,
   resolveDispatchPhone,
@@ -17,6 +19,10 @@ import { submitTripRequest } from '@/lib/requestStore'
 describe('dispatchNotify', () => {
   afterEach(() => {
     endShift()
+  })
+
+  it('defaults desk alert email to info@onflyair.com', () => {
+    expect(dispatchAlertEmail()).toBe('info@onflyair.com')
   })
 
   it('formats a portal SMS with request deep link', () => {
@@ -39,9 +45,10 @@ describe('dispatchNotify', () => {
     expect(resolveDispatchPhone()).toBe('+16105092031')
   })
 
-  it('SMS + Board exception on portal request notify', async () => {
+  it('SMS + Board exception + desk email on portal request notify', async () => {
     startShift('Pierce', '+16105092031')
-    const before = getMockCommsLog().length
+    const beforeSms = getMockCommsLog().length
+    const beforeMail = getMockSentEmails().length
     const draft = emptyTripRequestDraft()
     const row = {
       ...draft,
@@ -60,9 +67,12 @@ describe('dispatchNotify', () => {
     const result = await notifyPortalRequest(row)
     expect(result.phone).toBe('+16105092031')
     expect(result.sms_id).toBeTruthy()
+    expect(result.email_id).toBeTruthy()
     expect(result.exception_id).toBeTruthy()
-    expect(getMockCommsLog().length).toBe(before + 1)
+    expect(getMockCommsLog().length).toBe(beforeSms + 1)
     expect(getMockCommsLog().at(-1)?.to).toBe('+16105092031')
+    expect(getMockSentEmails().length).toBe(beforeMail + 1)
+    expect(getMockSentEmails().at(-1)?.to).toBe('info@onflyair.com')
     expect(listExceptions().some((e) => e.title === 'Portal request')).toBe(
       true,
     )

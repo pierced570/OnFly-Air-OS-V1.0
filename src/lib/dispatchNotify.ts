@@ -5,6 +5,7 @@
 
 import { createCommsAdapter } from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
+import { BRAND_EMAIL } from '@/domain/clientInviteEmail'
 import type { TripRequestRecord } from '@/domain/tripRequest'
 import { raiseException } from '@/lib/exceptionStore'
 import { getOnShift } from '@/lib/shiftStore'
@@ -17,12 +18,17 @@ export function resolveDispatchPhone(): string {
   return phone || FALLBACK_DISPATCH_PHONE
 }
 
-/** Optional desk inbox — set VITE_DISPATCH_ALERT_EMAIL (public, not a secret). */
-export function dispatchAlertEmail(): string | null {
+/**
+ * Desk inbox for portal / intake alerts.
+ * Defaults to info@onflyair.com; override with VITE_DISPATCH_ALERT_EMAIL.
+ */
+export function dispatchAlertEmail(): string {
   const raw = import.meta.env.VITE_DISPATCH_ALERT_EMAIL
-  if (typeof raw !== 'string') return null
-  const to = raw.trim().toLowerCase()
-  return to.includes('@') ? to : null
+  if (typeof raw === 'string') {
+    const to = raw.trim().toLowerCase()
+    if (to.includes('@')) return to
+  }
+  return BRAND_EMAIL
 }
 
 function appBase(): string {
