@@ -3,6 +3,9 @@ import {
   listFinancials,
   subscribeFinancials,
   updateFinancialField,
+  updateFinancialRecord,
+  financialOverrideCount,
+  clearFinancialOverrides,
 } from '@/lib/financialsStore'
 import {
   dueDateFor,
@@ -81,7 +84,7 @@ function StatusPill({
   )
 }
 
-type Drawer = 'op' | 'client' | null
+type Drawer = 'op' | 'client' | 'edit' | null
 
 export default function FinancialsPage() {
   const rows = useSyncExternalStore(subscribeFinancials, listFinancials, listFinancials)
@@ -95,6 +98,7 @@ export default function FinancialsPage() {
   const [invoiceBusy, setInvoiceBusy] = useState<string | null>(null)
   const [invoiceMsg, setInvoiceMsg] = useState<string | null>(null)
   const qb = useQuickBooksDashboard()
+  const editedCount = financialOverrideCount()
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -200,10 +204,38 @@ export default function FinancialsPage() {
         <div className="text-xs uppercase tracking-[0.2em] text-gold">Money</div>
         <h1 className="mt-1 text-2xl font-semibold text-cream">Financials</h1>
         <p className="mt-1 text-sm text-muted">
-          {rows.length} records · QBO create with EmailStatus=NotSet · branded Resend
-          delivery (never Intuit email)
+          {rows.length} records · open <span className="text-gold">Edit</span> on
+          any row to fix wrong trip / money data
+          {editedCount > 0 ? ` · ${editedCount} correction(s) saved in this browser` : ''}
+          {' · '}
+          QBO create with EmailStatus=NotSet · branded Resend delivery
         </p>
       </header>
+
+      <div className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2.5 text-sm text-cream">
+        <span className="font-medium text-gold">Fix wrong data:</span> click{' '}
+        <span className="avionic text-gold">Edit</span> on a trip row → change date,
+        PO, client, route, aircraft, tail, amounts, tax, funded-by, notes. Blur a
+        field to save. Margin / investor math recalculates on money edits (legacy
+        rows unlock automatically).
+        {editedCount > 0 && (
+          <button
+            type="button"
+            className="ml-2 text-xs text-late underline"
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Discard ${editedCount} local correction(s) and reload fixture values?`,
+                )
+              ) {
+                clearFinancialOverrides()
+              }
+            }}
+          >
+            Reset local edits
+          </button>
+        )}
+      </div>
 
       <QbConnectBanner
         connected={qb.connection?.connected ?? false}
@@ -352,7 +384,8 @@ export default function FinancialsPage() {
         {filtered.map((r) => {
           const d = drawerFor(r.id)
           const clientOk = r.was_it_paid
-          const opOk = r.vendor_paid && r.bill_logged_in_qb
+          // Op pill = operator paid (QB bill log is separate in Op Pmts)
+          const opOk = r.vendor_paid
           const invOk = r.investor_paid || r.jonny_money_owed <= 0
           return (
             <MobileFinancialCard
@@ -395,6 +428,7 @@ export default function FinancialsPage() {
               <th className="px-2 py-2 text-right">Op owed</th>
               <th className="px-2 py-2 text-right">Margin</th>
               <th className="px-2 py-2 text-right">Investor owed</th>
+              <th className="px-2 py-2 text-right">Referral</th>
               <th className="px-2 py-2">Status</th>
               <th className="px-2 py-2">Drawers</th>
             </tr>
@@ -403,7 +437,8 @@ export default function FinancialsPage() {
             {filtered.map((r) => {
               const d = drawerFor(r.id)
               const clientOk = r.was_it_paid
-              const opOk = r.vendor_paid && r.bill_logged_in_qb
+              // Op pill = operator paid (QB bill log is separate in Op Pmts)
+          const opOk = r.vendor_paid
               const invOk = r.investor_paid || r.jonny_money_owed <= 0
               return (
                 <FragmentRow
@@ -445,6 +480,21 @@ export default function FinancialsPage() {
                 <span className="text-gold">
                   {usd(
                     selectedRows.reduce((s, r) => s + r.jonny_money_owed, 0),
+                  )}
+                </span>
+              </span>
+              <span>
+                Referral{' '}
+                <span className="text-gold">
+                  {usd(
+                    selectedRows.reduce(
+                      (s, r) =>
+                        s +
+                        (r.referral_paid_out
+                          ? 0
+                          : r.referral_share_amount || 0),
+                      0,
+                    ),
                   )}
                 </span>
               </span>
@@ -591,15 +641,40 @@ function MobileFinancialCard({
                 {r.jonny_money_owed > 0 ? usd(r.jonny_money_owed) : '—'}
               </span>
             </div>
+            {r.referral_name && (
+              <div className="col-span-2">
+                <span className="text-muted">Referral </span>
+                <span className="text-cream">{r.referral_name}</span>
+                <span className="avionic text-gold">
+                  {' '}
+                  {usd(r.referral_share_amount || 0)}
+                  {r.referral_paid_out ? ' paid' : ''}
+                </span>
+              </div>
+            )}
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
             <StatusPill label="Client" ok={clientOk} tone="onplan" />
             <StatusPill label="Op" ok={opOk} tone="gold" />
             <StatusPill label="Inv" ok={invOk} tone="attn" />
+            {Boolean(r.referral_name) && (
+              <StatusPill
+                label="Ref"
+                ok={r.referral_paid_out || (r.referral_share_amount || 0) <= 0}
+                tone="gold"
+              />
+            )}
             {alreadyInvoiced && <StatusPill label="QB" ok tone="gold" />}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
+          <button
+            type="button"
+            className="min-h-10 rounded-md bg-gold px-3 py-2 text-xs font-medium text-ink"
+            onClick={() => onDrawer(drawer === 'edit' ? null : 'edit')}
+          >
+            {drawer === 'edit' ? 'Hide Edit' : 'Edit trip'}
+          </button>
+          <button
               type="button"
               className="min-h-10 rounded-md border border-border px-3 py-2 text-xs text-gold"
               onClick={() => onDrawer(drawer === 'op' ? null : 'op')}
@@ -626,7 +701,9 @@ function MobileFinancialCard({
           </div>
           {drawer && (
             <div className="mt-3">
-              {drawer === 'op' ? (
+              {drawer === 'edit' ? (
+                <EditDrawer r={r} />
+              ) : drawer === 'op' ? (
                 <OpDrawer r={r} />
               ) : (
                 <ClientDrawer
@@ -706,17 +783,49 @@ function FragmentRow({
         <td className="avionic px-2 py-2 text-right font-semibold text-gold">
           {r.jonny_money_owed > 0 ? usd(r.jonny_money_owed) : '—'}
         </td>
+        <td className="px-2 py-2 text-right">
+          {r.referral_name ? (
+            <div>
+              <div className="truncate text-xs text-cream">{r.referral_name}</div>
+              <div
+                className={[
+                  'avionic text-xs font-semibold',
+                  r.referral_paid_out ? 'text-muted line-through' : 'text-gold',
+                ].join(' ')}
+              >
+                {usd(r.referral_share_amount || 0)}
+                {r.referral_paid_out ? ' ✓' : ''}
+              </div>
+            </div>
+          ) : (
+            <span className="text-muted">—</span>
+          )}
+        </td>
         <td className="px-2 py-2">
           <div className="flex flex-wrap gap-1">
             <StatusPill label="Client" ok={clientOk} tone="onplan" />
             <StatusPill label="Op" ok={opOk} tone="gold" />
             <StatusPill label="Inv" ok={invOk} tone="attn" />
+            {Boolean(r.referral_name) && (
+              <StatusPill
+                label="Ref"
+                ok={r.referral_paid_out || (r.referral_share_amount || 0) <= 0}
+                tone="gold"
+              />
+            )}
             {alreadyInvoiced && (
               <StatusPill label="QB" ok tone="gold" />
             )}
           </div>
         </td>
         <td className="px-2 py-2 whitespace-nowrap">
+          <button
+            type="button"
+            className="mr-2 min-h-9 rounded bg-gold px-2.5 py-1.5 text-xs font-medium text-ink"
+            onClick={() => onDrawer('edit')}
+          >
+            {drawer === 'edit' ? '▾ Edit' : '▸ Edit'}
+          </button>
           <button
             type="button"
             className="mr-2 min-h-9 rounded px-2 py-1.5 text-xs text-gold hover:underline"
@@ -748,8 +857,10 @@ function FragmentRow({
       </tr>
       {drawer && (
         <tr className="border-t border-border/40 bg-ink/60">
-          <td colSpan={15} className="px-3 py-3">
-            {drawer === 'op' ? (
+          <td colSpan={16} className="px-3 py-3">
+            {drawer === 'edit' ? (
+              <EditDrawer r={r} />
+            ) : drawer === 'op' ? (
               <OpDrawer r={r} />
             ) : (
               <ClientDrawer
@@ -767,6 +878,351 @@ function FragmentRow({
 
 const field =
   'mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm text-cream'
+
+function EditDrawer({ r }: { r: ComputedFinancial }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface-2/80 p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold uppercase tracking-wider text-cream">
+          Edit trip
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          {r.is_legacy ? (
+            <span className="rounded border border-border px-2 py-0.5 text-muted">
+              Legacy import — money edits unlock live math
+            </span>
+          ) : (
+            <span className="rounded border border-onplan/40 px-2 py-0.5 text-onplan">
+              Live math
+            </span>
+          )}
+          <button
+            type="button"
+            className="rounded border border-border px-2 py-0.5 text-gold hover:border-gold/40"
+            onClick={() =>
+              updateFinancialField(r.id, 'is_legacy', !r.is_legacy)
+            }
+          >
+            {r.is_legacy ? 'Unlock live math' : 'Lock as legacy'}
+          </button>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="text-xs text-muted">
+          Date of flight
+          <input
+            key={`dof-${r.id}-${r.date_of_flight}`}
+            type="date"
+            className={field}
+            defaultValue={r.date_of_flight ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(
+                r.id,
+                'date_of_flight',
+                e.target.value || null,
+              )
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          PO #
+          <input
+            key={`po-${r.id}-${r.operator_po}`}
+            className={`${field} avionic`}
+            defaultValue={r.operator_po ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(r.id, 'operator_po', e.target.value || null)
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Client
+          <input
+            key={`cl-${r.id}-${r.client_name}`}
+            className={field}
+            defaultValue={r.client_name ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(r.id, 'client_name', e.target.value || null)
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Pay terms
+          <input
+            key={`pt-${r.id}-${r.pay_terms}`}
+            className={field}
+            defaultValue={r.pay_terms ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(r.id, 'pay_terms', e.target.value || null)
+            }
+            placeholder="Net 30"
+          />
+        </label>
+        <label className="text-xs text-muted sm:col-span-2">
+          Route
+          <input
+            key={`rt-${r.id}-${r.route_text}`}
+            className={`${field} avionic`}
+            defaultValue={r.route_text ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(r.id, 'route_text', e.target.value || null)
+            }
+            placeholder="KCAK → KMDW"
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Aircraft type
+          <input
+            key={`ac-${r.id}-${r.aircraft_type}`}
+            className={field}
+            defaultValue={r.aircraft_type ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(
+                r.id,
+                'aircraft_type',
+                e.target.value || null,
+              )
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Tail
+          <input
+            key={`tail-${r.id}-${r.tail_number}`}
+            className={`${field} avionic`}
+            defaultValue={r.tail_number ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(r.id, 'tail_number', e.target.value || null)
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Operator
+          <input
+            key={`vn-${r.id}-${r.vendor_name}`}
+            className={field}
+            defaultValue={r.vendor_name ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(r.id, 'vendor_name', e.target.value || null)
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Referral
+          <input
+            key={`rf-${r.id}-${r.referral_name}`}
+            className={field}
+            defaultValue={r.referral_name ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(
+                r.id,
+                'referral_name',
+                e.target.value || null,
+              )
+            }
+            placeholder="Partner name"
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Referral share ($)
+          <input
+            key={`rfs-${r.id}-${r.referral_share_amount}`}
+            type="number"
+            className={`${field} avionic`}
+            defaultValue={r.referral_share_amount || 0}
+            onBlur={(e) =>
+              updateFinancialField(
+                r.id,
+                'referral_share_amount',
+                Number(e.target.value) || 0,
+              )
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Client charged ($)
+          <input
+            key={`chg-${r.id}-${r.client_invoiced_amount}`}
+            type="number"
+            className={`${field} avionic`}
+            defaultValue={r.client_invoiced_amount}
+            onBlur={(e) =>
+              updateFinancialRecord(r.id, {
+                client_invoiced_amount: Number(e.target.value) || 0,
+              })
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Pre-tax subtotal ($)
+          <input
+            key={`sub-${r.id}-${r.client_subtotal_pre_tax}`}
+            type="number"
+            className={`${field} avionic`}
+            defaultValue={r.client_subtotal_pre_tax ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(
+                r.id,
+                'client_subtotal_pre_tax',
+                e.target.value === '' ? null : Number(e.target.value) || 0,
+              )
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Operator owed ($)
+          <input
+            key={`ow-${r.id}-${r.vendor_amount}`}
+            type="number"
+            className={`${field} avionic`}
+            defaultValue={r.vendor_amount}
+            onBlur={(e) =>
+              updateFinancialRecord(r.id, {
+                vendor_amount: Number(e.target.value) || 0,
+              })
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Tax total ($)
+          <input
+            key={`tax-${r.id}-${r.tax_total}`}
+            type="number"
+            className={`${field} avionic`}
+            defaultValue={r.tax_total}
+            onBlur={(e) =>
+              updateFinancialField(r.id, 'tax_total', Number(e.target.value) || 0)
+            }
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Funded by
+          <select
+            key={`fd-${r.id}-${r.funded_by}`}
+            className={field}
+            defaultValue={r.funded_by ?? 'Jonny 1%'}
+            onChange={(e) => updateFinancialField(r.id, 'funded_by', e.target.value)}
+          >
+            <option>Jonny 1%</option>
+            <option>Jonny</option>
+            <option>OFA</option>
+            <option>Awaiting $</option>
+          </select>
+        </label>
+        <label className="text-xs text-muted">
+          Deposited to
+          <select
+            key={`dep-${r.id}-${r.deposited_to}`}
+            className={field}
+            defaultValue={r.deposited_to ?? ''}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'deposited_to', e.target.value || null)
+            }
+          >
+            <option value="">—</option>
+            <option>OFA Biz Acct</option>
+            <option>OFA Bank (8071)</option>
+            <option>Jonny (Investor)</option>
+          </select>
+        </label>
+        <label className="text-xs text-muted">
+          ACH / Check #
+          <input
+            key={`chk-${r.id}-${r.check_deposit_number}`}
+            className={`${field} avionic`}
+            defaultValue={r.check_deposit_number ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(
+                r.id,
+                'check_deposit_number',
+                e.target.value || null,
+              )
+            }
+          />
+        </label>
+        <label className="text-xs text-muted sm:col-span-2 lg:col-span-4">
+          Notes
+          <textarea
+            key={`nt-${r.id}-${r.notes}`}
+            className={`${field} min-h-[4rem]`}
+            defaultValue={r.notes ?? ''}
+            onBlur={(e) =>
+              updateFinancialField(r.id, 'notes', e.target.value || null)
+            }
+          />
+        </label>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-4 text-sm text-cream">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={r.was_it_paid}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'was_it_paid', e.target.checked)
+            }
+          />
+          Client paid
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={r.vendor_paid}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'vendor_paid', e.target.checked)
+            }
+          />
+          Operator paid
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={r.investor_paid}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'investor_paid', e.target.checked)
+            }
+          />
+          Investor paid
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={r.referral_paid_out}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'referral_paid_out', e.target.checked)
+            }
+          />
+          Referral paid out
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={r.bill_logged_in_qb}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'bill_logged_in_qb', e.target.checked)
+            }
+          />
+          Logged in QB
+        </label>
+      </div>
+      <p className="mt-3 text-[11px] text-muted">
+        Margin <span className="avionic text-onplan">{usd(r.margin)}</span>
+        {' · '}
+        Investor owed{' '}
+        <span className="avionic text-gold">{usd(r.jonny_money_owed)}</span>
+        {' · '}
+        Referral share{' '}
+        <span className="avionic text-gold">
+          {usd(r.referral_share_amount || 0)}
+        </span>
+        {' · '}
+        OFA profit{' '}
+        <span className="avionic text-cream">{usd(r.ofa_profit_per_trip)}</span>
+        {' · '}
+        Edits save in this browser until Supabase ledger sync lands.
+      </p>
+    </div>
+  )
+}
 
 function OpDrawer({ r }: { r: ComputedFinancial }) {
   return (
@@ -948,9 +1404,24 @@ function ClientDrawer({
           />
           Investor paid
         </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={r.referral_paid_out}
+            onChange={(e) =>
+              updateFinancialField(r.id, 'referral_paid_out', e.target.checked)
+            }
+          />
+          Referral paid out
+        </label>
         <span className="rounded-full border border-gold/40 px-2 py-0.5 text-xs text-gold">
           Inv ({r.funded_by ?? '—'}): {usd(r.jonny_money_owed || r.jonny_invested)}
         </span>
+        {r.referral_name && (
+          <span className="rounded-full border border-gold/40 px-2 py-0.5 text-xs text-gold">
+            Ref ({r.referral_name}): {usd(r.referral_share_amount || 0)}
+          </span>
+        )}
       </div>
     </div>
   )
