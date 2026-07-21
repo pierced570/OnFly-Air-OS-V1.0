@@ -23,6 +23,7 @@ import {
 import { watchTailsFromD085 } from '@/lib/watchedTailsStore'
 import { createAccountingAdapter } from '@/adapters/accounting'
 import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
+import { ClientInvitePanel } from '@/components/ClientInvitePanel'
 import { listAdapterDoorStatus } from '@/lib/adapterStatus'
 import type { D085AircraftRow } from '@/domain/d085Parse'
 import {
@@ -107,6 +108,9 @@ const FBO_STEPS = ['Airport', 'Hours', 'Forklift', 'Fees', 'Summary']
 
 export default function AdminPage() {
   const [kind, setKind] = useState<WizardKind>('invite')
+  const [inviteAudience, setInviteAudience] = useState<'client' | 'operator'>(
+    'client',
+  )
   const doors = useMemo(() => listAdapterDoorStatus(), [])
 
   return (
@@ -114,8 +118,8 @@ export default function AdminPage() {
       <header>
         <h1 className="text-2xl font-semibold text-cream">Admin wizards</h1>
         <p className="mt-1 text-sm text-muted">
-          Invite operators by email, or run guided interviews — skip writes
-          NEEDS-INFO, never blank tables.
+          Invite clients or operators by email, or run guided interviews — skip
+          writes NEEDS-INFO, never blank tables.
         </p>
         <p className="mt-2 text-sm text-muted">
           Day-to-day contact flags:{' '}
@@ -195,7 +199,37 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {kind === 'invite' && <OperatorInvitePanel key="inv" />}
+      {kind === 'invite' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ['client', 'Client welcome'],
+                ['operator', 'Operator network'],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setInviteAudience(k)}
+                className={[
+                  'rounded-md px-3 py-1.5 text-xs',
+                  inviteAudience === k
+                    ? 'bg-gold/20 text-gold ring-1 ring-gold/40'
+                    : 'bg-surface text-muted',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {inviteAudience === 'client' ? (
+            <ClientInvitePanel key="client-inv" />
+          ) : (
+            <OperatorInvitePanel key="op-inv" />
+          )}
+        </div>
+      )}
       {kind === 'operator' && <OperatorWizard key="op" />}
       {kind === 'client' && <ClientWizard key="cl" />}
       {kind === 'fbo' && <FboWizard key="fbo" />}

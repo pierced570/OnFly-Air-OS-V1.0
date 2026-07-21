@@ -27,7 +27,7 @@ export function AirportSelect({
   value,
   onChange,
   label,
-  placeholder = 'Search ICAO, city, or state…',
+  placeholder = 'Search ICAO, IATA, city, or state…',
   required = false,
   optional = false,
   className = '',
@@ -155,9 +155,13 @@ export function AirportSelect({
                   onClick={() => pick(a)}
                 >
                   <span className="avionic text-cream">
-                    {a.icao}{' '}
+                    {a.icao}
+                    {a.iata ? (
+                      <span className="text-muted"> ({a.iata})</span>
+                    ) : null}{' '}
                     <span className="font-sans text-gold">
-                      — {a.city}, {a.state}
+                      — {a.city}
+                      {a.state ? `, ${a.state}` : ''}
                     </span>
                   </span>
                   <span className="text-xs text-muted">{a.name}</span>
