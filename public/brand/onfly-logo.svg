@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 96" fill="none" role="img" aria-label="OnFly Air">
+  <!-- Mark -->
+  <rect x="0" y="16" width="64" height="64" rx="12" fill="#0C0C0E"/>
+  <path d="M12 56 L32 32 L52 56" stroke="#C9A227" stroke-width="4.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="32" cy="60" r="4" fill="#C9A227"/>
+  <!-- Wordmark -->
+  <text x="84" y="58" font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="42" font-weight="700" letter-spacing="0.04em">
+    <tspan fill="#0C0C0E">ONFLY</tspan><tspan fill="#C9A227"> Air</tspan>
+  </text>
+</svg>

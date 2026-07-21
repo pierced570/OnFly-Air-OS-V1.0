@@ -18,6 +18,7 @@ import {
   type UpdateChannel,
 } from '@/domain/clientOnboard'
 import { submitClientOnboard } from '@/lib/clientOnboardStore'
+import { BrandLockup } from '@/components/BrandLockup'
 
 const inputCls =
   'mt-1.5 w-full rounded-md border border-[#d4cfc0] bg-white px-3 py-3 text-base text-[#0c0c0e] placeholder:text-[#8a8680] outline-none transition-colors focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/25'
@@ -68,13 +69,13 @@ export default function ClientOnboardPage() {
     return (
       <div className="min-h-screen bg-[#f7f2e3] text-[#0c0c0e]" data-theme="client">
         <header className="border-b border-[#e5dfd0] bg-white px-6 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c9a227]">
-            OnFly Air
+          <div className="mx-auto max-w-lg">
+            <BrandLockup />
+            <p className="mt-1 text-sm text-[#5c574c]">ASAP Aircraft Services</p>
+            <h1 className="mt-3 text-2xl font-semibold text-[#0c0c0e]">
+              You&apos;re set up
+            </h1>
           </div>
-          <p className="mt-1 text-sm text-[#5c574c]">ASAP Aircraft Services</p>
-          <h1 className="mt-3 text-2xl font-semibold text-[#0c0c0e]">
-            You&apos;re set up
-          </h1>
         </header>
         <main className="mx-auto max-w-lg space-y-4 p-6">
           <p className={hintCls}>
@@ -106,16 +107,15 @@ export default function ClientOnboardPage() {
     <div className="min-h-screen bg-[#f7f2e3] text-[#0c0c0e]" data-theme="client">
       <header className="border-b border-[#e5dfd0] bg-white px-6 py-5">
         <div className="mx-auto max-w-2xl">
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c9a227]">
-            OnFly Air
-          </div>
+          <BrandLockup />
           <p className="mt-1 text-sm text-[#5c574c]">ASAP Aircraft Services</p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#0c0c0e] sm:text-3xl">
             Client setup
           </h1>
           <p className={`mt-2 max-w-xl ${hintCls}`}>
-            Company, people, billing, and aircraft rules — the same profile our
-            dispatchers maintain.
+            Thank you for choosing OnFly Air. This form puts your contacts,
+            billing, and routing preferences on file — so when you need us, we
+            quote first and ask questions never.
           </p>
         </div>
       </header>

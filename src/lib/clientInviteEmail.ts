@@ -4,6 +4,7 @@
 
 import { createEmailAdapter } from '@/adapters/email'
 import {
+  BRAND_MARK_PATH,
   clientInviteEmailSubject,
   defaultClientInviteTemplate,
   renderClientInviteEmailHtml,
@@ -13,25 +14,43 @@ import {
 
 export type { ClientInviteTemplate }
 
+function appOrigin(): string {
+  const appUrl =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta.env?.VITE_APP_URL as string | undefined)) ||
+    (typeof window !== 'undefined' ? window.location.origin : '')
+  return (appUrl || '').replace(/\/$/, '')
+}
+
 /** Public client setup form URL (shareable). */
 export function resolveClientOnboardUrl(override?: string): string {
   if (override?.trim()) return override.trim()
   const envUrl = import.meta.env?.VITE_CLIENT_ONBOARD_URL as string | undefined
   if (envUrl?.trim()) return envUrl.trim()
-  const appUrl =
-    (typeof import.meta !== 'undefined' &&
-      (import.meta.env?.VITE_APP_URL as string | undefined)) ||
-    (typeof window !== 'undefined' ? window.location.origin : '')
-  if (appUrl) return `${appUrl.replace(/\/$/, '')}/client`
+  const origin = appOrigin()
+  if (origin) return `${origin}/client`
   return '/client'
+}
+
+/** Absolute URL for the brand mark (required for email <img>). */
+export function resolveBrandMarkUrl(override?: string): string {
+  if (override?.trim()) return override.trim()
+  const envUrl = import.meta.env?.VITE_BRAND_MARK_URL as string | undefined
+  if (envUrl?.trim()) return envUrl.trim()
+  const origin = appOrigin()
+  if (origin) return `${origin}${BRAND_MARK_PATH}`
+  return BRAND_MARK_PATH
 }
 
 export function buildClientInviteTemplate(
   overrides?: Partial<ClientInviteTemplate>,
 ): ClientInviteTemplate {
+  const onboardUrl = resolveClientOnboardUrl(overrides?.onboardUrl)
+  const logoUrl = resolveBrandMarkUrl(overrides?.logoUrl)
   return defaultClientInviteTemplate({
-    onboardUrl: resolveClientOnboardUrl(overrides?.onboardUrl),
     ...overrides,
+    onboardUrl,
+    logoUrl,
   })
 }
 
