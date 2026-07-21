@@ -426,7 +426,12 @@ export default function OnboardPage() {
               Banking & payment
             </h2>
             <p className="text-xs text-muted">
-              We prioritize same-day or next-business-day payments.
+              We prioritize same-day or next-business-day payments. For the full
+              W-9 + ACH packet (TIN, certification), use{' '}
+              <Link to="/vendor" className="text-gold hover:underline">
+                /vendor
+              </Link>
+              .
             </p>
             <label className={labelCls}>
               Street

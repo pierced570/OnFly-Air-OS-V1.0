@@ -24,6 +24,7 @@ import { watchTailsFromD085 } from '@/lib/watchedTailsStore'
 import { createAccountingAdapter } from '@/adapters/accounting'
 import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
 import { ClientInvitePanel } from '@/components/ClientInvitePanel'
+import { VendorInvitePanel } from '@/components/VendorInvitePanel'
 import { listAdapterDoorStatus } from '@/lib/adapterStatus'
 import type { D085AircraftRow } from '@/domain/d085Parse'
 import {
@@ -108,9 +109,9 @@ const FBO_STEPS = ['Airport', 'Hours', 'Forklift', 'Fees', 'Summary']
 
 export default function AdminPage() {
   const [kind, setKind] = useState<WizardKind>('invite')
-  const [inviteAudience, setInviteAudience] = useState<'client' | 'operator'>(
-    'client',
-  )
+  const [inviteAudience, setInviteAudience] = useState<
+    'client' | 'operator' | 'vendor'
+  >('client')
   const doors = useMemo(() => listAdapterDoorStatus(), [])
 
   return (
@@ -145,6 +146,10 @@ export default function AdminPage() {
           {' · '}
           <Link to="/onboard" className="text-gold hover:text-gold-lt">
             Operator onboard
+          </Link>
+          {' · '}
+          <Link to="/vendor" className="text-gold hover:text-gold-lt">
+            W-9 / vendor packet
           </Link>
           {' · '}
           <Link to="/client" className="text-gold hover:text-gold-lt">
@@ -206,6 +211,7 @@ export default function AdminPage() {
               [
                 ['client', 'Client welcome'],
                 ['operator', 'Operator network'],
+                ['vendor', 'W-9 / vendor packet'],
               ] as const
             ).map(([k, label]) => (
               <button
@@ -225,8 +231,10 @@ export default function AdminPage() {
           </div>
           {inviteAudience === 'client' ? (
             <ClientInvitePanel key="client-inv" />
-          ) : (
+          ) : inviteAudience === 'operator' ? (
             <OperatorInvitePanel key="op-inv" />
+          ) : (
+            <VendorInvitePanel key="vendor-inv" />
           )}
         </div>
       )}
