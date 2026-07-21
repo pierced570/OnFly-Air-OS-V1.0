@@ -14,12 +14,15 @@ const STORAGE_KEY = 'onfly.referrals.v1'
 const people = new Map<string, ReferralPerson>()
 const listeners = new Set<() => void>()
 let snapshot: ReferralPerson[] = []
+/** Cached active subset — stable for useSyncExternalStore getSnapshot. */
+let activeSnapshot: ReferralPerson[] = []
 
 function rebuild() {
   snapshot = [...people.values()].sort((a, b) => {
     if (a.active !== b.active) return a.active ? -1 : 1
     return a.name.localeCompare(b.name)
   })
+  activeSnapshot = snapshot.filter((p) => p.active)
 }
 
 function persistLocal() {
@@ -73,8 +76,9 @@ export function listReferrals(): ReferralPerson[] {
   return snapshot
 }
 
+/** Stable snapshot of active referrers — do not allocate a new array each read. */
 export function listActiveReferrals(): ReferralPerson[] {
-  return snapshot.filter((p) => p.active)
+  return activeSnapshot
 }
 
 export function getReferral(id: string): ReferralPerson | undefined {
