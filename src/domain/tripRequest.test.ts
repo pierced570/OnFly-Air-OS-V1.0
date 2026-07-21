@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   ASAP_MAX_HOURS,
+  buildReturnLegs,
   emptyTripRequestDraft,
   isAsapReady,
+  laneFromDraft,
+  syncReturnLegs,
   validateTripRequest,
 } from './tripRequest'
 
@@ -27,10 +30,55 @@ describe('tripRequest', () => {
     d.legs[0]!.origin_icao = 'KCAK'
     d.legs[0]!.dest_icao = 'KMDW'
     d.direction = 'round_trip'
+    d.return_legs = buildReturnLegs(d.legs)
     d.hours_on_ground = ''
     expect(
       validateTripRequest(d).some((i) => i.field === 'hours_on_ground'),
     ).toBe(true)
+  })
+
+  it('mirrors outbound into return legs (reversed)', () => {
+    const d = emptyTripRequestDraft()
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.legs.push({
+      ...d.legs[0]!,
+      id: 'leg-2',
+      origin_icao: 'KMDW',
+      dest_icao: 'KORD',
+    })
+    const ret = buildReturnLegs(d.legs)
+    expect(ret).toHaveLength(2)
+    expect(ret[0]).toMatchObject({ origin_icao: 'KORD', dest_icao: 'KMDW' })
+    expect(ret[1]).toMatchObject({ origin_icao: 'KMDW', dest_icao: 'KCAK' })
+  })
+
+  it('lane includes return when round trip', () => {
+    const d = emptyTripRequestDraft()
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.direction = 'round_trip'
+    d.hours_on_ground = 2
+    d.return_legs = buildReturnLegs(d.legs)
+    expect(laneFromDraft(d)).toBe('KCAK→KMDW · KMDW→KCAK')
+  })
+
+  it('syncReturnLegs preserves return date/time', () => {
+    const d = emptyTripRequestDraft()
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    const first = buildReturnLegs(d.legs)
+    first[0]!.date = '2026-08-01'
+    first[0]!.pickup_time = '14:00'
+    d.legs[0]!.dest_icao = 'KORD'
+    const synced = syncReturnLegs(d.legs, first)
+    expect(synced[0]).toMatchObject({
+      origin_icao: 'KORD',
+      dest_icao: 'KCAK',
+      date: '2026-08-01',
+      pickup_time: '14:00',
+      id: first[0]!.id,
+    })
   })
 
   it('passenger mode requires name weight dob', () => {

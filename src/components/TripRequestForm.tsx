@@ -6,6 +6,7 @@ import {
   ASAP_MAX_HOURS,
   emptyTripRequestDraft,
   newLeg,
+  syncReturnLegs,
   validateTripRequest,
   type TripRequestDraft,
   type TripLegDraft,
@@ -43,17 +44,41 @@ function updateLeg(
   return legs.map((l) => (l.id === id ? { ...l, ...patch } : l))
 }
 
+/** Patch outbound legs and keep return routes mirrored when round trip. */
+function withOutboundLegs(
+  d: TripRequestDraft,
+  legs: TripLegDraft[],
+): TripRequestDraft {
+  const next = { ...d, legs }
+  if (d.direction === 'round_trip') {
+    next.return_legs = syncReturnLegs(legs, d.return_legs)
+  }
+  return next
+}
+
 export function TripRequestForm({
   variant,
   initial,
   submitLabel,
   onSubmit,
 }: Props) {
-  const [draft, setDraft] = useState<TripRequestDraft>(() => ({
-    ...emptyTripRequestDraft(),
-    ...initial,
-    legs: initial?.legs?.length ? initial.legs : emptyTripRequestDraft().legs,
-  }))
+  const [draft, setDraft] = useState<TripRequestDraft>(() => {
+    const base = emptyTripRequestDraft()
+    const merged: TripRequestDraft = {
+      ...base,
+      ...initial,
+      legs: initial?.legs?.length ? initial.legs : base.legs,
+      return_legs: initial?.return_legs ?? base.return_legs,
+    }
+    if (
+      merged.direction === 'round_trip' &&
+      merged.return_legs.length === 0 &&
+      merged.legs.length > 0
+    ) {
+      merged.return_legs = syncReturnLegs(merged.legs, [])
+    }
+    return merged
+  })
   const [showNewClient, setShowNewClient] = useState(false)
   const [newClientName, setNewClientName] = useState('')
   const [newClientEmail, setNewClientEmail] = useState('')
@@ -286,15 +311,14 @@ export function TripRequestForm({
           <button
             type="button"
             onClick={() =>
-              setDraft((d) => ({
-                ...d,
-                legs: [
+              setDraft((d) =>
+                withOutboundLegs(d, [
                   ...d.legs,
                   newLeg({
                     origin_icao: d.legs[d.legs.length - 1]?.dest_icao ?? '',
                   }),
-                ],
-              }))
+                ]),
+              )
             }
             className="text-sm font-medium text-gold hover:text-gold-lt"
           >
@@ -308,6 +332,9 @@ export function TripRequestForm({
           </p>
         )}
 
+        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
+          Outbound
+        </div>
         <div className="space-y-4">
           {draft.legs.map((leg, idx) => (
             <div
@@ -324,10 +351,12 @@ export function TripRequestForm({
                     aria-label={`Remove leg ${idx + 1}`}
                     className="text-muted hover:text-late"
                     onClick={() =>
-                      setDraft((d) => ({
-                        ...d,
-                        legs: d.legs.filter((l) => l.id !== leg.id),
-                      }))
+                      setDraft((d) =>
+                        withOutboundLegs(
+                          d,
+                          d.legs.filter((l) => l.id !== leg.id),
+                        ),
+                      )
                     }
                   >
                     ✕
@@ -341,13 +370,15 @@ export function TripRequestForm({
                     <input
                       value={leg.pickup_address}
                       onChange={(e) =>
-                        setDraft((d) => ({
-                          ...d,
-                          legs: updateLeg(d.legs, leg.id, {
-                            pickup_address: e.target.value,
-                            pickup_tbd: false,
-                          }),
-                        }))
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, {
+                              pickup_address: e.target.value,
+                              pickup_tbd: false,
+                            }),
+                          ),
+                        )
                       }
                       placeholder="Street, city, state, ZIP"
                       required
@@ -362,13 +393,15 @@ export function TripRequestForm({
                     <input
                       value={leg.dropoff_address}
                       onChange={(e) =>
-                        setDraft((d) => ({
-                          ...d,
-                          legs: updateLeg(d.legs, leg.id, {
-                            dropoff_address: e.target.value,
-                            dropoff_tbd: false,
-                          }),
-                        }))
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, {
+                              dropoff_address: e.target.value,
+                              dropoff_tbd: false,
+                            }),
+                          ),
+                        )
                       }
                       placeholder="Street, city, state, ZIP"
                       required
@@ -391,12 +424,12 @@ export function TripRequestForm({
                       required
                       inputClassName="bg-surface-2 text-[var(--text)]"
                       onChange={(icao) =>
-                        setDraft((d) => ({
-                          ...d,
-                          legs: updateLeg(d.legs, leg.id, {
-                            origin_icao: icao,
-                          }),
-                        }))
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, { origin_icao: icao }),
+                          ),
+                        )
                       }
                     />
                     <AirportSelect
@@ -405,12 +438,12 @@ export function TripRequestForm({
                       required
                       inputClassName="bg-surface-2 text-[var(--text)]"
                       onChange={(icao) =>
-                        setDraft((d) => ({
-                          ...d,
-                          legs: updateLeg(d.legs, leg.id, {
-                            dest_icao: icao,
-                          }),
-                        }))
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, { dest_icao: icao }),
+                          ),
+                        )
                       }
                     />
                   </>
@@ -423,12 +456,12 @@ export function TripRequestForm({
                       value={leg.origin_icao}
                       inputClassName="bg-surface-2 text-[var(--text)]"
                       onChange={(icao) =>
-                        setDraft((d) => ({
-                          ...d,
-                          legs: updateLeg(d.legs, leg.id, {
-                            origin_icao: icao,
-                          }),
-                        }))
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, { origin_icao: icao }),
+                          ),
+                        )
                       }
                     />
                     <AirportSelect
@@ -437,12 +470,12 @@ export function TripRequestForm({
                       value={leg.dest_icao}
                       inputClassName="bg-surface-2 text-[var(--text)]"
                       onChange={(icao) =>
-                        setDraft((d) => ({
-                          ...d,
-                          legs: updateLeg(d.legs, leg.id, {
-                            dest_icao: icao,
-                          }),
-                        }))
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, { dest_icao: icao }),
+                          ),
+                        )
                       }
                     />
                   </>
@@ -455,12 +488,14 @@ export function TripRequestForm({
                         type="date"
                         value={leg.date}
                         onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              date: e.target.value,
-                            }),
-                          }))
+                          setDraft((d) =>
+                            withOutboundLegs(
+                              d,
+                              updateLeg(d.legs, leg.id, {
+                                date: e.target.value,
+                              }),
+                            ),
+                          )
                         }
                         className={inputCls}
                       />
@@ -471,12 +506,14 @@ export function TripRequestForm({
                         type="time"
                         value={leg.pickup_time}
                         onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            legs: updateLeg(d.legs, leg.id, {
-                              pickup_time: e.target.value,
-                            }),
-                          }))
+                          setDraft((d) =>
+                            withOutboundLegs(
+                              d,
+                              updateLeg(d.legs, leg.id, {
+                                pickup_time: e.target.value,
+                              }),
+                            ),
+                          )
                         }
                         className={inputCls}
                       />
@@ -488,31 +525,35 @@ export function TripRequestForm({
           ))}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-          <label className="flex items-center gap-3 text-sm text-[var(--text)]">
-            <span>Roundtrip</span>
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+          <label className="flex h-11 items-center gap-3 text-sm leading-none text-[var(--text)]">
+            <span className="leading-none">Roundtrip</span>
             <button
               type="button"
               role="switch"
               aria-checked={draft.direction === 'round_trip'}
               onClick={() =>
-                setDraft((d) => ({
-                  ...d,
-                  direction:
-                    d.direction === 'round_trip' ? 'one_way' : 'round_trip',
-                }))
+                setDraft((d) => {
+                  const on = d.direction !== 'round_trip'
+                  return {
+                    ...d,
+                    direction: on ? 'round_trip' : 'one_way',
+                    return_legs: on ? syncReturnLegs(d.legs, d.return_legs) : [],
+                    hours_on_ground: on ? d.hours_on_ground : '',
+                  }
+                })
               }
               className={[
-                'relative h-6 w-11 rounded-full transition-colors',
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-0 p-0 transition-colors',
                 draft.direction === 'round_trip' ? 'bg-gold' : 'bg-border',
               ].join(' ')}
             >
               <span
                 className={[
-                  'absolute top-0.5 h-5 w-5 rounded-full bg-surface-2 shadow transition-transform',
+                  'pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-surface-2 shadow transition-transform',
                   draft.direction === 'round_trip'
                     ? 'translate-x-5'
-                    : 'translate-x-0.5',
+                    : 'translate-x-0',
                 ].join(' ')}
               />
             </button>
@@ -537,6 +578,110 @@ export function TripRequestForm({
             </label>
           )}
         </div>
+
+        {draft.direction === 'round_trip' && (
+          <div className="mt-4 space-y-4">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                Return
+              </div>
+              <p className="mt-1 text-[11px] text-muted">
+                Mirrors outbound in reverse (A→B becomes B→A). Routes update
+                when you edit outbound
+                {draft.timing === 'scheduled'
+                  ? '; set return date and pickup time below.'
+                  : '.'}
+              </p>
+            </div>
+            {draft.return_legs.map((leg, idx) => {
+              const o =
+                leg.origin_icao.trim().toUpperCase() ||
+                (leg.pickup_address.trim()
+                  ? leg.pickup_address.trim()
+                  : '—')
+              const dest =
+                leg.dest_icao.trim().toUpperCase() ||
+                (leg.dropoff_address.trim()
+                  ? leg.dropoff_address.trim()
+                  : '—')
+              return (
+                <div
+                  key={leg.id}
+                  className="rounded-lg border border-border/80 border-dashed bg-ink/30 p-4"
+                >
+                  <div className="mb-3 text-sm font-semibold text-[var(--text)]">
+                    Return leg {idx + 1}
+                  </div>
+                  <div className="mb-3 flex flex-wrap items-center gap-2 avionic text-sm text-cream">
+                    <span>{o}</span>
+                    <span className="text-gold" aria-hidden>
+                      →
+                    </span>
+                    <span>{dest}</span>
+                  </div>
+                  {needsAddresses &&
+                    (leg.pickup_address.trim() ||
+                      leg.dropoff_address.trim()) && (
+                      <div className="mb-3 grid gap-2 text-[11px] text-muted sm:grid-cols-2">
+                        <div>
+                          <span className="uppercase tracking-wider">
+                            Pickup
+                          </span>
+                          <div className="text-[var(--text)]">
+                            {leg.pickup_address.trim() || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="uppercase tracking-wider">
+                            Delivery
+                          </span>
+                          <div className="text-[var(--text)]">
+                            {leg.dropoff_address.trim() || '—'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  {draft.timing === 'scheduled' && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className={labelCls}>
+                        Date
+                        <input
+                          type="date"
+                          value={leg.date}
+                          onChange={(e) =>
+                            setDraft((d) => ({
+                              ...d,
+                              return_legs: updateLeg(d.return_legs, leg.id, {
+                                date: e.target.value,
+                              }),
+                            }))
+                          }
+                          className={inputCls}
+                        />
+                      </label>
+                      <label className={labelCls}>
+                        Pickup time
+                        <input
+                          type="time"
+                          value={leg.pickup_time}
+                          onChange={(e) =>
+                            setDraft((d) => ({
+                              ...d,
+                              return_legs: updateLeg(d.return_legs, leg.id, {
+                                pickup_time: e.target.value,
+                              }),
+                            }))
+                          }
+                          className={inputCls}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       {/* Special flags */}
