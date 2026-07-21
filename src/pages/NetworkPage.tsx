@@ -48,8 +48,14 @@ import { NetworkSheetView } from '@/components/NetworkSheetView'
 import {
   VERTICAL_IDS,
   VERTICAL_LABELS,
+  NETWORK_SORT_LABELS,
   buildVerticalBoard,
+  cardMatchesPayloadFilter,
+  compareOperatorCards,
+  payloadCapability,
+  type NetworkSortKey,
   type OperatorVerticalCard,
+  type PayloadCapability,
   type VerticalId,
 } from '@/domain/operatorVerticals'
 
@@ -95,6 +101,10 @@ export default function NetworkPage() {
   const [visibleVerticals, setVisibleVerticals] = useState<Set<VerticalId>>(
     () => new Set(VERTICAL_IDS),
   )
+  const [sortBy, setSortBy] = useState<NetworkSortKey>('distance')
+  const [payloadFilter, setPayloadFilter] = useState<
+    'all' | PayloadCapability
+  >('all')
   const detailRef = useRef<HTMLDivElement | null>(null)
 
   const complianceRows = useSyncExternalStore(
@@ -277,8 +287,78 @@ export default function NetworkPage() {
         return ap ? { lat: ap.lat, lon: ap.lon } : null
       },
       fitByOperator: missionPieces.length ? fitByOperator : undefined,
+      sortBy,
+      payloadFilter,
     })
-  }, [bundles, originAp, fitByOperator, missionPieces.length])
+  }, [
+    bundles,
+    originAp,
+    fitByOperator,
+    missionPieces.length,
+    sortBy,
+    payloadFilter,
+  ])
+
+  // When cargo dims appear, nudge sort to mission fit (user can still change it).
+  useEffect(() => {
+    if (missionPieces.length > 0) setSortBy((s) => (s === 'distance' ? 'mission_fit' : s))
+  }, [missionPieces.length])
+
+  const sortedBundles = useMemo(() => {
+    const rows = bundles.map((b) => {
+      const fit = fitByOperator.get(b.op.id)
+      let nm: number | null = fit?.nm_from_origin ?? null
+      if (nm == null && originAp && b.op.base_icao) {
+        const base = lookupAirport(b.op.base_icao)
+        if (base) {
+          nm = Math.round(
+            haversineNm(originAp.lat, originAp.lon, base.lat, base.lon),
+          )
+        }
+      }
+      let capability: PayloadCapability = 'unknown'
+      let maxSeats: number | null = null
+      let maxPayload: number | null = null
+      const types: string[] = []
+      for (const a of b.aircraft) {
+        const next = payloadCapability(a.cargo_pax)
+        if (capability === 'unknown') capability = next
+        else if (next !== 'unknown' && next !== capability) capability = 'both'
+        if (a.seats != null) {
+          maxSeats = maxSeats == null ? a.seats : Math.max(maxSeats, a.seats)
+        }
+        if (a.max_payload_lbs != null) {
+          maxPayload =
+            maxPayload == null
+              ? a.max_payload_lbs
+              : Math.max(maxPayload, a.max_payload_lbs)
+        }
+        const t = (a.type_name ?? '').trim()
+        if (t && !types.includes(t)) types.push(t)
+      }
+      const card: OperatorVerticalCard = {
+        operator_id: b.op.id,
+        operator_name: b.op.name,
+        base_icao: b.op.base_icao,
+        types,
+        tails: b.aircraft.map((a) => a.tail),
+        aircraft_count: b.aircraft.length,
+        nm_from_origin: nm,
+        vertical: 'other',
+        primary_type: types[0] ?? '',
+        max_seats: maxSeats,
+        max_payload_lbs: maxPayload,
+        payload_capability: capability,
+        fit_score: fit?.score ?? null,
+        fit_hard_fail: fit?.hard_fail ?? false,
+      }
+      return { bundle: b, card }
+    })
+    return rows
+      .filter((r) => cardMatchesPayloadFilter(r.card, payloadFilter))
+      .sort((a, b) => compareOperatorCards(a.card, b.card, sortBy))
+      .map((r) => r.bundle)
+  }, [bundles, fitByOperator, originAp, sortBy, payloadFilter])
 
   const topPicks = useMemo(
     () => missionRank.filter((r) => !r.best.hard_fail).slice(0, 5),
@@ -430,7 +510,7 @@ export default function NetworkPage() {
         <div className="text-xs uppercase tracking-wider text-muted">
           Mission fit
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_9rem_1fr_10rem_auto] lg:items-end lg:gap-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_9rem_1fr_10rem_9rem_9rem_auto] lg:items-end lg:gap-3">
           <input
             value={originIcao}
             onChange={(e) => setOriginIcao(e.target.value.toUpperCase())}
@@ -456,6 +536,44 @@ export default function NetworkPage() {
             placeholder="Filter name / tail…"
             className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream placeholder:text-muted outline-none focus:border-gold sm:py-2"
           />
+          <label className="block text-[10px] uppercase tracking-wider text-muted">
+            Sort
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as NetworkSortKey)}
+              className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold sm:py-2"
+            >
+              {(Object.keys(NETWORK_SORT_LABELS) as NetworkSortKey[]).map(
+                (key) => (
+                  <option key={key} value={key}>
+                    {NETWORK_SORT_LABELS[key]}
+                    {key === 'distance' && !originAp ? ' (need ICAO)' : ''}
+                    {key === 'mission_fit' && !missionPieces.length
+                      ? ' (need dims)'
+                      : ''}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+          <label className="block text-[10px] uppercase tracking-wider text-muted">
+            Cargo / pax
+            <select
+              value={payloadFilter}
+              onChange={(e) =>
+                setPayloadFilter(
+                  e.target.value as 'all' | PayloadCapability,
+                )
+              }
+              className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold sm:py-2"
+            >
+              <option value="all">All</option>
+              <option value="cargo">Cargo</option>
+              <option value="pax">Pax</option>
+              <option value="both">Cargo + pax</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
           {adsbLive ? (
             <button
               type="button"
@@ -644,7 +762,7 @@ export default function NetworkPage() {
 
       {view === 'list' && (
         <div className="space-y-4">
-          {bundles.map((bundle) => (
+          {sortedBundles.map((bundle) => (
             <OperatorDetail
               key={bundle.op.id}
               bundle={bundle}
@@ -744,6 +862,16 @@ function VerticalCard({
                 </span>
               )}
               <span className="avionic">{card.aircraft_count} ac</span>
+              {card.max_seats != null && (
+                <span className="avionic">{card.max_seats} seats</span>
+              )}
+              {card.payload_capability !== 'unknown' && (
+                <span className="rounded border border-border px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted">
+                  {card.payload_capability === 'both'
+                    ? 'cargo+pax'
+                    : card.payload_capability}
+                </span>
+              )}
             </div>
           </div>
         </div>

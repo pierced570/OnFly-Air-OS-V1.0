@@ -99,12 +99,166 @@ export type OperatorVerticalCard = {
   aircraft_count: number
   nm_from_origin: number | null
   vertical: VerticalId
+  /** First type name for type sort. */
+  primary_type: string
+  /** Max seats across tails in this column card. */
+  max_seats: number | null
+  /** Max payload lbs when known. */
+  max_payload_lbs: number | null
+  /** Cargo / pax capability from fleet cargo_pax tags. */
+  payload_capability: PayloadCapability
   /** Mission fit (lower better) when cargo dims provided */
   fit_score?: number | null
   fit_door?: 'fits' | 'no_fit' | 'unknown' | null
   fit_hard_fail?: boolean
   fit_label?: 'best_fit' | 'closest' | 'best_payload' | null
   fit_reasons?: string[]
+}
+
+export type PayloadCapability = 'cargo' | 'pax' | 'both' | 'unknown'
+
+export type NetworkSortKey =
+  | 'distance'
+  | 'mission_fit'
+  | 'type'
+  | 'pax_seats'
+  | 'payload'
+  | 'fleet_size'
+  | 'name'
+
+export const NETWORK_SORT_LABELS: Record<NetworkSortKey, string> = {
+  distance: 'Distance',
+  mission_fit: 'Mission fit',
+  type: 'Aircraft type',
+  pax_seats: 'Pax seats',
+  payload: 'Payload lbs',
+  fleet_size: 'Fleet size',
+  name: 'Name',
+}
+
+/** Derive cargo / pax / both from the fleet cargo_pax field. */
+export function payloadCapability(
+  cargoPax: string | null | undefined,
+): PayloadCapability {
+  const raw = (cargoPax ?? '').trim().toLowerCase()
+  if (!raw) return 'unknown'
+  const cargo =
+    /\bcargo\b/.test(raw) || /\bfreight\b/.test(raw) || raw === 'c'
+  const pax =
+    /\bpax\b/.test(raw) ||
+    /\bpass/.test(raw) ||
+    raw === 'p' ||
+    /\bpax only\b/.test(raw)
+  if (/\bcargo only\b/.test(raw) || /\bfreight only\b/.test(raw)) return 'cargo'
+  if (/\bpax only\b/.test(raw) || /\bpassenger only\b/.test(raw)) return 'pax'
+  if (cargo && pax) return 'both'
+  if (cargo) return 'cargo'
+  if (pax) return 'pax'
+  if (/both|combo|mixed|c\/p|p\/c/.test(raw)) return 'both'
+  return 'unknown'
+}
+
+function mergeCapability(
+  a: PayloadCapability,
+  b: PayloadCapability,
+): PayloadCapability {
+  if (a === 'unknown') return b
+  if (b === 'unknown') return a
+  if (a === b) return a
+  return 'both'
+}
+
+export function compareOperatorCards(
+  a: OperatorVerticalCard,
+  b: OperatorVerticalCard,
+  sortBy: NetworkSortKey,
+): number {
+  const byName = () => a.operator_name.localeCompare(b.operator_name)
+
+  if (sortBy === 'mission_fit') {
+    const ah = a.fit_hard_fail ? 1 : 0
+    const bh = b.fit_hard_fail ? 1 : 0
+    if (ah !== bh) return ah - bh
+    const as = a.fit_score ?? 999
+    const bs = b.fit_score ?? 999
+    if (as !== bs) return as - bs
+    // tie-break distance then name
+    const an = a.nm_from_origin
+    const bn = b.nm_from_origin
+    if (an != null && bn != null && an !== bn) return an - bn
+    return byName()
+  }
+
+  if (sortBy === 'distance') {
+    const an = a.nm_from_origin
+    const bn = b.nm_from_origin
+    if (an != null && bn != null && an !== bn) return an - bn
+    if (an != null && bn == null) return -1
+    if (an == null && bn != null) return 1
+    return byName()
+  }
+
+  if (sortBy === 'type') {
+    const at = a.primary_type || a.types[0] || ''
+    const bt = b.primary_type || b.types[0] || ''
+    const c = at.localeCompare(bt)
+    if (c !== 0) return c
+    return byName()
+  }
+
+  if (sortBy === 'pax_seats') {
+    const as = a.max_seats ?? -1
+    const bs = b.max_seats ?? -1
+    if (as !== bs) return bs - as // more seats first
+    return byName()
+  }
+
+  if (sortBy === 'payload') {
+    const ap = a.max_payload_lbs ?? -1
+    const bp = b.max_payload_lbs ?? -1
+    if (ap !== bp) return bp - ap
+    return byName()
+  }
+
+  if (sortBy === 'fleet_size') {
+    if (a.aircraft_count !== b.aircraft_count) {
+      return b.aircraft_count - a.aircraft_count
+    }
+    return byName()
+  }
+
+  return byName()
+}
+
+export function sortOperatorCards(
+  cards: OperatorVerticalCard[],
+  sortBy: NetworkSortKey,
+): OperatorVerticalCard[] {
+  return [...cards].sort((a, b) => compareOperatorCards(a, b, sortBy))
+}
+
+export function cardMatchesPayloadFilter(
+  card: OperatorVerticalCard,
+  filter: 'all' | PayloadCapability,
+): boolean {
+  if (filter === 'all') return true
+  if (filter === 'unknown') return card.payload_capability === 'unknown'
+  if (filter === 'both') {
+    return card.payload_capability === 'both'
+  }
+  // cargo / pax: include "both"
+  if (filter === 'cargo') {
+    return (
+      card.payload_capability === 'cargo' ||
+      card.payload_capability === 'both'
+    )
+  }
+  if (filter === 'pax') {
+    return (
+      card.payload_capability === 'pax' || card.payload_capability === 'both'
+    )
+  }
+  return true
 }
 
 export type VerticalColumn = {
@@ -117,7 +271,7 @@ export type VerticalColumn = {
 
 /**
  * Build board columns. An operator appears in every vertical they fly
- * (ranked by distance to origin when provided).
+ * (ranked by the selected sort key).
  */
 export function buildVerticalBoard(opts: {
   operators: Array<{
@@ -133,6 +287,8 @@ export function buildVerticalBoard(opts: {
     base_icao: string | null
     tail: string
     cargo_pax?: string | null
+    seats?: number | null
+    max_payload_lbs?: number | null
   }>
   origin?: { lat: number; lon: number } | null
   nmFrom?: (
@@ -154,6 +310,10 @@ export function buildVerticalBoard(opts: {
       nm_from_origin: number | null
     }
   >
+  /** Default: mission_fit when fit map present, else distance. */
+  sortBy?: NetworkSortKey
+  /** Filter cards by cargo/pax capability. */
+  payloadFilter?: 'all' | PayloadCapability
 }): VerticalColumn[] {
   const byOp = new Map(opts.operators.map((o) => [o.id, o]))
   const buckets = new Map<
@@ -162,6 +322,11 @@ export function buildVerticalBoard(opts: {
   >()
   for (const id of VERTICAL_IDS) buckets.set(id, new Map())
   const fitMap = opts.fitByOperator
+  const useFit = Boolean(fitMap?.size)
+  const sortBy: NetworkSortKey =
+    opts.sortBy ??
+    (useFit ? 'mission_fit' : opts.origin ? 'distance' : 'name')
+  const payloadFilter = opts.payloadFilter ?? 'all'
 
   for (const ac of opts.aircraft) {
     const op = byOp.get(ac.operator_id)
@@ -189,6 +354,10 @@ export function buildVerticalBoard(opts: {
         aircraft_count: 0,
         nm_from_origin: fit?.nm_from_origin ?? nm,
         vertical: vid,
+        primary_type: '',
+        max_seats: null,
+        max_payload_lbs: null,
+        payload_capability: 'unknown',
         fit_score: fit?.score ?? null,
         fit_door: fit?.door ?? null,
         fit_hard_fail: fit?.hard_fail ?? false,
@@ -201,27 +370,32 @@ export function buildVerticalBoard(opts: {
     if (ac.tail && !card.tails.includes(ac.tail)) card.tails.push(ac.tail)
     const t = (ac.type_name ?? '').trim()
     if (t && !card.types.includes(t)) card.types.push(t)
+    if (!card.primary_type && t) card.primary_type = t
+    if (ac.seats != null && Number.isFinite(ac.seats)) {
+      card.max_seats =
+        card.max_seats == null
+          ? ac.seats
+          : Math.max(card.max_seats, ac.seats)
+    }
+    if (ac.max_payload_lbs != null && Number.isFinite(ac.max_payload_lbs)) {
+      card.max_payload_lbs =
+        card.max_payload_lbs == null
+          ? ac.max_payload_lbs
+          : Math.max(card.max_payload_lbs, ac.max_payload_lbs)
+    }
+    card.payload_capability = mergeCapability(
+      card.payload_capability,
+      payloadCapability(ac.cargo_pax),
+    )
   }
 
-  const useFit = Boolean(fitMap?.size)
-
   return VERTICAL_IDS.map((id) => {
-    const ops = [...(buckets.get(id)?.values() ?? [])].sort((a, b) => {
-      if (useFit) {
-        const ah = a.fit_hard_fail ? 1 : 0
-        const bh = b.fit_hard_fail ? 1 : 0
-        if (ah !== bh) return ah - bh
-        const as = a.fit_score ?? 999
-        const bs = b.fit_score ?? 999
-        if (as !== bs) return as - bs
-      }
-      const an = a.nm_from_origin
-      const bn = b.nm_from_origin
-      if (an != null && bn != null && an !== bn) return an - bn
-      if (an != null && bn == null) return -1
-      if (an == null && bn != null) return 1
-      return a.operator_name.localeCompare(b.operator_name)
-    })
+    const ops = sortOperatorCards(
+      [...(buckets.get(id)?.values() ?? [])].filter((c) =>
+        cardMatchesPayloadFilter(c, payloadFilter),
+      ),
+      sortBy,
+    )
     return {
       id,
       label: VERTICAL_LABELS[id],
@@ -231,3 +405,4 @@ export function buildVerticalBoard(opts: {
     }
   })
 }
+
