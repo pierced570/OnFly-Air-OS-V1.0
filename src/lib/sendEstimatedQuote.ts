@@ -12,6 +12,7 @@ import {
   type QuoteEmailTaxLine,
 } from '@/domain/quoteEmail'
 import { getClient, listRequestAlertEmails } from '@/lib/clientStore'
+import { resolveBrandLogoUrl } from '@/lib/clientInviteEmail'
 import { getRequest } from '@/lib/requestStore'
 import {
   addTripDocument,
@@ -140,6 +141,7 @@ export async function sendEstimatedQuote(
     kind,
     refLabel,
     acceptUrl,
+    logoUrl: resolveBrandLogoUrl(),
   }
   const subject = quoteEmailSubject(payload)
   const html = renderQuoteEmailHtml(payload)

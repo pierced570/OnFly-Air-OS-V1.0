@@ -6,6 +6,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { BrandLockup } from '@/components/BrandLockup'
 
 export default function PortalLoginPage() {
   const [email, setEmail] = useState('')
@@ -45,9 +46,7 @@ export default function PortalLoginPage() {
     <div className="min-h-screen bg-cream p-6 text-ink" data-theme="client">
       <div className="mx-auto max-w-md space-y-6">
         <header>
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">
-            OnFly Air
-          </div>
+          <BrandLockup showTagline={false} />
           <h1 className="mt-2 text-3xl font-semibold">Client portal</h1>
           <p className="mt-2 text-sm text-muted">
             Sign in with the email on file with dispatch. We’ll email a magic

@@ -25,6 +25,8 @@ export type QuoteEmailInput = {
   refLabel?: string | null
   /** Estimated vs hard */
   kind?: 'estimated' | 'hard'
+  /** Absolute URL to full ONFLYAIR wordmark for email header */
+  logoUrl?: string | null
 }
 
 export type QuoteEmailEtaRow = {
@@ -122,12 +124,16 @@ export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
       <p style="margin:8px 0 0 0;font-size:12px;color:#6b6560">${escapeHtml(input.acceptUrl)}</p>`
     : ''
 
+  const logoBlock = input.logoUrl?.trim()
+    ? `<img src="${escapeAttr(input.logoUrl.trim())}" alt="OnFly Air" width="220" style="display:block;margin:0 auto;max-width:220px;height:auto;border:0" />`
+    : `<div style="color:#c9a227;letter-spacing:0.14em;font-weight:700;font-size:12px">ONFLY AIR</div>`
+
   return `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#f7f2e3;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0c0c0e">
   <div style="max-width:640px;margin:0 auto;padding:24px 16px">
     <div style="background:#fff;border:1px solid #e5dfd0;border-radius:8px;overflow:hidden">
       <div style="background:#0c0c0e;padding:20px;text-align:center">
-        <div style="color:#c9a227;letter-spacing:0.14em;font-weight:700;font-size:12px">ONFLY AIR</div>
+        ${logoBlock}
       </div>
       <div style="padding:24px">
         <h1 style="margin:0 0 6px;font-size:22px">${escapeHtml(kind)}</h1>

@@ -15,6 +15,7 @@ import {
 import { sendFinancialInvoice } from '@/lib/invoiceFlow'
 import { useQuickBooksDashboard } from '@/lib/useQuickBooksDashboard'
 import { isRealQbEnabled } from '@/adapters/accounting'
+import { BrandLockup } from '@/components/BrandLockup'
 
 function usd(n: number, digits = 2) {
   return n.toLocaleString(undefined, {
@@ -201,6 +202,7 @@ export default function FinancialsPage() {
   return (
     <div className="flex flex-col gap-5 p-4 pb-28 sm:p-6">
       <header>
+        <BrandLockup showTagline={false} className="mb-2" />
         <div className="text-xs uppercase tracking-[0.2em] text-gold">Money</div>
         <h1 className="mt-1 text-2xl font-semibold text-cream">Financials</h1>
         <p className="mt-1 text-sm text-muted">

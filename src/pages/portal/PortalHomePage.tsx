@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
+import { BrandLockup } from '@/components/BrandLockup'
 import {
   clearPortalClient,
   getPortalClient,
@@ -129,9 +130,7 @@ export default function PortalHomePage() {
       <header className="border-b border-border px-6 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-gold">
-              OnFly Air
-            </div>
+            <BrandLockup showTagline={false} />
             <h1 className="text-xl font-semibold">Client portal</h1>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">

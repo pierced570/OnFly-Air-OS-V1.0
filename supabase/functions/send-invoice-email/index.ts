@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 <html><body style="font-family:system-ui,sans-serif;color:#0c0c0e;background:#f7f2e3;padding:24px">
   <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5dfd0;border-radius:8px;overflow:hidden">
     <div style="background:#0c0c0e;padding:20px;text-align:center">
-      <div style="color:#c9a227;letter-spacing:0.14em;font-weight:700">ONFLY AIR</div>
+      <img src="https://onflyair.com/wp-content/uploads/2024/02/onflyair-ff-01.png" alt="OnFly Air" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0" />
     </div>
     <div style="padding:24px">
       <h1 style="font-size:20px;margin:0 0 12px">Invoice #${escapeHtml(po)}</h1>

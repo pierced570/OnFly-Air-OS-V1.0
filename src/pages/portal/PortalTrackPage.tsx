@@ -23,6 +23,7 @@ import {
   type PortalTrackingView,
 } from '@/domain/portalTracking'
 import { formatClientLocal } from '@/domain/timeFmt'
+import { BrandLockup } from '@/components/BrandLockup'
 
 const REFRESH_MS = 30_000
 
@@ -168,8 +169,11 @@ function TrackingBody({ view }: { view: PortalTrackingView }) {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <header>
-        <div className="text-xs uppercase tracking-[0.2em] text-gold">
-          OnFly Air · Live tracking
+        <div className="flex items-center gap-3">
+          <BrandLockup showTagline={false} />
+          <div className="text-xs uppercase tracking-[0.2em] text-gold">
+            Live tracking
+          </div>
         </div>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>

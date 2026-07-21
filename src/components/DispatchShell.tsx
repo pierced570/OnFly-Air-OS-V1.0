@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import type { StaffSectionId } from '@/domain/staffAccess'
+import { BrandLockup } from '@/components/BrandLockup'
 import {
   getSession,
   logoutStaff,
@@ -146,11 +147,13 @@ export function DispatchShell({ children }: { children: ReactNode }) {
           </span>
         </button>
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-gold">
-            OnFly
-          </div>
-          <div className="truncate text-sm font-semibold text-cream">
-            {session?.name ?? 'Dispatch OS'}
+          <div className="flex items-center gap-2">
+            <BrandLockup variant="mark" className="!h-8 !w-8" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-cream">
+                {session?.name ?? 'Dispatch OS'}
+              </div>
+            </div>
           </div>
         </div>
         <Link
@@ -178,11 +181,15 @@ export function DispatchShell({ children }: { children: ReactNode }) {
         ].join(' ')}
       >
         <div className="hidden border-b border-border px-5 py-5 md:block">
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">OnFly</div>
-          <div className="mt-1 text-lg font-semibold text-cream">Dispatch OS</div>
-          {session && (
-            <p className="mt-2 truncate text-xs text-muted">{session.name}</p>
-          )}
+          <div className="flex items-center gap-3">
+            <BrandLockup variant="mark" className="!h-11 !w-11" />
+            <div className="min-w-0">
+              <div className="text-lg font-semibold text-cream">Dispatch OS</div>
+              {session && (
+                <p className="mt-1 truncate text-xs text-muted">{session.name}</p>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
           <div className="text-sm font-semibold text-cream">Menu</div>

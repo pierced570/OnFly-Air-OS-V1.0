@@ -6,6 +6,7 @@ import {
   subscribeTrips,
 } from '@/lib/tripStore'
 import { acceptHardQuote } from '@/lib/offerFlow'
+import { BrandLockup } from '@/components/BrandLockup'
 
 export default function AcceptPage() {
   const { token } = useParams()
@@ -33,7 +34,7 @@ export default function AcceptPage() {
   return (
     <div className="min-h-screen bg-cream px-4 py-10 text-ink" data-theme="client">
       <div className="mx-auto max-w-lg space-y-6">
-        <div className="text-xs uppercase tracking-[0.2em] text-gold">OnFly Air</div>
+        <BrandLockup showTagline={false} />
         <h1 className="text-2xl font-semibold">Hard quote</h1>
         <p className="text-sm text-muted">
           {trip.lane} · via a vetted Part 135 carrier

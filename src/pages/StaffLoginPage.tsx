@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import PhoneInput from '@/components/PhoneInput'
 import { loginStaff } from '@/lib/staffStore'
+import { BrandLockup } from '@/components/BrandLockup'
 
 export default function StaffLoginPage() {
   const [name, setName] = useState('')
@@ -23,12 +24,17 @@ export default function StaffLoginPage() {
       data-theme="dispatcher"
     >
       <div className="w-full max-w-sm">
-        <div className="text-[10px] uppercase tracking-[0.25em] text-gold">
-          OnFly Air
+        <div className="flex items-center gap-3">
+          <BrandLockup variant="mark" className="!h-12 !w-12" />
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.25em] text-gold">
+              OnFly Air
+            </div>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-cream">
+              Dispatch OS
+            </h1>
+          </div>
         </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-cream">
-          Dispatch OS
-        </h1>
         <p className="mt-2 text-sm text-muted">
           Enter your name and phone to open the desk. Access is limited to the
           sections your admin assigned.

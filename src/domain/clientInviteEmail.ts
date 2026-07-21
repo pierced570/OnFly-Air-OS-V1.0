@@ -3,10 +3,18 @@
  * Pure TypeScript (no React / adapters). Cream client family branding.
  */
 
-export const BRAND_TAGLINE = 'ASAP AIRCRAFT SOLUTIONS AND LOGISTICS'
-export const BRAND_PHONE = '(858) 529-7860'
-export const BRAND_EMAIL = 'info@onflyair.com'
-export const BRAND_MARK_PATH = '/brand/onfly-mark.svg'
+export {
+  BRAND_EMAIL,
+  BRAND_LOGO_PATH,
+  BRAND_MARK_PATH,
+  BRAND_PHONE,
+  BRAND_TAGLINE,
+} from '@/domain/brand'
+import {
+  BRAND_EMAIL,
+  BRAND_PHONE,
+  BRAND_TAGLINE,
+} from '@/domain/brand'
 
 export type ClientInviteTemplate = {
   recipientName?: string
@@ -15,6 +23,8 @@ export type ClientInviteTemplate = {
   onboardUrl: string
   /** Absolute URL to brand mark (email clients need a full URL). */
   logoUrl: string
+  /** Absolute URL to full wordmark — preferred in header when set. */
+  fullLogoUrl?: string
   phone: string
   supportEmail: string
   tagline: string
@@ -31,6 +41,7 @@ export function defaultClientInviteTemplate(
     buttonText: 'Complete your client setup',
     onboardUrl: '/client',
     logoUrl: '',
+    fullLogoUrl: '',
     phone: BRAND_PHONE,
     supportEmail: BRAND_EMAIL,
     tagline: BRAND_TAGLINE,
@@ -90,8 +101,9 @@ export function renderClientInviteEmailHtml(tpl: ClientInviteTemplate): string {
     : 'Hello,'
   const company = tpl.companyName?.trim() || 'your company'
   const companyEsc = escapeHtml(company)
-  const logoBlock = tpl.logoUrl.trim()
-    ? `<img src="${escapeAttr(tpl.logoUrl.trim())}" width="56" height="56" alt="OnFly Air" style="display:block;margin:0 auto 14px;border:0;border-radius:10px" />`
+  const logoSrc = (tpl.fullLogoUrl || tpl.logoUrl).trim()
+  const logoBlock = logoSrc
+    ? `<img src="${escapeAttr(logoSrc)}" width="240" height="86" alt="OnFly Air" style="display:block;margin:0 auto 14px;border:0;max-width:240px;height:auto" />`
     : ''
 
   return `<!DOCTYPE html>
@@ -102,9 +114,6 @@ export function renderClientInviteEmailHtml(tpl: ClientInviteTemplate): string {
       <table role="presentation" width="100%" style="max-width:560px;background:#f7f2e3;border-radius:4px;overflow:hidden;border:1px solid #ddd6c4">
         <tr><td style="background:#0c0c0e;padding:28px 28px 24px;text-align:center">
           ${logoBlock}
-          <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:28px;line-height:1.1;font-weight:700;letter-spacing:0.06em">
-            <span style="color:#f7f2e3">ONFLY</span><span style="color:#c9a227"> Air</span>
-          </div>
           <div style="margin-top:10px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:0.18em;color:#c9a227;font-weight:600">
             ${escapeHtml(tpl.tagline)}
           </div>

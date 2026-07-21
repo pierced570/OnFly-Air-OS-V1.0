@@ -6,6 +6,7 @@ import { formatStopLocal } from '@/domain/timeFmt'
 import { getClient } from '@/lib/clientStore'
 import { getRequest } from '@/lib/requestStore'
 import { getTaxRates } from '@/lib/taxRatesStore'
+import { BrandLockup } from '@/components/BrandLockup'
 import {
   resolveQuoteRecipients,
   sendEstimatedQuote,
@@ -259,7 +260,7 @@ export default function QuotePreviewPage() {
           data-theme="client"
           className="rounded-lg border border-border bg-cream p-6 text-ink print:border-0"
         >
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">OnFly Air</div>
+          <BrandLockup showTagline={false} />
           <h2 className="mt-2 text-xl font-semibold">Estimated quote</h2>
           <p className="mt-1 text-sm text-muted">
             {draft.originText} → {draft.destText} · via a vetted Part 135 carrier
