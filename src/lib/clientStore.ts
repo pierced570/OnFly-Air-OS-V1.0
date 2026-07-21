@@ -5,9 +5,12 @@
  *  - ap → invoices only
  *  - supply_chain → tracker / ETA pushes
  *
- * Supabase hydrate is preferred. When DB is empty / offline, we lazily seed
- * unique client names from financials.json (dynamic import — not on Board boot).
+ * Boots from localStorage (if any), then Supabase hydrate. When both are empty,
+ * seeds directory names from financials.json (lazy) so Financials clients appear here.
  */
+
+import { hardFiltersFromPolicy } from '@/domain/clientOnboard'
+import type { ClientRules as RoutingClientRules } from '@/domain/routing'
 
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
 
@@ -33,6 +36,8 @@ export type ClientRules = {
   dual_pilot_required: boolean
   freight_only: boolean
   multi_engine_only: boolean
+  /** Single-engine allowed only when turboprop (Chunk 6 interview). */
+  single_engine_turboprop_only: boolean
   no_single_engine_night: boolean
   hazmat_allowed: boolean
   hazmat_notes: string
@@ -44,6 +49,7 @@ export const DEFAULT_CLIENT_RULES: ClientRules = {
   dual_pilot_required: false,
   freight_only: false,
   multi_engine_only: false,
+  single_engine_turboprop_only: false,
   no_single_engine_night: false,
   hazmat_allowed: true,
   hazmat_notes: '',
@@ -78,12 +84,29 @@ export type ClientExtendedProfile = {
   }>
   no_frequent_lanes?: boolean
   requires_po?: boolean
-  card_on_file?: boolean | null
+  /** client = they provide PO; onfly = we generate */
+  po_assigned_by?: 'client' | 'onfly' | null
+  needs_vendor_number?: boolean | null
+  vendor_number_notes?: string
   vendor_packet_to?: string
   update_channel?: 'email' | 'sms' | 'both'
+  /** Freight vs passenger aircraft policies from /client setup. */
+  freight_policy?: {
+    dual_pilot_only: boolean
+    multi_engine_only: boolean
+    single_engine_ok: boolean
+    single_engine_turboprop_ok: boolean
+    exceptions_with_permission: boolean
+  }
+  passenger_policy?: {
+    dual_pilot_only: boolean
+    multi_engine_only: boolean
+    single_engine_ok: boolean
+    single_engine_turboprop_ok: boolean
+    exceptions_with_permission: boolean
+  }
   shipping_flags?: {
     hazmat_sometimes?: boolean
-    temp_control?: boolean
     oversized?: boolean
     high_declared_value?: boolean
   }
@@ -108,6 +131,8 @@ export type ClientProfile = {
   profile: ClientExtendedProfile
 }
 
+const STORAGE_KEY = 'onfly.clients.v1'
+
 const clients = new Map<string, ClientProfile>()
 const listeners = new Set<() => void>()
 let snapshot: ClientProfile[] = []
@@ -116,8 +141,37 @@ function rebuild() {
   snapshot = [...clients.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
+function persistLocal(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...clients.values()]))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function loadLocal(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as ClientProfile[]
+    if (!Array.isArray(parsed) || !parsed.length) return
+    for (const row of parsed) {
+      if (!row?.id || !row.name) continue
+      if (!row.rules) row.rules = { ...DEFAULT_CLIENT_RULES }
+      if (!row.profile) row.profile = {}
+      if (!Array.isArray(row.contacts)) row.contacts = []
+      clients.set(row.id, row)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function bump(persistId?: string) {
   rebuild()
+  persistLocal()
   for (const l of listeners) l()
   if (persistId) {
     const row = clients.get(persistId)
@@ -125,12 +179,87 @@ function bump(persistId?: string) {
   }
 }
 
-/** Replace in-memory directory with Supabase rows (no-op if empty — keeps fixture seed). */
+loadLocal()
+rebuild()
+
+/** Replace in-memory directory with Supabase rows. */
 export function replaceClientsFromDb(rows: ClientProfile[]): void {
   if (!rows.length) return
   clients.clear()
   for (const r of rows) clients.set(r.id, r)
-  fixtureSeedDone = true
+  rebuild()
+  persistLocal()
+  for (const l of listeners) l()
+}
+
+/**
+ * Ensure financials ledger client names appear in the directory.
+ * Merges missing names (does not wipe session/DB clients like "Tester").
+ */
+export async function ensureClientsDirectorySeeded(): Promise<number> {
+  const fixture = (await import('@/fixtures/financials.json')).default as {
+    records: Array<{ client_name?: string; pay_terms?: string | null }>
+  }
+  const skip = new Set(['', 'po enter in error'])
+  const byName = new Map<string, { pay_terms: string }>()
+  for (const r of fixture.records ?? []) {
+    const name = (r.client_name ?? '').trim()
+    if (!name || skip.has(name.toLowerCase())) continue
+    const pay = (r.pay_terms ?? '').trim() || 'Net 30'
+    if (!byName.has(name)) byName.set(name, { pay_terms: pay })
+  }
+
+  const existingNames = new Set(
+    [...clients.values()].map((c) => c.name.trim().toLowerCase()),
+  )
+  let added = 0
+  for (const [name, meta] of [...byName.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0]),
+  )) {
+    if (existingNames.has(name.toLowerCase())) continue
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40)
+    const id = `fin-${slug || crypto.randomUUID().slice(0, 8)}`
+    if (clients.has(id)) continue
+    clients.set(id, {
+      id,
+      name,
+      email: '',
+      invoice_email: '',
+      contacts: [],
+      last_po: null,
+      po_prefix: null,
+      pay_terms: meta.pay_terms,
+      notes:
+        'Seeded from financials ledger — complete profile via /client or edit here.',
+      rules: { ...DEFAULT_CLIENT_RULES },
+      qb_customer_id: null,
+      profile: { source: 'import' },
+    })
+    existingNames.add(name.toLowerCase())
+    added++
+  }
+  if (added) {
+    rebuild()
+    persistLocal()
+    for (const l of listeners) l()
+  }
+  return added
+}
+
+/** Test-only: wipe in-memory + localStorage directory. */
+export function __resetClientsForTests(): void {
+  clients.clear()
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
   rebuild()
   for (const l of listeners) l()
 }
@@ -143,107 +272,6 @@ function defaultPrefs(role: ContactRole): ContactNotifyPrefs {
     return { request_alert: false, invoice: true, tracker: false }
   }
   return { request_alert: false, invoice: false, tracker: true }
-}
-
-const FIXTURE_SKIP = new Set([
-  'po enter in error',
-  'enter in error',
-  'unknown',
-  'n/a',
-  'na',
-])
-
-let fixtureSeedDone = false
-let fixtureSeedPromise: Promise<number> | null = null
-
-type FinancialsFixture = {
-  records: Array<{
-    client_name?: string | null
-    pay_terms?: string | null
-    operator_po?: string | null
-  }>
-}
-
-/**
- * Lazy-load financials.json and seed unique clients when the directory is empty.
- * Safe to call repeatedly; no-ops after DB hydrate or a successful seed.
- */
-export async function ensureClientsSeeded(): Promise<number> {
-  if (clients.size > 0 || fixtureSeedDone) return clients.size
-  if (fixtureSeedPromise) return fixtureSeedPromise
-  fixtureSeedPromise = (async () => {
-    try {
-      const mod = await import('@/fixtures/financials.json')
-      const fixture = (mod.default ?? mod) as FinancialsFixture
-      if (clients.size > 0) {
-        fixtureSeedDone = true
-        return clients.size
-      }
-      const byName = new Map<
-        string,
-        { pay_terms: string; last_po: string | null }
-      >()
-      for (const r of fixture.records ?? []) {
-        const name = (r.client_name || '').trim()
-        if (!name) continue
-        if (FIXTURE_SKIP.has(name.toLowerCase())) continue
-        if (!byName.has(name)) {
-          byName.set(name, {
-            pay_terms: String(r.pay_terms || 'Net 30'),
-            last_po: r.operator_po ? String(r.operator_po) : null,
-          })
-        }
-      }
-      for (const name of [...byName.keys()].sort()) {
-        const meta = byName.get(name)!
-        const id = `client-${name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .slice(0, 24)}`
-        if (clients.has(id)) continue
-        clients.set(id, {
-          id,
-          name,
-          email: '',
-          invoice_email: '',
-          contacts: [],
-          last_po: meta.last_po,
-          po_prefix: guessPoPrefix(meta.last_po),
-          pay_terms: meta.pay_terms,
-          notes: '',
-          rules: { ...DEFAULT_CLIENT_RULES },
-          qb_customer_id: null,
-          profile: { source: 'import' },
-        })
-      }
-      fixtureSeedDone = true
-      rebuild()
-      for (const l of listeners) l()
-      return clients.size
-    } catch (e) {
-      console.warn('[clients] fixture seed failed', e)
-      fixtureSeedDone = true
-      return clients.size
-    } finally {
-      fixtureSeedPromise = null
-    }
-  })()
-  return fixtureSeedPromise
-}
-
-/** Kick off fixture seed after first paint when nothing is in memory yet. */
-export function scheduleClientsFixtureSeed(): void {
-  if (typeof window === 'undefined') return
-  // Vitest / node — hydrate or explicit ensureClientsSeeded only
-  if (import.meta.env?.MODE === 'test' || import.meta.env?.VITEST) return
-  const run = () => {
-    void ensureClientsSeeded()
-  }
-  if (typeof requestIdleCallback === 'function') {
-    requestIdleCallback(() => run(), { timeout: 3000 })
-  } else {
-    setTimeout(run, 100)
-  }
 }
 
 export function subscribeClients(fn: () => void): () => void {
@@ -342,6 +370,55 @@ export function updateClient(
   return row
 }
 
+/**
+ * Routing hard filters for a trip's payload kind.
+ * Cargo (and freight-only clients) use stored `rules` (freight column).
+ * Passenger trips overlay `profile.passenger_policy`.
+ * Both → stricter merge of freight rules + passenger policy.
+ */
+export function clientRulesForRouting(
+  client: ClientProfile | undefined,
+  payloadKind: 'cargo' | 'pax' | 'both',
+): RoutingClientRules {
+  if (!client) return {}
+  const base: RoutingClientRules = {
+    dual_pilot_required: client.rules.dual_pilot_required,
+    freight_only: client.rules.freight_only,
+    multi_engine_only: client.rules.multi_engine_only,
+    single_engine_turboprop_only: client.rules.single_engine_turboprop_only,
+    no_single_engine_night: client.rules.no_single_engine_night,
+    hazmat_allowed: client.rules.hazmat_allowed,
+  }
+  if (payloadKind === 'cargo') return base
+
+  const paxPol = client.profile.passenger_policy
+  if (!paxPol) return base
+  const hard = hardFiltersFromPolicy(paxPol)
+
+  if (payloadKind === 'pax') {
+    return {
+      ...base,
+      dual_pilot_required: hard.dual_pilot_required,
+      multi_engine_only: hard.multi_engine_only,
+      single_engine_turboprop_only: hard.single_engine_turboprop_only,
+    }
+  }
+
+  const multi = Boolean(base.multi_engine_only || hard.multi_engine_only)
+  return {
+    ...base,
+    dual_pilot_required: Boolean(
+      base.dual_pilot_required || hard.dual_pilot_required,
+    ),
+    multi_engine_only: multi,
+    single_engine_turboprop_only: multi
+      ? false
+      : Boolean(
+          base.single_engine_turboprop_only || hard.single_engine_turboprop_only,
+        ),
+  }
+}
+
 /** Chips for quote screens. */
 export function clientRuleChips(clientId: string): string[] {
   const c = clients.get(clientId)
@@ -350,6 +427,8 @@ export function clientRuleChips(clientId: string): string[] {
   if (c.rules.dual_pilot_required) chips.push('Dual pilot required')
   if (c.rules.freight_only) chips.push('Freight only')
   if (c.rules.multi_engine_only) chips.push('Multi-engine only')
+  if (c.rules.single_engine_turboprop_only)
+    chips.push('SE OK only if turboprop')
   if (c.rules.no_single_engine_night) chips.push('No SE night')
   if (!c.rules.hazmat_allowed) chips.push('No hazmat')
   else if (c.rules.hazmat_notes) chips.push(`Hazmat: ${c.rules.hazmat_notes}`)

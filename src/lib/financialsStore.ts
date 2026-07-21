@@ -77,7 +77,11 @@ function seed() {
   if (records.size) return
   loadOverrides()
   for (const r of fixture.records as FinancialRecord[]) {
-    const base = { ...r, tax_breakdown: r.tax_breakdown ?? [] }
+    const base = {
+      ...r,
+      tax_breakdown: r.tax_breakdown ?? [],
+      referral_share_amount: r.referral_share_amount ?? 0,
+    }
     const patch = overrides.get(r.id)
     records.set(r.id, patch ? { ...base, ...patch } : base)
   }
@@ -98,6 +102,7 @@ function seed() {
       vendor_name: null,
       pay_terms: 'Net 30',
       referral_name: null,
+      referral_share_amount: 0,
       client_subtotal_pre_tax: null,
       tax_total: 0,
       tax_breakdown: [],

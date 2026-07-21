@@ -5,7 +5,7 @@ import {
   PIPELINE_STAGES,
   type PipelineCard,
 } from '@/domain/pipelineStages'
-import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
+import { listTripsStable, subscribeTrips, getTrip } from '@/lib/tripStore'
 import {
   deleteRequest,
   listRequests,
@@ -34,6 +34,8 @@ import {
   subscribeIntake,
 } from '@/lib/intakeStore'
 import { listOpenNeedsInfo, subscribeNeedsInfo } from '@/lib/needsInfoStore'
+import { shortlistLabel } from '@/domain/shortlistBands'
+import { approveShortlistAndSpoolOffers } from '@/lib/ladderFlow'
 
 export default function BoardPage() {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
@@ -381,12 +383,21 @@ function PipelineColumn({
 }
 
 function PipelineCardView({ card }: { card: PipelineCard }) {
+  const [spooling, setSpooling] = useState(false)
+  const [spoolErr, setSpoolErr] = useState<string | null>(null)
+  const trip =
+    card.kind === 'trip' ? getTrip(card.id) : null
   const border =
     card.kind === 'intake'
       ? 'border-late/40 bg-late/10'
       : card.kind === 'request'
         ? 'border-gold/40 bg-gold/10'
-        : 'border-border bg-ink/50'
+        : card.kind === 'trip' && card.state === 'routed'
+          ? 'border-gold/50 bg-gold/10'
+          : 'border-border bg-ink/50'
+
+  const shortBits =
+    trip?.shortlist != null ? shortlistLabel(trip.shortlist) : ''
 
   return (
     <div className={`rounded-md border px-2.5 py-2 ${border}`}>
@@ -394,8 +405,28 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
         <div className="truncate text-sm font-medium text-cream">{card.title}</div>
         <div className="mt-0.5 line-clamp-2 text-[11px] text-muted">
           {card.subtitle}
+          {shortBits ? ` · ${shortBits}` : ''}
         </div>
       </Link>
+      {card.kind === 'trip' && trip?.shortlist && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {trip.shortlist.piston && (
+            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
+              Piston {trip.shortlist.piston.type_name ?? trip.shortlist.piston.tail}
+            </span>
+          )}
+          {trip.shortlist.turboprop && (
+            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
+              TP {trip.shortlist.turboprop.type_name ?? trip.shortlist.turboprop.tail}
+            </span>
+          )}
+          {trip.shortlist.jet && (
+            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
+              Jet {trip.shortlist.jet.type_name ?? trip.shortlist.jet.tail}
+            </span>
+          )}
+        </div>
+      )}
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         <Link
           to={card.href}
@@ -403,6 +434,35 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
         >
           Open →
         </Link>
+        {card.kind === 'trip' && card.state === 'routed' && (
+          <button
+            type="button"
+            disabled={spooling}
+            className="tap rounded-md bg-gold px-2 py-0.5 text-xs font-medium text-ink disabled:opacity-50"
+            onClick={() => {
+              setSpoolErr(null)
+              setSpooling(true)
+              void approveShortlistAndSpoolOffers(card.id)
+                .then(() => {
+                  setSpooling(false)
+                })
+                .catch((e) => {
+                  setSpooling(false)
+                  setSpoolErr(e instanceof Error ? e.message : String(e))
+                })
+            }}
+          >
+            {spooling ? 'Sending…' : 'Approve shortlist → send offers'}
+          </button>
+        )}
+        {card.kind === 'trip' && card.state === 'offers_out' && (
+          <Link
+            to={`/trips/${card.id}/offers`}
+            className="tap rounded-md text-sm text-onplan"
+          >
+            Compare offers
+          </Link>
+        )}
         {card.kind === 'request' && (
           <button
             type="button"
@@ -438,6 +498,7 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
           </button>
         )}
       </div>
+      {spoolErr && <p className="mt-1 text-[11px] text-late">{spoolErr}</p>}
     </div>
   )
 }

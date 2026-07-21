@@ -44,8 +44,12 @@ export function subscribeEtaDefaults(fn: () => void): () => void {
   return () => listeners.delete(fn)
 }
 
+/**
+ * Snapshot for useSyncExternalStore — must return a stable reference when
+ * data is unchanged (spreading every call causes infinite re-renders / React #185).
+ */
 export function getEtaDefaults(): EtaDefaults {
-  return { ...cached }
+  return cached
 }
 
 export function setEtaDefault(

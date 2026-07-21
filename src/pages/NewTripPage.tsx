@@ -9,7 +9,7 @@ import {
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
-import { createMapsAdapter } from '@/adapters/maps'
+import { createMapsAdapter, resolveDoorLatLon } from '@/adapters/maps'
 import { generateCandidates, type Candidate } from '@/domain/routing'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { getTaxRates } from '@/lib/taxRatesStore'
@@ -89,6 +89,18 @@ export default function NewTripPage() {
     }
     if (draft.dim_unit) setDimUnit(draft.dim_unit)
     setCandidates(null)
+    // Phase A: create Trip draft→routed with banded shortlist on the Board
+    try {
+      const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
+      const { trip } = await createRoutedTripFromRequest(row)
+      nav(`/trips/${trip.id}`)
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Request saved — could not auto-route; run estimate below',
+      )
+    }
   }
 
   async function runQuote(approvedPieces?: Piece[]) {
@@ -130,13 +142,33 @@ export default function NewTripPage() {
       const fleet = await loadFleetForRouting()
       const maps = createMapsAdapter()
       const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
-      const { getClient } = await import('@/lib/clientStore')
+      const { getClient, clientRulesForRouting } = await import('@/lib/clientStore')
       const { fboFeesForAirport } = await import('@/lib/fboStore')
       const client = request.client_id ? getClient(request.client_id) : undefined
       const originFees = fboFeesForAirport(originAp.icao)
       const destFees = fboFeesForAirport(destAp.icao)
       const t0 = performance.now()
       const priors = await loadPricingPriors()
+      const doorShipper =
+        mode !== 'a2a'
+          ? await resolveDoorLatLon(
+              maps,
+              leg.pickup_address,
+              originAp.lat,
+              originAp.lon,
+              originAp.tz,
+            )
+          : undefined
+      const doorConsignee =
+        mode !== 'a2a'
+          ? await resolveDoorLatLon(
+              maps,
+              leg.dropoff_address,
+              destAp.lat,
+              destAp.lon,
+              destAp.tz,
+            )
+          : undefined
       const cands = await generateCandidates(
         {
           mode,
@@ -145,7 +177,7 @@ export default function NewTripPage() {
           pax_count: paxCount,
           hazmat: request.hazmat,
           ready_at: request.ready_at,
-          client_rules: client?.rules,
+          client_rules: clientRulesForRouting(client, payloadKind),
           origin: {
             kind: mode === 'a2a' ? 'airport' : 'address',
             text: leg.pickup_address || originAp.icao,
@@ -162,14 +194,8 @@ export default function NewTripPage() {
             lon: destAp.lon,
             tz: destAp.tz,
           },
-          shipper:
-            mode !== 'a2a'
-              ? { lat: originAp.lat, lon: originAp.lon, tz: originAp.tz }
-              : undefined,
-          consignee:
-            mode !== 'a2a'
-              ? { lat: destAp.lat, lon: destAp.lon, tz: destAp.tz }
-              : undefined,
+          shipper: doorShipper,
+          consignee: doorConsignee,
         },
         fleet,
         maps,

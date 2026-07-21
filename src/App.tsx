@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DispatchShell } from '@/components/DispatchShell'
 import { StaffGate } from '@/components/StaffGate'
@@ -29,6 +29,7 @@ const RadarPage = lazy(() => import('@/pages/RadarPage'))
 const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
+const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
 const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 const LeadsPage = lazy(() => import('@/pages/LeadsPage'))
 const FbosPage = lazy(() => import('@/pages/FbosPage'))
@@ -60,9 +61,27 @@ function isPublic(pathname: string) {
   )
 }
 
+/** Cream client surfaces — keep <html> theme in sync so tokens aren't dark. */
+function isClientThemePath(pathname: string) {
+  return (
+    pathname.startsWith('/portal') ||
+    pathname === '/client' ||
+    pathname.startsWith('/client/') ||
+    pathname.startsWith('/accept/') ||
+    pathname === '/onboard' ||
+    pathname.startsWith('/onboard/')
+  )
+}
+
 export function App() {
   const loc = useLocation()
   const publicRoute = isPublic(loc.pathname)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = isClientThemePath(loc.pathname)
+      ? 'client'
+      : 'dispatcher'
+  }, [loc.pathname])
 
   const routes = (
     <Suspense fallback={<Fallback />}>
@@ -71,6 +90,7 @@ export function App() {
         <Route path="/trips/new" element={<NewTripPage />} />
         <Route path="/quick-dispatch" element={<QuickDispatchPage />} />
         <Route path="/financials" element={<FinancialsPage />} />
+        <Route path="/referrals" element={<ReferralsPage />} />
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/fbos" element={<FbosPage />} />

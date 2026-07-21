@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
+import { AirportSelect } from '@/components/AirportSelect'
+import {
+  isLiveEmailConfigured,
+  isRealEmailEnabled,
+} from '@/adapters/email'
 import {
   addClient,
   addClientContact,
-  ensureClientsSeeded,
+  ensureClientsDirectorySeeded,
   listClients,
   removeClientContact,
   subscribeClients,
@@ -12,7 +17,11 @@ import {
   type ClientProfile,
   type ContactRole,
 } from '@/lib/clientStore'
-import { ClientInvitePanel } from '@/components/ClientInvitePanel'
+import {
+  defaultClientOnboardTemplate,
+  renderClientOnboardEmailHtml,
+  sendClientOnboardInvite,
+} from '@/lib/clientOnboardEmail'
 
 const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
@@ -26,57 +35,190 @@ const ROLE_HELP: Record<ContactRole, string> = {
 }
 
 function clientSetupUrl(): string {
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/client`
-  }
-  return '/client'
+  return defaultClientOnboardTemplate().onboardUrl
 }
 
-function ClientSetupLinkCard() {
+function ClientInviteCard() {
+  const live = isLiveEmailConfigured()
+  const realFlag = isRealEmailEnabled()
   const [copied, setCopied] = useState(false)
-  const [showInvite, setShowInvite] = useState(false)
+  const [to, setTo] = useState('')
+  const [company, setCompany] = useState('')
+  const [cell, setCell] = useState('')
+  const [channel, setChannel] = useState<'email' | 'sms' | 'both'>('email')
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const url = clientSetupUrl()
+  const tpl = useMemo(() => defaultClientOnboardTemplate(), [])
+  const previewHtml = useMemo(
+    () => renderClientOnboardEmailHtml(tpl, company || undefined),
+    [tpl, company],
+  )
+
+  async function send() {
+    setBusy(true)
+    setStatus(null)
+    try {
+      const result = await sendClientOnboardInvite({
+        to,
+        companyName: company || undefined,
+        cell: cell || undefined,
+        channel,
+        template: tpl,
+      })
+      const via =
+        channel === 'sms'
+          ? 'SMS'
+          : channel === 'both'
+            ? 'email + SMS'
+            : live
+              ? 'email'
+              : 'mock email'
+      setStatus(`Sent (${via}) to ${result.to}${cell && channel !== 'email' ? ` / ${cell}` : ''}.`)
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const canSend =
+    channel === 'sms'
+      ? Boolean(cell.trim())
+      : channel === 'both'
+        ? to.includes('@') && Boolean(cell.trim())
+        : to.includes('@')
+
   return (
-    <div className="space-y-3">
-      <div className="rounded-lg border border-gold/30 bg-gold/10 p-3">
+    <div className="space-y-3 rounded-lg border border-gold/30 bg-gold/10 p-3">
+      <div>
         <div className="text-xs uppercase tracking-wider text-gold">
-          Send to new customers
+          Send client onboarding
         </div>
         <p className="mt-1 text-xs text-muted">
-          Email a branded welcome with the setup form, or copy the link.
+          Same form customers fill at{' '}
+          <span className="avionic text-cream">/client</span>
+          {' '}— company, people, pay terms, routing rules, lanes.
+          {live
+            ? ' Email is live.'
+            : realFlag
+              ? ' Email adapter is real but Supabase keys are missing.'
+              : ' Email is mock until Resend is wired.'}
         </p>
-        <p className="avionic mt-2 break-all text-xs text-cream">{url}</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
-            onClick={() => setShowInvite((v) => !v)}
-          >
-            {showInvite ? 'Hide email invite' : 'Email welcome + form'}
-          </button>
-          <button
-            type="button"
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
-            onClick={() => {
-              void navigator.clipboard?.writeText(url).then(() => {
-                setCopied(true)
-                window.setTimeout(() => setCopied(false), 2000)
-              })
-            }}
-          >
-            {copied ? 'Copied' : 'Copy link'}
-          </button>
-          <Link
-            to="/client"
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open
-          </Link>
-        </div>
       </div>
-      {showInvite && <ClientInvitePanel compact />}
+
+      <p className="avionic break-all text-[11px] text-cream">{url}</p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          onClick={() => {
+            void navigator.clipboard?.writeText(url).then(() => {
+              setCopied(true)
+              window.setTimeout(() => setCopied(false), 2000)
+            })
+          }}
+        >
+          {copied ? 'Copied' : 'Copy link'}
+        </button>
+        <Link
+          to="/client"
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open form
+        </Link>
+        <button
+          type="button"
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          onClick={() => setPreviewOpen(true)}
+        >
+          Preview email
+        </button>
+      </div>
+
+      <div className="grid gap-2">
+        <label className={label}>
+          Company <span className="normal-case text-muted">(optional)</span>
+          <input
+            className={input}
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="PSA Airlines"
+          />
+        </label>
+        <label className={label}>
+          Email
+          <input
+            type="email"
+            className={input}
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="ops@client.com"
+            autoComplete="email"
+          />
+        </label>
+        <label className={label}>
+          Cell <span className="normal-case text-muted">(SMS)</span>
+          <input
+            className={`${input} avionic`}
+            value={cell}
+            onChange={(e) => setCell(e.target.value)}
+            placeholder="+1…"
+          />
+        </label>
+        <div className="flex flex-wrap gap-3 text-xs text-cream">
+          {(['email', 'sms', 'both'] as const).map((ch) => (
+            <label key={ch} className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="invite_channel"
+                checked={channel === ch}
+                onChange={() => setChannel(ch)}
+              />
+              {ch === 'both' ? 'Email + SMS' : ch === 'sms' ? 'SMS' : 'Email'}
+            </label>
+          ))}
+        </div>
+        <button
+          type="button"
+          disabled={busy || !canSend}
+          onClick={() => void send()}
+          className="rounded-md bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
+        >
+          {busy ? 'Sending…' : 'Send onboarding link'}
+        </button>
+        {status && <p className="text-[11px] text-muted">{status}</p>}
+      </div>
+
+      {previewOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/70 p-0 sm:items-center sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Email preview"
+        >
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border border-border bg-cream sm:rounded-xl">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold text-ink">Email preview</h3>
+              <button
+                type="button"
+                className="text-sm text-muted"
+                onClick={() => setPreviewOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <iframe
+              title="Client onboard email preview"
+              className="min-h-[50vh] w-full flex-1 bg-white"
+              srcDoc={previewHtml}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -86,9 +228,16 @@ export default function ClientsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [newName, setNewName] = useState('')
+  const [seedNote, setSeedNote] = useState<string | null>(null)
 
   useEffect(() => {
-    void ensureClientsSeeded()
+    void ensureClientsDirectorySeeded().then((n) => {
+      if (n > 0) {
+        setSeedNote(
+          `Loaded ${n} clients from the financials ledger — complete profiles here or via /client.`,
+        )
+      }
+    })
   }, [])
 
   const filtered = useMemo(() => {
@@ -111,11 +260,20 @@ export default function ClientsPage() {
           <div className="text-xs uppercase tracking-[0.2em] text-gold">Directory</div>
           <h1 className="mt-1 text-xl font-semibold text-cream">Clients</h1>
           <p className="mt-1 text-xs text-muted">
-            Flag who rings the phone on requests vs who gets invoices.
+            Same subjects as the public /client setup form. Flag who rings the phone
+            vs who gets invoices.
           </p>
+          {seedNote && (
+            <p className="mt-2 text-[11px] text-gold/90">{seedNote}</p>
+          )}
+          {clients.length > 0 && (
+            <p className="mt-1 avionic text-[11px] text-muted">
+              {clients.length} in directory
+            </p>
+          )}
         </header>
 
-        <ClientSetupLinkCard />
+        <ClientInviteCard />
 
         <input
           value={q}
@@ -151,6 +309,11 @@ export default function ClientsPage() {
             selected ? 'hidden max-h-[40vh] lg:block lg:max-h-[60vh]' : 'max-h-[60vh]',
           ].join(' ')}
         >
+          {filtered.length === 0 && (
+            <li className="rounded-md border border-border bg-surface px-3 py-4 text-center text-xs text-muted">
+              No clients yet — send an onboarding link or add a name.
+            </li>
+          )}
           {filtered.map((c) => {
             const ring = c.contacts.filter((x) => x.notify_prefs.request_alert).length
             const inv = c.contacts.filter((x) => x.notify_prefs.invoice).length
@@ -169,6 +332,8 @@ export default function ClientsPage() {
                   <div className="font-medium text-cream">{c.name}</div>
                   <div className="mt-0.5 text-[11px] text-muted">
                     {c.contacts.length} contacts · {ring} ring · {inv} invoice
+                    {c.profile?.source === 'import' ? ' · from financials' : ''}
+                    {c.profile?.source === 'portal_onboard' ? ' · from /client' : ''}
                   </div>
                 </button>
               </li>
@@ -194,6 +359,17 @@ export default function ClientsPage() {
   )
 }
 
+function payTermsSelectValue(terms: string): string {
+  const known = ['Prepay', 'Net 15', 'Net 30', 'Net 60']
+  if (known.includes(terms)) return terms
+  const lower = terms.toLowerCase()
+  if (lower.includes('prepay') || lower.includes('prepaid')) return 'Prepay'
+  if (lower.includes('15')) return 'Net 15'
+  if (lower.includes('60')) return 'Net 60'
+  if (lower.includes('30')) return 'Net 30'
+  return terms
+}
+
 function ClientDetail({
   client,
   onBack,
@@ -209,7 +385,6 @@ function ClientDetail({
   const ringers = client.contacts.filter((c) => c.notify_prefs.request_alert)
   const invoiceTo = client.contacts.filter((c) => c.notify_prefs.invoice)
   const profile = client.profile ?? {}
-  const addr = profile.address
 
   function patchProfile(
     patch: Partial<NonNullable<ClientProfile['profile']>>,
@@ -229,12 +404,20 @@ function ClientDetail({
         </button>
       )}
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-cream">{client.name}</h2>
+        <div className="min-w-0 flex-1">
+          <label className={label}>
+            Legal name
+            <input
+              className={`${input} text-lg font-semibold text-cream`}
+              value={client.name}
+              onChange={(e) => updateClient(client.id, { name: e.target.value })}
+            />
+          </label>
           <p className="mt-1 text-sm text-muted">
             Pay terms {client.pay_terms}
             {client.last_po ? ` · last PO ${client.last_po}` : ''}
             {profile.source === 'portal_onboard' ? ' · from /client setup' : ''}
+            {profile.source === 'import' ? ' · from financials' : ''}
           </p>
         </div>
       </header>
@@ -253,10 +436,30 @@ function ClientDetail({
         </label>
         <label className={label}>
           Pay terms
-          <input
+          <select
             className={input}
+            value={payTermsSelectValue(client.pay_terms)}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === 'other') return
+              updateClient(client.id, { pay_terms: v })
+            }}
+          >
+            <option value="Prepay">Prepay</option>
+            <option value="Net 15">Net 15</option>
+            <option value="Net 30">Net 30</option>
+            <option value="Net 60">Net 60</option>
+            <option value={client.pay_terms}>
+              {payTermsSelectValue(client.pay_terms) === client.pay_terms
+                ? client.pay_terms
+                : `Other (${client.pay_terms})`}
+            </option>
+          </select>
+          <input
+            className={`${input} mt-1`}
             value={client.pay_terms}
             onChange={(e) => updateClient(client.id, { pay_terms: e.target.value })}
+            placeholder="Or type custom terms"
           />
         </label>
         <label className={label}>
@@ -277,6 +480,9 @@ function ClientDetail({
       <section className="rounded-lg border border-border bg-surface p-3 space-y-3">
         <div className="text-xs uppercase tracking-wider text-muted">
           Company profile
+          <span className="ml-2 normal-case tracking-normal text-muted/70">
+            (same fields as /client)
+          </span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={label}>
@@ -318,49 +524,221 @@ function ClientDetail({
               placeholder="W-9 / banking destination"
             />
           </label>
+          {profile.needs_vendor_number && (
+            <label className={label}>
+              Vendor # instructions
+              <input
+                className={input}
+                value={profile.vendor_number_notes ?? ''}
+                onChange={(e) =>
+                  patchProfile({
+                    vendor_number_notes: e.target.value || undefined,
+                  })
+                }
+                placeholder="Portal / AP contact for vendor registration"
+              />
+            </label>
+          )}
         </div>
-        {addr && (
-          <p className="text-xs text-muted">
-            Address:{' '}
-            <span className="text-cream">
-              {[addr.street, addr.city, addr.state, addr.zip]
-                .filter(Boolean)
-                .join(', ')}
-            </span>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <div className="text-[11px] uppercase tracking-wider text-muted">
+              Company address
+            </div>
+            {(
+              [
+                ['street', 'Street'],
+                ['city', 'City'],
+                ['state', 'State'],
+                ['zip', 'ZIP'],
+              ] as const
+            ).map(([key, lab]) => (
+              <label key={key} className={label}>
+                {lab}
+                <input
+                  className={input}
+                  value={profile.address?.[key] ?? ''}
+                  onChange={(e) =>
+                    patchProfile({
+                      address: {
+                        street: profile.address?.street ?? '',
+                        city: profile.address?.city ?? '',
+                        state: profile.address?.state ?? '',
+                        zip: profile.address?.zip ?? '',
+                        [key]: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm text-cream">
+              <input
+                type="checkbox"
+                checked={profile.billing_same_as_address !== false}
+                onChange={(e) =>
+                  patchProfile({ billing_same_as_address: e.target.checked })
+                }
+              />
+              Billing same as company address
+            </label>
             {profile.billing_same_as_address === false &&
-              profile.billing_address && (
-                <span>
-                  {' '}
-                  · Billing:{' '}
-                  {[
-                    profile.billing_address.street,
-                    profile.billing_address.city,
-                    profile.billing_address.state,
-                    profile.billing_address.zip,
-                  ]
-                    .filter(Boolean)
-                    .join(', ')}
-                </span>
-              )}
-          </p>
-        )}
-        {profile.emergency && (
-          <p className="text-xs text-muted">
-            Emergency:{' '}
-            <span className="text-cream">
-              {profile.emergency.name} {profile.emergency.phone}
-              {profile.emergency.email ? ` · ${profile.emergency.email}` : ''}
-            </span>
-          </p>
-        )}
+              (
+                [
+                  ['street', 'Billing street'],
+                  ['city', 'City'],
+                  ['state', 'State'],
+                  ['zip', 'ZIP'],
+                ] as const
+              ).map(([key, lab]) => (
+                <label key={key} className={label}>
+                  {lab}
+                  <input
+                    className={input}
+                    value={profile.billing_address?.[key] ?? ''}
+                    onChange={(e) =>
+                      patchProfile({
+                        billing_address: {
+                          street: profile.billing_address?.street ?? '',
+                          city: profile.billing_address?.city ?? '',
+                          state: profile.billing_address?.state ?? '',
+                          zip: profile.billing_address?.zip ?? '',
+                          [key]: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            <div className="space-y-2 pt-2">
+              <div className="text-[11px] uppercase tracking-wider text-muted">
+                Emergency contact
+              </div>
+              <label className={label}>
+                Name
+                <input
+                  className={input}
+                  value={profile.emergency?.name ?? ''}
+                  onChange={(e) =>
+                    patchProfile({
+                      emergency: {
+                        name: e.target.value,
+                        email: profile.emergency?.email ?? '',
+                        phone: profile.emergency?.phone ?? '',
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className={label}>
+                Phone
+                <input
+                  className={`${input} avionic`}
+                  value={profile.emergency?.phone ?? ''}
+                  onChange={(e) =>
+                    patchProfile({
+                      emergency: {
+                        name: profile.emergency?.name ?? '',
+                        email: profile.emergency?.email ?? '',
+                        phone: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className={label}>
+                Email
+                <input
+                  className={input}
+                  value={profile.emergency?.email ?? ''}
+                  onChange={(e) =>
+                    patchProfile({
+                      emergency: {
+                        name: profile.emergency?.name ?? '',
+                        email: e.target.value,
+                        phone: profile.emergency?.phone ?? '',
+                      },
+                    })
+                  }
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-4 text-sm text-cream">
+          <label className={label}>
+            PO assigned by
+            <select
+              className={input}
+              value={profile.po_assigned_by ?? ''}
+              onChange={(e) => {
+                const v = e.target.value
+                const po_assigned_by =
+                  v === 'client' || v === 'onfly' ? v : null
+                patchProfile({
+                  po_assigned_by,
+                  requires_po: po_assigned_by === 'client',
+                })
+              }}
+            >
+              <option value="">— confirm —</option>
+              <option value="client">Client provides PO</option>
+              <option value="onfly">OnFly assigns PO</option>
+            </select>
+          </label>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={Boolean(profile.requires_po)}
-              onChange={(e) => patchProfile({ requires_po: e.target.checked })}
+              checked={Boolean(profile.needs_vendor_number)}
+              onChange={(e) =>
+                patchProfile({ needs_vendor_number: e.target.checked })
+              }
             />
-            PO required
+            Needs vendor #
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={profile.card_on_file === true}
+              onChange={(e) =>
+                patchProfile({ card_on_file: e.target.checked ? true : null })
+              }
+            />
+            Card on file
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={Boolean(profile.shipping_flags?.temp_control)}
+              onChange={(e) =>
+                patchProfile({
+                  shipping_flags: {
+                    ...profile.shipping_flags,
+                    temp_control: e.target.checked,
+                  },
+                })
+              }
+            />
+            Temp control
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={Boolean(profile.shipping_flags?.oversized)}
+              onChange={(e) =>
+                patchProfile({
+                  shipping_flags: {
+                    ...profile.shipping_flags,
+                    oversized: e.target.checked,
+                  },
+                })
+              }
+            />
+            Oversized
           </label>
           <label className={label}>
             Updates
@@ -379,14 +757,82 @@ function ClientDetail({
             </select>
           </label>
         </div>
-        {profile.frequent_lanes && profile.frequent_lanes.length > 0 && (
-          <p className="avionic text-xs text-gold">
-            Lanes:{' '}
-            {profile.frequent_lanes
-              .map((l) => `${l.origin}→${l.destination}`)
-              .join(' · ')}
-          </p>
-        )}
+
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-wider text-muted">
+              Frequent lanes
+            </div>
+            <label className="flex items-center gap-2 text-xs text-cream">
+              <input
+                type="checkbox"
+                checked={Boolean(profile.no_frequent_lanes)}
+                onChange={(e) =>
+                  patchProfile({
+                    no_frequent_lanes: e.target.checked,
+                    frequent_lanes: e.target.checked
+                      ? []
+                      : profile.frequent_lanes,
+                  })
+                }
+              />
+              No frequent lanes
+            </label>
+          </div>
+          {!profile.no_frequent_lanes && (
+            <div className="space-y-2">
+              {(profile.frequent_lanes?.length
+                ? profile.frequent_lanes
+                : [{ origin: '', destination: '' }]
+              ).map((lane, i) => (
+                <div key={i} className="grid gap-2 sm:grid-cols-2">
+                  <AirportSelect
+                    value={lane.origin}
+                    onChange={(icao) => {
+                      const lanes = [
+                        ...(profile.frequent_lanes?.length
+                          ? profile.frequent_lanes
+                          : [{ origin: '', destination: '' }]),
+                      ]
+                      lanes[i] = { ...lanes[i]!, origin: icao }
+                      patchProfile({ frequent_lanes: lanes })
+                    }}
+                    label="Origin"
+                    inputClassName={input}
+                  />
+                  <AirportSelect
+                    value={lane.destination}
+                    onChange={(icao) => {
+                      const lanes = [
+                        ...(profile.frequent_lanes?.length
+                          ? profile.frequent_lanes
+                          : [{ origin: '', destination: '' }]),
+                      ]
+                      lanes[i] = { ...lanes[i]!, destination: icao }
+                      patchProfile({ frequent_lanes: lanes })
+                    }}
+                    label="Destination"
+                    inputClassName={input}
+                  />
+                </div>
+              ))}
+              <button
+                type="button"
+                className="text-xs text-gold"
+                onClick={() =>
+                  patchProfile({
+                    frequent_lanes: [
+                      ...(profile.frequent_lanes ?? []),
+                      { origin: '', destination: '' },
+                    ],
+                  })
+                }
+              >
+                + Add lane
+              </button>
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="rounded-lg border border-border bg-surface p-3">
@@ -429,6 +875,18 @@ function ClientDetail({
               }
             />
             Multi-engine only
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={client.rules.single_engine_turboprop_only}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { single_engine_turboprop_only: e.target.checked },
+                })
+              }
+            />
+            SE OK if turboprop
           </label>
           <label className="flex items-center gap-2">
             <input

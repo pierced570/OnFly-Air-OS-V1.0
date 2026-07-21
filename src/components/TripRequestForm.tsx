@@ -555,6 +555,38 @@ export function TripRequestForm({
             />
             <span className="text-late">⚠</span> Hazmat
           </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={draft.forklift_recommended}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  forklift_recommended: e.target.checked,
+                  forklift_required: e.target.checked
+                    ? d.forklift_required
+                    : false,
+                }))
+              }
+            />
+            Forklift recommended
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={draft.forklift_required}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  forklift_required: e.target.checked,
+                  forklift_recommended: e.target.checked
+                    ? true
+                    : d.forklift_recommended,
+                }))
+              }
+            />
+            Forklift required
+          </label>
         </div>
         {draft.hazmat && (
           <p className="mt-2 text-xs text-late">
@@ -562,6 +594,47 @@ export function TripRequestForm({
             review.
           </p>
         )}
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <label className={labelCls}>
+            PO number
+            <input
+              value={draft.po_number}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, po_number: e.target.value }))
+              }
+              className={inputCls}
+              placeholder="Optional"
+            />
+          </label>
+          <label className={labelCls}>
+            Declared value (USD)
+            <input
+              type="number"
+              min={0}
+              value={draft.declared_value_usd}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  declared_value_usd:
+                    e.target.value === '' ? '' : Number(e.target.value),
+                }))
+              }
+              className={`${inputCls} avionic`}
+              placeholder="Optional"
+            />
+          </label>
+          <label className={labelCls}>
+            Hard deadline
+            <input
+              type="datetime-local"
+              value={draft.hard_deadline_at}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, hard_deadline_at: e.target.value }))
+              }
+              className={`${inputCls} avionic`}
+            />
+          </label>
+        </div>
       </section>
 
       {/* Cargo / pax */}

@@ -242,6 +242,8 @@ async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> 
             contact_cell: o.contact_cell,
             bookingGated: o.bookingGated,
             needsInfo: o.needsInfo,
+            fee_scope: o.fee_scope,
+            offer_notes: o.notes,
           }),
         },
         { onConflict: 'id' },
