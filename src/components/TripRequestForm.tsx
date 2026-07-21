@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
+import { DimsTripleInput } from '@/components/DimsTripleInput'
 import {
   ASAP_MAX_HOURS,
   emptyTripRequestDraft,
@@ -554,6 +555,38 @@ export function TripRequestForm({
             />
             <span className="text-late">⚠</span> Hazmat
           </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={draft.forklift_recommended}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  forklift_recommended: e.target.checked,
+                  forklift_required: e.target.checked
+                    ? d.forklift_required
+                    : false,
+                }))
+              }
+            />
+            Forklift recommended
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={draft.forklift_required}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  forklift_required: e.target.checked,
+                  forklift_recommended: e.target.checked
+                    ? true
+                    : d.forklift_recommended,
+                }))
+              }
+            />
+            Forklift required
+          </label>
         </div>
         {draft.hazmat && (
           <p className="mt-2 text-xs text-late">
@@ -561,6 +594,47 @@ export function TripRequestForm({
             review.
           </p>
         )}
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <label className={labelCls}>
+            PO number
+            <input
+              value={draft.po_number}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, po_number: e.target.value }))
+              }
+              className={inputCls}
+              placeholder="Optional"
+            />
+          </label>
+          <label className={labelCls}>
+            Declared value (USD)
+            <input
+              type="number"
+              min={0}
+              value={draft.declared_value_usd}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  declared_value_usd:
+                    e.target.value === '' ? '' : Number(e.target.value),
+                }))
+              }
+              className={`${inputCls} avionic`}
+              placeholder="Optional"
+            />
+          </label>
+          <label className={labelCls}>
+            Hard deadline
+            <input
+              type="datetime-local"
+              value={draft.hard_deadline_at}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, hard_deadline_at: e.target.value }))
+              }
+              className={`${inputCls} avionic`}
+            />
+          </label>
+        </div>
       </section>
 
       {/* Cargo / pax */}
@@ -659,31 +733,13 @@ export function TripRequestForm({
               value={draft.dim_unit ?? 'in'}
               onChange={(dim_unit) => setDraft((d) => ({ ...d, dim_unit }))}
             />
-            <label className={labelCls}>
-              Cargo description / dims
-              <textarea
-                value={draft.cargo_notes}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, cargo_notes: e.target.value }))
-                }
-                rows={2}
-                placeholder={
-                  (draft.dim_unit ?? 'in') === 'ft'
-                    ? 'e.g. 3 skids 4x3.5x5 @ 800ea (feet)'
-                    : 'e.g. 3 skids 48x40x60 @ 800ea (inches)'
-                }
-                className={inputCls}
-              />
-            </label>
-            <p className="text-[11px] text-muted">
-              L×W×H are in{' '}
-              <span className="text-[var(--text)]">
-                {(draft.dim_unit ?? 'in') === 'ft' ? 'feet' : 'inches'}
-              </span>
-              . You can also write <span className="avionic">ft</span> or{' '}
-              <span className="avionic">in</span> after the dims. Door fit always
-              uses inches.
-            </p>
+            <DimsTripleInput
+              value={draft.cargo_notes}
+              unit={draft.dim_unit ?? 'in'}
+              onChange={(cargo_notes) =>
+                setDraft((d) => ({ ...d, cargo_notes }))
+              }
+            />
           </div>
         )}
       </section>

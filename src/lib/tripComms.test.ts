@@ -5,7 +5,9 @@ import {
   disbandTripComms,
   ensureTripThread,
   inviteTripParticipant,
+  listChatTrips,
   mutateTrip,
+  postThreadMessage,
 } from '@/lib/tripStore'
 import { listBankedContacts } from '@/lib/contactBankStore'
 import type { Candidate } from '@/domain/routing'
@@ -67,5 +69,24 @@ describe('trip comms lifecycle', () => {
     expect(fresh.participants.every((x) => !x.in_thread || x.released_at)).toBe(
       true,
     )
+  })
+
+  it('listChatTrips surfaces trips with open threads', async () => {
+    const trip = createTripFromCandidates({
+      lane: 'KHPN → KTEB',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [stubCand()],
+      payload_kind: 'cargo',
+    })
+    await ensureTripThread(trip.id)
+    postThreadMessage(trip.id, {
+      from: 'OnFly Dispatch',
+      channel: 'web',
+      body: 'Thread open — standing by',
+    })
+    const chat = listChatTrips()
+    expect(chat.some((t) => t.id === trip.id)).toBe(true)
+    expect(chat[0]?.thread_number).toBeTruthy()
   })
 })

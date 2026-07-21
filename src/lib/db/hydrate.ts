@@ -5,6 +5,8 @@
 import type { Lead } from '@/domain/leads'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import {
+  ensureClientsDirectorySeeded,
+  listClients,
   replaceClientsFromDb,
   type ClientProfile,
   type ContactRole,
@@ -16,7 +18,8 @@ import { replaceIntakeFromDb, type IntakeDraft } from '@/lib/intakeStore'
 import { replaceLeadsFromDb } from '@/lib/leadStore'
 import { replaceNeedsInfoFromDb, type NeedsInfoTask } from '@/lib/needsInfoStore'
 import { loadPricingPriors } from '@/lib/pricingPriorsStore'
-import { hydrateShiftFromDb } from '@/lib/shiftStore'
+import { hydrateShiftsFromDb } from '@/lib/shiftStore'
+import { hydratePresenceFromDb } from '@/lib/presenceStore'
 import { loadTaxRates } from '@/lib/taxRatesStore'
 
 export async function hydrateOperatingData(): Promise<{
@@ -28,7 +31,15 @@ export async function hydrateOperatingData(): Promise<{
   trips: number
 }> {
   if (!canPersist()) {
-    return { ok: false, clients: 0, fbos: 0, tasks: 0, leads: 0, trips: 0 }
+    const seeded = await ensureClientsDirectorySeeded()
+    return {
+      ok: false,
+      clients: seeded || listClients().length,
+      fbos: 0,
+      tasks: 0,
+      leads: 0,
+      trips: 0,
+    }
   }
 
   await Promise.all([loadTaxRates(), loadPricingPriors()])
@@ -80,14 +91,41 @@ export async function hydrateOperatingData(): Promise<{
           dual_pilot_required: Boolean(rulesRaw?.dual_pilot_required),
           freight_only: Boolean(rulesRaw?.freight_only),
           multi_engine_only: Boolean(rulesRaw?.multi_engine_only),
+          single_engine_turboprop_only: Boolean(
+            rulesRaw?.single_engine_turboprop_only,
+          ),
           no_single_engine_night: Boolean(rulesRaw?.no_single_engine_night),
           hazmat_allowed:
             rulesRaw?.hazmat_allowed == null
               ? true
               : Boolean(rulesRaw.hazmat_allowed),
-          declared_value_norm: rulesRaw?.max_declared_value
-            ? String(rulesRaw.max_declared_value)
-            : '',
+          hazmat_notes: (() => {
+            const raw = rulesRaw?.other_rules
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+              const notes = (raw as { hazmat_notes?: unknown }).hazmat_notes
+              if (typeof notes === 'string') return notes
+            }
+            return ''
+          })(),
+          declared_value_norm: (() => {
+            const raw = rulesRaw?.other_rules
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+              const norm = (raw as { declared_value_norm?: unknown })
+                .declared_value_norm
+              if (typeof norm === 'string' && norm.trim()) return norm
+            }
+            return rulesRaw?.max_declared_value
+              ? String(rulesRaw.max_declared_value)
+              : ''
+          })(),
+          other_rules: (() => {
+            const raw = rulesRaw?.other_rules
+            if (Array.isArray(raw)) return raw.map(String)
+            if (raw && typeof raw === 'object' && Array.isArray((raw as { list?: unknown }).list)) {
+              return ((raw as { list: unknown[] }).list).map(String)
+            }
+            return []
+          })(),
         },
         qb_customer_id: r.qb_customer_id ? String(r.qb_customer_id) : null,
         profile:
@@ -98,6 +136,11 @@ export async function hydrateOperatingData(): Promise<{
     })
     replaceClientsFromDb(mapped)
     clients = mapped.length
+  }
+
+  if (clients === 0) {
+    const seeded = await ensureClientsDirectorySeeded()
+    clients = seeded || listClients().length
   }
 
   const fboRows = await safeQuery('fbos', () =>
@@ -165,18 +208,37 @@ export async function hydrateOperatingData(): Promise<{
       .select('*')
       .eq('active', true)
       .order('starts_at', { ascending: false })
-      .limit(1),
+      .limit(20),
   )
-  if (shiftRows && Array.isArray(shiftRows) && shiftRows[0]) {
-    const s = shiftRows[0] as Record<string, unknown>
-    hydrateShiftFromDb({
-      id: String(s.id),
-      person_name: String(s.person ?? 'Dispatcher'),
-      phone: String(s.phone ?? ''),
-      started_at: String(s.starts_at ?? new Date().toISOString()),
-      ended_at: null,
-      notes: String(s.notes ?? ''),
-    })
+  if (shiftRows && Array.isArray(shiftRows) && shiftRows.length) {
+    hydrateShiftsFromDb(
+      shiftRows.map((s: Record<string, unknown>) => ({
+        id: String(s.id),
+        person_name: String(s.person ?? 'Dispatcher'),
+        phone: String(s.phone ?? ''),
+        started_at: String(s.starts_at ?? new Date().toISOString()),
+        ended_at: null,
+        notes: String(s.notes ?? ''),
+      })),
+    )
+  }
+
+  const presenceRows = await safeQuery('staff_presence', () =>
+    db()
+      .from('staff_presence')
+      .select('staff_id,name,phone,last_seen_at')
+      .order('last_seen_at', { ascending: false })
+      .limit(50),
+  )
+  if (presenceRows && Array.isArray(presenceRows) && presenceRows.length) {
+    hydratePresenceFromDb(
+      presenceRows.map((r: Record<string, unknown>) => ({
+        staff_id: String(r.staff_id),
+        name: String(r.name ?? ''),
+        phone: String(r.phone ?? ''),
+        last_seen_at: String(r.last_seen_at ?? new Date().toISOString()),
+      })),
+    )
   }
 
   const leadRows = await safeQuery('leads', () =>
@@ -232,4 +294,51 @@ export async function hydrateOperatingData(): Promise<{
   }
 
   return { ok: true, clients, fbos, tasks, leads, trips }
+}
+
+/** Lightweight Board poll — active shifts + logged-in presence only. */
+export async function refreshDeskPresence(): Promise<void> {
+  if (!canPersist()) return
+
+  const [shiftRows, presenceRows] = await Promise.all([
+    safeQuery('shifts.active', () =>
+      db()
+        .from('shifts')
+        .select('*')
+        .eq('active', true)
+        .order('starts_at', { ascending: false })
+        .limit(20),
+    ),
+    safeQuery('staff_presence', () =>
+      db()
+        .from('staff_presence')
+        .select('staff_id,name,phone,last_seen_at')
+        .order('last_seen_at', { ascending: false })
+        .limit(50),
+    ),
+  ])
+
+  if (shiftRows && Array.isArray(shiftRows)) {
+    hydrateShiftsFromDb(
+      shiftRows.map((s: Record<string, unknown>) => ({
+        id: String(s.id),
+        person_name: String(s.person ?? 'Dispatcher'),
+        phone: String(s.phone ?? ''),
+        started_at: String(s.starts_at ?? new Date().toISOString()),
+        ended_at: null,
+        notes: String(s.notes ?? ''),
+      })),
+    )
+  }
+
+  if (presenceRows && Array.isArray(presenceRows)) {
+    hydratePresenceFromDb(
+      presenceRows.map((r: Record<string, unknown>) => ({
+        staff_id: String(r.staff_id),
+        name: String(r.name ?? ''),
+        phone: String(r.phone ?? ''),
+        last_seen_at: String(r.last_seen_at ?? new Date().toISOString()),
+      })),
+    )
+  }
 }

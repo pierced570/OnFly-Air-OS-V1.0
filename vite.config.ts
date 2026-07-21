@@ -19,6 +19,7 @@ export default defineConfig({
           if (id.includes('node_modules/maplibre')) return 'maplibre'
           if (id.includes('fixtures/financials.json')) return 'fixture-financials'
           if (id.includes('fixtures/network.json')) return 'fixture-network'
+          if (id.includes('data/airports_catalog.json')) return 'airports-catalog'
         },
       },
     },

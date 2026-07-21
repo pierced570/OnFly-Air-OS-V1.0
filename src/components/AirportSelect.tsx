@@ -27,7 +27,7 @@ export function AirportSelect({
   value,
   onChange,
   label,
-  placeholder = 'Search ICAO, city, or state…',
+  placeholder = 'Search ICAO, IATA, city, or state…',
   required = false,
   optional = false,
   className = '',
@@ -116,10 +116,11 @@ export function AirportSelect({
             pick(results[0])
           }
         }}
-        className={[
-          'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold',
-          inputClassName,
-        ].join(' ')}
+        className={
+          inputClassName.trim()
+            ? inputClassName
+            : 'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
+        }
       />
       {value && !known && (
         <p className="mt-1 text-[11px] text-late">
@@ -154,9 +155,13 @@ export function AirportSelect({
                   onClick={() => pick(a)}
                 >
                   <span className="avionic text-cream">
-                    {a.icao}{' '}
+                    {a.icao}
+                    {a.iata ? (
+                      <span className="text-muted"> ({a.iata})</span>
+                    ) : null}{' '}
                     <span className="font-sans text-gold">
-                      — {a.city}, {a.state}
+                      — {a.city}
+                      {a.state ? `, ${a.state}` : ''}
                     </span>
                   </span>
                   <span className="text-xs text-muted">{a.name}</span>

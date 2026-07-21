@@ -2,7 +2,7 @@
  * Run instant estimated quotes for a portal trip request (client-safe bands).
  */
 
-import { createMapsAdapter } from '@/adapters/maps'
+import { createMapsAdapter, resolveDoorLatLon } from '@/adapters/maps'
 import { parseDims } from '@/domain/dimsParser'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import {
@@ -14,7 +14,7 @@ import { generateCandidates } from '@/domain/routing'
 import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
 import { getTaxRates, loadTaxRates } from '@/lib/taxRatesStore'
 import type { TripRequestRecord } from '@/domain/tripRequest'
-import { getClient } from '@/lib/clientStore'
+import { clientRulesForRouting, getClient } from '@/lib/clientStore'
 import { fboFeesForAirport } from '@/lib/fboStore'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
@@ -81,6 +81,26 @@ export async function estimatePortalRequest(
 
   try {
     const [priors] = await Promise.all([loadPricingPriors(), loadTaxRates()])
+    const doorShipper =
+      mode !== 'a2a'
+        ? await resolveDoorLatLon(
+            maps,
+            leg.pickup_address,
+            originAp.lat,
+            originAp.lon,
+            originAp.tz,
+          )
+        : undefined
+    const doorConsignee =
+      mode !== 'a2a'
+        ? await resolveDoorLatLon(
+            maps,
+            leg.dropoff_address,
+            destAp.lat,
+            destAp.lon,
+            destAp.tz,
+          )
+        : undefined
     const candidates = await generateCandidates(
       {
         mode,
@@ -89,7 +109,7 @@ export async function estimatePortalRequest(
         pax_count: row.pax.length,
         hazmat: row.hazmat,
         ready_at: row.ready_at,
-        client_rules: client?.rules,
+        client_rules: clientRulesForRouting(client, payloadKind),
         origin: {
           kind: mode === 'a2a' ? 'airport' : 'address',
           text: leg.pickup_address || originAp.icao,
@@ -106,14 +126,8 @@ export async function estimatePortalRequest(
           lon: destAp.lon,
           tz: destAp.tz,
         },
-        shipper:
-          mode !== 'a2a'
-            ? { lat: originAp.lat, lon: originAp.lon, tz: originAp.tz }
-            : undefined,
-        consignee:
-          mode !== 'a2a'
-            ? { lat: destAp.lat, lon: destAp.lon, tz: destAp.tz }
-            : undefined,
+        shipper: doorShipper,
+        consignee: doorConsignee,
       },
       fleet,
       maps,

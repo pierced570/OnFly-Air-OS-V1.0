@@ -4,6 +4,7 @@ import {
   getTripByOfferToken,
   listTripsStable,
   subscribeTrips,
+  type FeeScope,
 } from '@/lib/tripStore'
 import { submitOperatorQuote } from '@/lib/offerFlow'
 import { applyQuotedTtp, projectedDeliveryUtc } from '@/domain/etaChain'
@@ -18,6 +19,8 @@ export default function OfferPublicPage() {
   const [price, setPrice] = useState(4500)
   const [waitOk, setWaitOk] = useState(true)
   const [maxWait, setMaxWait] = useState(2)
+  const [feeScope, setFeeScope] = useState<FeeScope>('aircraft_and_fees')
+  const [notes, setNotes] = useState('')
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -85,6 +88,8 @@ export default function OfferPublicPage() {
                 price_net: price,
                 wait_ok: waitOk,
                 max_wait_hrs: waitOk ? maxWait : null,
+                fee_scope: feeScope,
+                notes,
               })
                 .then(() => setDone(true))
                 .catch((err) =>
@@ -131,14 +136,38 @@ export default function OfferPublicPage() {
               />
             </label>
             <label className="block text-sm">
-              Price to aircraft NET ($)
+              Price NET NET ($)
               <input
                 type="number"
                 value={price}
                 onChange={(e) => setPrice(Number(e.target.value))}
                 className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-3 text-lg avionic"
               />
+              <span className="mt-1 block text-[11px] text-muted">
+                Your NET NET to OnFly. OnFly adds FET (unless MTOW ≤ 6000 §4281 exempt) and margin for the client quote.
+              </span>
             </label>
+            <fieldset className="space-y-2">
+              <legend className="text-sm">Fee scope</legend>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="fee_scope"
+                  checked={feeScope === 'aircraft_only'}
+                  onChange={() => setFeeScope('aircraft_only')}
+                />
+                Aircraft only
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="fee_scope"
+                  checked={feeScope === 'aircraft_and_fees'}
+                  onChange={() => setFeeScope('aircraft_and_fees')}
+                />
+                Aircraft + all fees
+              </label>
+            </fieldset>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={waitOk} onChange={(e) => setWaitOk(e.target.checked)} />
               Wait OK
@@ -154,6 +183,15 @@ export default function OfferPublicPage() {
                 />
               </label>
             )}
+            <label className="block text-sm">
+              Notes (optional)
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
+              />
+            </label>
             <button
               type="submit"
               className="w-full rounded-md bg-gold py-3 text-base font-medium text-ink"

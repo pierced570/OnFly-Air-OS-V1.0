@@ -31,6 +31,8 @@ export type FinancialRecord = {
   client_invoiced_amount: number
   vendor_amount: number
   margin: number
+  /** $ owed to referral partner for this trip (profit share). */
+  referral_share_amount: number
 
   funded_by: FundedBy | null
   deposited_to: string | null
@@ -136,7 +138,8 @@ function withCompleteness(r: FinancialRecord): ComputedFinancial {
     r.vendor_bill_url && r.vendor_paid && r.bill_logged_in_qb,
   )
   const investorOk = r.investor_paid || r.jonny_money_owed <= 0
-  const referralOk = r.referral_paid_out || !r.referral_name
+  const referralOk =
+    r.referral_paid_out || !r.referral_name || (r.referral_share_amount || 0) <= 0
   const client_side_complete = Boolean(r.was_it_paid && investorOk && referralOk)
   return {
     ...r,

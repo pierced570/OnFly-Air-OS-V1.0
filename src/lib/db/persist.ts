@@ -37,6 +37,18 @@ function idOf(row: unknown): string | null {
   return null
 }
 
+/** Best-effort numeric for max_declared_value; free-text stays in other_rules. */
+function parseDeclaredValueNumeric(raw: string): number | null {
+  const s = raw.trim()
+  if (!s) return null
+  const m = s.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*k\b/i)
+  if (m) return Number(m[1]) * 1000
+  const n = s.replace(/[^0-9.]/g, '')
+  if (!n) return null
+  const v = Number(n)
+  return Number.isFinite(v) && v > 0 ? v : null
+}
+
 async function resolveClientDbId(client: ClientProfile): Promise<string | null> {
   const legacy = client.id
   const isUuid =
@@ -107,9 +119,15 @@ export async function persistClient(client: ClientProfile): Promise<void> {
       dual_pilot_required: client.rules.dual_pilot_required,
       freight_only: client.rules.freight_only,
       multi_engine_only: client.rules.multi_engine_only,
+      single_engine_turboprop_only: client.rules.single_engine_turboprop_only,
       no_single_engine_night: client.rules.no_single_engine_night,
       hazmat_allowed: client.rules.hazmat_allowed,
-      other_rules: { list: client.rules.other_rules },
+      max_declared_value: parseDeclaredValueNumeric(client.rules.declared_value_norm),
+      other_rules: {
+        list: client.rules.other_rules,
+        hazmat_notes: client.rules.hazmat_notes || '',
+        declared_value_norm: client.rules.declared_value_norm || '',
+      },
     }),
   )
 
@@ -178,22 +196,20 @@ export async function persistFbo(fbo: FboRow): Promise<void> {
 
 export async function persistShiftStart(shift: ShiftRow): Promise<void> {
   if (!canPersist()) return
-  await safeQuery('shifts.deactivate', () =>
-    db()
-      .from('shifts')
-      .update({ active: false, ends_at: new Date().toISOString() })
-      .eq('active', true),
-  )
-  await safeQuery('shifts.insert', () =>
-    db().from('shifts').insert({
-      id: shift.id,
-      person: shift.person_name,
-      phone: shift.phone,
-      starts_at: shift.started_at,
-      ends_at: null,
-      active: true,
-      notes: shift.notes,
-    }),
+  // Multi-dispatcher: do not deactivate other active shifts
+  await safeQuery('shifts.upsert', () =>
+    db().from('shifts').upsert(
+      {
+        id: shift.id,
+        person: shift.person_name,
+        phone: shift.phone,
+        starts_at: shift.started_at,
+        ends_at: null,
+        active: true,
+        notes: shift.notes,
+      },
+      { onConflict: 'id' },
+    ),
   )
 }
 
@@ -204,6 +220,33 @@ export async function persistShiftEnd(shiftId: string): Promise<void> {
       .from('shifts')
       .update({ active: false, ends_at: new Date().toISOString() })
       .eq('id', shiftId),
+  )
+}
+
+export async function persistStaffPresence(row: {
+  staff_id: string
+  name: string
+  phone: string
+  last_seen_at: string
+}): Promise<void> {
+  if (!canPersist()) return
+  await safeQuery('staff_presence.upsert', () =>
+    db().from('staff_presence').upsert(
+      {
+        staff_id: row.staff_id,
+        name: row.name,
+        phone: row.phone,
+        last_seen_at: row.last_seen_at,
+      },
+      { onConflict: 'staff_id' },
+    ),
+  )
+}
+
+export async function clearStaffPresence(staffId: string): Promise<void> {
+  if (!canPersist()) return
+  await safeQuery('staff_presence.delete', () =>
+    db().from('staff_presence').delete().eq('staff_id', staffId),
   )
 }
 

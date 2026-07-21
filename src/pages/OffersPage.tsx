@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   getTrip,
@@ -9,11 +9,13 @@ import {
 import {
   sendAvailabilityPings,
   simulateOperatorReply,
-  selectOfferAndHardQuote,
+  selectOffersAndHardQuote,
   acceptHardQuote,
   simulatorMessagesForTrip,
 } from '@/lib/offerFlow'
+import { clientTotalForOffer } from '@/lib/offerPricing'
 import { FlightChip } from '@/components/FlightChip'
+import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
 
 function useTrip(id: string | undefined): TripStoreRow | null {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
@@ -26,6 +28,9 @@ export default function OffersPage() {
   const [msgs, setMsgs] = useState(simulatorMessagesForTrip(id ?? ''))
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const [clientEdits, setClientEdits] = useState<Record<string, number>>({})
+  const [toList, setToList] = useState('')
 
   function refresh() {
     if (!id) return
@@ -34,7 +39,22 @@ export default function OffersPage() {
 
   useEffect(() => {
     refresh()
-  }, [id, trip?.offers.length, trip?.state])
+  }, [id, trip?.offers.length, trip?.state, trip?.offers.map((o) => o.state).join()])
+
+  useEffect(() => {
+    if (!trip?.client_id) return
+    const emails = [
+      ...listRequestAlertEmails(trip.client_id),
+      ...listInvoiceEmails(trip.client_id),
+      getClient(trip.client_id)?.email ?? '',
+    ].filter((e) => e.includes('@'))
+    setToList([...new Set(emails)].join(', '))
+  }, [trip?.client_id])
+
+  const quotedIds = useMemo(
+    () => trip?.offers.filter((o) => o.state === 'quoted').map((o) => o.id) ?? [],
+    [trip?.offers],
+  )
 
   if (!trip) {
     return (
@@ -49,11 +69,13 @@ export default function OffersPage() {
     )
   }
 
+  const picked = quotedIds.filter((oid) => selected[oid])
+
   return (
     <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">Offers</div>
+          <div className="text-xs uppercase tracking-[0.2em] text-gold">Trip offers</div>
           <h1 className="mt-1 text-2xl font-semibold text-cream">
             T-<span className="avionic">{trip.ref}</span> · {trip.lane}
           </h1>
@@ -77,89 +99,190 @@ export default function OffersPage() {
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="space-y-3">
           <h2 className="text-xs uppercase tracking-wider text-muted">Compare</h2>
-          {trip.offers.map((o) => (
-            <article key={o.id} className="rounded-lg border border-border bg-surface p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <div className="font-medium text-cream">{o.operator_name}</div>
-                  <div className="avionic text-sm text-muted">
-                    {o.tail} · {o.type_name}
+          {trip.offers.map((o) => {
+            const priced =
+              o.price_net != null ? clientTotalForOffer(o, trip) : null
+            const borderCls =
+              o.state === 'available'
+                ? 'border-onplan/60 bg-onplan/10'
+                : o.state === 'unavailable'
+                  ? 'border-border/40 bg-ink/30 opacity-60'
+                  : o.state === 'quoted'
+                    ? 'border-gold/40 bg-surface'
+                    : 'border-border bg-surface'
+            return (
+              <article key={o.id} className={`rounded-lg border p-4 ${borderCls}`}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    {o.state === 'quoted' && (
+                      <label className="mb-1 flex items-center gap-2 text-xs text-gold">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(selected[o.id])}
+                          onChange={(e) =>
+                            setSelected((s) => ({ ...s, [o.id]: e.target.checked }))
+                          }
+                        />
+                        Include in client quote
+                      </label>
+                    )}
+                    <div className="font-medium text-cream">{o.operator_name}</div>
+                    <div className="avionic text-sm text-muted">
+                      {o.tail} · {o.type_name}
+                    </div>
+                    <div
+                      className={`mt-1 text-xs avionic ${
+                        o.state === 'available'
+                          ? 'text-onplan'
+                          : o.state === 'unavailable'
+                            ? 'text-muted'
+                            : 'text-gold'
+                      }`}
+                    >
+                      {o.state}
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-gold avionic">{o.state}</div>
+                  <div className="text-right text-sm">
+                    {o.price_net != null && (
+                      <div className="avionic text-cream">NET NET ${o.price_net}</div>
+                    )}
+                    {o.fee_scope && (
+                      <div className="text-[11px] text-muted">
+                        {o.fee_scope === 'aircraft_only'
+                          ? 'Aircraft only'
+                          : 'Aircraft + all fees'}
+                      </div>
+                    )}
+                    {priced && (
+                      <div className="mt-1 text-xs text-gold">
+                        Client ${priced.client}
+                        {priced.fetExempt ? ' · FET exempt' : ''}
+                      </div>
+                    )}
+                    {o.time_to_position_min != null && (
+                      <div className="text-xs text-muted">TTP {o.time_to_position_min}m</div>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right text-sm">
-                  {o.price_net != null && (
-                    <div className="avionic text-cream">NET ${o.price_net}</div>
-                  )}
-                  {o.time_to_position_min != null && (
-                    <div className="text-xs text-muted">TTP {o.time_to_position_min}m</div>
-                  )}
-                </div>
-              </div>
-              {o.bookingGated && (
-                <div className="mt-2 text-xs text-late">Booking gated — insurance/compliance</div>
-              )}
-              <div className="mt-2">
-                <FlightChip
-                  phase={
-                    trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.phase
-                  }
-                  inPosition={
-                    trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.inPosition
-                  }
-                  laddBlocked={
-                    trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.laddBlocked
-                  }
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <input
-                  value={replyDraft[o.id] ?? ''}
-                  onChange={(e) => setReplyDraft((d) => ({ ...d, [o.id]: e.target.value }))}
-                  placeholder="Simulate reply: 1 or 2"
-                  className="flex-1 rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
-                />
-                <button
-                  type="button"
-                  className="rounded border border-gold/40 px-2 py-1 text-xs text-gold"
-                  onClick={() =>
-                    void simulateOperatorReply(trip.id, o.id, replyDraft[o.id] ?? '1').then(refresh)
-                  }
-                >
-                  Reply
-                </button>
-                {o.state === 'available' && (
-                  <Link className="rounded border border-border px-2 py-1 text-xs text-muted" to={`/offer/${o.magic_token}`}>
-                    Open offer link
-                  </Link>
+                {o.bookingGated && (
+                  <div className="mt-2 text-xs text-late">Booking gated — insurance/compliance</div>
                 )}
-                {o.state === 'quoted' && (
+                <div className="mt-2">
+                  <FlightChip
+                    phase={
+                      trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.phase
+                    }
+                    inPosition={
+                      trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.inPosition
+                    }
+                    laddBlocked={
+                      trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)?.laddBlocked
+                    }
+                  />
+                </div>
+                {selected[o.id] && priced && (
+                  <label className="mt-2 block text-xs text-muted">
+                    Client total (edit)
+                    <input
+                      type="number"
+                      className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 avionic text-cream"
+                      value={clientEdits[o.id] ?? priced.client}
+                      onChange={(e) =>
+                        setClientEdits((m) => ({
+                          ...m,
+                          [o.id]: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </label>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <input
+                    value={replyDraft[o.id] ?? ''}
+                    onChange={(e) => setReplyDraft((d) => ({ ...d, [o.id]: e.target.value }))}
+                    placeholder="Simulate reply: 1 or 2"
+                    className="flex-1 rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
+                  />
                   <button
                     type="button"
-                    disabled={o.bookingGated}
-                    className="rounded bg-gold px-2 py-1 text-xs font-medium text-ink disabled:opacity-40"
+                    className="rounded border border-gold/40 px-2 py-1 text-xs text-gold"
                     onClick={() =>
-                      void selectOfferAndHardQuote(
-                        trip.id,
-                        o.id,
-                        Math.round((o.price_net ?? 0) / 0.85),
-                      )
-                        .then(refresh)
-                        .catch((e) => setError(String(e)))
+                      void simulateOperatorReply(trip.id, o.id, replyDraft[o.id] ?? '1').then(refresh)
                     }
                   >
-                    Select → hard quote
+                    Reply
                   </button>
-                )}
-              </div>
-            </article>
-          ))}
+                  {o.state === 'available' && (
+                    <Link
+                      className="rounded border border-onplan/40 px-2 py-1 text-xs text-onplan"
+                      to={`/offer/${o.magic_token}`}
+                    >
+                      Open offer link
+                    </Link>
+                  )}
+                </div>
+              </article>
+            )
+          })}
+
+          {quotedIds.length > 0 && (
+            <div className="rounded-lg border border-gold/40 bg-gold/10 p-4 space-y-3">
+              <div className="text-sm text-gold">Multi-option client quote</div>
+              <label className="block text-xs text-muted">
+                To (requesters / AP)
+                <input
+                  value={toList}
+                  onChange={(e) => setToList(e.target.value)}
+                  className="mt-1 w-full rounded border border-border bg-ink px-2 py-1.5 text-sm text-cream"
+                  placeholder="email@client.com, ap@client.com"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={picked.length === 0}
+                className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
+                onClick={() => {
+                  const totals: Record<string, number> = {}
+                  for (const oid of picked) {
+                    const o = trip.offers.find((x) => x.id === oid)!
+                    const p = clientTotalForOffer(o, trip)
+                    totals[oid] = clientEdits[oid] ?? p.client
+                  }
+                  const emails = toList
+                    .split(/[,;\s]+/)
+                    .map((e) => e.trim())
+                    .filter((e) => e.includes('@'))
+                  void selectOffersAndHardQuote(trip.id, picked, totals, emails)
+                    .then(refresh)
+                    .catch((e) => setError(String(e)))
+                }}
+              >
+                Send hard quote ({picked.length || 0} option{picked.length === 1 ? '' : 's'})
+              </button>
+            </div>
+          )}
 
           {trip.hard_quote && (
             <div className="rounded-lg border border-gold bg-gold/10 p-4">
               <div className="text-sm text-gold">Hard quote ready</div>
-              <div className="avionic text-xl text-cream">${trip.hard_quote.total.toFixed(0)}</div>
-              <Link className="mt-2 inline-block text-sm text-gold" to={`/accept/${trip.hard_quote.accept_token}`}>
+              {trip.hard_quote.options?.length ? (
+                <ul className="mt-2 space-y-1 text-sm text-cream">
+                  {trip.hard_quote.options.map((opt) => (
+                    <li key={opt.offer_id} className="avionic">
+                      {opt.label}: ${opt.client_total.toFixed(0)}
+                      {opt.eta_end ? ` · ${opt.eta_end.slice(0, 16)}Z` : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="avionic text-xl text-cream">
+                  ${trip.hard_quote.total.toFixed(0)}
+                </div>
+              )}
+              <Link
+                className="mt-2 inline-block text-sm text-gold"
+                to={`/accept/${trip.hard_quote.accept_token}`}
+              >
                 Open client accept page →
               </Link>
               <button

@@ -27,7 +27,30 @@ export type ClientOnboardPerson = {
 
 export type PayTermsRequest = 'prepay' | 'net_15' | 'net_30' | 'net_60' | 'other'
 
+/** Who issues PO numbers on invoices — every client is different. */
+export type PoAssignedBy = 'client' | 'onfly'
+
 export type UpdateChannel = 'email' | 'sms' | 'both'
+
+/** Per-mission-type aircraft policy (freight column vs passenger column). */
+export type MissionAircraftPolicy = {
+  dual_pilot_only: boolean
+  multi_engine_only: boolean
+  single_engine_ok: boolean
+  single_engine_turboprop_ok: boolean
+  /** Soft — dispatch may deviate with explicit client permission. */
+  exceptions_with_permission: boolean
+}
+
+export function emptyMissionAircraftPolicy(): MissionAircraftPolicy {
+  return {
+    dual_pilot_only: false,
+    multi_engine_only: false,
+    single_engine_ok: false,
+    single_engine_turboprop_ok: false,
+    exceptions_with_permission: false,
+  }
+}
 
 /**
  * Public `/client` draft — same subjects dispatchers enter on Admin + Clients:
@@ -53,24 +76,34 @@ export type ClientOnboardDraft = {
 
   // Billing (Clients: pay_terms, invoice_email, po_prefix)
   pay_terms: PayTermsRequest
-  requires_po: boolean
+  /** Who assigns PO numbers — client-provided vs OnFly-generated. */
+  po_assigned_by: PoAssignedBy | null
   po_prefix: string
-  card_on_file: boolean | null
+  /**
+   * Client needs OnFly registered as a vendor / a vendor # in their AP system.
+   * null = not answered yet.
+   */
+  needs_vendor_number: boolean | null
+  vendor_number_notes: string
   vendor_packet_to: string
 
-  // Routing rules (Admin ClientWizard / client_rules)
-  dual_pilot_required: boolean
+  /**
+   * Aircraft policy split: freight trips vs passenger trips.
+   * Maps into client_rules (freight → hard filters) + other_rules chips.
+   */
+  freight_policy: MissionAircraftPolicy
+  passenger_policy: MissionAircraftPolicy
+  /** No passenger trips — freight column only applies. */
   freight_only: boolean
-  multi_engine_only: boolean
-  no_single_engine_night: boolean
   hazmat_allowed: boolean
   hazmat_notes: string
   declared_value_norm: string
+  /** Free-form notes → other_rules */
+  aircraft_other_notes: string
 
   // Shipping profile
   no_frequent_lanes: boolean
   lanes: ClientLane[]
-  temp_control: boolean
   oversized: boolean
 
   // Preferences
@@ -100,20 +133,20 @@ export function emptyClientOnboardDraft(): ClientOnboardDraft {
     emergency: { name: '', email: '', phone: '' },
     emergency_same_as_ops: false,
     pay_terms: 'net_30',
-    requires_po: false,
+    po_assigned_by: null,
     po_prefix: '',
-    card_on_file: null,
+    needs_vendor_number: null,
+    vendor_number_notes: '',
     vendor_packet_to: '',
-    dual_pilot_required: false,
+    freight_policy: emptyMissionAircraftPolicy(),
+    passenger_policy: emptyMissionAircraftPolicy(),
     freight_only: false,
-    multi_engine_only: false,
-    no_single_engine_night: false,
     hazmat_allowed: true,
     hazmat_notes: '',
     declared_value_norm: '',
+    aircraft_other_notes: '',
     no_frequent_lanes: false,
     lanes: [{ origin: '', destination: '' }],
-    temp_control: false,
     oversized: false,
     update_channel: 'email',
     anything_else: '',
@@ -195,9 +228,6 @@ export function validateClientOnboard(
       })
     }
   }
-  if (draft.requires_po && !draft.po_prefix.trim()) {
-    // Soft: not blocking — dispatcher can set later; no hard fail
-  }
   return issues
 }
 
@@ -214,6 +244,7 @@ export type OnboardRulesSlice = {
   dual_pilot_required: boolean
   freight_only: boolean
   multi_engine_only: boolean
+  single_engine_turboprop_only: boolean
   no_single_engine_night: boolean
   hazmat_allowed: boolean
   hazmat_notes: string
@@ -221,24 +252,70 @@ export type OnboardRulesSlice = {
   other_rules: string[]
 }
 
-/** Map onboard answers → client_rules (same shape Admin wizard writes). */
+function policyChips(
+  label: 'Freight' | 'Passenger',
+  p: MissionAircraftPolicy,
+): string[] {
+  const chips: string[] = []
+  if (p.dual_pilot_only) chips.push(`${label}: dual pilot only`)
+  if (p.multi_engine_only) chips.push(`${label}: multi-engine only`)
+  if (p.single_engine_ok) chips.push(`${label}: single-engine OK`)
+  if (p.single_engine_turboprop_ok) {
+    chips.push(`${label}: single-engine turboprop OK`)
+  }
+  if (p.exceptions_with_permission) {
+    chips.push(`${label}: exceptions with permission`)
+  }
+  return chips
+}
+
+/**
+ * Hard filters from a policy column.
+ * multi-engine only wins; else SE turboprop-only when turboprop OK but not general SE.
+ */
+export function hardFiltersFromPolicy(p: MissionAircraftPolicy): {
+  dual_pilot_required: boolean
+  multi_engine_only: boolean
+  single_engine_turboprop_only: boolean
+} {
+  const multi = p.multi_engine_only
+  return {
+    dual_pilot_required: p.dual_pilot_only,
+    multi_engine_only: multi,
+    single_engine_turboprop_only:
+      !multi && p.single_engine_turboprop_ok && !p.single_engine_ok,
+  }
+}
+
+/** Map onboard answers → client_rules (freight column drives hard filters). */
 export function rulesFromOnboardDraft(
   draft: ClientOnboardDraft,
 ): OnboardRulesSlice {
   const other: string[] = []
-  if (draft.requires_po) other.push('PO required on invoices')
-  if (draft.card_on_file === true) {
-    other.push('Card on file requested (send secure link)')
+  if (draft.po_assigned_by === 'client') {
+    other.push('PO assigned by client')
+  } else if (draft.po_assigned_by === 'onfly') {
+    other.push('PO assigned by OnFly')
   }
-  if (draft.card_on_file === false) other.push('No card on file')
-  if (draft.temp_control) other.push('Temp control')
+  if (draft.needs_vendor_number === true) {
+    other.push('Needs vendor number in client AP system')
+  }
   if (draft.oversized) other.push('Oversized freight')
+  other.push(...policyChips('Freight', draft.freight_policy))
+  if (!draft.freight_only) {
+    other.push(...policyChips('Passenger', draft.passenger_policy))
+  }
+  const notes = draft.aircraft_other_notes.trim()
+  if (notes) other.push(notes)
+
+  const hard = hardFiltersFromPolicy(draft.freight_policy)
 
   return {
-    dual_pilot_required: draft.dual_pilot_required,
+    dual_pilot_required: hard.dual_pilot_required,
     freight_only: draft.freight_only,
-    multi_engine_only: draft.multi_engine_only,
-    no_single_engine_night: draft.no_single_engine_night,
+    multi_engine_only: hard.multi_engine_only,
+    single_engine_turboprop_only: hard.single_engine_turboprop_only,
+    no_single_engine_night: false,
     hazmat_allowed: draft.hazmat_allowed,
     hazmat_notes: draft.hazmat_notes.trim(),
     declared_value_norm: draft.declared_value_norm.trim(),

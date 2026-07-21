@@ -312,4 +312,109 @@ describe('routing flag-dont-exclude', () => {
     expect(cands.length).toBeGreaterThan(0)
     expect(cands[0]!.needsInfo).toContain('door dims')
   })
+
+  it('missing insurance is NEEDS-INFO, not bookingGated', async () => {
+    const maps = new MockMapsAdapter()
+    const kcak = AIRPORTS.KCAK!
+    const fleet: AircraftCandidateSource[] = [
+      {
+        id: '1',
+        operator_id: 'op1',
+        operator_name: 'Test Op',
+        tail: 'N123AB',
+        type_name: 'King Air 200',
+        category: 'Turboprop',
+        engines: 'Multi Turboprop',
+        cargo_pax: 'both',
+        seats: 8,
+        base_icao: 'KCAK',
+        base: { ...kcak, icao: 'KCAK', tz: kcak.tz },
+        cruise_kts: 270,
+        range_nm: 1700,
+        max_payload_lbs: 2500,
+        mtow_lbs: 12500,
+        door_w_in: 52,
+        door_h_in: 52,
+        crew: 'dual',
+        rate_per_nm: 12,
+        rate_source: 'history',
+        insurance_expiry: null,
+      },
+    ]
+    const cands = await generateCandidates(
+      {
+        mode: 'a2a',
+        payload_kind: 'cargo',
+        pieces: [{ l_in: 48, w_in: 40, h_in: 60, weight_lbs: 800, count: 1, stackable: false }],
+        pax_count: 0,
+        hazmat: false,
+        ready_at: '2026-07-15T13:00:00.000Z',
+        origin: { ...kcak, icao: 'KCAK', tz: kcak.tz, kind: 'airport' },
+        destination: {
+          icao: 'KMDW',
+          lat: 41.7868,
+          lon: -87.7524,
+          tz: 'America/Chicago',
+          kind: 'airport',
+        },
+      },
+      fleet,
+      maps,
+    )
+    expect(cands[0]!.bookingGated).toBe(false)
+    expect(cands[0]!.needsInfo).toContain('insurance')
+  })
+
+  it('no_single_engine_night hard-fails SE on night air legs', async () => {
+    const maps = new MockMapsAdapter()
+    const kcak = AIRPORTS.KCAK!
+    const fleet: AircraftCandidateSource[] = [
+      {
+        id: 'se1',
+        operator_id: 'op1',
+        operator_name: 'SE Op',
+        tail: 'N9SE',
+        type_name: 'Cessna 208',
+        category: 'Turboprop',
+        engines: 'Single Turboprop',
+        cargo_pax: 'cargo',
+        seats: 2,
+        base_icao: 'KCAK',
+        base: { ...kcak, icao: 'KCAK', tz: kcak.tz },
+        cruise_kts: 180,
+        range_nm: 900,
+        max_payload_lbs: 2500,
+        mtow_lbs: 8000,
+        door_w_in: 50,
+        door_h_in: 50,
+        crew: 'single',
+        rate_per_nm: 9,
+        rate_source: 'assumption',
+        insurance_expiry: '2030-01-01',
+      },
+    ]
+    const cands = await generateCandidates(
+      {
+        mode: 'a2a',
+        payload_kind: 'cargo',
+        pieces: [{ l_in: 20, w_in: 20, h_in: 20, weight_lbs: 100, count: 1, stackable: true }],
+        pax_count: 0,
+        hazmat: false,
+        // Evening UTC → local night at KCAK (America/New_York)
+        ready_at: '2026-01-15T03:00:00.000Z',
+        client_rules: { no_single_engine_night: true },
+        origin: { ...kcak, icao: 'KCAK', tz: kcak.tz, kind: 'airport' },
+        destination: {
+          icao: 'KMDW',
+          lat: 41.7868,
+          lon: -87.7524,
+          tz: 'America/Chicago',
+          kind: 'airport',
+        },
+      },
+      fleet,
+      maps,
+    )
+    expect(cands.length).toBe(0)
+  })
 })

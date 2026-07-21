@@ -19,11 +19,17 @@ createRoot(document.getElementById('root')!).render(
 function scheduleHydrate() {
   const run = () => {
     void import('@/lib/db/hydrate').then((m) =>
-      m.hydrateOperatingData().then((r) => {
+      m.hydrateOperatingData().then(async (r) => {
         if (r.ok) {
           console.info(
             `[onfly] hydrated — clients ${r.clients}, fbos ${r.fbos}, tasks ${r.tasks}, leads ${r.leads}, trips ${r.trips}`,
           )
+        }
+        // Offline / empty DB: restore historical clients from financials fixture.
+        if (!r.clients) {
+          const { ensureClientsSeeded } = await import('@/lib/clientStore')
+          const n = await ensureClientsSeeded()
+          if (n) console.info(`[onfly] seeded ${n} clients from financials fixture`)
         }
       }),
     )
@@ -36,3 +42,6 @@ function scheduleHydrate() {
 }
 
 scheduleHydrate()
+
+// Also schedule a light fixture fallback if hydrate never runs (no Supabase).
+void import('@/lib/clientStore').then((m) => m.scheduleClientsFixtureSeed())

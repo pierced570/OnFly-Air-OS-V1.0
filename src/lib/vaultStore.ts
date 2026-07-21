@@ -256,15 +256,16 @@ export function importVaultCsv(
 /**
  * Merge optional gitignored local seed (dev/agent machines only).
  * Silent — one cache rebuild at the end so mount never sees a notify storm.
+ * Returns number of rows added.
  */
-function applyLocalBootstrap(): void {
-  if (bootstrapDone) return
+function applyLocalBootstrap(): number {
+  if (bootstrapDone) return 0
   bootstrapDone = true
+  let added = 0
   try {
     const mods = import.meta.glob<{
       VAULT_BOOTSTRAP_ENTRIES?: Array<Partial<VaultEntry> & { label: string }>
     }>('./vaultBootstrap.local.ts', { eager: true })
-    let changed = false
     for (const mod of Object.values(mods)) {
       for (const row of mod.VAULT_BOOTSTRAP_ENTRIES ?? []) {
         const label = row.label?.trim()
@@ -289,13 +290,36 @@ function applyLocalBootstrap(): void {
             created_at: new Date().toISOString(),
           }),
         )
-        changed = true
+        added++
       }
     }
-    if (changed) persist()
+    if (added > 0) persist()
     rebuildCache()
   } catch {
     rebuildCache()
+  }
+  return added
+}
+
+/**
+ * Re-apply gitignored vaultBootstrap.local.ts (merge by label).
+ * Use when localStorage was cleared but the seed file is present on this build.
+ */
+export function restoreVaultFromLocalSeed(): number {
+  bootstrapDone = false
+  const added = applyLocalBootstrap()
+  if (added > 0) bump()
+  else rebuildCache()
+  return added
+}
+
+/** True when this build bundled a local seed file (dev/agent only). */
+export function hasLocalVaultSeed(): boolean {
+  try {
+    const mods = import.meta.glob('./vaultBootstrap.local.ts', { eager: true })
+    return Object.keys(mods).length > 0
+  } catch {
+    return false
   }
 }
 
