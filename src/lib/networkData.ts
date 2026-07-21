@@ -54,7 +54,7 @@ export function patchCachedOperator(
   cached.operators[i] = { ...cached.operators[i], ...patch }
   for (const a of cached.aircraft) {
     if (a.operator_id !== operatorId) continue
-    if (patch.name) a.operator_name = patch.name
+    if (patch.name !== undefined) a.operator_name = patch.name ?? a.operator_name
   }
   bump()
 }

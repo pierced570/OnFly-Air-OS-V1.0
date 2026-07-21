@@ -175,6 +175,7 @@ async function persistOperatorToDb(
 ): Promise<void> {
   if (!isSupabaseConfigured || !supabase) return
   const opBody: Record<string, unknown> = {}
+  if (patch.name !== undefined) opBody.name = patch.name
   if (patch.ops_email !== undefined) opBody.ops_email = patch.ops_email
   if (patch.base_icao !== undefined) opBody.base_icao = patch.base_icao
   if (patch.notes !== undefined) opBody.notes = patch.notes
