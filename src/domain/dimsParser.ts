@@ -83,6 +83,58 @@ export function formatPieceDims(
   return `${p.l_in}×${p.w_in}×${p.h_in} in`
 }
 
+/** Pull L/W/H (+ qty/weight) from a free-text dims line for the triple boxes. */
+export function parseDimsTriple(text: string): {
+  l: string
+  w: string
+  h: string
+  count: number
+  weight: string
+} {
+  const empty = { l: '', w: '', h: '', count: 1, weight: '' }
+  const trimmed = text.trim()
+  if (!trimmed) return empty
+  const dim = trimmed.match(DIM)
+  if (!dim) return empty
+  const cMatch = trimmed.match(COUNT)
+  const wMatch = trimmed.match(WEIGHT_AT) || trimmed.match(WEIGHT_EACH)
+  return {
+    l: dim[1] ?? '',
+    w: dim[2] ?? '',
+    h: dim[3] ?? '',
+    count: cMatch ? Number(cMatch[1]) : 1,
+    weight: wMatch?.[1] ?? '',
+  }
+}
+
+/** Build a parseable dims line from the L×W×H boxes. */
+export function composeDimsLine(opts: {
+  count: number
+  l: string
+  w: string
+  h: string
+  weightLbs?: number | null
+  unit?: DimLengthUnit
+}): string {
+  const l = opts.l.trim()
+  const w = opts.w.trim()
+  const h = opts.h.trim()
+  if (!l || !w || !h) {
+    // Partial entry — still emit what we have so the boxes stay controlled.
+    if (!l && !w && !h) return ''
+    return [l, w, h].filter(Boolean).join('x')
+  }
+  const count = Math.max(1, Math.floor(opts.count) || 1)
+  const unitSuffix = opts.unit === 'ft' ? ' ft' : ''
+  const head =
+    count > 1 ? `${count} skids ${l}x${w}x${h}${unitSuffix}` : `${l}x${w}x${h}${unitSuffix}`
+  const wt = opts.weightLbs
+  if (wt != null && Number.isFinite(wt) && wt > 0) {
+    return `${head} @ ${wt}ea`
+  }
+  return head
+}
+
 export function parseDims(
   text: string,
   opts?: { unit?: DimLengthUnit },

@@ -82,6 +82,13 @@ function migrateStaff(list: StaffMember[]): StaffMember[] {
     if (s.id === OWNER_STAFF_ID) {
       row = { ...s, phone: PIERCE_PHONE }
     }
+    // Grant Chat alongside Trips for existing dispatch seats
+    if (
+      row.sections.includes('trips') &&
+      !row.sections.includes('chat')
+    ) {
+      row = { ...row, sections: [...row.sections, 'chat'] }
+    }
     return enforceOwnerRules(row)
   })
 
@@ -216,9 +223,20 @@ export function loginStaff(
   session = enforceOwnerRules(member)
   persistSession()
   bump()
+  void import('@/lib/presenceStore').then((m) => {
+    m.touchPresence({
+      staff_id: member.id,
+      name: member.name,
+      phone: member.phone,
+    })
+  })
   void import('@/lib/shiftStore').then((m) => {
-    const on = m.getOnShift()
-    if (!on || on.person_name !== member.name) {
+    const onRoster = m
+      .listOnShift()
+      .some(
+        (s) => s.person_name.toLowerCase() === member.name.toLowerCase(),
+      )
+    if (!onRoster) {
       m.startShift(member.name, member.phone)
     }
   })
@@ -226,9 +244,18 @@ export function loginStaff(
 }
 
 export function logoutStaff(): void {
+  const leaving = session
   session = null
   persistSession()
   bump()
+  if (leaving) {
+    void import('@/lib/presenceStore').then((m) => {
+      m.clearPresence(leaving.id)
+    })
+    void import('@/lib/shiftStore').then((m) => {
+      m.endShiftForPerson(leaving.name)
+    })
+  }
 }
 
 export function upsertStaff(input: {

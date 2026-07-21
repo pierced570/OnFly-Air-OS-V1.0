@@ -38,7 +38,26 @@ export default function AcceptPage() {
         <p className="text-sm text-muted">
           {trip.lane} · via a vetted Part 135 carrier
         </p>
-        <p className="avionic text-3xl">${hq.total.toFixed(2)}</p>
+        {hq.options && hq.options.length > 1 ? (
+          <ul className="space-y-2">
+            {hq.options.map((opt) => (
+              <li
+                key={opt.offer_id}
+                className="rounded-md border border-border bg-surface-2 px-4 py-3"
+              >
+                <div className="text-sm font-medium">{opt.label}</div>
+                <div className="avionic text-2xl">${opt.client_total.toFixed(2)}</div>
+                {opt.eta_end && (
+                  <div className="mt-1 text-xs text-muted avionic">
+                    ETA {opt.eta_end.slice(0, 16)}Z
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="avionic text-3xl">${hq.total.toFixed(2)}</p>
+        )}
 
         {isPax && hq.disclosure_text && (
           <div className="rounded-md border border-border bg-surface-2 p-4 text-sm">
@@ -55,13 +74,13 @@ export default function AcceptPage() {
               Accepted{hq.disclosure_at ? ` · disclosure logged ${hq.disclosure_at}` : ''}.
             </p>
             <p className="text-sm text-muted">
-              Selected operator confirmed; other offers stood down (SMS).
+              Mission is a go — selected operator confirmed; other offers stood down.
               {etaCount > 0
                 ? ` ETA sheet + track link sent to ${etaCount} ops / supply-chain contact${etaCount === 1 ? '' : 's'}.`
                 : alreadyBooked && !accepted
                   ? ' This trip is already booked.'
                   : ' No tracker emails on file — ETA sheet skipped.'}{' '}
-              Invoice to AP is manual until QuickBooks is wired.
+              Invoice drafted for AP (QuickBooks when configured).
             </p>
           </div>
         ) : (

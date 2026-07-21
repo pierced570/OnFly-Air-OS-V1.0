@@ -5,7 +5,7 @@ import {
   PIPELINE_STAGES,
   type PipelineCard,
 } from '@/domain/pipelineStages'
-import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
+import { listTripsStable, subscribeTrips, getTrip } from '@/lib/tripStore'
 import {
   deleteRequest,
   listRequests,
@@ -24,16 +24,25 @@ import {
 } from '@/lib/checkpointStore'
 import {
   endShift,
-  getOnShift,
+  endShiftForPerson,
+  listOnShift,
   startShift,
   subscribeShift,
 } from '@/lib/shiftStore'
+import {
+  listLoggedIn,
+  prunePresence,
+  subscribePresence,
+} from '@/lib/presenceStore'
+import { getSession, subscribeStaff } from '@/lib/staffStore'
 import {
   deleteIntakeDraft,
   listPendingIntake,
   subscribeIntake,
 } from '@/lib/intakeStore'
 import { listOpenNeedsInfo, subscribeNeedsInfo } from '@/lib/needsInfoStore'
+import { shortlistLabel } from '@/domain/shortlistBands'
+import { approveShortlistAndSpoolOffers } from '@/lib/ladderFlow'
 
 export default function BoardPage() {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
@@ -49,7 +58,17 @@ export default function BoardPage() {
     listUpcomingCheckpoints,
   )
   const upcomingChecks = useMemo(() => upcomingAll.slice(0, 8), [upcomingAll])
-  const onShift = useSyncExternalStore(subscribeShift, getOnShift, getOnShift)
+  const onShiftRoster = useSyncExternalStore(
+    subscribeShift,
+    listOnShift,
+    listOnShift,
+  )
+  const loggedIn = useSyncExternalStore(
+    subscribePresence,
+    listLoggedIn,
+    listLoggedIn,
+  )
+  const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
   const intake = useSyncExternalStore(
     subscribeIntake,
     listPendingIntake,
@@ -67,6 +86,29 @@ export default function BoardPage() {
   useEffect(() => {
     syncExceptionsFromTrips(trips)
   }, [trips])
+
+  useEffect(() => {
+    prunePresence()
+    void import('@/lib/db/hydrate').then((m) => void m.refreshDeskPresence())
+    const id = window.setInterval(() => {
+      prunePresence()
+      void import('@/lib/db/hydrate').then((m) => void m.refreshDeskPresence())
+    }, 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (!session) return
+    setShiftName(session.name)
+    if (session.phone) setShiftPhone(session.phone)
+  }, [session])
+
+  const iAmOnShift = Boolean(
+    session &&
+      onShiftRoster.some(
+        (s) => s.person_name.toLowerCase() === session.name.toLowerCase(),
+      ),
+  )
 
   const columns = useMemo(
     () =>
@@ -188,46 +230,113 @@ export default function BoardPage() {
 
         <div className="rounded-lg border border-border bg-surface p-3">
           <div className="text-xs uppercase tracking-wider text-muted">
-            On shift
+            Desk
           </div>
-          {onShift ? (
-            <div className="mt-2 space-y-2">
-              <p className="text-sm text-cream">{onShift.person_name}</p>
-              <p className="avionic text-xs text-muted">{onShift.phone}</p>
+
+          <div className="mt-3">
+            <div className="text-[10px] uppercase tracking-wider text-gold">
+              Logged in ({loggedIn.length})
+            </div>
+            {loggedIn.length === 0 ? (
+              <p className="mt-1 text-xs text-muted">Nobody online</p>
+            ) : (
+              <ul className="mt-1.5 space-y-1">
+                {loggedIn.map((p) => (
+                  <li
+                    key={p.staff_id}
+                    className="flex items-baseline justify-between gap-2 text-sm text-cream"
+                  >
+                    <span>
+                      {p.name}
+                      {session?.id === p.staff_id && (
+                        <span className="ml-1 text-[10px] text-gold">you</span>
+                      )}
+                    </span>
+                    {p.phone ? (
+                      <span className="avionic shrink-0 text-[10px] text-muted">
+                        {p.phone}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="mt-4 border-t border-border pt-3">
+            <div className="text-[10px] uppercase tracking-wider text-gold">
+              On shift ({onShiftRoster.length})
+            </div>
+            {onShiftRoster.length === 0 ? (
+              <p className="mt-1 text-xs text-muted">Nobody on shift</p>
+            ) : (
+              <ul className="mt-1.5 space-y-2">
+                {onShiftRoster.map((s) => (
+                  <li key={s.id} className="text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-cream">
+                        {s.person_name}
+                        {session &&
+                          s.person_name.toLowerCase() ===
+                            session.name.toLowerCase() && (
+                            <span className="ml-1 text-[10px] text-gold">
+                              you
+                            </span>
+                          )}
+                      </span>
+                      <button
+                        type="button"
+                        className="tap shrink-0 text-[10px] text-late"
+                        onClick={() => endShift(s.id)}
+                      >
+                        End
+                      </button>
+                    </div>
+                    {s.phone ? (
+                      <p className="avionic text-[10px] text-muted">{s.phone}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {!iAmOnShift && (
+              <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
+                <input
+                  value={shiftName}
+                  onChange={(e) => setShiftName(e.target.value)}
+                  placeholder="Dispatcher name"
+                  className="w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream placeholder:text-muted"
+                />
+                <input
+                  value={shiftPhone}
+                  onChange={(e) => setShiftPhone(e.target.value)}
+                  placeholder="Ring phone"
+                  className="avionic w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
+                />
+                <button
+                  type="button"
+                  className="text-xs text-gold"
+                  onClick={() => {
+                    if (!shiftName.trim()) return
+                    startShift(shiftName, shiftPhone)
+                  }}
+                >
+                  Start my shift
+                </button>
+              </div>
+            )}
+
+            {iAmOnShift && session && (
               <button
                 type="button"
-                className="tap rounded-md text-sm text-late"
-                onClick={() => endShift()}
+                className="tap mt-3 text-xs text-late"
+                onClick={() => endShiftForPerson(session.name)}
               >
-                End shift
+                End my shift
               </button>
-            </div>
-          ) : (
-            <div className="mt-2 space-y-2">
-              <input
-                value={shiftName}
-                onChange={(e) => setShiftName(e.target.value)}
-                placeholder="Dispatcher name"
-                className="w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream placeholder:text-muted"
-              />
-              <input
-                value={shiftPhone}
-                onChange={(e) => setShiftPhone(e.target.value)}
-                placeholder="Ring phone"
-                className="avionic w-full rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
-              />
-              <button
-                type="button"
-                className="text-xs text-gold"
-                onClick={() => {
-                  if (!shiftName.trim()) return
-                  startShift(shiftName, shiftPhone)
-                }}
-              >
-                Start shift
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-3 text-sm">
@@ -381,12 +490,21 @@ function PipelineColumn({
 }
 
 function PipelineCardView({ card }: { card: PipelineCard }) {
+  const [spooling, setSpooling] = useState(false)
+  const [spoolErr, setSpoolErr] = useState<string | null>(null)
+  const trip =
+    card.kind === 'trip' ? getTrip(card.id) : null
   const border =
     card.kind === 'intake'
       ? 'border-late/40 bg-late/10'
       : card.kind === 'request'
         ? 'border-gold/40 bg-gold/10'
-        : 'border-border bg-ink/50'
+        : card.kind === 'trip' && card.state === 'routed'
+          ? 'border-gold/50 bg-gold/10'
+          : 'border-border bg-ink/50'
+
+  const shortBits =
+    trip?.shortlist != null ? shortlistLabel(trip.shortlist) : ''
 
   return (
     <div className={`rounded-md border px-2.5 py-2 ${border}`}>
@@ -394,8 +512,28 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
         <div className="truncate text-sm font-medium text-cream">{card.title}</div>
         <div className="mt-0.5 line-clamp-2 text-[11px] text-muted">
           {card.subtitle}
+          {shortBits ? ` · ${shortBits}` : ''}
         </div>
       </Link>
+      {card.kind === 'trip' && trip?.shortlist && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {trip.shortlist.piston && (
+            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
+              Piston {trip.shortlist.piston.type_name ?? trip.shortlist.piston.tail}
+            </span>
+          )}
+          {trip.shortlist.turboprop && (
+            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
+              TP {trip.shortlist.turboprop.type_name ?? trip.shortlist.turboprop.tail}
+            </span>
+          )}
+          {trip.shortlist.jet && (
+            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
+              Jet {trip.shortlist.jet.type_name ?? trip.shortlist.jet.tail}
+            </span>
+          )}
+        </div>
+      )}
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         <Link
           to={card.href}
@@ -403,6 +541,35 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
         >
           Open →
         </Link>
+        {card.kind === 'trip' && card.state === 'routed' && (
+          <button
+            type="button"
+            disabled={spooling}
+            className="tap rounded-md bg-gold px-2 py-0.5 text-xs font-medium text-ink disabled:opacity-50"
+            onClick={() => {
+              setSpoolErr(null)
+              setSpooling(true)
+              void approveShortlistAndSpoolOffers(card.id)
+                .then(() => {
+                  setSpooling(false)
+                })
+                .catch((e) => {
+                  setSpooling(false)
+                  setSpoolErr(e instanceof Error ? e.message : String(e))
+                })
+            }}
+          >
+            {spooling ? 'Sending…' : 'Approve shortlist → send offers'}
+          </button>
+        )}
+        {card.kind === 'trip' && card.state === 'offers_out' && (
+          <Link
+            to={`/trips/${card.id}/offers`}
+            className="tap rounded-md text-sm text-onplan"
+          >
+            Compare offers
+          </Link>
+        )}
         {card.kind === 'request' && (
           <button
             type="button"
@@ -438,6 +605,7 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
           </button>
         )}
       </div>
+      {spoolErr && <p className="mt-1 text-[11px] text-late">{spoolErr}</p>}
     </div>
   )
 }

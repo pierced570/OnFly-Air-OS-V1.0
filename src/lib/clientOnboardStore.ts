@@ -79,6 +79,14 @@ export async function submitClientOnboard(
 
   const notesParts = [
     draft.anything_else.trim() && `Onboard notes: ${draft.anything_else.trim()}`,
+    draft.po_assigned_by === 'client' && 'PO numbers assigned by client',
+    draft.po_assigned_by === 'onfly' && 'PO numbers assigned by OnFly',
+    draft.needs_vendor_number === true &&
+      `Needs vendor # in client system${
+        draft.vendor_number_notes.trim()
+          ? `: ${draft.vendor_number_notes.trim()}`
+          : ''
+      }`,
     draft.vendor_packet_to.trim() &&
       `Vendor packet (W-9/banking) → ${draft.vendor_packet_to.trim()}`,
     `Updates: ${draft.update_channel}`,
@@ -155,12 +163,15 @@ export async function submitClientOnboard(
       emergency,
       frequent_lanes: lanes,
       no_frequent_lanes: draft.no_frequent_lanes,
-      requires_po: draft.requires_po,
-      card_on_file: draft.card_on_file,
+      requires_po: draft.po_assigned_by === 'client',
+      po_assigned_by: draft.po_assigned_by,
+      needs_vendor_number: draft.needs_vendor_number,
+      vendor_number_notes: draft.vendor_number_notes.trim() || undefined,
       vendor_packet_to: draft.vendor_packet_to.trim() || undefined,
       update_channel: draft.update_channel,
+      freight_policy: { ...draft.freight_policy },
+      passenger_policy: { ...draft.passenger_policy },
       shipping_flags: {
-        temp_control: draft.temp_control,
         oversized: draft.oversized,
         high_declared_value: Boolean(draft.declared_value_norm.trim()),
         hazmat_sometimes: draft.hazmat_allowed && Boolean(draft.hazmat_notes),
@@ -193,14 +204,30 @@ export async function submitClientOnboard(
       }).id,
     )
   }
-  if (draft.card_on_file === true) {
+  if (draft.needs_vendor_number === true) {
     taskIds.push(
       addNeedsInfoTask({
         entity_type: 'client',
         entity_id: client.id,
         entity_label: client.name,
-        field: 'card_on_file_link',
-        note: 'Client requested card on file — send secure payment link (never collect card on form).',
+        field: 'vendor_number',
+        note: `Client needs OnFly as a vendor / vendor # in their system${
+          draft.vendor_number_notes.trim()
+            ? ` — ${draft.vendor_number_notes.trim()}`
+            : ''
+        }.`,
+        wizard: 'client',
+      }).id,
+    )
+  }
+  if (!draft.po_assigned_by) {
+    taskIds.push(
+      addNeedsInfoTask({
+        entity_type: 'client',
+        entity_id: client.id,
+        entity_label: client.name,
+        field: 'po_assigned_by',
+        note: 'Confirm whether PO numbers are assigned by the client or by OnFly.',
         wizard: 'client',
       }).id,
     )

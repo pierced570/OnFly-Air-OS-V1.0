@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clearVault,
+  hasLocalVaultSeed,
   listVaultEntries,
+  restoreVaultFromLocalSeed,
   upsertVaultEntry,
   vaultSnapshotIsStable,
 } from './vaultStore'
@@ -24,6 +27,15 @@ describe('vaultStore snapshots', () => {
     const after = listVaultEntries()
     expect(after).not.toBe(before)
     expect(listVaultEntries()).toBe(after)
+  })
+
+  it('restoreVaultFromLocalSeed re-fills after clear when seed is bundled', () => {
+    if (!hasLocalVaultSeed()) return
+    clearVault()
+    expect(listVaultEntries()).toHaveLength(0)
+    const n = restoreVaultFromLocalSeed()
+    expect(n).toBeGreaterThan(0)
+    expect(listVaultEntries().length).toBe(n)
   })
 })
 
