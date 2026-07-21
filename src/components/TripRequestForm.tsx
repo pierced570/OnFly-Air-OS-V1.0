@@ -1,10 +1,11 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
 import {
   ASAP_MAX_HOURS,
   emptyTripRequestDraft,
+  forkliftFromDraft,
   newLeg,
   syncReturnLegs,
   validateTripRequest,
@@ -89,6 +90,8 @@ export function TripRequestForm({
     draft.service_mode === 'd2d' || draft.service_mode === 'mixed'
 
   const paxCount = draft.pax.length
+
+  const forkliftPreview = useMemo(() => forkliftFromDraft(draft), [draft])
 
   const clientOptions = useSyncExternalStore(
     subscribeClients,
@@ -739,6 +742,16 @@ export function TripRequestForm({
             review.
           </p>
         )}
+        {forkliftPreview.level !== 'none' && forkliftPreview.label && (
+          <p
+            className={[
+              'mt-2 text-xs',
+              forkliftPreview.level === 'required' ? 'text-late' : 'text-gold',
+            ].join(' ')}
+          >
+            {forkliftPreview.label}
+          </p>
+        )}
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <label className={labelCls}>
             PO number
@@ -885,6 +898,30 @@ export function TripRequestForm({
                 setDraft((d) => ({ ...d, cargo_notes }))
               }
             />
+            <label className={`${labelCls} max-w-[12rem]`}>
+              Weight each (lb) <span className="text-late">*</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                required
+                value={draft.cargo_weight_lbs}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    cargo_weight_lbs:
+                      e.target.value === '' ? '' : Number(e.target.value),
+                  }))
+                }
+                placeholder="Required"
+                className={inputCls}
+              />
+            </label>
+            <p className="text-[11px] text-muted">
+              Weight is required on every cargo request. Pieces 100–200 lb →
+              forklift recommended; over 200 lb → forklift required for
+              dispatch.
+            </p>
           </div>
         )}
       </section>

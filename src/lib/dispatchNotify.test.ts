@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { getMockCommsLog } from '@/adapters/comms'
-import { emptyTripRequestDraft } from '@/domain/tripRequest'
+import {
+  emptyTripRequestDraft,
+  forkliftFromDraft,
+} from '@/domain/tripRequest'
 import {
   formatPortalRequestSms,
   notifyPortalRequest,
@@ -39,8 +42,9 @@ describe('dispatchNotify', () => {
   it('SMS + Board exception on portal request notify', async () => {
     startShift('Pierce', '+16105092031')
     const before = getMockCommsLog().length
+    const draft = emptyTripRequestDraft()
     const row = {
-      ...emptyTripRequestDraft(),
+      ...draft,
       id: crypto.randomUUID(),
       ref: 9123,
       source: 'portal' as const,
@@ -51,6 +55,7 @@ describe('dispatchNotify', () => {
       summary: '1 skid · ASAP',
       email: 'aog@client.com',
       hard_quote_requested_at: null,
+      forklift: forkliftFromDraft(draft),
     }
     const result = await notifyPortalRequest(row)
     expect(result.phone).toBe('+16105092031')
@@ -71,6 +76,7 @@ describe('dispatchNotify', () => {
         ...emptyTripRequestDraft(),
         email: 'portal@client.com',
         cargo_notes: '1 skid 48x40x48 @ 400',
+        cargo_weight_lbs: 400,
       },
       'portal',
     )
@@ -88,6 +94,7 @@ describe('dispatchNotify', () => {
         ...emptyTripRequestDraft(),
         email: 'desk@onflyair.com',
         client_name: 'Internal',
+        cargo_weight_lbs: 50,
       },
       'dispatch',
     )

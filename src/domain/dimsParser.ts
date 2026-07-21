@@ -33,6 +33,13 @@ const COUNT = /^(\d+)\s+(skids?|crates?|pallets?|boxes?|pieces?|pcs?|drums?)/i
 const WEIGHT_AT = /@\s*(\d+(?:\.\d+)?)\s*(?:lbs?|pounds?)?\s*(?:ea|each)?/i
 const WEIGHT_EACH =
   /(\d+(?:\.\d+)?)\s*(?:lbs?|pounds?)\s*(?:each|ea)/i
+/** Bare “150 lb” / “150lbs” when @ / each patterns miss. */
+const WEIGHT_BARE = /(\d+(?:\.\d+)?)\s*(?:lbs?|pounds?)\b/i
+
+/** True when every piece has a positive unit weight. */
+export function piecesHaveWeights(pieces: Piece[]): boolean {
+  return pieces.length > 0 && pieces.every((p) => p.weight_lbs > 0)
+}
 
 /** Explicit unit after the L×W×H triple (overrides the UI toggle). */
 function unitFromPart(part: string): DimLengthUnit | null {
@@ -161,7 +168,8 @@ export function parseDims(
     if (cMatch) count = Number(cMatch[1])
 
     let weight_lbs = 0
-    const wMatch = part.match(WEIGHT_AT) || part.match(WEIGHT_EACH)
+    const wMatch =
+      part.match(WEIGHT_AT) || part.match(WEIGHT_EACH) || part.match(WEIGHT_BARE)
     if (wMatch) {
       weight_lbs = Number(wMatch[1])
     } else {

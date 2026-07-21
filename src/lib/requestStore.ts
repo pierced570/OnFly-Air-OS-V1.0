@@ -4,6 +4,7 @@
 
 import {
   deriveReadyAt,
+  forkliftFromDraft,
   laneFromDraft,
   summaryFromDraft,
   type TripRequestDraft,
@@ -18,7 +19,10 @@ import {
 import {
   notifyHardQuoteRequest,
   notifyPortalRequest,
+  portalRequestReviewPath,
 } from '@/lib/dispatchNotify'
+import { raiseException } from '@/lib/exceptionStore'
+import { addNeedsInfoTask } from '@/lib/needsInfoStore'
 
 const requests = new Map<string, TripRequestRecord>()
 let refSeq = 9000
@@ -53,11 +57,42 @@ export function getRequest(id: string): TripRequestRecord | undefined {
   return requests.get(id)
 }
 
+function flagForkliftForDispatchers(
+  row: TripRequestRecord,
+): void {
+  if (row.forklift.level === 'none' || !row.forklift.label) return
+  const href = portalRequestReviewPath(row.id)
+  const severity = row.forklift.level === 'required' ? 'late' : 'attn'
+  raiseException({
+    trip_id: null,
+    trip_ref: row.ref,
+    title:
+      row.forklift.level === 'required'
+        ? 'Forklift required'
+        : 'Forklift recommended',
+    detail: `R-${row.ref} · ${row.lane} · ${row.forklift.label}`,
+    severity,
+    href,
+  })
+  addNeedsInfoTask({
+    entity_type: 'trip',
+    entity_id: row.id,
+    entity_label: `R-${row.ref} ${row.lane}`,
+    field:
+      row.forklift.level === 'required'
+        ? 'forklift_required'
+        : 'forklift_recommended',
+    note: row.forklift.label,
+    wizard: null,
+  })
+}
+
 export function submitTripRequest(
   draft: TripRequestDraft,
   source: 'portal' | 'dispatch',
 ): TripRequestRecord {
   const id = crypto.randomUUID()
+  const forklift = forkliftFromDraft(draft)
   const row: TripRequestRecord = {
     ...structuredClone(draft),
     id,
@@ -69,9 +104,11 @@ export function submitTripRequest(
     lane: laneFromDraft(draft),
     summary: summaryFromDraft(draft),
     hard_quote_requested_at: null,
+    forklift,
   }
   requests.set(id, row)
   bump()
+  flagForkliftForDispatchers(row)
   // Portal door: SMS/email the on-shift desk + Board exception — approve, don't auto-book.
   if (source === 'portal') {
     void notifyPortalRequest(row)

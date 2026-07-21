@@ -3,7 +3,7 @@
  */
 
 import { createMapsAdapter, resolveDoorLatLon } from '@/adapters/maps'
-import { parseDims } from '@/domain/dimsParser'
+import { piecesHaveWeights } from '@/domain/dimsParser'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import {
   buildPortalEstimates,
@@ -11,6 +11,7 @@ import {
   type PortalEstimateBundle,
 } from '@/domain/portalEstimate'
 import { generateCandidates } from '@/domain/routing'
+import { cargoPiecesFromDraft } from '@/domain/tripRequest'
 import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
 import { getTaxRates, loadTaxRates } from '@/lib/taxRatesStore'
 import type { TripRequestRecord } from '@/domain/tripRequest'
@@ -50,14 +51,19 @@ export async function estimatePortalRequest(
         : 'pax'
       : 'cargo'
 
-  const parsed = parseDims(row.cargo_notes || '', { unit: row.dim_unit })
-  const pieces =
-    payloadKind === 'pax' ? [] : parsed.pieces.length ? parsed.pieces : []
+  const parsedPieces = cargoPiecesFromDraft(row)
+  const pieces = payloadKind === 'pax' ? [] : parsedPieces
 
   if (payloadKind !== 'pax' && !pieces.length) {
     return emptyBundle(
       row,
       'Add cargo dims (e.g. 1 skid 48x40x48 @ 400) so we can size piston / turboprop / jet options.',
+    )
+  }
+  if (payloadKind !== 'pax' && !piecesHaveWeights(pieces)) {
+    return emptyBundle(
+      row,
+      'Cargo weight is required on every piece (lb each) before we can estimate.',
     )
   }
 
