@@ -15,6 +15,8 @@ describe('clientOnboardEmail', () => {
     const text = renderClientOnboardEmailText(tpl, 'PSA Airlines')
     expect(html).toContain('https://example.com/client')
     expect(html).toContain('PSA Airlines')
+    expect(html).toContain('onfly-logo.png')
+    expect(html.toLowerCase()).not.toContain('asap aircraft services')
     expect(text).toContain('https://example.com/client')
   })
 

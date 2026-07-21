@@ -20,13 +20,15 @@ type Props = {
 /**
  * OnFly brand lockup.
  * Light full wordmark on cream forms; dark wordmark on ink bars; mark for chrome.
+ * Tagline is email/bar-only by default — the wordmark already carries the name.
  */
 export function BrandLockup({
   variant = 'full',
   className = '',
-  showTagline = true,
+  showTagline,
 }: Props) {
   const mode = variant === 'page' ? 'full' : variant
+  const tagline = showTagline ?? mode === 'bar'
 
   if (mode === 'bar') {
     return (
@@ -36,7 +38,7 @@ export function BrandLockup({
           alt="OnFly Air"
           className="mx-auto h-14 w-auto max-w-[min(100%,280px)] object-contain"
         />
-        {showTagline && (
+        {tagline && (
           <div className="mt-3 text-[10px] font-semibold tracking-[0.18em] text-gold">
             {BRAND_TAGLINE}
           </div>
@@ -65,7 +67,7 @@ export function BrandLockup({
         alt="OnFly Air"
         className="h-12 w-auto max-w-[min(100%,280px)] object-contain sm:h-14"
       />
-      {showTagline && (
+      {tagline && (
         <div className="text-[9px] font-semibold tracking-[0.14em] text-gold sm:text-[10px]">
           {BRAND_TAGLINE}
         </div>

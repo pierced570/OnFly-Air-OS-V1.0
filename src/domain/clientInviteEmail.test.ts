@@ -30,6 +30,8 @@ describe('client invite email', () => {
     expect(html).toContain('quote first and ask questions never')
     expect(html).toContain('dispatcher, not a phone tree')
     expect(html).toContain(BRAND_TAGLINE)
+    expect(html.split(BRAND_TAGLINE).length - 1).toBe(1)
+    expect(html.toLowerCase()).not.toContain('asap aircraft services')
     expect(html).toContain('Button not working?')
     expect(html).toContain('vetted Part 135')
     expect(html.toLowerCase()).not.toContain(' bidding')

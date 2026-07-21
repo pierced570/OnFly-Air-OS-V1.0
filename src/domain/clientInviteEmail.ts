@@ -86,8 +86,6 @@ export function renderClientInviteEmailText(tpl: ClientInviteTemplate): string {
     '',
     `Questions? Reply to this email or call ${tpl.phone} — you'll get a dispatcher, not a phone tree.`,
     '',
-    'ONFLY AIR',
-    tpl.tagline,
     `${tpl.phone} · ${tpl.supportEmail}`,
     '',
     `You received this because ${company} is being set up as an OnFly Air client.`,
@@ -103,8 +101,8 @@ export function renderClientInviteEmailHtml(tpl: ClientInviteTemplate): string {
   const companyEsc = escapeHtml(company)
   const logoSrc = (tpl.fullLogoUrl || tpl.logoUrl).trim()
   const logoBlock = logoSrc
-    ? `<img src="${escapeAttr(logoSrc)}" width="240" height="86" alt="OnFly Air" style="display:block;margin:0 auto 14px;border:0;max-width:240px;height:auto" />`
-    : ''
+    ? `<img src="${escapeAttr(logoSrc)}" width="240" height="86" alt="OnFly Air" style="display:block;margin:0 auto 10px;border:0;max-width:240px;height:auto" />`
+    : `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:1.1;font-weight:700;letter-spacing:0.08em;color:#f7f2e3">ONFLY AIR</div>`
 
   return `<!DOCTYPE html>
 <html>
@@ -151,13 +149,7 @@ export function renderClientInviteEmailHtml(tpl: ClientInviteTemplate): string {
           </p>
         </td></tr>
         <tr><td style="background:#0c0c0e;padding:22px 28px;text-align:center">
-          <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:13px;letter-spacing:0.16em;color:#f7f2e3;font-weight:700">
-            ONFLY AIR
-          </div>
-          <div style="margin-top:8px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:9px;letter-spacing:0.16em;color:#c9a227;font-weight:600">
-            ${escapeHtml(tpl.tagline)}
-          </div>
-          <div style="margin-top:12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:12px;color:#c9a227">
+          <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:12px;color:#c9a227">
             ${escapeHtml(tpl.phone)} · ${escapeHtml(tpl.supportEmail)}
           </div>
         </td></tr>
