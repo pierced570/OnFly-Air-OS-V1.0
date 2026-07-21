@@ -20,7 +20,8 @@
     "import:fbos": "tsx scripts/import-fbos-csv.ts",
     "deploy:send-email": "tsx scripts/deploy-send-email.ts",
     "deploy:vendors": "tsx scripts/deploy-vendor-functions.ts",
-    "sync:vercel-env": "tsx scripts/sync-vercel-env.ts"
+    "sync:vercel-env": "tsx scripts/sync-vercel-env.ts",
+    "sync:vault-bootstrap": "tsx scripts/sync-vault-bootstrap.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.6",

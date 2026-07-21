@@ -1,11 +1,13 @@
-import { useMemo, useState, useSyncExternalStore, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from 'react'
 import {
   clearVault,
   deleteVaultEntry,
   displayVaultLabel,
   exportVaultCsv,
+  hasLocalVaultSeed,
   importVaultCsv,
   listVaultEntries,
+  restoreVaultFromLocalSeed,
   subscribeVault,
   upsertVaultEntry,
   type VaultCredentialType,
@@ -30,6 +32,17 @@ export default function VaultKeysPage() {
   const [status, setStatus] = useState<string | null>(null)
   const [editor, setEditor] = useState<Partial<VaultEntry> | null>(null)
   const [viewing, setViewing] = useState<VaultEntry | null>(null)
+  const [replaceOnImport, setReplaceOnImport] = useState(false)
+
+  // Empty vault + local seed file → restore once (browser localStorage wipe recovery)
+  useEffect(() => {
+    if (entries.length > 0) return
+    if (!hasLocalVaultSeed()) return
+    const n = restoreVaultFromLocalSeed()
+    if (n > 0) {
+      setStatus(`Restored ${n} credentials from local seed`)
+    }
+  }, [entries.length])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -53,8 +66,18 @@ export default function VaultKeysPage() {
   async function onFile(file: File | null) {
     if (!file) return
     const text = await file.text()
-    const n = importVaultCsv(text, 'replace')
-    setStatus(`Imported ${n} rows from ${file.name}`)
+    if (replaceOnImport) {
+      const ok = confirm(
+        `Replace all ${entries.length} vault rows with this CSV? This cannot be undone.`,
+      )
+      if (!ok) return
+    }
+    const n = importVaultCsv(text, replaceOnImport ? 'replace' : 'merge')
+    setStatus(
+      replaceOnImport
+        ? `Replaced vault with ${n} rows from ${file.name}`
+        : `Merged ${n} rows from ${file.name}`,
+    )
   }
 
   function downloadCsv() {
@@ -68,6 +91,17 @@ export default function VaultKeysPage() {
     URL.revokeObjectURL(a.href)
   }
 
+  function onRestoreSeed() {
+    const n = restoreVaultFromLocalSeed()
+    setStatus(
+      n > 0
+        ? `Restored ${n} credentials from local seed`
+        : hasLocalVaultSeed()
+          ? 'Seed already loaded (no new rows)'
+          : 'No local seed in this build — Import CSV from data/private/logins-keys.csv',
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -77,7 +111,8 @@ export default function VaultKeysPage() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             Restricted vault. One label per credential — no separate service
-            name. Stored in this browser until a server vault lands.
+            name. Stored in this browser (localStorage) — export CSV after
+            edits so you can restore on another device or after a wipe.
           </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
@@ -117,6 +152,38 @@ export default function VaultKeysPage() {
         </div>
       </header>
 
+      {entries.length === 0 && (
+        <div className="rounded-lg border border-gold/40 bg-gold/10 p-4 text-sm text-cream">
+          <p className="font-medium text-gold">Vault is empty on this device</p>
+          <p className="mt-1 text-muted">
+            Keys are not stored on the server yet — they live in this browser
+            only. Import{' '}
+            <span className="avionic text-cream">data/private/logins-keys.csv</span>{' '}
+            (merge) to restore the full set.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <label className="cursor-pointer rounded-md bg-gold px-3 py-2 text-sm font-medium text-ink">
+              Import logins-keys.csv
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {hasLocalVaultSeed() && (
+              <button
+                type="button"
+                className="rounded-md border border-gold/50 px-3 py-2 text-sm text-gold"
+                onClick={onRestoreSeed}
+              >
+                Restore local seed
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <label className={`${labelCls} w-full min-w-0 flex-1`}>
           Search
@@ -127,7 +194,24 @@ export default function VaultKeysPage() {
             placeholder="Supabase, Resend…"
           />
         </label>
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={replaceOnImport}
+            onChange={(e) => setReplaceOnImport(e.target.checked)}
+          />
+          Replace on import (default is merge)
+        </label>
         <div className="flex flex-wrap items-center gap-2">
+          {hasLocalVaultSeed() && (
+            <button
+              type="button"
+              className="min-h-10 rounded-md border border-border px-3 py-2 text-sm text-cream"
+              onClick={onRestoreSeed}
+            >
+              Restore seed
+            </button>
+          )}
           <button
             type="button"
             className="min-h-10 rounded-md border border-border px-3 py-2 text-sm text-late"
@@ -190,9 +274,14 @@ export default function VaultKeysPage() {
             </div>
           </li>
         ))}
-        {!filtered.length && (
+        {!filtered.length && entries.length > 0 && (
           <li className="px-4 py-8 text-center text-sm text-muted">
-            No credentials yet — add one or import CSV
+            No matches for “{q}”
+          </li>
+        )}
+        {!filtered.length && entries.length === 0 && (
+          <li className="px-4 py-8 text-center text-sm text-muted">
+            No credentials yet — import CSV above
           </li>
         )}
       </ul>
