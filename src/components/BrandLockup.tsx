@@ -1,4 +1,5 @@
 import {
+  BRAND_LOGO_LIGHT_PATH,
   BRAND_LOGO_PATH,
   BRAND_MARK_PATH,
   BRAND_TAGLINE,
@@ -6,9 +7,9 @@ import {
 
 type Props = {
   /**
-   * `full` — wordmark for forms, billing, client headers (default).
+   * `full` — light wordmark for cream/white forms & billing (default).
    * `mark` — mini aircraft-in-ring for nav / compact chrome.
-   * `bar` — full wordmark centered on ink (emails / dark strips).
+   * `bar` — dark wordmark centered on ink (emails / dark strips).
    */
   variant?: 'full' | 'mark' | 'bar' | 'page'
   className?: string
@@ -18,7 +19,7 @@ type Props = {
 
 /**
  * OnFly brand lockup.
- * Full name logo atop forms/billing; mini mark for small UI chrome.
+ * Light full wordmark on cream forms; dark wordmark on ink bars; mark for chrome.
  */
 export function BrandLockup({
   variant = 'full',
@@ -56,11 +57,11 @@ export function BrandLockup({
     )
   }
 
-  // full — forms, billing, cream page headers
+  // full — cream/white forms & billing (dark FL so it never washes out)
   return (
     <div className={`flex flex-col items-start gap-2 ${className}`}>
       <img
-        src={BRAND_LOGO_PATH}
+        src={BRAND_LOGO_LIGHT_PATH}
         alt="OnFly Air"
         className="h-12 w-auto max-w-[min(100%,280px)] object-contain sm:h-14"
       />
