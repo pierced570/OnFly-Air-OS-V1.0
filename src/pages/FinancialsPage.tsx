@@ -352,7 +352,8 @@ export default function FinancialsPage() {
         {filtered.map((r) => {
           const d = drawerFor(r.id)
           const clientOk = r.was_it_paid
-          const opOk = r.vendor_paid && r.bill_logged_in_qb
+          // Op pill = operator paid (QB bill log is separate in Op Pmts)
+          const opOk = r.vendor_paid
           const invOk = r.investor_paid || r.jonny_money_owed <= 0
           return (
             <MobileFinancialCard
@@ -403,7 +404,8 @@ export default function FinancialsPage() {
             {filtered.map((r) => {
               const d = drawerFor(r.id)
               const clientOk = r.was_it_paid
-              const opOk = r.vendor_paid && r.bill_logged_in_qb
+              // Op pill = operator paid (QB bill log is separate in Op Pmts)
+          const opOk = r.vendor_paid
               const invOk = r.investor_paid || r.jonny_money_owed <= 0
               return (
                 <FragmentRow
