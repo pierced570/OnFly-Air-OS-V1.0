@@ -70,7 +70,7 @@ export default function ClientOnboardPage() {
       <div className="min-h-screen bg-[#f7f2e3] text-[#0c0c0e]" data-theme="client">
         <header className="border-b border-[#e5dfd0] bg-white px-6 py-5">
           <div className="mx-auto max-w-lg">
-            <BrandLockup />
+            <BrandLockup showTagline={false} />
             <h1 className="mt-3 text-2xl font-semibold text-[#0c0c0e]">
               You&apos;re set up
             </h1>
@@ -106,7 +106,7 @@ export default function ClientOnboardPage() {
     <div className="min-h-screen bg-[#f7f2e3] text-[#0c0c0e]" data-theme="client">
       <header className="border-b border-[#e5dfd0] bg-white px-6 py-5">
         <div className="mx-auto max-w-2xl">
-          <BrandLockup />
+          <BrandLockup showTagline={false} />
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#0c0c0e] sm:text-3xl">
             Client setup
           </h1>

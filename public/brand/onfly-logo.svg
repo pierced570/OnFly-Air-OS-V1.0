@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" role="img" aria-label="OnFly Air">
-  <rect width="480" height="160" fill="#0C0C0E"/>
-  <text x="40" y="100" font-family="system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="48" font-weight="700" letter-spacing="0.08em">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" role="img" aria-label="OnFly Air">
+  <!-- Fallback only — prefer onfly-logo.png -->
+  <text x="24" y="78" font-family="system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="48" font-weight="700" letter-spacing="0.04em">
     <tspan fill="#C9A227">ON</tspan><tspan fill="#F7F2E3">FLY</tspan><tspan fill="#C9A227">AIR</tspan>
   </text>
 </svg>

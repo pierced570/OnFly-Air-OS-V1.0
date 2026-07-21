@@ -20,7 +20,7 @@ type Props = {
 /**
  * OnFly brand lockup.
  * Light full wordmark on cream forms; dark wordmark on ink bars; mark for chrome.
- * Tagline is email/bar-only by default — the wordmark already carries the name.
+ * Never stack a second ASAP line under the wordmark on forms — tagline is bar/email only.
  */
 export function BrandLockup({
   variant = 'full',
@@ -28,6 +28,7 @@ export function BrandLockup({
   showTagline,
 }: Props) {
   const mode = variant === 'page' ? 'full' : variant
+  // Forms/portal default: logo only. Email ink bar may show the ASAP tagline once.
   const tagline = showTagline ?? mode === 'bar'
 
   if (mode === 'bar') {
