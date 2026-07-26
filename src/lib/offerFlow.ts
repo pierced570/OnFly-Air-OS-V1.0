@@ -185,6 +185,8 @@ export async function submitOperatorQuote(
     /** Operator-chosen tail — never pre-recommended on the offer board. */
     tail?: string
     time_to_position_min: number
+    /** Ground time at origin after position ETA (default 40). */
+    quick_turn_min?: number
     live_leg_min: number
     price_net: number
     wait_ok: boolean
@@ -197,6 +199,10 @@ export async function submitOperatorQuote(
   if (!found) throw new Error('invalid offer token')
   const { trip, offer } = found
   const tail = input.tail?.trim().toUpperCase()
+  const quickTurn =
+    input.quick_turn_min != null && Number.isFinite(input.quick_turn_min)
+      ? Math.max(0, Math.floor(input.quick_turn_min))
+      : 40
   mutateTrip(trip.id, (t) => {
     const o = t.offers.find((x) => x.id === offer.id)!
     if (tail) o.tail = tail
@@ -212,7 +218,12 @@ export async function submitOperatorQuote(
       at: new Date().toISOString(),
       actor: o.operator_name,
       kind: 'offer_quoted',
-      payload: { ...input, tail: tail || o.tail, offer_id: o.id },
+      payload: {
+        ...input,
+        quick_turn_min: quickTurn,
+        tail: tail || o.tail,
+        offer_id: o.id,
+      },
     })
   })
   const { applyOfferTtpToTrip } = await import('@/lib/tripStore')

@@ -1,14 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { DateTime } from 'luxon'
 import {
   OfferBoardChrome,
   offerBtnNo,
-  offerBtnPrimary,
   offerBtnYes,
-  offerInput,
-  offerLabel,
 } from '@/components/OfferBoardChrome'
+import { OfferQuoteForm } from '@/components/OfferQuoteForm'
 import { getTripByOfferToken } from '@/lib/tripStore'
 import {
   respondOfferAvailability,
@@ -16,8 +13,8 @@ import {
 } from '@/lib/offerFlow'
 
 /**
- * Operator trip-offer board — Yes/No availability first, then their aircraft +
- * TTP / live / wait / price. Never recommend a tail; never say "bid".
+ * Operator trip-offer board — Yes/No, then aircraft + timing chain + NET NET.
+ * Never recommend a tail; never say "bid".
  */
 export default function OfferPublicPage() {
   const { token } = useParams()
@@ -33,12 +30,6 @@ export default function OfferPublicPage() {
       return found.offer.state === 'available' ? 'quote' : 'avail'
     return 'avail'
   })
-  const [tail, setTail] = useState('')
-  const [ttp, setTtp] = useState(90)
-  const [live, setLive] = useState(75)
-  const [price, setPrice] = useState(4500)
-  const [waitOk, setWaitOk] = useState(true)
-  const [maxWait, setMaxWait] = useState(2)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,9 +50,6 @@ export default function OfferPublicPage() {
   const { trip } = found
   const ready = trip.ready_label || 'scheduled'
   const asap = /asap/i.test(ready)
-  const impliedEta = DateTime.utc()
-    .plus({ minutes: ttp + live })
-    .toFormat("HH:mm 'Z'")
 
   async function onAvail(yes: boolean) {
     setBusy(true)
@@ -131,109 +119,20 @@ export default function OfferPublicPage() {
       )}
 
       {step === 'quote' && (
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            const t = tail.trim().toUpperCase()
-            if (!t) {
-              setError('Enter the tail you will fly')
-              return
-            }
+        <OfferQuoteForm
+          lane={trip.lane}
+          busy={busy}
+          onSubmit={(values) => {
             setBusy(true)
             setError(null)
-            void submitOperatorQuote(token!, {
-              tail: t,
-              time_to_position_min: ttp,
-              live_leg_min: live,
-              price_net: price,
-              wait_ok: waitOk,
-              max_wait_hrs: waitOk ? maxWait : null,
-              fee_scope: 'aircraft_only',
-            })
+            void submitOperatorQuote(token!, values)
               .then(() => setStep('done'))
               .catch((err) =>
                 setError(err instanceof Error ? err.message : String(err)),
               )
               .finally(() => setBusy(false))
           }}
-        >
-          <p className="text-base text-onplan">
-            You&apos;re available — enter your aircraft and quote:
-          </p>
-          <label className={offerLabel}>
-            Tail
-            <input
-              className={offerInput}
-              value={tail}
-              onChange={(e) => setTail(e.target.value.toUpperCase())}
-              placeholder="N123AB"
-              required
-              autoCapitalize="characters"
-              autoComplete="off"
-            />
-          </label>
-          <label className={offerLabel}>
-            Time to position (min)
-            <input
-              type="number"
-              inputMode="numeric"
-              value={ttp}
-              onChange={(e) => setTtp(Number(e.target.value))}
-              className={offerInput}
-              required
-            />
-          </label>
-          <div className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2.5 text-base text-gold">
-            Implied ETA ≈ <span className="avionic">{impliedEta}</span>
-          </div>
-          <label className={offerLabel}>
-            Live leg (min)
-            <input
-              type="number"
-              inputMode="numeric"
-              value={live}
-              onChange={(e) => setLive(Number(e.target.value))}
-              className={offerInput}
-              required
-            />
-          </label>
-          <label className="flex min-h-12 items-center gap-3 text-base">
-            <input
-              type="checkbox"
-              className="h-5 w-5"
-              checked={waitOk}
-              onChange={(e) => setWaitOk(e.target.checked)}
-            />
-            Can do the wait time
-          </label>
-          {waitOk && (
-            <label className={offerLabel}>
-              Max wait (hrs)
-              <input
-                type="number"
-                inputMode="numeric"
-                value={maxWait}
-                onChange={(e) => setMaxWait(Number(e.target.value))}
-                className={offerInput}
-              />
-            </label>
-          )}
-          <label className={offerLabel}>
-            Price to aircraft NET ($)
-            <input
-              type="number"
-              inputMode="decimal"
-              value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
-              className={offerInput}
-              required
-            />
-          </label>
-          <button type="submit" disabled={busy} className={offerBtnPrimary}>
-            {busy ? 'Sending…' : 'Submit quote'}
-          </button>
-        </form>
+        />
       )}
     </OfferBoardChrome>
   )
