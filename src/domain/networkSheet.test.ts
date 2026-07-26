@@ -62,6 +62,7 @@ describe('buildNetworkSheetRows', () => {
     expect(rows[0].door_from_type_spec).toBe(false)
     expect(rows[0].contact_cell).toBe('+15551212')
     expect(rows[0].contact_name).toBe('Sam')
+    expect(rows[0].quote_link_channel).toBe('both')
   })
 
   it('applies editable operator name, tail, type, and category patches', () => {

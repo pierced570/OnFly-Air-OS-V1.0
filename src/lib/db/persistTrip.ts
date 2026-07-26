@@ -240,6 +240,8 @@ async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> 
             tail: o.tail,
             type_name: o.type_name,
             contact_cell: o.contact_cell,
+            contact_email: o.contact_email,
+            quote_link_channel: o.quote_link_channel,
             bookingGated: o.bookingGated,
             needsInfo: o.needsInfo,
             fee_scope: o.fee_scope,

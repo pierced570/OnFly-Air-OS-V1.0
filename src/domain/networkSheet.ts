@@ -35,6 +35,8 @@ export type NetworkSheetOperatorPatch = {
   ops_email?: string | null
   base_icao?: string | null
   notes?: string | null
+  /** sms | email | both — where quote links are sent */
+  quote_link_channel?: string | null
 }
 
 export type TypeSpecLite = {
@@ -82,6 +84,8 @@ export type NetworkSheetRow = {
   contact_cell: string | null
   contact_email: string | null
   ops_email: string | null
+  /** sms | email | both */
+  quote_link_channel: string | null
   operator_notes: string | null
   aircraft_notes: string | null
   needs_info: NeedsInfoItem[]
@@ -263,6 +267,10 @@ export function buildNetworkSheetRows(opts: {
         opPatch.ops_email !== undefined
           ? opPatch.ops_email
           : (op?.ops_email ?? null),
+      quote_link_channel:
+        opPatch.quote_link_channel !== undefined
+          ? opPatch.quote_link_channel
+          : (op?.quote_link_channel ?? 'both'),
       operator_notes:
         opPatch.notes !== undefined ? opPatch.notes : (op?.notes ?? null),
       aircraft_notes:

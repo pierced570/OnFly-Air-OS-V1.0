@@ -59,6 +59,15 @@ export function patchCachedOperator(
   bump()
 }
 
+/** Insert or replace an operator in the in-memory fleet (desk quick-add). */
+export function upsertCachedOperator(op: OperatorRow): void {
+  if (!cached) return
+  const i = cached.operators.findIndex((o) => o.id === op.id)
+  if (i >= 0) cached.operators[i] = { ...cached.operators[i], ...op }
+  else cached.operators = [op, ...cached.operators]
+  bump()
+}
+
 function enrichAircraftFromSpecs(
   aircraft: AircraftRow[],
   type_specs: Array<Record<string, unknown>>,
@@ -151,7 +160,9 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
     ] = await Promise.all([
       supabase
         .from('operators')
-        .select('id,name,base_icao,needs_info,ops_email,notes'),
+        .select(
+          'id,name,base_icao,needs_info,ops_email,notes,quote_link_channel',
+        ),
       supabase
         .from('aircraft')
         .select(
@@ -193,6 +204,7 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
 
       const ops: OperatorRow[] = operators.map((o) => {
         const ct = contactByOp.get(o.id as string)
+        const ch = o.quote_link_channel as string | null | undefined
         return {
           id: o.id as string,
           name: o.name as string,
@@ -204,6 +216,8 @@ export async function loadNetwork(): Promise<LoadedNetwork> {
           contact_email: ct?.email ?? null,
           ops_email: (o.ops_email as string | null) ?? null,
           notes: (o.notes as string | null) ?? null,
+          quote_link_channel:
+            ch === 'sms' || ch === 'email' || ch === 'both' ? ch : 'both',
         }
       })
 

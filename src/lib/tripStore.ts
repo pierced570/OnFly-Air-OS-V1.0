@@ -33,6 +33,7 @@ import { getEtaDefaults } from '@/lib/etaDefaultsStore'
 import { getReferral } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
 import { roleOnOpsThread } from '@/domain/tripThread'
+import { getCachedNetwork } from '@/lib/networkData'
 import { listOnboardSubmissions } from '@/lib/operatorOnboardStore'
 import { listOperatorDrafts } from '@/lib/operatorDraftStore'
 
@@ -209,6 +210,10 @@ export type OfferRow = {
   bookingGated: boolean
   needsInfo: string[]
   contact_cell: string
+  /** Blank when unknown — desk can fill before send. */
+  contact_email: string
+  /** Where this offer's quote link is sent (profile default or desk override). */
+  quote_link_channel: 'sms' | 'email' | 'both'
 }
 
 export type QuickDispatchMeta = {
@@ -444,36 +449,6 @@ export function listTripsStable(): TripStoreRow[] {
   return snapshot
 }
 
-/** Resolve RFQ contact from onboard / drafts; fallback is stable E.164 from operator id. */
-export function resolveOperatorContactCell(
-  operatorId: string,
-  operatorName: string,
-): string {
-  const onboard = listOnboardSubmissions().find(
-    (s) =>
-      s.company_name.trim().toLowerCase() === operatorName.trim().toLowerCase(),
-  )
-  if (onboard) {
-    const normalized = normalizePhone(
-      onboard.after_hours_phone ||
-        onboard.primary_contact?.phone ||
-        onboard.company_phone,
-    )
-    if (normalized) return normalized
-  }
-  const draft = listOperatorDrafts().find(
-    (d) => d.name.trim().toLowerCase() === operatorName.trim().toLowerCase(),
-  )
-  const fromDraft = normalizePhone(draft?.contacts?.[0]?.cell)
-  if (fromDraft) return fromDraft
-
-  // Deterministic mock contact (not the old shared +1555 pool) so SMS simulator still works.
-  let hash = 0
-  for (const ch of operatorId || operatorName) hash = (hash * 31 + ch.charCodeAt(0)) | 0
-  const n = Math.abs(hash) % 9000000
-  return `+1415${String(1000000 + n).slice(-7)}`
-}
-
 function normalizePhone(raw: string | undefined | null): string | null {
   if (!raw?.trim()) return null
   const digits = raw.replace(/\D/g, '')
@@ -483,11 +458,104 @@ function normalizePhone(raw: string | undefined | null): string | null {
   return null
 }
 
+/** Deterministic mock cell when profile has none (keeps SMS simulator workable). */
+function mockContactCell(operatorId: string, operatorName: string): string {
+  let hash = 0
+  for (const ch of operatorId || operatorName)
+    hash = (hash * 31 + ch.charCodeAt(0)) | 0
+  const n = Math.abs(hash) % 9000000
+  return `+1415${String(1000000 + n).slice(-7)}`
+}
+
+export type ResolvedOperatorContacts = {
+  contact_cell: string
+  contact_email: string
+  quote_link_channel: 'sms' | 'email' | 'both'
+  /** True when cell was invented for mock SMS (not from profile). */
+  cell_is_mock: boolean
+}
+
+/**
+ * Resolve RFQ contacts from network profile → onboard → drafts.
+ * Prefer real profile data; only invent a cell when SMS channel needs a to-address.
+ */
+export function resolveOperatorContacts(
+  operatorId: string,
+  operatorName: string,
+): ResolvedOperatorContacts {
+  const netOp = getCachedNetwork()?.operators.find((o) => o.id === operatorId)
+  let cell = normalizePhone(netOp?.contact_cell) || ''
+  let email = (netOp?.contact_email || netOp?.ops_email || '').trim()
+  let channel: 'sms' | 'email' | 'both' =
+    netOp?.quote_link_channel === 'sms' ||
+    netOp?.quote_link_channel === 'email' ||
+    netOp?.quote_link_channel === 'both'
+      ? netOp.quote_link_channel
+      : 'both'
+
+  if (!cell || !email) {
+    const onboard = listOnboardSubmissions().find(
+      (s) =>
+        s.company_name.trim().toLowerCase() ===
+        operatorName.trim().toLowerCase(),
+    )
+    if (onboard) {
+      if (!cell) {
+        cell =
+          normalizePhone(
+            onboard.after_hours_phone ||
+              onboard.primary_contact?.phone ||
+              onboard.company_phone,
+          ) || ''
+      }
+      if (!email) {
+        email = (
+          onboard.primary_contact?.email ||
+          onboard.email ||
+          ''
+        ).trim()
+      }
+    }
+  }
+  if (!cell || !email) {
+    const draft = listOperatorDrafts().find(
+      (d) =>
+        d.name.trim().toLowerCase() === operatorName.trim().toLowerCase(),
+    )
+    if (draft) {
+      if (!cell) cell = normalizePhone(draft.contacts?.[0]?.cell) || ''
+      if (!email) email = (draft.contacts?.[0]?.email || '').trim()
+    }
+  }
+
+  let cell_is_mock = false
+  if (!cell && (channel === 'sms' || channel === 'both')) {
+    cell = mockContactCell(operatorId, operatorName)
+    cell_is_mock = true
+  }
+
+  return {
+    contact_cell: cell,
+    contact_email: email,
+    quote_link_channel: channel,
+    cell_is_mock,
+  }
+}
+
+/** Resolve RFQ contact from onboard / drafts; fallback is stable E.164 from operator id. */
+export function resolveOperatorContactCell(
+  operatorId: string,
+  operatorName: string,
+): string {
+  return resolveOperatorContacts(operatorId, operatorName).contact_cell
+}
+
 export function buildOfferRow(
   tripId: string,
   c: Candidate,
   _index: number,
 ): OfferRow {
+  const contacts = resolveOperatorContacts(c.operator_id, c.operator_name)
   return {
     id: crypto.randomUUID(),
     trip_id: tripId,
@@ -509,7 +577,9 @@ export function buildOfferRow(
     magic_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
     bookingGated: c.bookingGated,
     needsInfo: c.needsInfo,
-    contact_cell: resolveOperatorContactCell(c.operator_id, c.operator_name),
+    contact_cell: contacts.contact_cell,
+    contact_email: contacts.contact_email,
+    quote_link_channel: contacts.quote_link_channel,
   }
 }
 
