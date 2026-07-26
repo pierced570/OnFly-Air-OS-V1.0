@@ -173,8 +173,8 @@ function OfferTripList({
             <div className="font-medium text-cream">{c.title}</div>
             <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
             <p className="mt-1 text-xs text-muted">
-              Share each offer link — operators are not auto-pinged. Status
-              updates when they answer Yes / No or submit a quote.
+              Quote-request links are emailed on send. Status updates when
+              they answer Yes / No or submit a quote.
             </p>
             {c.recipients && c.recipients.length > 0 ? (
               <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">

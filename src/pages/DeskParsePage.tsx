@@ -7,7 +7,10 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
-import { formatOfferDestinationConfirm } from '@/domain/offerRecipients'
+import {
+  describeOfferDestination,
+  formatOfferDestinationConfirm,
+} from '@/domain/offerRecipients'
 import {
   DEFAULT_QUOTE_LINK_CHANNEL,
   type QuoteLinkChannel,
@@ -355,13 +358,30 @@ export default function DeskParsePage() {
         contactOverrides[c.operator_id] ??
         profileContactsForOperator(c.operator_id)
     }
+    // SMS provider not live yet — every recipient needs email on the channel.
+    const missingEmail = picks.filter((c) => {
+      const ov = overridesForSend[c.operator_id]!
+      const dest = describeOfferDestination({
+        operator_name: c.operator_name,
+        ...ov,
+      })
+      return !dest.email
+    })
+    if (missingEmail.length) {
+      setError(
+        `Add an email on file before sending (SMS not connected yet): ${missingEmail
+          .map((c) => c.operator_name)
+          .join(', ')}`,
+      )
+      return
+    }
     const confirmed = window.confirm(
       formatOfferDestinationConfirm(
         picks.map((c) => ({
           operator_name: c.operator_name,
           ...overridesForSend[c.operator_id]!,
         })),
-        'create_links',
+        'notify',
       ),
     )
     if (!confirmed) return
@@ -1025,9 +1045,9 @@ export default function DeskParsePage() {
                 Offer destinations ({selectedCandidates.length})
               </h2>
               <p className="text-xs text-muted">
-                Confirm email / SMS on file before creating links. Creating
-                links does not notify — you notify later from Trip offers only
-                after confirming destinations again.
+                Confirm email on file — we email the quote-request link when
+                you send. SMS delivery is not connected yet (use Email or
+                Both with an email).
               </p>
               <ul className="space-y-3">
                 {selectedCandidates.map((c) => {
@@ -1135,8 +1155,10 @@ export default function DeskParsePage() {
               className="rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
             >
               {sending
-                ? 'Creating links…'
-                : `Create offer links (${selected.size}) — no notify`}
+                ? 'Sending…'
+                : `Send offer request to ${selected.size} operator${
+                    selected.size === 1 ? '' : 's'
+                  }`}
             </button>
             <button
               type="button"

@@ -82,7 +82,7 @@ describe('offerRecipients', () => {
       'notify',
     )
     expect(confirm).toContain('ops@alpha.example')
-    expect(confirm).toContain('Send notifications?')
+    expect(confirm).toContain('Send offer links?')
   })
 
   it('formats quote summary for waterfall cards', () => {

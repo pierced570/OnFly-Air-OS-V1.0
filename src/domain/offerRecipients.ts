@@ -171,11 +171,11 @@ export function formatOfferDestinationConfirm(
     ].join('\n')
   }
   return [
-    'Notify these operators now via the channel on each offer?',
+    'Send trip offer / quote-request links to these destinations now?',
     '',
     ...blocks,
     '',
-    'Send notifications?',
+    'Send offer links?',
   ].join('\n')
 }
 

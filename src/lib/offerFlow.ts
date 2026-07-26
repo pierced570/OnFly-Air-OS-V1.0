@@ -109,7 +109,7 @@ export async function openTripOffers(tripId: string): Promise<TripStoreRow> {
   return getTrip(tripId)!
 }
 
-/** Append one operator to an existing trip offer list (no ping). */
+/** Append one operator to an existing trip offer list and send the offer link. */
 export async function appendOfferToTrip(
   tripId: string,
   candidate: Candidate,
@@ -138,7 +138,7 @@ export async function appendOfferToTrip(
         offer_id: row.id,
         operator_id: row.operator_id,
         operator_name: row.operator_name,
-        notify: false,
+        notify: true,
       },
     })
   })
@@ -149,7 +149,11 @@ export async function appendOfferToTrip(
     })
   }
   await persistOffersTrip(tripId)
-  return row
+  await sendAvailabilityPings(tripId, { offerIds: [row.id] })
+  const after = getTrip(tripId)!
+  const updated = after.offers.find((o) => o.id === row.id)
+  if (!updated) throw new Error('offer not found after notify')
+  return updated
 }
 
 /** Update mission fields on an open trip offer request (no re-ping). */
@@ -194,16 +198,15 @@ export async function updateTripOfferRequest(
 }
 
 /**
- * Optional SMS/email notify — not used by default desk / ladder send.
- * Prefer sharing the magic-link from the offers queue.
+ * Send trip-offer / quote-request links via email (and SMS when live).
+ * Desk + ladder + add-operator call this after creating offers.
  */
 export async function sendAvailabilityPings(
   tripId: string,
-  opts?: { offerIds?: string[] },
+  opts?: { offerIds?: string[]; requireDelivery?: boolean },
 ) {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
-  const comms = createCommsAdapter()
   const email = createEmailAdapter()
   if (trip.state === 'quoted_estimated') {
     safeTransitionTrip(tripId, 'offers_out', 'dispatcher')
@@ -213,11 +216,24 @@ export async function sendAvailabilityPings(
   // Persist before outbound links so /offer/:token resolves on other devices.
   await persistOffersTrip(tripId)
   const base = appPublicUrl()
+  if (!base) {
+    console.warn(
+      '[offers] VITE_APP_URL unset — offer links in email/SMS may be relative or wrong host',
+    )
+  }
   const filter = opts?.offerIds ? new Set(opts.offerIds) : null
+  const targeted: OfferRow[] = []
+  const missedNames: string[] = []
+  // RingCentral not wired — email is the live delivery path for offer links.
+  const smsLive = false
+
   for (const o of fresh.offers) {
     if (filter && !filter.has(o.id)) continue
     if (o.state === 'stood_down' || o.state === 'unavailable') continue
-    const channel = normalizeQuoteLinkChannel(o.quote_link_channel)
+    targeted.push(o)
+    let channel = normalizeQuoteLinkChannel(o.quote_link_channel)
+    // Until SMS is live, SMS-only falls back to email when an address is on file.
+    if (!smsLive && channel === 'sms') channel = 'email'
     const body = availabilityPingWithLink(
       fresh.lane,
       fresh.payload_summary,
@@ -227,10 +243,12 @@ export async function sendAvailabilityPings(
     )
     const sent: { sms?: string; email?: string } = {}
     if (
+      smsLive &&
       channelIncludesSms(channel) &&
       o.contact_cell.trim() &&
       !o.contact_cell_is_mock
     ) {
+      const comms = createCommsAdapter()
       await comms.send({ channel: 'sms', to: o.contact_cell, body })
       sent.sms = o.contact_cell
     }
@@ -244,7 +262,7 @@ export async function sendAvailabilityPings(
       sent.email = o.contact_email.trim()
     }
     if (!sent.sms && !sent.email) {
-      // Nothing deliverable — leave as link-ready, do not pretend we notified.
+      missedNames.push(o.operator_name)
       continue
     }
     mutateTrip(tripId, (t) => {
@@ -265,6 +283,13 @@ export async function sendAvailabilityPings(
     })
   }
   await persistOffersTrip(tripId)
+  const requireDelivery = opts?.requireDelivery !== false
+  if (requireDelivery && targeted.length > 0 && missedNames.length > 0) {
+    throw new Error(
+      `Could not deliver offer link to: ${missedNames.join(', ')}. ` +
+        'Add an email on file (SMS delivery is not connected yet).',
+    )
+  }
   return getTrip(tripId)!
 }
 

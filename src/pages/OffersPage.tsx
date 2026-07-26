@@ -166,6 +166,12 @@ export default function OffersPage() {
 
   function addOperator(hit: DeskOperatorHit) {
     const ov = contactOverrideFromHit(hit)
+    if (!ov.contact_email.includes('@')) {
+      setError(
+        `Add an email on file for ${hit.name} before sending (SMS not connected yet).`,
+      )
+      return
+    }
     const ok = window.confirm(
       formatOfferDestinationConfirm(
         [
@@ -176,7 +182,7 @@ export default function OffersPage() {
             quote_link_channel: ov.quote_link_channel,
           },
         ],
-        'create_links',
+        'notify',
       ),
     )
     if (!ok) return
@@ -241,8 +247,8 @@ export default function OffersPage() {
             {trip.ready_label ? ` · ready ${trip.ready_label}` : ''}
           </p>
           <p className="mt-1 text-xs text-muted">
-            Links are shareable only until you explicitly notify — check email /
-            SMS on each recipient first.
+            Offer links are emailed when you send. Re-notify below if a
+            destination changed — SMS is not connected yet.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
