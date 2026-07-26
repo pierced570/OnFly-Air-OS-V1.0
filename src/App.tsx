@@ -40,6 +40,10 @@ const ManifestPage = lazy(() => import('@/pages/ManifestPage'))
 const OnboardPage = lazy(() => import('@/pages/OnboardPage'))
 const ClientOnboardPage = lazy(() => import('@/pages/ClientOnboardPage'))
 const VendorPacketPage = lazy(() => import('@/pages/VendorPacketPage'))
+const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
+const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
+const OfferPreviewPage = lazy(() => import('@/pages/OfferPreviewPage'))
+const StaffLoginPage = lazy(() => import('@/pages/StaffLoginPage'))
 
 function Fallback() {
   return (
@@ -51,6 +55,8 @@ function Fallback() {
 
 function isPublic(pathname: string) {
   return (
+    pathname === '/' ||
+    pathname === '/login' ||
     pathname.startsWith('/offer/') ||
     pathname.startsWith('/accept/') ||
     pathname.startsWith('/t/') ||
@@ -92,7 +98,10 @@ export function App() {
   const routes = (
     <Suspense fallback={<Fallback />}>
       <Routes>
-        <Route path="/" element={<BoardPage />} />
+        <Route path="/" element={<ScratchPadPage />} />
+        <Route path="/login" element={<StaffLoginPage />} />
+        <Route path="/desk" element={<DeskParsePage />} />
+        <Route path="/board" element={<BoardPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:tripId" element={<ChatPage />} />
         <Route path="/trips/new" element={<NewTripPage />} />
@@ -115,6 +124,7 @@ export function App() {
         <Route path="/admin/tasks" element={<AdminTasksPage />} />
         <Route path="/admin/staff" element={<StaffAccessPage />} />
         <Route path="/admin/keys" element={<VaultKeysPage />} />
+        <Route path="/offer/preview" element={<OfferPreviewPage />} />
         <Route path="/offer/:token" element={<OfferPublicPage />} />
         <Route path="/accept/:token" element={<AcceptPage />} />
         <Route path="/t/:legToken" element={<OneTapPage />} />

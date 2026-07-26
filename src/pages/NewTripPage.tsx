@@ -301,7 +301,7 @@ export default function NewTripPage() {
             fleet.
           </p>
         </div>
-        <Link to="/" className="text-sm text-muted hover:text-cream">
+        <Link to="/board" className="text-sm text-muted hover:text-cream">
           ← Board
         </Link>
       </header>

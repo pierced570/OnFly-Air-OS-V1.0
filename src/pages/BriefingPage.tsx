@@ -245,7 +245,7 @@ export default function BriefingPage() {
               ))}
             </ul>
           )}
-          <Link to="/" className="mt-3 inline-block text-xs text-gold">
+          <Link to="/board" className="mt-3 inline-block text-xs text-gold">
             Open Board →
           </Link>
         </section>
