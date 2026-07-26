@@ -14,6 +14,7 @@ import {
 } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
+import { DeskOfferQuoteWorkbench } from '@/components/DeskOfferQuoteWorkbench'
 import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
 import {
   DISPATCH_DRAWERS,
@@ -296,13 +297,29 @@ function OfferTripList({
   focusTripId,
   onAcknowledgeDeclined,
 }: {
-  cards: ReturnType<typeof buildDispatchDrawers>['offers']
+  cards: DispatchCard[]
   focusTripId?: string | null
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
 }) {
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
   const [addingTripId, setAddingTripId] = useState<string | null>(null)
+  const [searchParams] = useSearchParams()
+  const [quotingTripId, setQuotingTripId] = useState<string | null>(
+    () => focusTripId ?? null,
+  )
   const [updateError, setUpdateError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!focusTripId) return
+    setQuotingTripId(focusTripId)
+    if (searchParams.get('update') === '1') {
+      setUpdatingTripId(focusTripId)
+      setAddingTripId(null)
+    } else if (searchParams.get('add') === '1') {
+      setAddingTripId(focusTripId)
+      setUpdatingTripId(null)
+    }
+  }, [focusTripId, searchParams])
 
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
@@ -313,24 +330,27 @@ function OfferTripList({
         const focused = Boolean(focusTripId && c.trip_id === focusTripId)
         const editing = Boolean(c.trip_id && updatingTripId === c.trip_id)
         const adding = Boolean(c.trip_id && addingTripId === c.trip_id)
+        const quoting = Boolean(c.trip_id && quotingTripId === c.trip_id)
         return (
           <li
             key={`${c.kind}-${c.id}`}
             id={c.trip_id ? `offer-trip-${c.trip_id}` : undefined}
             className={[
               'rounded-md border bg-ink px-3 py-3',
-              focused || editing || adding
+              focused || editing || adding || quoting
                 ? 'border-gold/60 ring-1 ring-gold/30'
                 : 'border-border/70',
             ].join(' ')}
           >
             <div className="font-medium text-cream">{c.title}</div>
             <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-            <p className="mt-1 text-xs text-muted">
-              Quote-request links are emailed on send. Status updates when
-              they answer Yes / No or submit a quote. Acknowledge a No to
-              collapse it.
-            </p>
+            {c.recipients && c.recipients.length > 0 ? (
+              <p className="mt-1 text-xs text-muted">
+                Quote-request links are emailed on send. Status updates when
+                they answer Yes / No or submit a quote. Use Quotes & pricing
+                for manual quotes and client hard quotes.
+              </p>
+            ) : null}
             {c.recipients && c.recipients.length > 0 ? (
               <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">
                 {c.recipients.map((r) =>
@@ -436,13 +456,33 @@ function OfferTripList({
                 onClose={() => setAddingTripId(null)}
               />
             ) : null}
+            {quoting && c.trip_id ? (
+              <DeskOfferQuoteWorkbench
+                key={`quote-${c.trip_id}`}
+                tripId={c.trip_id}
+                onClose={() => setQuotingTripId(null)}
+              />
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                to={c.href}
-                className="rounded-md bg-gold/15 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/25"
-              >
-                Manage trip offers
-              </Link>
+              {c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md px-2.5 py-1.5 text-xs font-medium',
+                    quoting
+                      ? 'bg-gold text-ink'
+                      : 'bg-gold/15 text-gold hover:bg-gold/25',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setAddingTripId(null)
+                    setUpdateError(null)
+                    setQuotingTripId(quoting ? null : c.trip_id!)
+                  }}
+                >
+                  {quoting ? 'Close quotes' : 'Quotes & pricing'}
+                </button>
+              ) : null}
               {c.trip_id ? (
                 <button
                   type="button"
@@ -454,6 +494,7 @@ function OfferTripList({
                   ].join(' ')}
                   onClick={() => {
                     setUpdatingTripId(null)
+                    setQuotingTripId(null)
                     setUpdateError(null)
                     setAddingTripId(adding ? null : c.trip_id!)
                   }}
@@ -472,6 +513,7 @@ function OfferTripList({
                   ].join(' ')}
                   onClick={() => {
                     setAddingTripId(null)
+                    setQuotingTripId(null)
                     setUpdateError(null)
                     setUpdatingTripId(editing ? null : c.trip_id!)
                   }}
@@ -521,7 +563,14 @@ export default function DispatchCenterPage() {
   useEffect(() => startLiveTripRefresh(4000), [])
 
   useEffect(() => {
-    if (!focusTripId || openDrawer !== 'offers') return
+    if (
+      !focusTripId ||
+      (openDrawer !== 'offers' &&
+        openDrawer !== 'quotes' &&
+        openDrawer !== 'submitted_quotes')
+    ) {
+      return
+    }
     const el = document.getElementById(`offer-trip-${focusTripId}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [focusTripId, openDrawer, trips])
@@ -689,9 +738,9 @@ export default function DispatchCenterPage() {
             (d.id === 'requests' || d.id === 'submitted_quotes')
           }
         >
-          {d.id === 'offers' ? (
+          {d.id === 'offers' || d.id === 'quotes' ? (
             <OfferTripList
-              cards={buckets.offers}
+              cards={buckets[d.id]}
               focusTripId={focusTripId}
               onAcknowledgeDeclined={(tripId, offerId) => {
                 void acknowledgeDeclinedOffer(tripId, offerId).catch((e) =>

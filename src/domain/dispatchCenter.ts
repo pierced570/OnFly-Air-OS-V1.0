@@ -216,7 +216,9 @@ export function buildDispatchDrawers(input: {
         notified,
         declined_acked,
         magic_token: token,
-        href: token ? `/offer/${token}` : `/trips/${t.id}/offers`,
+        href: token
+          ? `/offer/${token}`
+          : `/dispatch?drawer=${drawer ?? 'offers'}&focus=${t.id}`,
       }
     })
     const yes = recipients.filter((r) => r.status === 'yes').length
@@ -225,9 +227,12 @@ export function buildDispatchDrawers(input: {
     const awaiting = recipients.filter((r) => r.status === 'awaiting').length
     const notifiedN = recipients.filter((r) => r.notified).length
     const offerBit =
-      t.state === 'offers_out' && recipients.length
+      (t.state === 'offers_out' || t.state === 'quoted_hard') &&
+      recipients.length
         ? ` · ${recipients.length} recipients · ${notifiedN} notified · ${yes} yes · ${no} no · ${quoted} quoted · ${awaiting} awaiting`
         : ''
+    const stayOnDispatch =
+      t.state === 'offers_out' || t.state === 'quoted_hard'
     out[drawer].push({
       kind: 'trip',
       id: t.id,
@@ -235,18 +240,22 @@ export function buildDispatchDrawers(input: {
       subtitle: `${tripStateLabel(t.state)} · T-${t.ref}${
         t.quick ? ' · quick' : ''
       }${legBit}${offerBit}`,
-      href:
-        t.state === 'offers_out'
-          ? `/trips/${t.id}/offers`
-          : `/trips/${t.id}`,
+      href: stayOnDispatch
+        ? `/dispatch?drawer=${drawer}&focus=${t.id}`
+        : `/trips/${t.id}`,
       ref: t.ref,
       state: t.state,
-      recipients: t.state === 'offers_out' ? recipients : undefined,
+      recipients:
+        t.state === 'offers_out' || t.state === 'quoted_hard'
+          ? recipients
+          : undefined,
       trip_id: t.id,
     })
 
     // Submitted quotes waterfall — each quoted operator as its own card.
     if (t.state === 'offers_out' || t.state === 'quoted_hard') {
+      const focusDrawer =
+        t.state === 'quoted_hard' ? 'quotes' : 'offers'
       for (const o of t.offers ?? []) {
         if (o.state !== 'quoted' && o.state !== 'selected') continue
         const summary = formatOfferQuoteSummary(o)
@@ -256,7 +265,7 @@ export function buildDispatchDrawers(input: {
           id: o.id,
           title: `${o.operator_name} · Quote submitted`,
           subtitle: `${who} · ${t.lane}${summary ? ` · ${summary}` : ''}`,
-          href: `/trips/${t.id}/offers`,
+          href: `/dispatch?drawer=${focusDrawer}&focus=${t.id}`,
           ref: t.ref,
           trip_id: t.id,
         })

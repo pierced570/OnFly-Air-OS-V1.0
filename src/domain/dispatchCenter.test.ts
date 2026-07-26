@@ -110,7 +110,7 @@ describe('dispatchCenter', () => {
       ],
     })
     expect(buckets.requests).toHaveLength(1)
-    expect(buckets.offers[0]?.href).toContain('/offers')
+    expect(buckets.offers[0]?.href).toContain('/dispatch?drawer=offers&focus=')
     expect(buckets.offers[0]?.title).toBe('PSA Airlines · KCAK→KMDW')
     expect(buckets.offers[0]?.subtitle).toMatch(/T-1/)
     expect(buckets.offers[0]?.recipients).toHaveLength(4)
