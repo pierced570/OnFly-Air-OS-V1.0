@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildOfferMissionDisplay,
+  isRoundTripLane,
   parseLaneAirports,
   parsePayloadSummary,
 } from './offerMissionDisplay'
@@ -15,6 +16,11 @@ describe('offerMissionDisplay', () => {
     expect(parseLaneAirports('KCAK->KHPN · KHPN→KCAK')?.rest).toBe(
       'KHPN→KCAK',
     )
+  })
+
+  it('detects round-trip lanes for wait-time UI', () => {
+    expect(isRoundTripLane('KCAK→KHPN')).toBe(false)
+    expect(isRoundTripLane('KCAK→KHPN · KHPN→KCAK')).toBe(true)
   })
 
   it('splits pax and cargo from mission summary', () => {

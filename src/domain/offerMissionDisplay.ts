@@ -20,6 +20,16 @@ export type OfferMissionDisplay = {
   ready: string
 }
 
+/** True when lane has a return segment (e.g. "KCAK→KHPN · KHPN→KCAK"). */
+export function isRoundTripLane(lane: string): boolean {
+  return (
+    lane
+      .split(/\s*·\s*/)
+      .map((p) => p.trim())
+      .filter(Boolean).length > 1
+  )
+}
+
 /** Split first lane segment "KCAK→KHPN" (also accepts "->" / "–"). */
 export function parseLaneAirports(lane: string): {
   origin: string

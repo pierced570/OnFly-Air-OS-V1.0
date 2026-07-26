@@ -9,6 +9,7 @@ import {
   offerLabel,
 } from '@/components/OfferBoardChrome'
 import { HrsMinsInput } from '@/components/HrsMinsInput'
+import { isRoundTripLane } from '@/domain/offerMissionDisplay'
 import {
   DEFAULT_QUICK_TURN_MIN,
   computeOfferQuoteTiming,
@@ -29,6 +30,8 @@ export type OfferQuoteFormValues = {
 
 type Props = {
   lane: string
+  /** When omitted, inferred from multi-leg lane (outbound · return). */
+  roundTrip?: boolean
   busy?: boolean
   submitLabel?: string
   onSubmit: (values: OfferQuoteFormValues) => void
@@ -64,10 +67,12 @@ function TimeChip({
 
 export function OfferQuoteForm({
   lane,
+  roundTrip,
   busy = false,
   submitLabel = 'Submit quote',
   onSubmit,
 }: Props) {
+  const showWait = roundTrip ?? isRoundTripLane(lane)
   const [tail, setTail] = useState('')
   const [ttp, setTtp] = useState(90)
   const [quickTurn, setQuickTurn] = useState(DEFAULT_QUICK_TURN_MIN)
@@ -107,8 +112,8 @@ export function OfferQuoteForm({
           quick_turn_min: quickTurn,
           live_leg_min: live,
           price_net: price,
-          wait_ok: waitOk,
-          max_wait_hrs: waitOk ? maxWait : null,
+          wait_ok: showWait ? waitOk : false,
+          max_wait_hrs: showWait && waitOk ? maxWait : null,
           fee_scope: feesIncluded ? 'aircraft_and_fees' : 'aircraft_only',
         })
       }}
@@ -167,27 +172,31 @@ export function OfferQuoteForm({
         times={timing.destEta}
       />
 
-      <label className="flex min-h-12 items-center gap-3 text-base">
-        <input
-          type="checkbox"
-          className="h-5 w-5"
-          checked={waitOk}
-          onChange={(e) => setWaitOk(e.target.checked)}
-        />
-        Can do the wait time
-      </label>
-      {waitOk && (
-        <label className={offerLabel}>
-          Max wait (hrs)
-          <input
-            type="number"
-            inputMode="numeric"
-            value={maxWait}
-            onChange={(e) => setMaxWait(Number(e.target.value))}
-            className={offerInput}
-          />
-        </label>
-      )}
+      {showWait ? (
+        <>
+          <label className="flex min-h-12 items-center gap-3 text-base">
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={waitOk}
+              onChange={(e) => setWaitOk(e.target.checked)}
+            />
+            Can do the wait time
+          </label>
+          {waitOk ? (
+            <label className={offerLabel}>
+              Max wait (hrs)
+              <input
+                type="number"
+                inputMode="numeric"
+                value={maxWait}
+                onChange={(e) => setMaxWait(Number(e.target.value))}
+                className={offerInput}
+              />
+            </label>
+          ) : null}
+        </>
+      ) : null}
 
       <label className={offerLabel}>
         Price for Aircraft NET NET

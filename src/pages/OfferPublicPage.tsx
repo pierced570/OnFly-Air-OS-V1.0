@@ -6,6 +6,7 @@ import {
   offerBtnYes,
 } from '@/components/OfferBoardChrome'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
+import { isRoundTripLane } from '@/domain/offerMissionDisplay'
 import { resolveOfferByToken } from '@/lib/db/hydrateTrips'
 import type { OfferRow, TripStoreRow } from '@/lib/tripStore'
 import {
@@ -148,6 +149,7 @@ export default function OfferPublicPage() {
       {step === 'quote' && (
         <OfferQuoteForm
           lane={trip.lane}
+          roundTrip={isRoundTripLane(trip.lane)}
           busy={busy}
           onSubmit={(values) => {
             setBusy(true)
