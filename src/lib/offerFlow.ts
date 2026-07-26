@@ -555,13 +555,28 @@ export async function selectOffersAndHardQuote(
     }
   })
 
-  if (trip.state === 'offers_out') {
+  if (trip.state === 'offers_out' || trip.state === 'lost') {
     safeTransitionTrip(tripId, 'quoted_hard', 'dispatcher', {
       offer_ids: offerIds,
+      reopen_from: trip.state === 'lost' ? 'lost' : undefined,
     })
   }
 
   mutateTrip(tripId, (t) => {
+    const prev = t.hard_quote
+    if (prev?.accept_token && prev.accept_token !== accept_token) {
+      t.events.push({
+        at: sentAt,
+        actor: 'dispatcher',
+        kind: 'hard_quote_superseded',
+        payload: {
+          previous_accept_token: prev.accept_token,
+          previous_total: prev.total,
+          previous_decision: prev.client_decision ?? null,
+        },
+      })
+    }
+    t.lost_reason = undefined
     t.hard_quote = {
       total: primaryTotal,
       accept_token,
@@ -574,6 +589,17 @@ export async function selectOffersAndHardQuote(
       declined_at: undefined,
       options,
     }
+    t.events.push({
+      at: sentAt,
+      actor: 'dispatcher',
+      kind: 'hard_quote_sent',
+      payload: {
+        offer_ids: offerIds,
+        accept_token,
+        option_count: options.length,
+        notify_client: notifyClient,
+      },
+    })
   })
 
   const recipients = resolveHardQuoteRecipients(trip, toEmails)
@@ -873,11 +899,16 @@ export async function acceptHardQuote(token: string) {
   return getTrip(trip.id)!
 }
 
-/** Client declines the hard quote → trip lost; desk sees Declined (No). */
+/**
+ * Client declines the hard quote. Stays in quoted_hard so the desk can
+ * send another quote; status shows Declined (No) until a new quote is sent.
+ */
 export async function declineHardQuote(token: string) {
   const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
   if (!trip) throw new Error('invalid accept token')
-  if (trip.state === 'lost') return getTrip(trip.id)!
+  if (trip.hard_quote?.client_decision === 'declined') {
+    return getTrip(trip.id)!
+  }
   if (trip.state !== 'quoted_hard') {
     throw new Error(`cannot decline from state ${trip.state}`)
   }
@@ -888,7 +919,6 @@ export async function declineHardQuote(token: string) {
       t.hard_quote.declined_at = declinedAt
       t.hard_quote.accepted_at = undefined
     }
-    t.lost_reason = 'client_declined_quote'
     t.events.push({
       at: declinedAt,
       actor: 'client',
@@ -896,10 +926,8 @@ export async function declineHardQuote(token: string) {
       payload: { accept_token: token },
     })
   })
-  safeTransitionTrip(trip.id, 'lost', 'client', {
-    accept_token: token,
-    reason: 'client_declined_quote',
-  })
+  const { flushPersistTrip } = await import('@/lib/tripStore')
+  await flushPersistTrip(trip.id)
   return getTrip(trip.id)!
 }
 

@@ -33,6 +33,12 @@ describe('hardQuoteClientStatus', () => {
         declined_at: '2026-07-26T12:00:00.000Z',
       }),
     ).toBe('declined')
+    expect(
+      hardQuoteClientStatus({
+        trip_state: 'quoted_hard',
+        client_decision: 'declined',
+      }),
+    ).toBe('declined')
     expect(hardQuoteClientStatusLabel('declined')).toBe('Declined (No)')
   })
 })

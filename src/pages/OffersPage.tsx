@@ -74,6 +74,7 @@ export default function OffersPage() {
   const [readyEdit, setReadyEdit] = useState('')
   const [opQuery, setOpQuery] = useState('')
   const [opHits, setOpHits] = useState<DeskOperatorHit[]>([])
+  const [composeAnotherQuote, setComposeAnotherQuote] = useState(false)
   const [addFocus, setAddFocus] = useState(
     () => searchParams.get('add') === '1',
   )
@@ -145,10 +146,28 @@ export default function OffersPage() {
     )
   }, [opQuery, trip?.offers])
 
-  const quotedIds = useMemo(
-    () => trip?.offers.filter((o) => o.state === 'quoted').map((o) => o.id) ?? [],
+  const quoteableIds = useMemo(
+    () =>
+      trip?.offers
+        .filter((o) => o.state === 'quoted' || o.state === 'selected')
+        .map((o) => o.id) ?? [],
     [trip?.offers],
   )
+  const hardQuoteStatus = trip?.hard_quote
+    ? hardQuoteClientStatus({
+        trip_state: trip.state,
+        client_decision: trip.hard_quote.client_decision,
+        accepted_at: trip.hard_quote.accepted_at,
+        declined_at: trip.hard_quote.declined_at,
+      })
+    : null
+  const canSendAnotherQuote =
+    Boolean(trip?.hard_quote) &&
+    hardQuoteStatus !== 'accepted' &&
+    quoteableIds.length > 0
+  const showQuoteComposer =
+    quoteableIds.length > 0 &&
+    (!trip?.hard_quote || composeAnotherQuote || hardQuoteStatus === 'declined')
 
   if (!trip) {
     return (
@@ -163,7 +182,7 @@ export default function OffersPage() {
     )
   }
 
-  const picked = quotedIds.filter((oid) => selected[oid])
+  const picked = quoteableIds.filter((oid) => selected[oid])
   const clientName =
     trip.quick?.client_name?.trim() ||
     (trip.client_id ? getClient(trip.client_id)?.name?.trim() : '') ||
@@ -450,7 +469,8 @@ export default function OffersPage() {
               <article key={o.id} className={`rounded-lg border p-4 ${borderCls}`}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    {o.state === 'quoted' && (
+                    {(o.state === 'quoted' || o.state === 'selected') &&
+                    (showQuoteComposer || !trip.hard_quote) ? (
                       <label className="mb-1 flex items-center gap-2 text-xs text-gold">
                         <input
                           type="checkbox"
@@ -464,7 +484,7 @@ export default function OffersPage() {
                         />
                         Include in client quote
                       </label>
-                    )}
+                    ) : null}
                     <div className="font-medium text-cream">
                       {o.operator_name}
                       {status === 'quote_submitted' ? (
@@ -669,9 +689,29 @@ export default function OffersPage() {
             )
           })}
 
-          {quotedIds.length > 0 && (
+          {showQuoteComposer ? (
             <div className="space-y-3 rounded-lg border border-gold/40 bg-gold/10 p-4">
-              <div className="text-sm text-gold">Multi-option client quote</div>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="text-sm text-gold">
+                  {trip.hard_quote
+                    ? 'Send another quote'
+                    : 'Multi-option client quote'}
+                </div>
+                {trip.hard_quote ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted hover:text-cream"
+                    onClick={() => setComposeAnotherQuote(false)}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted">
+                {trip.hard_quote
+                  ? 'Pick options and send a new client quote. The previous accept link is replaced.'
+                  : 'Select quoted operators below, set client totals, then send.'}
+              </p>
               <label className="block text-xs text-muted">
                 To (requesters / AP)
                 <input
@@ -697,14 +737,19 @@ export default function OffersPage() {
                     .map((e) => e.trim())
                     .filter((e) => e.includes('@'))
                   void selectOffersAndHardQuote(trip.id, picked, totals, emails)
+                    .then(() => {
+                      setComposeAnotherQuote(false)
+                      setError(null)
+                    })
                     .catch((e) => setError(String(e)))
                 }}
               >
-                Send hard quote ({picked.length || 0} option
+                {trip.hard_quote ? 'Send another quote' : 'Send hard quote'} (
+                {picked.length || 0} option
                 {picked.length === 1 ? '' : 's'})
               </button>
             </div>
-          )}
+          ) : null}
 
           {trip.hard_quote && (() => {
             const hq = trip.hard_quote
@@ -820,14 +865,38 @@ export default function OffersPage() {
                     )
                   })}
                 </ul>
-                {clientStatus === 'pending' ? (
-                  <Link
-                    className="mt-3 inline-block text-sm text-gold"
-                    to={`/accept/${hq.accept_token}`}
-                  >
-                    Open client accept page →
-                  </Link>
-                ) : null}
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  {clientStatus === 'pending' ? (
+                    <Link
+                      className="text-sm text-gold"
+                      to={`/accept/${hq.accept_token}`}
+                    >
+                      Open client accept page →
+                    </Link>
+                  ) : null}
+                  {canSendAnotherQuote && !showQuoteComposer ? (
+                    <button
+                      type="button"
+                      className="rounded border border-gold/50 bg-gold/10 px-3 py-1.5 text-sm font-medium text-gold hover:bg-gold/20"
+                      onClick={() => {
+                        const pre: Record<string, boolean> = {}
+                        for (const o of trip.offers) {
+                          if (o.state !== 'quoted' && o.state !== 'selected') {
+                            continue
+                          }
+                          const inCurrent = hq.options?.some(
+                            (opt) => opt.offer_id === o.id,
+                          )
+                          pre[o.id] = Boolean(inCurrent) || o.state === 'selected'
+                        }
+                        setSelected(pre)
+                        setComposeAnotherQuote(true)
+                      }}
+                    >
+                      Send another quote
+                    </button>
+                  ) : null}
+                </div>
               </div>
             )
           })()}

@@ -35,7 +35,8 @@ export const TRANSITIONS: Record<TripState, readonly TripState[]> = {
   delivered: ['invoiced'],
   invoiced: ['closed'],
   closed: [],
-  lost: [],
+  /** Reopen after client declined / quote abandoned — desk sends another hard quote. */
+  lost: ['quoted_hard', 'offers_out'],
   cancelled: [],
 }
 

@@ -102,8 +102,8 @@ export default function AcceptPage() {
               {hardQuoteClientStatusLabel('declined')}
             </p>
             <p className="text-sm text-muted">
-              Thanks — we won’t hold this aircraft. Reply to your OnFly contact if you
-              need a revised option.
+              Thanks — we won’t hold this aircraft. Your OnFly contact can send a
+              revised quote if you still need the trip.
             </p>
           </div>
         ) : (
