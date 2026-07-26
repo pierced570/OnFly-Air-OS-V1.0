@@ -60,14 +60,27 @@ export function buildOffersFromCandidates(
   })
 }
 
-async function persistOffersTrip(tripId: string): Promise<void> {
+async function persistOffersTrip(
+  tripId: string,
+  opts?: { requirePublicLinks?: boolean },
+): Promise<void> {
   const fresh = getTrip(tripId)
   if (!fresh) return
   try {
+    if (opts?.requirePublicLinks) {
+      const { persistTripOffersForPublicLinks } = await import(
+        '@/lib/db/persistTrip'
+      )
+      await persistTripOffersForPublicLinks(fresh)
+      return
+    }
     const { persistTripSnapshot } = await import('@/lib/db/persistTrip')
     await persistTripSnapshot(fresh)
   } catch (e) {
     console.warn('[offers] persist trip snapshot failed', e)
+    if (opts?.requirePublicLinks) {
+      throw e instanceof Error ? e : new Error(String(e))
+    }
   }
 }
 
@@ -106,7 +119,7 @@ export async function openTripOffers(tripId: string): Promise<TripStoreRow> {
     }
   })
   // Persist so /offer/:token resolves on other devices (public domain).
-  await persistOffersTrip(tripId)
+  await persistOffersTrip(tripId, { requirePublicLinks: true })
   return getTrip(tripId)!
 }
 
@@ -149,7 +162,7 @@ export async function appendOfferToTrip(
       reason: 'Added operator to trip offer request',
     })
   }
-  await persistOffersTrip(tripId)
+  await persistOffersTrip(tripId, { requirePublicLinks: true })
   await sendAvailabilityPings(tripId, { offerIds: [row.id] })
   const after = getTrip(tripId)!
   const updated = after.offers.find((o) => o.id === row.id)
@@ -214,8 +227,8 @@ export async function sendAvailabilityPings(
   }
   const now = new Date().toISOString()
   const fresh = getTrip(tripId)!
-  // Persist before outbound links so /offer/:token resolves on other devices.
-  await persistOffersTrip(tripId)
+  // Persist + verify tokens BEFORE emailing — otherwise operators hit "expired".
+  await persistOffersTrip(tripId, { requirePublicLinks: true })
   const base = appPublicUrl()
   if (!base) {
     console.warn(

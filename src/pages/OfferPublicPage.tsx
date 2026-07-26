@@ -64,7 +64,11 @@ export default function OfferPublicPage() {
   if (!found) {
     return (
       <div className="min-h-dvh bg-ink px-4 py-6 text-base text-cream">
-        <p>Invalid or expired trip offer link.</p>
+        <p className="font-medium">Could not open this trip offer link.</p>
+        <p className="mt-2 text-sm text-muted">
+          Ask dispatch to send the offer again — the link may not have saved
+          to the server when it was first emailed.
+        </p>
       </div>
     )
   }
