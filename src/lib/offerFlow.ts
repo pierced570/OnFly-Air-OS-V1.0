@@ -2,7 +2,7 @@
  * Trip offers + booking flow — open requests (no auto-ping), hard quote, accept.
  * All trip state changes go through safeTransitionTrip.
  */
-import { createCommsAdapter, getMockCommsLog } from '@/adapters/comms'
+import { createCommsAdapter } from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
 import {
   channelIncludesEmail,
@@ -14,8 +14,6 @@ import type { Candidate } from '@/domain/routing'
 import {
   availabilityEmailSubject,
   availabilityPingWithLink,
-  parseAvailabilityReply,
-  quoteLinkBody,
   standDownBody,
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
@@ -319,42 +317,6 @@ export async function updateOfferContacts(
   const row = fresh.offers.find((o) => o.id === offerId)
   if (!row) throw new Error('offer not found')
   return row
-}
-
-export async function simulateOperatorReply(tripId: string, offerId: string, body: string) {
-  const parsed = parseAvailabilityReply(body)
-  if (!parsed) return { ok: false as const, reason: 'unrecognized reply' }
-  const trip = getTrip(tripId)!
-  const offer = trip.offers.find((o) => o.id === offerId)!
-  const now = new Date().toISOString()
-  const comms = createCommsAdapter()
-  await comms.send({
-    channel: 'sms',
-    to: 'ONFLY',
-    body: `INBOUND from ${offer.contact_cell}: ${body}`,
-  })
-
-  mutateTrip(tripId, (t) => {
-    const o = t.offers.find((x) => x.id === offerId)!
-    o.replied_at = now
-    o.state = parsed
-    t.events.push({
-      at: now,
-      actor: offer.operator_name,
-      kind: 'offer_reply',
-      payload: { offer_id: offerId, result: parsed },
-    })
-  })
-
-  if (parsed === 'available') {
-    const token = offer.magic_token
-    await comms.send({
-      channel: 'sms',
-      to: offer.contact_cell,
-      body: quoteLinkBody(token, appPublicUrl()),
-    })
-  }
-  return { ok: true as const, result: parsed }
 }
 
 export async function respondOfferAvailability(
@@ -781,17 +743,6 @@ function resolveOpsEmails(trip: NonNullable<ReturnType<typeof getTrip>>): string
   return [
     ...new Set(out.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))),
   ]
-}
-
-export function simulatorMessagesForTrip(tripId: string) {
-  const trip = getTrip(tripId)
-  if (!trip) return []
-  const cells = new Set(trip.offers.map((o) => o.contact_cell))
-  cells.add('+1555CLIENT')
-  cells.add('ONFLY')
-  return getMockCommsLog().filter(
-    (m) => cells.has(m.to) || m.body.includes(trip.lane) || m.body.includes(tripId),
-  )
 }
 
 export type { OfferRow }

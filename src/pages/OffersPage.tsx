@@ -14,10 +14,8 @@ import {
   selectOffersAndHardQuote,
   acceptHardQuote,
   sendAvailabilityPings,
-  simulateOperatorReply,
   updateOfferContacts,
   updateTripOfferRequest,
-  simulatorMessagesForTrip,
 } from '@/lib/offerFlow'
 import { clientTotalForOffer } from '@/lib/offerPricing'
 import {
@@ -54,8 +52,6 @@ export default function OffersPage() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()
   const trip = useTrip(id)
-  const [msgs, setMsgs] = useState(simulatorMessagesForTrip(id ?? ''))
-  const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [clientEdits, setClientEdits] = useState<Record<string, number>>({})
@@ -82,15 +78,6 @@ export default function OffersPage() {
     >
   >({})
   const [notifying, setNotifying] = useState(false)
-
-  function refresh() {
-    if (!id) return
-    setMsgs(simulatorMessagesForTrip(id))
-  }
-
-  useEffect(() => {
-    refresh()
-  }, [id, trip?.offers.length, trip?.state, trip?.offers.map((o) => o.state).join()])
 
   useEffect(() => {
     if (!trip) return
@@ -174,7 +161,6 @@ export default function OffersPage() {
       .then(() => {
         setShowUpdate(false)
         setError(null)
-        refresh()
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }
@@ -200,7 +186,6 @@ export default function OffersPage() {
         setOpQuery('')
         setOpHits([])
         setError(null)
-        refresh()
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }
@@ -209,10 +194,7 @@ export default function OffersPage() {
     const draft = contactDrafts[offerId]
     if (!draft || !trip) return
     void updateOfferContacts(trip.id, offerId, draft)
-      .then(() => {
-        setError(null)
-        refresh()
-      })
+      .then(() => setError(null))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }
 
@@ -240,10 +222,7 @@ export default function OffersPage() {
     void sendAvailabilityPings(fresh.id, {
       offerIds: targets.map((o) => o.id),
     })
-      .then(() => {
-        setError(null)
-        refresh()
-      })
+      .then(() => setError(null))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setNotifying(false))
   }
@@ -619,34 +598,6 @@ export default function OffersPage() {
                     />
                   </label>
                 )}
-                {(status === 'awaiting' || status === 'yes') && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <input
-                      value={replyDraft[o.id] ?? ''}
-                      onChange={(e) =>
-                        setReplyDraft((d) => ({
-                          ...d,
-                          [o.id]: e.target.value,
-                        }))
-                      }
-                      placeholder="Simulate reply: 1 or 2"
-                      className="flex-1 rounded border border-border bg-ink px-2 py-1 text-sm text-cream"
-                    />
-                    <button
-                      type="button"
-                      className="rounded border border-gold/40 px-2 py-1 text-xs text-gold"
-                      onClick={() =>
-                        void simulateOperatorReply(
-                          trip.id,
-                          o.id,
-                          replyDraft[o.id] ?? '1',
-                        ).then(refresh)
-                      }
-                    >
-                      Reply
-                    </button>
-                  </div>
-                )}
               </article>
             )
           })}
@@ -679,7 +630,6 @@ export default function OffersPage() {
                     .map((e) => e.trim())
                     .filter((e) => e.includes('@'))
                   void selectOffersAndHardQuote(trip.id, picked, totals, emails)
-                    .then(refresh)
                     .catch((e) => setError(String(e)))
                 }}
               >
@@ -716,9 +666,7 @@ export default function OffersPage() {
                 type="button"
                 className="ml-3 text-sm text-muted underline"
                 onClick={() =>
-                  void acceptHardQuote(trip.hard_quote!.accept_token).then(
-                    refresh,
-                  )
+                  void acceptHardQuote(trip.hard_quote!.accept_token)
                 }
               >
                 Simulate accept
@@ -739,26 +687,6 @@ export default function OffersPage() {
               </li>
             ))}
           </ul>
-          {msgs.length > 0 && (
-            <>
-              <h3 className="mt-4 text-xs uppercase tracking-wider text-muted">
-                Comms log
-              </h3>
-              <ul className="mt-2 max-h-40 space-y-2 overflow-auto text-sm">
-                {msgs.map((m, i) => (
-                  <li
-                    key={i}
-                    className="rounded border border-border/50 bg-ink/40 px-3 py-2"
-                  >
-                    <div className="avionic text-xs text-gold">
-                      {m.channel} → {m.to}
-                    </div>
-                    <div className="mt-1 text-cream">{m.body}</div>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
         </section>
       </div>
     </div>
