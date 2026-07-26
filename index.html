@@ -1,7 +1,15 @@
 <!doctype html>
-<html lang="en" data-theme="dispatcher">
+<html lang="en" data-theme="dispatcher" data-appearance="dark">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      try {
+        var a = localStorage.getItem('onfly-appearance')
+        if (a === 'light' || a === 'dark') {
+          document.documentElement.setAttribute('data-appearance', a)
+        }
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
     <meta

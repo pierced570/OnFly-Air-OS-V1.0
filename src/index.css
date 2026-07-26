@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 /* ── Brand tokens ─────────────────────────────────────────── */
-[data-theme="dispatcher"] {
+/* Dispatcher dark (default). --ink / --cream are semantic page/text so
+   existing bg-ink + text-cream utilities flip under light appearance. */
+[data-theme="dispatcher"],
+[data-theme="dispatcher"][data-appearance="dark"] {
   --ink: #0c0c0e;
   --surface: #141414;
   --surface-2: #1c1c1f;
@@ -18,9 +21,41 @@
   --mvfr: #1e88e5;
   --ifr: #c0392b;
   --lifr: #8e24aa;
+  --brand-ink: #0c0c0e;
   --text: var(--cream);
   --bg: var(--ink);
   color-scheme: dark;
+}
+
+/* Dispatcher light — warm cream desk, same gold accents.
+   Match html[data-appearance] so nested data-theme="dispatcher" shells inherit. */
+html[data-appearance="light"][data-theme="dispatcher"],
+html[data-appearance="light"] [data-theme="dispatcher"] {
+  --ink: #f4efe6;
+  --surface: #fffdf8;
+  --surface-2: #ebe4d4;
+  --border: #d4ccb8;
+  --gold: #c9a227;
+  --gold-lt: #b8921f;
+  --cream: #141414;
+  --muted: #6b6560;
+  --attn: var(--gold);
+  --late: #c0392b;
+  --onplan: #2e7d32;
+  --vfr: #2e7d32;
+  --mvfr: #1e88e5;
+  --ifr: #c0392b;
+  --lifr: #8e24aa;
+  --brand-ink: #0c0c0e;
+  --text: #141414;
+  --bg: #f4efe6;
+  color-scheme: light;
+}
+
+/* Gold CTAs need near-black labels even when --ink is the light page color */
+html[data-appearance="light"][data-theme="dispatcher"] .bg-gold,
+html[data-appearance="light"] [data-theme="dispatcher"] .bg-gold {
+  color: var(--brand-ink);
 }
 
 [data-theme="client"] {
@@ -39,6 +74,7 @@
   --mvfr: #1e88e5;
   --ifr: #c0392b;
   --lifr: #8e24aa;
+  --brand-ink: #0c0c0e;
   --text: var(--ink);
   --bg: var(--cream);
   color-scheme: light;

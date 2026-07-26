@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import type { StaffSectionId } from '@/domain/staffAccess'
 import { BrandLockup } from '@/components/BrandLockup'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import {
   getSession,
   logoutStaff,
@@ -153,6 +154,7 @@ export function DispatchShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </div>
+        <ThemeToggle compact />
         <Link
           to="/portal"
           className="flex h-11 shrink-0 items-center rounded-md px-3 text-sm text-gold"
@@ -202,6 +204,7 @@ export function DispatchShell({ children }: { children: ReactNode }) {
           <NavLinks onNavigate={() => setOpen(false)} />
         </nav>
         <div className="safe-bottom space-y-1 border-t border-border px-3 pt-3">
+          <ThemeToggle />
           <Link
             to="/portal"
             onClick={() => setOpen(false)}
