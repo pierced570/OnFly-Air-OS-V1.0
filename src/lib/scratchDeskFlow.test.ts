@@ -18,12 +18,18 @@ One Way
 Ready ASAP`)
     const { draft } = await parseScratchToDeskDraft()
     expect(draft.client_name).toBe('PSA')
-    expect(draft.origin_text).toBe('CVG')
-    expect(draft.destination_text).toBe('HPN')
+    expect(draft.timing).toBe('asap')
     expect(draft.asap).toBe(true)
-    expect(draft.ready_label).toBe('ASAP')
+    expect(draft.legs[0]?.origin_icao).toBe('KCVG')
+    expect(draft.legs[0]?.dest_icao).toBe('KHPN')
+    expect(draft.origin_text).toBe('KCVG')
+    expect(draft.destination_text).toBe('KHPN')
     expect(draft.pieces_text).toMatch(/Techs/i)
     expect(draft.pax_count).toBe(2)
+    // Desk draft has no live_leg field — operators enter that on the offer link.
+    expect(
+      Object.prototype.hasOwnProperty.call(draft.legs[0] ?? {}, 'live_leg_time'),
+    ).toBe(false)
   })
 
   it('resolves CVG/HPN and scores without hard-failing on techs mission', async () => {

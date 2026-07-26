@@ -1,10 +1,11 @@
 /**
- * After call pad → login: AI draft fields, recommend operators, send trip offers.
- * Approve — don't auto-enter.
+ * After call pad → login: parse notes into a Quick Dispatch–style trip draft
+ * (no live leg / no operator pricing), then recommend & send offer links.
  */
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
 import type { Candidate } from '@/domain/routing'
 import {
@@ -12,22 +13,35 @@ import {
   addClientContact,
   getClient,
   listClients,
+  recordPoUsed,
+  suggestNextPo,
   subscribeClients,
 } from '@/lib/clientStore'
 import {
+  newDeskLeg,
   parseScratchToDeskDraft,
   recommendForDeskDraft,
   sendDeskTripOffers,
+  syncDeskDraftDerived,
   type DeskDraft,
+  type DeskLeg,
 } from '@/lib/scratchDeskFlow'
 import { getScratchPad } from '@/lib/scratchPadStore'
 import { getTrip } from '@/lib/tripStore'
 
 const input =
-  'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
-const label = 'block text-xs text-muted'
+  'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold placeholder:text-muted'
+const label = 'block text-xs font-medium uppercase tracking-wider text-muted'
+const seg = (on: boolean) =>
+  [
+    'flex-1 rounded-md px-3 py-2 text-sm font-medium',
+    on ? 'bg-gold text-ink' : 'bg-surface-2 text-muted',
+  ].join(' ')
 
-function withClientMatch(d: DeskDraft, directory: { id: string; name: string }[]): DeskDraft {
+function withClientMatch(
+  d: DeskDraft,
+  directory: { id: string; name: string }[],
+): DeskDraft {
   if (d.client_id && getClient(d.client_id)) return d
   const best = bestClientMatch(d.client_name, directory)
   if (!best) return { ...d, client_id: null }
@@ -53,7 +67,8 @@ export default function DeskParsePage() {
   const [ruleChips, setRuleChips] = useState<string[]>([])
 
   async function applyRecommend(next: DeskDraft) {
-    const rec = await recommendForDeskDraft(next)
+    const synced = syncDeskDraftDerived(next)
+    const rec = await recommendForDeskDraft(synced)
     setCandidates(rec.candidates)
     setRecError(rec.error ?? null)
     setRuleChips(rec.rule_chips)
@@ -67,7 +82,13 @@ export default function DeskParsePage() {
     void parseScratchToDeskDraft()
       .then(async ({ draft: d }) => {
         if (cancelled) return
-        const matched = withClientMatch(d, listClients())
+        let matched = withClientMatch(d, listClients())
+        if (matched.client_id) {
+          const c = getClient(matched.client_id)
+          if (c && !matched.po) {
+            matched = { ...matched, po: suggestNextPo(c.last_po) }
+          }
+        }
         setDraft(matched)
         if (!matched.client_id && matched.client_name) {
           setNewName(matched.client_name)
@@ -94,15 +115,32 @@ export default function DeskParsePage() {
   }, [draft?.client_name, clients])
 
   const matchedClient = draft?.client_id ? getClient(draft.client_id) : undefined
+  const suggestedPo = useMemo(
+    () => suggestNextPo(matchedClient?.last_po ?? null),
+    [matchedClient?.last_po],
+  )
 
   function patch(p: Partial<DeskDraft>) {
-    setDraft((d) => (d ? { ...d, ...p } : d))
+    setDraft((d) => (d ? syncDeskDraftDerived({ ...d, ...p }) : d))
+  }
+
+  function patchLeg(id: string, p: Partial<DeskLeg>) {
+    setDraft((d) => {
+      if (!d) return d
+      const legs = d.legs.map((l) => (l.id === id ? { ...l, ...p } : l))
+      return syncDeskDraftDerived({ ...d, legs })
+    })
   }
 
   async function selectClient(id: string) {
     const c = getClient(id)
     if (!c || !draft) return
-    const next = { ...draft, client_id: c.id, client_name: c.name }
+    const next = syncDeskDraftDerived({
+      ...draft,
+      client_id: c.id,
+      client_name: c.name,
+      po: draft.po || suggestNextPo(c.last_po),
+    })
     setDraft(next)
     setShowNewClient(false)
     setBusy(true)
@@ -114,21 +152,13 @@ export default function DeskParsePage() {
     }
   }
 
-  function onClientNameChange(value: string) {
-    const best = bestClientMatch(value, clients)
-    const nextId = best?.id ?? null
-    const prevId = draft?.client_id ?? null
-    patch({
-      client_name: value,
-      client_id: nextId,
-    })
-    if (best) setShowNewClient(false)
-    // Re-score when a directory match appears or clears.
-    if (nextId !== prevId && draft) {
-      const next = { ...draft, client_name: value, client_id: nextId }
-      setBusy(true)
-      void applyRecommend(next).finally(() => setBusy(false))
+  function onClientSelect(id: string) {
+    if (!id) {
+      patch({ client_id: null })
+      setRuleChips([])
+      return
     }
+    void selectClient(id)
   }
 
   function saveNewClient() {
@@ -165,7 +195,11 @@ export default function DeskParsePage() {
     setRecError(null)
     try {
       const { draft: d } = await parseScratchToDeskDraft()
-      const matched = withClientMatch(d, listClients())
+      let matched = withClientMatch(d, listClients())
+      if (matched.client_id) {
+        const c = getClient(matched.client_id)
+        if (c && !matched.po) matched = { ...matched, po: suggestNextPo(c.last_po) }
+      }
       setDraft(matched)
       if (!matched.client_id && matched.client_name) {
         setNewName(matched.client_name)
@@ -193,10 +227,20 @@ export default function DeskParsePage() {
   async function send() {
     if (!draft) return
     if (!draft.client_id) {
-      setError('Match an existing client or add a new client first')
+      setError('Select or create a client first')
       setShowNewClient(true)
       if (!newName.trim() && draft.client_name) setNewName(draft.client_name)
       return
+    }
+    for (const [i, leg] of draft.legs.entries()) {
+      if (!leg.origin_icao.trim() || !leg.dest_icao.trim()) {
+        setError(`Leg ${i + 1}: origin and destination required`)
+        return
+      }
+      if (draft.timing === 'scheduled' && !leg.date) {
+        setError(`Leg ${i + 1}: date required for scheduled`)
+        return
+      }
     }
     const picks = candidates.filter((c) => selected.has(c.aircraft_id))
     if (!picks.length) {
@@ -206,7 +250,12 @@ export default function DeskParsePage() {
     setSending(true)
     setError(null)
     try {
-      const trip = await sendDeskTripOffers({ draft, candidates: picks })
+      const poFinal = draft.po.trim() || suggestedPo
+      recordPoUsed(draft.client_id, poFinal)
+      const trip = await sendDeskTripOffers({
+        draft: { ...draft, po: poFinal },
+        candidates: picks,
+      })
       setSentTripId(trip.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -220,15 +269,15 @@ export default function DeskParsePage() {
       <div className="mx-auto max-w-lg space-y-4 p-6">
         <h1 className="text-2xl font-semibold text-cream">Offers out</h1>
         <p className="text-sm text-muted">
-          Availability checks sent. Operators get a simple Yes / No first, then
-          time-to-position, live leg, wait, and price.
+          Availability links sent. Operators answer Yes / No, then enter tail,
+          TTP, live leg, and cost on their form.
         </p>
         <div className="flex flex-wrap gap-2">
           <Link
             to={`/trips/${sentTripId}/offers`}
             className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
           >
-            Open compare board
+            Open operator queue
           </Link>
           <Link
             to="/offer/preview"
@@ -246,19 +295,21 @@ export default function DeskParsePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">Desk</div>
-          <h1 className="mt-1 text-2xl font-semibold text-cream">
-            Parse call notes
-          </h1>
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-5 p-4 pb-28 sm:p-6">
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-cream">Parse call notes</h1>
           <p className="mt-1 text-sm text-muted">
-            AI draft — confirm every field before we ping operators.
+            Quick Dispatch–style trip info from the call pad — no live leg or
+            operator pricing. Operators quote on their link.
           </p>
         </div>
-        <Link to="/" className="text-sm text-gold hover:text-gold-lt">
-          ← Call pad
+        <Link
+          to="/"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted hover:text-cream"
+          aria-label="Close"
+        >
+          ✕
         </Link>
       </header>
 
@@ -278,216 +329,346 @@ export default function DeskParsePage() {
 
       {draft && (
         <>
-          <section className="grid gap-3 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <div className="flex flex-wrap items-end gap-2">
-                <label className={`${label} min-w-[12rem] flex-1`}>
-                  Client
-                  <input
-                    className={input}
-                    value={draft.client_name}
-                    onChange={(e) => onClientNameChange(e.target.value)}
-                    placeholder="Type to match directory…"
-                    list="desk-client-directory"
-                  />
-                  <datalist id="desk-client-directory">
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.name} />
-                    ))}
-                  </datalist>
-                </label>
-                <label className={`${label} min-w-[12rem] flex-1`}>
-                  Or pick existing
-                  <select
-                    className={input}
-                    value={draft.client_id ?? ''}
-                    onChange={(e) => {
-                      if (!e.target.value) {
-                        patch({ client_id: null })
-                        return
-                      }
-                      selectClient(e.target.value)
-                    }}
-                  >
-                    <option value="">Select client…</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowNewClient((v) => !v)
-                    if (!newName.trim() && draft.client_name) setNewName(draft.client_name)
-                  }}
-                  className="rounded-md border border-border px-3 py-2.5 text-sm text-gold hover:border-gold/40"
+          <section className="space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted">
+              Trip info
+            </div>
+            <div className="flex items-end gap-2">
+              <label className={`${label} flex-1`}>
+                Client *
+                <select
+                  value={draft.client_id ?? ''}
+                  onChange={(e) => onClientSelect(e.target.value)}
+                  className={input}
                 >
-                  + Add new client
-                </button>
-              </div>
-
-              {matchedClient ? (
-                <div className="space-y-1">
-                  <p className="text-xs text-onplan">
-                    Previous client:{' '}
-                    <span className="font-medium text-cream">{matchedClient.name}</span>
-                    {matchedClient.invoice_email
-                      ? ` · ${matchedClient.invoice_email}`
-                      : ''}
-                    {' — '}
-                    operators filtered by their parameters
-                  </p>
-                  {ruleChips.length > 0 && (
-                    <ul className="flex flex-wrap gap-1.5">
-                      {ruleChips.map((chip) => (
-                        <li
-                          key={chip}
-                          className="rounded border border-gold/30 bg-gold/10 px-2 py-0.5 text-[11px] text-gold"
-                        >
-                          {chip}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ) : draft.client_name.trim() ? (
-                <p className="text-xs text-late">
-                  No exact directory match — pick a suggestion or add a new client.
-                </p>
-              ) : (
-                <p className="text-xs text-muted">
-                  Match an existing client or add a new one before sending offers.
-                </p>
-              )}
-
-              {!matchedClient && clientHits.length > 0 && (
-                <ul className="flex flex-wrap gap-2">
-                  {clientHits.map((h) => (
-                    <li key={h.id}>
-                      <button
-                        type="button"
-                        onClick={() => selectClient(h.id)}
-                        className="rounded-md border border-gold/40 bg-gold/10 px-2.5 py-1 text-xs text-gold hover:bg-gold/20"
-                      >
-                        {h.name}
-                        <span className="ml-1 text-muted">({h.kind})</span>
-                      </button>
-                    </li>
+                  <option value="">Select client…</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
                   ))}
-                </ul>
-              )}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNewClient((v) => !v)
+                  if (!newName.trim() && draft.client_name) setNewName(draft.client_name)
+                }}
+                className="rounded-md border border-border px-3 py-2.5 text-sm text-gold"
+              >
+                + New
+              </button>
+            </div>
 
-              {showNewClient && (
-                <div className="space-y-2 rounded-lg border border-border bg-ink/40 p-3">
-                  <div className="text-xs uppercase tracking-wider text-gold">
-                    Add new client
-                  </div>
+            {!draft.client_id && draft.client_name.trim() && (
+              <p className="text-xs text-late">
+                Parsed “{draft.client_name}” — pick a match or + New.
+              </p>
+            )}
+            {!draft.client_id && clientHits.length > 0 && (
+              <ul className="flex flex-wrap gap-2">
+                {clientHits.map((h) => (
+                  <li key={h.id}>
+                    <button
+                      type="button"
+                      onClick={() => void selectClient(h.id)}
+                      className="rounded-md border border-gold/40 bg-gold/10 px-2.5 py-1 text-xs text-gold"
+                    >
+                      {h.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {matchedClient && (
+              <div className="space-y-1">
+                <p className="text-xs text-onplan">
+                  Previous client — operators filtered by their parameters
+                </p>
+                {ruleChips.length > 0 && (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {ruleChips.map((chip) => (
+                      <li
+                        key={chip}
+                        className="rounded border border-gold/30 bg-gold/10 px-2 py-0.5 text-[11px] text-gold"
+                      >
+                        {chip}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {showNewClient && (
+              <div className="space-y-2 rounded-lg border border-border bg-surface p-3">
+                <input
+                  className={input}
+                  placeholder="Client name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+                <input
+                  className={input}
+                  type="email"
+                  placeholder="Invoice email"
+                  value={newInvoice}
+                  onChange={(e) => setNewInvoice(e.target.value)}
+                />
+                <div className="grid grid-cols-2 gap-2">
                   <input
                     className={input}
-                    placeholder="Client name"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Contact name (optional)"
+                    value={newContactName}
+                    onChange={(e) => setNewContactName(e.target.value)}
                   />
                   <input
                     className={input}
                     type="email"
-                    placeholder="Invoice email"
-                    value={newInvoice}
-                    onChange={(e) => setNewInvoice(e.target.value)}
+                    placeholder="Contact email"
+                    value={newContactEmail}
+                    onChange={(e) => setNewContactEmail(e.target.value)}
                   />
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <input
-                      className={input}
-                      placeholder="Contact name (optional)"
-                      value={newContactName}
-                      onChange={(e) => setNewContactName(e.target.value)}
-                    />
-                    <input
-                      className={input}
-                      type="email"
-                      placeholder="Contact email"
-                      value={newContactEmail}
-                      onChange={(e) => setNewContactEmail(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={saveNewClient}
-                      className="rounded-md bg-gold px-3 py-2 text-sm font-medium text-ink"
-                    >
-                      Save client
-                    </button>
-                    <Link
-                      to="/clients"
-                      className="rounded-md border border-border px-3 py-2 text-sm text-muted hover:text-cream"
-                    >
-                      Open clients directory
-                    </Link>
-                  </div>
                 </div>
+                <button
+                  type="button"
+                  className="w-full rounded-md bg-gold py-2 text-sm font-medium text-ink"
+                  onClick={saveNewClient}
+                >
+                  Save client
+                </button>
+              </div>
+            )}
+
+            <label className={label}>
+              PO / Trip #
+              <div className="mt-1 flex overflow-hidden rounded-md border border-border">
+                <span className="flex items-center bg-surface-2 px-3 text-xs text-muted">
+                  PO #
+                </span>
+                <input
+                  value={draft.po}
+                  onChange={(e) => patch({ po: e.target.value })}
+                  placeholder={suggestedPo}
+                  className="min-w-0 flex-1 bg-ink px-3 py-2.5 text-sm text-cream outline-none"
+                />
+              </div>
+              {matchedClient && (
+                <span className="mt-1 block text-[11px] text-muted">
+                  {matchedClient.last_po
+                    ? `Last used ${matchedClient.last_po} · suggesting ${suggestedPo}`
+                    : `No prior PO — suggesting ${suggestedPo}`}
+                </span>
               )}
-            </div>
-            <label className={label}>
-              Origin
-              <input
-                className={input}
-                value={draft.origin_text}
-                onChange={(e) => patch({ origin_text: e.target.value })}
-                placeholder="ICAO, IATA, or city"
-              />
             </label>
-            <label className={label}>
-              Destination
-              <input
-                className={input}
-                value={draft.destination_text}
-                onChange={(e) => patch({ destination_text: e.target.value })}
-                placeholder="ICAO, IATA, or city"
-              />
-            </label>
-            <label className={`${label} sm:col-span-2`}>
-              Cargo / mission
-              <input
-                className={input}
-                value={draft.pieces_text}
-                onChange={(e) => patch({ pieces_text: e.target.value })}
-                placeholder="e.g. 2 techs + parts, or skid dims @ weight"
-              />
-            </label>
-            <label className={label}>
-              Ready
-              <input
-                className={input}
-                value={draft.ready_label}
-                onChange={(e) => patch({ ready_label: e.target.value })}
-              />
-            </label>
-            <label className="flex items-center gap-2 pt-6 text-sm text-cream">
-              <input
-                type="checkbox"
-                checked={draft.asap}
-                onChange={(e) =>
+
+            <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+              <button
+                type="button"
+                className={seg(draft.timing === 'asap')}
+                onClick={() => patch({ timing: 'asap', asap: true, ready_label: 'ASAP' })}
+              >
+                ASAP
+              </button>
+              <button
+                type="button"
+                className={seg(draft.timing === 'scheduled')}
+                onClick={() =>
                   patch({
-                    asap: e.target.checked,
-                    ready_label: e.target.checked ? 'ASAP' : draft.ready_label,
+                    timing: 'scheduled',
+                    asap: false,
+                    ready_label: draft.legs[0]?.date || 'scheduled',
                   })
                 }
-              />
-              ASAP / AOG
-            </label>
-            <label className="flex items-center gap-2 text-sm text-cream sm:col-span-2">
-              <input
-                type="checkbox"
-                checked={draft.hazmat}
-                onChange={(e) => patch({ hazmat: e.target.checked })}
-              />
-              Hazmat
-            </label>
-            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              >
+                Scheduled
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-4 text-sm text-cream">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.roundtrip}
+                  onChange={(e) => patch({ roundtrip: e.target.checked })}
+                />
+                Roundtrip
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.cargo_only}
+                  onChange={(e) => {
+                    const cargo_only = e.target.checked
+                    patch({
+                      cargo_only,
+                      payload_kind: cargo_only ? 'cargo' : 'both',
+                      legs: draft.legs.map((l) => ({
+                        ...l,
+                        pax: cargo_only ? 0 : l.pax,
+                      })),
+                    })
+                    const next = syncDeskDraftDerived({
+                      ...draft,
+                      cargo_only,
+                      payload_kind: cargo_only ? 'cargo' : 'both',
+                    })
+                    setBusy(true)
+                    void applyRecommend(next).finally(() => setBusy(false))
+                  }}
+                />
+                Cargo Only
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.hazmat}
+                  onChange={(e) => {
+                    const hazmat = e.target.checked
+                    patch({ hazmat })
+                    setBusy(true)
+                    void applyRecommend({ ...draft, hazmat }).finally(() =>
+                      setBusy(false),
+                    )
+                  }}
+                />
+                Hazmat
+              </label>
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            {draft.legs.map((leg, idx) => (
+              <div
+                key={leg.id}
+                className="rounded-lg border border-border bg-surface p-3"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-sm font-semibold text-cream">
+                    Leg {idx + 1}
+                  </div>
+                  {draft.legs.length > 1 && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted hover:text-late"
+                      onClick={() =>
+                        patch({
+                          legs: draft.legs.filter((l) => l.id !== leg.id),
+                        })
+                      }
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <AirportSelect
+                    label="Origin"
+                    value={leg.origin_icao}
+                    required
+                    onChange={(icao) => {
+                      patchLeg(leg.id, { origin_icao: icao })
+                      const next = syncDeskDraftDerived({
+                        ...draft,
+                        legs: draft.legs.map((l) =>
+                          l.id === leg.id ? { ...l, origin_icao: icao } : l,
+                        ),
+                      })
+                      setBusy(true)
+                      void applyRecommend(next).finally(() => setBusy(false))
+                    }}
+                  />
+                  <AirportSelect
+                    label="Destination"
+                    value={leg.dest_icao}
+                    required
+                    onChange={(icao) => {
+                      patchLeg(leg.id, { dest_icao: icao })
+                      const next = syncDeskDraftDerived({
+                        ...draft,
+                        legs: draft.legs.map((l) =>
+                          l.id === leg.id ? { ...l, dest_icao: icao } : l,
+                        ),
+                      })
+                      setBusy(true)
+                      void applyRecommend(next).finally(() => setBusy(false))
+                    }}
+                  />
+                  {draft.timing === 'scheduled' && (
+                    <label className={label}>
+                      Date
+                      <input
+                        type="date"
+                        className={input}
+                        value={leg.date}
+                        onChange={(e) =>
+                          patchLeg(leg.id, { date: e.target.value })
+                        }
+                      />
+                    </label>
+                  )}
+                  {!draft.cargo_only && (
+                    <label className={label}>
+                      PAX
+                      <input
+                        type="number"
+                        min={0}
+                        className={input}
+                        value={leg.pax}
+                        onChange={(e) =>
+                          patchLeg(leg.id, {
+                            pax: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                    </label>
+                  )}
+                  <label className={`${label} col-span-2`}>
+                    Repo time
+                    <input
+                      className={input}
+                      value={leg.repo_time}
+                      onChange={(e) =>
+                        patchLeg(leg.id, { repo_time: e.target.value })
+                      }
+                      placeholder="e.g. 1h 30m"
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="text-sm font-medium text-gold"
+              onClick={() =>
+                patch({
+                  legs: [
+                    ...draft.legs,
+                    newDeskLeg({
+                      origin_icao:
+                        draft.legs[draft.legs.length - 1]?.dest_icao ?? '',
+                    }),
+                  ],
+                })
+              }
+            >
+              + Add Leg
+            </button>
+          </section>
+
+          <section className="space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted">
+              Cargo / mission
+            </div>
+            <input
+              className={input}
+              value={draft.pieces_text}
+              onChange={(e) => patch({ pieces_text: e.target.value })}
+              placeholder="e.g. 2 techs + parts, or skid dims @ weight"
+            />
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={busy}
@@ -521,13 +702,15 @@ export default function DeskParsePage() {
             </div>
             {matchedClient && (
               <p className="text-xs text-muted">
-                Shortlist respects {matchedClient.name}&apos;s aircraft rules
-                {ruleChips.length ? ` (${ruleChips.length})` : ''}.
+                Shortlist respects {matchedClient.name}&apos;s aircraft rules.
+                No operator pricing here — they quote on the link.
               </p>
             )}
             {recError && <p className="text-sm text-late">{recError}</p>}
             {!candidates.length && !recError && (
-              <p className="text-sm text-muted">No candidates yet — fix origin/dest/dims.</p>
+              <p className="text-sm text-muted">
+                No candidates yet — fix origin/dest/mission.
+              </p>
             )}
             <ul className="space-y-2">
               {candidates.map((c) => {
@@ -583,7 +766,7 @@ export default function DeskParsePage() {
             >
               {sending
                 ? 'Sending…'
-                : `Send availability to ${selected.size} operator${selected.size === 1 ? '' : 's'}`}
+                : `Send offer link to ${selected.size} operator${selected.size === 1 ? '' : 's'}`}
             </button>
             <button
               type="button"
