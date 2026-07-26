@@ -13,6 +13,14 @@ import {
   type TripStoreRow,
 } from '@/lib/tripStore'
 
+/**
+ * Trip columns used by the public offer board + hydrate.
+ * Prefer `*` so a lagging prod schema (missing ETA/thread cols) still loads.
+ * Explicit lists that include unmigrated columns make PostgREST return 400 and
+ * the whole offer link looks "expired".
+ */
+const TRIP_PUBLIC_SELECT = '*'
+
 function mapOfferDbRow(
   r: Record<string, unknown>,
   tripId: string,
@@ -23,12 +31,14 @@ function mapOfferDbRow(
   } catch {
     notes = {}
   }
+  const opId = r.operator_id || notes.operator_id || ''
+  const acId = r.aircraft_id || notes.aircraft_id || ''
   return {
     id: String(r.id),
     trip_id: tripId,
-    operator_id: String(r.operator_id || ''),
+    operator_id: String(opId),
     operator_name: String(notes.operator_name || 'Operator'),
-    aircraft_id: String(r.aircraft_id || ''),
+    aircraft_id: String(acId),
     tail: String(notes.tail || ''),
     type_name: notes.type_name == null ? null : String(notes.type_name),
     state: (String(r.state) as OfferRow['state']) || 'pinged',
@@ -64,6 +74,78 @@ function mapOfferDbRow(
   }
 }
 
+function mapTripShellRow(
+  r: Record<string, unknown>,
+  offers: OfferRow[],
+  extras?: Partial<
+    Pick<
+      TripStoreRow,
+      | 'events'
+      | 'eta_chain'
+      | 'legs'
+      | 'participants'
+      | 'thread'
+      | 'documents'
+    >
+  >,
+): TripStoreRow {
+  const meta = (r.session_meta as Record<string, unknown>) || {}
+  const hard = meta.hard_quote as TripStoreRow['hard_quote'] | undefined
+  const threadFromMeta = meta.thread_number ? String(meta.thread_number) : null
+  const threadDisbandedFromMeta = meta.thread_disbanded_at
+    ? String(meta.thread_disbanded_at)
+    : null
+  const patternFromMeta =
+    (meta.service_pattern as ServicePattern | null | undefined) ?? null
+  return {
+    id: String(r.id),
+    ref: Number(r.ref ?? meta.ref ?? 0),
+    state: String(r.state) as TripState,
+    lane: String(r.lane_label || ''),
+    payload_summary: String(r.payload_summary || ''),
+    ready_label: String(r.ready_label || ''),
+    candidates: Array.isArray(meta.candidates)
+      ? (meta.candidates as TripStoreRow['candidates'])
+      : [],
+    offers,
+    events: extras?.events ?? [],
+    hard_quote: hard
+      ? { ...hard, accept_token: String(r.accept_token || hard.accept_token) }
+      : r.accept_token
+        ? {
+            total: 0,
+            accept_token: String(r.accept_token),
+            payload_kind: 'cargo' as const,
+          }
+        : undefined,
+    quick: (meta.quick as TripStoreRow['quick']) ?? undefined,
+    eta_chain: extras?.eta_chain ?? [],
+    service_pattern:
+      (r.service_pattern as ServicePattern | null | undefined) ??
+      patternFromMeta,
+    promised_delivery: r.promised_delivery
+      ? String(r.promised_delivery)
+      : meta.promised_delivery
+        ? String(meta.promised_delivery)
+        : null,
+    eta_defaults_snapshot:
+      (r.eta_defaults_snapshot as EtaDefaults | null | undefined) ??
+      ((meta.eta_defaults_snapshot as EtaDefaults | null | undefined) ?? null),
+    thread_number: r.thread_number
+      ? String(r.thread_number)
+      : threadFromMeta,
+    thread_disbanded_at: r.thread_disbanded_at
+      ? String(r.thread_disbanded_at)
+      : threadDisbandedFromMeta,
+    legs: extras?.legs ?? [],
+    participants: extras?.participants ?? [],
+    thread: extras?.thread ?? [],
+    documents: extras?.documents ?? [],
+    invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
+    client_id: r.client_id ? String(r.client_id) : undefined,
+  }
+}
+
 /**
  * Public offer board: resolve magic_token from session, else load that trip
  * from Supabase so operators on another device can open the link.
@@ -88,9 +170,7 @@ export async function resolveOfferByToken(token: string): Promise<{
   const tripRows = await safeQuery('trips.by_offer_token', () =>
     db()
       .from('trips')
-      .select(
-        'id,ref,state,client_id,lane_label,payload_summary,ready_label,accept_token,session_meta,po_number,created_at,service_pattern,promised_delivery,eta_defaults_snapshot,thread_number,thread_disbanded_at',
-      )
+      .select(TRIP_PUBLIC_SELECT)
       .eq('id', tripId)
       .limit(1),
   )
@@ -104,49 +184,7 @@ export async function resolveOfferByToken(token: string): Promise<{
     mapOfferDbRow(r as Record<string, unknown>, tripId),
   )
 
-  const r = tripDb as Record<string, unknown>
-  const meta = (r.session_meta as Record<string, unknown>) || {}
-  const hard = meta.hard_quote as TripStoreRow['hard_quote'] | undefined
-  const mapped: TripStoreRow = {
-    id: String(r.id),
-    ref: Number(r.ref ?? meta.ref ?? 0),
-    state: String(r.state) as TripState,
-    lane: String(r.lane_label || ''),
-    payload_summary: String(r.payload_summary || ''),
-    ready_label: String(r.ready_label || ''),
-    candidates: Array.isArray(meta.candidates)
-      ? (meta.candidates as TripStoreRow['candidates'])
-      : [],
-    offers,
-    events: [],
-    hard_quote: hard
-      ? { ...hard, accept_token: String(r.accept_token || hard.accept_token) }
-      : r.accept_token
-        ? {
-            total: 0,
-            accept_token: String(r.accept_token),
-            payload_kind: 'cargo' as const,
-          }
-        : undefined,
-    quick: (meta.quick as TripStoreRow['quick']) ?? undefined,
-    eta_chain: [],
-    service_pattern: (r.service_pattern as ServicePattern | null) ?? null,
-    promised_delivery: r.promised_delivery
-      ? String(r.promised_delivery)
-      : null,
-    eta_defaults_snapshot:
-      (r.eta_defaults_snapshot as EtaDefaults | null) ?? null,
-    thread_number: r.thread_number ? String(r.thread_number) : null,
-    thread_disbanded_at: r.thread_disbanded_at
-      ? String(r.thread_disbanded_at)
-      : null,
-    legs: [],
-    participants: [],
-    thread: [],
-    documents: [],
-    invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
-    client_id: r.client_id ? String(r.client_id) : undefined,
-  }
+  const mapped = mapTripShellRow(tripDb as Record<string, unknown>, offers)
   replaceTripsFromDb([mapped])
   return getTripByOfferToken(trimmed)
 }
@@ -157,9 +195,7 @@ export async function hydrateTrips(): Promise<number> {
   const tripRows = await safeQuery('trips.hydrate', () =>
     db()
       .from('trips')
-      .select(
-        'id,ref,state,client_id,lane_label,payload_summary,ready_label,accept_token,session_meta,po_number,created_at,service_pattern,promised_delivery,eta_defaults_snapshot,thread_number,thread_disbanded_at',
-      )
+      .select(TRIP_PUBLIC_SELECT)
       .not('state', 'in', '("closed","lost","cancelled")')
       .order('ref', { ascending: false })
       .limit(200),
@@ -313,47 +349,14 @@ export async function hydrateTrips(): Promise<number> {
     }
   }
 
-  const mapped: TripStoreRow[] = tripRows.map((r: Record<string, unknown>) => {
-    const meta = (r.session_meta as Record<string, unknown>) || {}
-    const hard = meta.hard_quote as TripStoreRow['hard_quote'] | undefined
-    return {
-      id: String(r.id),
-      ref: Number(r.ref ?? meta.ref ?? 0),
-      state: String(r.state) as TripState,
-      lane: String(r.lane_label || ''),
-      payload_summary: String(r.payload_summary || ''),
-      ready_label: String(r.ready_label || ''),
-      candidates: Array.isArray(meta.candidates)
-        ? (meta.candidates as TripStoreRow['candidates'])
-        : [],
-      offers: offersByTrip.get(String(r.id)) ?? [],
+  const mapped: TripStoreRow[] = tripRows.map((r: Record<string, unknown>) =>
+    mapTripShellRow(r, offersByTrip.get(String(r.id)) ?? [], {
       events: eventsByTrip.get(String(r.id)) ?? [],
-      hard_quote: hard
-        ? { ...hard, accept_token: String(r.accept_token || hard.accept_token) }
-        : r.accept_token
-          ? {
-              total: 0,
-              accept_token: String(r.accept_token),
-              payload_kind: 'cargo' as const,
-            }
-          : undefined,
-      quick: (meta.quick as TripStoreRow['quick']) ?? undefined,
       eta_chain: etaByTrip.get(String(r.id)) ?? [],
-      service_pattern: (r.service_pattern as ServicePattern | null) ?? null,
-      promised_delivery: r.promised_delivery ? String(r.promised_delivery) : null,
-      eta_defaults_snapshot: (r.eta_defaults_snapshot as EtaDefaults | null) ?? null,
-      thread_number: r.thread_number ? String(r.thread_number) : null,
-      thread_disbanded_at: r.thread_disbanded_at
-        ? String(r.thread_disbanded_at)
-        : null,
       legs: legsByTrip.get(String(r.id)) ?? [],
       participants: partsByTrip.get(String(r.id)) ?? [],
-      thread: [],
-      documents: [],
-      invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
-      client_id: r.client_id ? String(r.client_id) : undefined,
-    }
-  })
+    }),
+  )
 
   replaceTripsFromDb(mapped)
   return mapped.length
