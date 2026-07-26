@@ -13,6 +13,7 @@ import {
 import type { Candidate } from '@/domain/routing'
 import {
   availabilityEmailSubject,
+  availabilityPingHtml,
   availabilityPingWithLink,
   standDownBody,
   DISCLOSURE_295_24_TEMPLATE,
@@ -257,7 +258,13 @@ export async function sendAvailabilityPings(
         to: o.contact_email.trim(),
         subject: availabilityEmailSubject(fresh.lane),
         text: body,
-        html: `<p>${body.replace(/\n/g, '<br/>')}</p>`,
+        html: availabilityPingHtml(
+          fresh.lane,
+          fresh.payload_summary,
+          fresh.ready_label,
+          o.magic_token,
+          base,
+        ),
       })
       sent.email = o.contact_email.trim()
     }
