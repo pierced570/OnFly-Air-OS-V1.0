@@ -18,9 +18,12 @@ import { markInviteCompleted } from '@/lib/operatorInviteStore'
 import { submitOperatorOnboard } from '@/lib/operatorOnboardStore'
 import { parseD085File } from '@/lib/parseD085File'
 import { loadNetwork, upsertCachedOperator } from '@/lib/networkData'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import type { OperatorRow } from '@/lib/types'
 import { watchTailsFromD085 } from '@/lib/watchedTailsStore'
 import { normalizeQuoteLinkChannel } from '@/domain/quoteLinkChannel'
+import { dispatchAlertEmail } from '@/lib/dispatchNotify'
+import { createEmailAdapter } from '@/adapters/email'
 
 export type OperatorPacketInput = {
   invite_token?: string
@@ -239,10 +242,129 @@ export async function submitOperatorPacket(input: OperatorPacketInput) {
     markInviteCompleted(input.invite_token, submission.id)
   }
 
+  await persistPacketToDb({
+    draftId: draft.id,
+    company,
+    base_icao: draft.base_icao,
+    email,
+    cell,
+    contact_name: input.contact_name.trim() || 'Ops',
+    channel,
+    notes: bankingNote,
+    tails: d085Rows,
+  })
+
+  // Desk alert so dispatch sees the packet even if DB write is off.
+  try {
+    const desk = dispatchAlertEmail()
+    if (desk.includes('@')) {
+      const tailsLine = d085Rows.length
+        ? d085Rows.map((t) => t.tail).join(', ')
+        : 'none parsed'
+      await createEmailAdapter().send({
+        to: desk,
+        subject: `Network packet — ${company}`,
+        text: [
+          `${company} submitted a network packet.`,
+          `Email: ${email}`,
+          `Cell: ${cell || '—'}`,
+          `Quote pref: ${input.quote_pref}`,
+          `Base: ${draft.base_icao || '—'}`,
+          `Tails: ${tailsLine}`,
+          `Docs: charter=${input.charter?.name ?? '—'} d085=${input.d085?.name ?? '—'} coi=${input.coi?.name ?? '—'}`,
+          '',
+          bankingNote,
+        ].join('\n'),
+      })
+    }
+  } catch (e) {
+    console.warn('[packet] desk alert failed', e)
+  }
+
   return {
     submission,
     draft,
     tails: d085Rows,
     d085Note,
+  }
+}
+
+async function persistPacketToDb(opts: {
+  draftId: string
+  company: string
+  base_icao: string
+  email: string
+  cell: string
+  contact_name: string
+  channel: string
+  notes: string
+  tails: Array<{ tail: string; type_name: string }>
+}): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return
+  try {
+    const { data: existing } = await supabase
+      .from('operators')
+      .select('id')
+      .eq('name', opts.company)
+      .maybeSingle()
+    let operatorId = existing?.id as string | undefined
+    if (!operatorId) {
+      const { data: inserted, error } = await supabase
+        .from('operators')
+        .insert({
+          id: opts.draftId,
+          name: opts.company,
+          base_icao: opts.base_icao || null,
+          notes: opts.notes.slice(0, 2000),
+          ops_email: opts.email,
+          quote_link_channel: opts.channel,
+          onboarding_status: 'packet_submitted',
+        })
+        .select('id')
+        .single()
+      if (error) {
+        console.warn('[packet] operator insert failed', error.message)
+        return
+      }
+      operatorId = inserted.id
+    } else {
+      await supabase
+        .from('operators')
+        .update({
+          base_icao: opts.base_icao || null,
+          notes: opts.notes.slice(0, 2000),
+          ops_email: opts.email,
+          quote_link_channel: opts.channel,
+          onboarding_status: 'packet_submitted',
+        })
+        .eq('id', operatorId)
+    }
+
+    await supabase.from('operator_contacts').insert({
+      operator_id: operatorId,
+      name: opts.contact_name,
+      role: 'ops',
+      cell: opts.cell || null,
+      email: opts.email,
+      consent_sms: true,
+      consent_call: opts.channel === 'both',
+    })
+
+    for (const t of opts.tails) {
+      const { error } = await supabase.from('aircraft').upsert(
+        {
+          operator_id: operatorId,
+          tail: t.tail,
+          type_name: t.type_name || null,
+          base_icao: opts.base_icao || null,
+          active: true,
+          spec_source: 'd085_packet',
+        },
+        { onConflict: 'operator_id,tail' },
+      )
+      if (error) console.warn('[packet] aircraft upsert failed', error.message)
+    }
+  } catch (e) {
+    console.warn('[packet] persist to DB failed', e)
   }
 }
