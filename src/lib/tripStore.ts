@@ -446,6 +446,14 @@ export function subscribeTrips(fn: () => void): () => void {
   }
 }
 
+/** Test-only — clear in-memory trips (does not wipe localStorage). */
+export function __resetTripsForTests(): void {
+  trips.clear()
+  refSeq = 2000
+  rebuild()
+  for (const l of listeners) l()
+}
+
 export function listTripsStable(): TripStoreRow[] {
   return snapshot
 }

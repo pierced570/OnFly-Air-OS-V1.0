@@ -398,8 +398,9 @@ export default function DeskParsePage() {
       <div className="mx-auto max-w-lg space-y-4 p-6">
         <h1 className="text-2xl font-semibold text-cream">Offers out</h1>
         <p className="text-sm text-muted">
-          Availability links sent. Operators answer Yes / No, then enter their
-          aircraft, times, and price on their form.
+          Offer links ready — operators are not auto-pinged. Share a link; they
+          answer Yes / No, then enter their aircraft, times, and price on their
+          form.
         </p>
         <RawCallNotes notes={rawNotes || draft?.raw_notes || ''} />
         <div className="flex flex-wrap gap-2">
@@ -1230,10 +1231,10 @@ export default function DeskParsePage() {
             </button>
             <button
               type="button"
-              onClick={() => nav('/board')}
+              onClick={() => nav('/dispatch')}
               className="rounded-md border border-border px-4 py-2.5 text-sm text-muted"
             >
-              Board
+              Dispatch center
             </button>
           </div>
         </>

@@ -24,7 +24,7 @@ import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { fboFeesForAirport } from '@/lib/fboStore'
 import {
   buildOffersFromCandidates,
-  sendAvailabilityPings,
+  openTripOffers,
   type OfferContactOverride,
 } from '@/lib/offerFlow'
 import { getScratchPad } from '@/lib/scratchPadStore'
@@ -289,7 +289,7 @@ export async function recommendForDeskDraft(
   }
 }
 
-/** Spool trip offers for selected candidates and ping availability. */
+/** Spool trip offers for selected candidates — links only, no SMS/email ping. */
 export async function sendDeskTripOffers(opts: {
   draft: DeskDraft
   candidates: Candidate[]
@@ -344,9 +344,10 @@ export async function sendDeskTripOffers(opts: {
         cargo_summary: toolingDimsForParse(draft.pieces_text),
         notes: draft.notes || null,
         raw_notes: draft.raw_notes || null,
+        notify: false,
       },
     })
   })
-  await sendAvailabilityPings(trip.id)
+  await openTripOffers(trip.id)
   return getTrip(trip.id)!
 }

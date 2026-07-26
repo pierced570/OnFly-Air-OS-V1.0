@@ -107,6 +107,7 @@ describe('staffAccess', () => {
     expect(sectionForPath('/chat')).toBe('chat')
     expect(sectionForPath('/chat/abc')).toBe('chat')
     expect(sectionForPath('/board')).toBe('board')
+    expect(sectionForPath('/dispatch')).toBe('board')
     expect(sectionForPath('/desk')).toBe('intake')
     expect(sectionForPath('/')).toBe(null)
   })

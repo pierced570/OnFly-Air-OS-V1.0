@@ -95,14 +95,14 @@ export default function TripPage() {
       <div className="p-8">
         <h1 className="text-xl text-cream">Trip not found</h1>
         <p className="mt-2 text-sm text-muted">
-          Open a trip from the Board, or create one with{' '}
+          Open a trip from Dispatch center, or create one with{' '}
           <Link className="text-gold" to="/quick-dispatch">
             Quick Dispatch
           </Link>
           .
         </p>
-        <Link to="/board" className="mt-4 inline-block text-sm text-gold">
-          ← Board
+        <Link to="/dispatch" className="mt-4 inline-block text-sm text-gold">
+          ← Dispatch center
         </Link>
       </div>
     )
@@ -434,8 +434,8 @@ export default function TripPage() {
       </section>
 
       <div className="flex flex-wrap gap-3 text-sm">
-        <Link to="/board" className="text-gold hover:text-gold-lt">
-          ← Board
+        <Link to="/dispatch" className="text-gold hover:text-gold-lt">
+          ← Dispatch center
         </Link>
         {!q && trip.offers.length > 0 && (
           <Link to={`/trips/${trip.id}/offers`} className="text-gold hover:text-gold-lt">

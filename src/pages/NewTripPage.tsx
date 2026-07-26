@@ -301,8 +301,8 @@ export default function NewTripPage() {
             fleet.
           </p>
         </div>
-        <Link to="/board" className="text-sm text-muted hover:text-cream">
-          ← Board
+        <Link to="/dispatch" className="text-sm text-muted hover:text-cream">
+          ← Dispatch center
         </Link>
       </header>
 

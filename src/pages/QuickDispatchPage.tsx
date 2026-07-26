@@ -249,7 +249,7 @@ export default function QuickDispatchPage() {
           </p>
         </div>
         <Link
-          to="/board"
+          to="/dispatch"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted hover:text-cream"
           aria-label="Close"
         >

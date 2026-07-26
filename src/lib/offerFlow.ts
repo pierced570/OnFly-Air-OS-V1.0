@@ -1,5 +1,5 @@
 /**
- * Trip offers + booking flow — availability pings, hard quote, accept cascade.
+ * Trip offers + booking flow — open requests (no auto-ping), hard quote, accept.
  * All trip state changes go through safeTransitionTrip.
  */
 import { createCommsAdapter, getMockCommsLog } from '@/adapters/comms'
@@ -30,6 +30,7 @@ import {
   safeTransitionTrip,
   type FeeScope,
   type OfferRow,
+  type TripStoreRow,
 } from '@/lib/tripStore'
 
 export type OfferContactOverride = {
@@ -56,7 +57,148 @@ export function buildOffersFromCandidates(
   })
 }
 
-export async function sendAvailabilityPings(tripId: string) {
+async function persistOffersTrip(tripId: string): Promise<void> {
+  const fresh = getTrip(tripId)
+  if (!fresh) return
+  try {
+    const { persistTripSnapshot } = await import('@/lib/db/persistTrip')
+    await persistTripSnapshot(fresh)
+  } catch (e) {
+    console.warn('[offers] persist trip snapshot failed', e)
+  }
+}
+
+/**
+ * Open trip offers for operators — create/share links only.
+ * Does NOT SMS/email (no pings). Use sendAvailabilityPings only if
+ * dispatcher explicitly opts into notify.
+ */
+export async function openTripOffers(tripId: string): Promise<TripStoreRow> {
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
+  if (trip.state === 'quoted_estimated') {
+    safeTransitionTrip(tripId, 'offers_out', 'dispatcher', {
+      reason: 'Trip offers opened — share links (no auto-ping)',
+    })
+  }
+  const now = new Date().toISOString()
+  mutateTrip(tripId, (t) => {
+    for (const offer of t.offers) {
+      if (offer.state === 'stood_down' || offer.state === 'unavailable') continue
+      if (offer.state === 'quoted' || offer.state === 'selected') continue
+      const firstOpen = !offer.ping_sent_at
+      if (firstOpen) offer.ping_sent_at = now
+      if (offer.state !== 'available') offer.state = 'pinged'
+      if (!firstOpen) continue
+      t.events.push({
+        at: now,
+        actor: 'dispatcher',
+        kind: 'offer_request',
+        payload: {
+          offer_id: offer.id,
+          operator_id: offer.operator_id,
+          notify: false,
+        },
+      })
+    }
+  })
+  // Persist so /offer/:token resolves on other devices (public domain).
+  await persistOffersTrip(tripId)
+  return getTrip(tripId)!
+}
+
+/** Append one operator to an existing trip offer list (no ping). */
+export async function appendOfferToTrip(
+  tripId: string,
+  candidate: Candidate,
+  override?: OfferContactOverride,
+): Promise<OfferRow> {
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
+  if (trip.offers.some((o) => o.operator_id === candidate.operator_id)) {
+    throw new Error('That operator already has this request')
+  }
+  const row = buildOffersFromCandidates(
+    tripId,
+    [candidate],
+    override ? { [candidate.operator_id]: override } : undefined,
+  )[0]!
+  const now = new Date().toISOString()
+  row.ping_sent_at = now
+  row.state = 'pinged'
+  mutateTrip(tripId, (t) => {
+    t.offers.push(row)
+    t.events.push({
+      at: now,
+      actor: 'dispatcher',
+      kind: 'offer_added',
+      payload: {
+        offer_id: row.id,
+        operator_id: row.operator_id,
+        operator_name: row.operator_name,
+        notify: false,
+      },
+    })
+  })
+  const fresh = getTrip(tripId)!
+  if (fresh.state === 'quoted_estimated') {
+    safeTransitionTrip(tripId, 'offers_out', 'dispatcher', {
+      reason: 'Added operator to trip offer request',
+    })
+  }
+  await persistOffersTrip(tripId)
+  return row
+}
+
+/** Update mission fields on an open trip offer request (no re-ping). */
+export async function updateTripOfferRequest(
+  tripId: string,
+  patch: {
+    lane?: string
+    payload_summary?: string
+    ready_label?: string
+  },
+): Promise<TripStoreRow> {
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
+  const now = new Date().toISOString()
+  mutateTrip(tripId, (t) => {
+    const before = {
+      lane: t.lane,
+      payload_summary: t.payload_summary,
+      ready_label: t.ready_label,
+    }
+    if (patch.lane !== undefined) t.lane = patch.lane.trim()
+    if (patch.payload_summary !== undefined) {
+      t.payload_summary = patch.payload_summary.trim()
+    }
+    if (patch.ready_label !== undefined) t.ready_label = patch.ready_label.trim()
+    t.events.push({
+      at: now,
+      actor: 'dispatcher',
+      kind: 'offer_request_updated',
+      payload: {
+        before,
+        after: {
+          lane: t.lane,
+          payload_summary: t.payload_summary,
+          ready_label: t.ready_label,
+        },
+      },
+    })
+  })
+  await persistOffersTrip(tripId)
+  return getTrip(tripId)!
+}
+
+/**
+ * Optional SMS/email notify — not used by default desk / ladder send.
+ * Prefer sharing the magic-link from the offers queue.
+ */
+export async function sendAvailabilityPings(
+  tripId: string,
+  opts?: { offerIds?: string[] },
+) {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
   const comms = createCommsAdapter()
@@ -67,14 +209,11 @@ export async function sendAvailabilityPings(tripId: string) {
   const now = new Date().toISOString()
   const fresh = getTrip(tripId)!
   // Persist before outbound links so /offer/:token resolves on other devices.
-  try {
-    const { persistTripSnapshot } = await import('@/lib/db/persistTrip')
-    await persistTripSnapshot(fresh)
-  } catch (e) {
-    console.warn('[offers] persist before ping failed', e)
-  }
+  await persistOffersTrip(tripId)
   const base = appPublicUrl()
+  const filter = opts?.offerIds ? new Set(opts.offerIds) : null
   for (const o of fresh.offers) {
+    if (filter && !filter.has(o.id)) continue
     if (o.state === 'stood_down' || o.state === 'unavailable') continue
     const channel = normalizeQuoteLinkChannel(o.quote_link_channel)
     const body = availabilityPingWithLink(

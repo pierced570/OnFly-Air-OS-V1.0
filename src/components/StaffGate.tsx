@@ -34,7 +34,7 @@ export function StaffGate({ children }: { children: ReactNode }) {
 
   const section = sectionForPath(loc.pathname)
   if (section && !sessionCan(section)) {
-    return <Navigate to="/board" replace />
+    return <Navigate to="/dispatch" replace />
   }
 
   return children

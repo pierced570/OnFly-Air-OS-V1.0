@@ -4,7 +4,7 @@
  */
 
 export const STAFF_SECTIONS = [
-  { id: 'board', label: 'Board', pathPrefix: '/board' },
+  { id: 'board', label: 'Dispatch center', pathPrefix: '/dispatch' },
   { id: 'chat', label: 'Chat', pathPrefix: '/chat' },
   { id: 'quick_dispatch', label: 'Quick Dispatch', pathPrefix: '/quick-dispatch' },
   { id: 'intake', label: 'Intake', pathPrefix: '/intake' },
@@ -164,7 +164,14 @@ export function sectionForPath(pathname: string): StaffSectionId | null {
   if (pathname.startsWith('/briefing')) return 'briefing'
   if (pathname.startsWith('/chat')) return 'chat'
   if (pathname.startsWith('/desk')) return 'intake'
-  if (pathname === '/board' || pathname.startsWith('/board/')) return 'board'
+  if (
+    pathname === '/dispatch' ||
+    pathname.startsWith('/dispatch/') ||
+    pathname === '/board' ||
+    pathname.startsWith('/board/')
+  ) {
+    return 'board'
+  }
   return null
 }
 

@@ -15,18 +15,14 @@ const nav: {
   section: StaffSectionId
   end?: boolean
 }[] = [
-  { to: '/board', label: 'Board', section: 'board', end: true },
-  { to: '/', label: 'Call pad', section: 'intake' },
-  { to: '/desk', label: 'Parse', section: 'intake' },
-  { to: '/chat', label: 'Chat', section: 'chat' },
-  { to: '/quick-dispatch', label: 'Quick Dispatch', section: 'quick_dispatch' },
-  { to: '/intake', label: 'Intake', section: 'intake' },
+  // Day-to-day ops live in Dispatch center (Board / call pad / parse / chat /
+  // QD / intake / new trip condensed — tools drawer keeps full pages).
+  { to: '/dispatch', label: 'Dispatch center', section: 'board', end: true },
   { to: '/financials', label: 'Financials', section: 'financials' },
   { to: '/referrals', label: 'Referrals', section: 'referrals' },
   { to: '/clients', label: 'Clients', section: 'clients' },
   { to: '/leads', label: 'Leads', section: 'leads' },
   { to: '/fbos', label: 'FBOs', section: 'fbos' },
-  { to: '/trips/new', label: 'New trip', section: 'trips' },
   { to: '/network', label: 'Network', section: 'network' },
   { to: '/radar', label: 'Radar', section: 'radar' },
   { to: '/briefing', label: 'Briefing', section: 'briefing' },
