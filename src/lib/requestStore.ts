@@ -2,6 +2,7 @@
  * In-memory trip requests from portal + dispatcher intake.
  */
 
+import { tripRequestDraftFromScratchNotes } from '@/domain/scratchToTripRequest'
 import {
   deriveReadyAt,
   forkliftFromDraft,
@@ -9,7 +10,12 @@ import {
   summaryFromDraft,
   type TripRequestDraft,
   type TripRequestRecord,
+  type TripRequestSource,
 } from '@/domain/tripRequest'
+import {
+  clearScratchPad,
+  getScratchPad,
+} from '@/lib/scratchPadStore'
 import {
   addClient,
   listClients,
@@ -89,7 +95,7 @@ function flagForkliftForDispatchers(
 
 export function submitTripRequest(
   draft: TripRequestDraft,
-  source: 'portal' | 'dispatch',
+  source: TripRequestSource,
 ): TripRequestRecord {
   const id = crypto.randomUUID()
   const forklift = forkliftFromDraft(draft)
@@ -113,6 +119,18 @@ export function submitTripRequest(
   if (source === 'portal') {
     void notifyPortalRequest(row)
   }
+  return row
+}
+
+/**
+ * Push live Call pad notes into Trip requests, then clear the scratch pad.
+ */
+export function pushScratchPadToTripRequest(): TripRequestRecord {
+  const body = getScratchPad().body.trim()
+  if (!body) throw new Error('Call pad is empty')
+  const draft = tripRequestDraftFromScratchNotes(body)
+  const row = submitTripRequest(draft, 'call_pad')
+  clearScratchPad()
   return row
 }
 

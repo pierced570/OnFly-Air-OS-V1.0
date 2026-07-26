@@ -20,8 +20,16 @@ import {
   type DispatchDrawerId,
 } from '@/domain/dispatchCenter'
 import { absoluteAppUrl } from '@/lib/appUrl'
-import { listRequests, subscribeRequests } from '@/lib/requestStore'
-import { getScratchPad, subscribeScratchPad } from '@/lib/scratchPadStore'
+import {
+  listRequests,
+  pushScratchPadToTripRequest,
+  subscribeRequests,
+} from '@/lib/requestStore'
+import {
+  clearScratchPad,
+  getScratchPad,
+  subscribeScratchPad,
+} from '@/lib/scratchPadStore'
 import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
 
 const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
@@ -106,15 +114,7 @@ function Drawer({
   )
 }
 
-function CardList({
-  cards,
-  onParseCallPad,
-  onEditCallPad,
-}: {
-  cards: DispatchCard[]
-  onParseCallPad?: () => void
-  onEditCallPad?: () => void
-}) {
+function CardList({ cards }: { cards: DispatchCard[] }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
@@ -122,45 +122,13 @@ function CardList({
     <ul className="space-y-2">
       {cards.map((c) => (
         <li key={`${c.kind}-${c.id}`}>
-          {c.kind === 'call_pad' ? (
-            <div className="rounded-md border border-gold/50 bg-gold/5 px-3 py-3">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-gold">
-                From call pad
-              </div>
-              <div className="mt-1 font-medium text-cream">{c.title}</div>
-              {c.notes ? (
-                <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-cream/85">
-                  {c.notes}
-                </pre>
-              ) : (
-                <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onParseCallPad?.()}
-                  className="rounded-md bg-gold px-3 py-1.5 text-xs font-semibold text-ink hover:bg-gold-lt"
-                >
-                  Parse & shortlist →
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onEditCallPad?.()}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
-                >
-                  Edit on call pad
-                </button>
-              </div>
-            </div>
-          ) : (
-            <Link
-              to={c.href}
-              className="block rounded-md border border-border/70 bg-ink px-3 py-3 hover:border-gold/40"
-            >
-              <div className="font-medium text-cream">{c.title}</div>
-              <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-            </Link>
-          )}
+          <Link
+            to={c.href}
+            className="block rounded-md border border-border/70 bg-ink px-3 py-3 hover:border-gold/40"
+          >
+            <div className="font-medium text-cream">{c.title}</div>
+            <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+          </Link>
         </li>
       ))}
     </ul>
@@ -309,6 +277,7 @@ export default function DispatchCenterPage() {
         : 'requests',
   )
   const [tool, setTool] = useState<ToolId | null>(null)
+  const [pushError, setPushError] = useState<string | null>(null)
 
   // Deep link from desk send / share: /dispatch?drawer=offers&focus=<tripId>
   useEffect(() => {
@@ -326,7 +295,6 @@ export default function DispatchCenterPage() {
   const buckets = useMemo(
     () =>
       buildDispatchDrawers({
-        callPadBody: scratch.body,
         requests,
         trips: trips.map((t) => ({
           id: t.id,
@@ -338,12 +306,31 @@ export default function DispatchCenterPage() {
           offers: t.offers,
         })),
       }),
-    [scratch.body, requests, trips],
+    [requests, trips],
   )
+
+  const scratchPreview = scratch.body.trim()
 
   function toggle(id: DispatchDrawerId | 'tools') {
     setOpenDrawer((cur) => (cur === id ? null : id))
     if (id !== 'tools') setTool(null)
+  }
+
+  function pushToTripRequests() {
+    setPushError(null)
+    try {
+      pushScratchPadToTripRequest()
+      setOpenDrawer('requests')
+    } catch (e) {
+      setPushError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  function eraseScratchPad() {
+    if (!scratchPreview) return
+    if (!window.confirm('Erase Call pad notes? This cannot be undone.')) return
+    clearScratchPad()
+    setPushError(null)
   }
 
   if (tool) {
@@ -402,6 +389,44 @@ export default function DispatchCenterPage() {
         </button>
       </header>
 
+      {scratchPreview ? (
+        <div className="rounded-lg border border-gold/40 bg-gold/5 px-3 py-3">
+          <div className="text-xs font-medium uppercase tracking-wider text-gold">
+            Call pad has notes
+          </div>
+          <pre className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-cream/85">
+            {scratchPreview.slice(0, 600)}
+            {scratchPreview.length > 600 ? '…' : ''}
+          </pre>
+          {pushError ? (
+            <p className="mt-2 text-xs text-late">{pushError}</p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setTool('parse')}
+              className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt"
+            >
+              Parse & shortlist
+            </button>
+            <button
+              type="button"
+              onClick={pushToTripRequests}
+              className="rounded-md border border-gold/50 px-3 py-2 text-xs font-medium text-gold hover:bg-gold/10"
+            >
+              Push to trip requests
+            </button>
+            <button
+              type="button"
+              onClick={eraseScratchPad}
+              className="rounded-md border border-border px-3 py-2 text-xs text-muted hover:border-late/50 hover:text-late"
+            >
+              Erase ScratchPad
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {DISPATCH_DRAWERS.map((d) => (
         <Drawer
           key={d.id}
@@ -418,12 +443,6 @@ export default function DispatchCenterPage() {
         >
           {d.id === 'offers' ? (
             <OfferTripList cards={buckets.offers} focusTripId={focusTripId} />
-          ) : d.id === 'requests' ? (
-            <CardList
-              cards={buckets.requests}
-              onParseCallPad={() => setTool('parse')}
-              onEditCallPad={() => setTool('callpad')}
-            />
           ) : (
             <CardList cards={buckets[d.id]} />
           )}

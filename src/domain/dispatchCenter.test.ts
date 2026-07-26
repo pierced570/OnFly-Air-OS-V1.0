@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  CALL_PAD_REQUEST_ID,
-  buildDispatchDrawers,
-  callPadRequestCard,
-  drawerForTripState,
-} from './dispatchCenter'
+import { buildDispatchDrawers, drawerForTripState } from './dispatchCenter'
 
 describe('dispatchCenter', () => {
   it('maps trip states to drawers (offers ≠ client quotes)', () => {
@@ -16,24 +11,21 @@ describe('dispatchCenter', () => {
     expect(drawerForTripState('closed')).toBeNull()
   })
 
-  it('pulls Call pad notes into Trip requests', () => {
-    const card = callPadRequestCard(
-      'PSA\nCKB — DFW\n2 Techs + Tools\nASAP',
-    )
-    expect(card?.id).toBe(CALL_PAD_REQUEST_ID)
-    expect(card?.kind).toBe('call_pad')
-    expect(card?.title).toMatch(/PSA/)
-    expect(card?.notes).toContain('CKB')
-    expect(callPadRequestCard('   ')).toBeNull()
-
+  it('labels Call pad requests distinctly', () => {
     const buckets = buildDispatchDrawers({
-      callPadBody: 'Acme · KCAK → KMDW · ASAP',
-      requests: [],
+      requests: [
+        {
+          id: 'r-pad',
+          ref: 99,
+          lane: 'KCKB→KDFW',
+          summary: '2 pax · ASAP',
+          source: 'call_pad',
+          status: 'submitted',
+        },
+      ],
       trips: [],
     })
-    expect(buckets.requests).toHaveLength(1)
-    expect(buckets.requests[0]?.kind).toBe('call_pad')
-    expect(buckets.requests[0]?.notes).toContain('KCAK')
+    expect(buckets.requests[0]?.subtitle).toMatch(/^Call pad ·/)
   })
 
   it('buckets inbound, trip cards, recipients, and submitted quotes', () => {

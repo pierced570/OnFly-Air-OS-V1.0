@@ -12,16 +12,11 @@ import {
   offerRecipientStatusLabel,
   type OfferRecipientStatus,
 } from '@/domain/offerRecipients'
-import { extractFromScratchNotes } from '@/domain/scratchParse'
-
-/** Stable id for the live Call pad card in Trip requests. */
-export const CALL_PAD_REQUEST_ID = 'call-pad'
-
 export const DISPATCH_DRAWERS = [
   {
     id: 'requests',
     label: 'Trip requests',
-    blurb: 'Call pad notes, portal requests, and open requests',
+    blurb: 'Call pad pushes, portal requests, and open requests',
   },
   {
     id: 'offers',
@@ -69,46 +64,18 @@ export type DispatchCard = {
   title: string
   subtitle: string
   href: string
-  kind: 'call_pad' | 'request' | 'trip' | 'offer_quote'
+  kind: 'request' | 'trip' | 'offer_quote'
   state?: TripState
   ref?: number
   /** Per-operator rows for trip-offer cards. */
   recipients?: DispatchRecipient[]
   trip_id?: string
-  /** Full Call pad body when kind is call_pad. */
-  notes?: string
 }
 
-/** Build a Trip requests card from live Call pad notes (heuristic parse). */
-export function callPadRequestCard(body: string): DispatchCard | null {
-  const text = body.trim()
-  if (!text) return null
-  const ex = extractFromScratchNotes(text)
-  const origin = ex.origin_text?.trim()
-  const dest = ex.destination_text?.trim()
-  const lane =
-    origin && dest
-      ? `${origin} → ${dest}`
-      : origin || dest || 'Route TBD'
-  const client = ex.client_name?.trim()
-  const bits = [
-    client,
-    ex.asap ? 'ASAP' : ex.ready_local?.trim() || null,
-    ex.pieces_text?.trim() || null,
-    ex.pax_count != null ? `${ex.pax_count} pax` : null,
-    ex.hazmat ? 'hazmat' : null,
-  ].filter(Boolean) as string[]
-  const preview = text.replace(/\s+/g, ' ')
-  const short =
-    preview.length > 160 ? `${preview.slice(0, 160)}…` : preview
-  return {
-    kind: 'call_pad',
-    id: CALL_PAD_REQUEST_ID,
-    title: client ? `${client} · ${lane}` : lane,
-    subtitle: `Call pad${bits.length ? ` · ${bits.join(' · ')}` : ''} · ${short}`,
-    href: '/desk',
-    notes: text,
-  }
+function requestSourceLabel(source: string): string {
+  if (source === 'portal') return 'Portal'
+  if (source === 'call_pad') return 'Call pad'
+  return 'Dispatch'
 }
 
 export type DispatchDrawerBucket = Record<DispatchDrawerId, DispatchCard[]>
@@ -144,8 +111,6 @@ export function drawerForTripState(state: TripState): DispatchDrawerId | null {
 }
 
 export function buildDispatchDrawers(input: {
-  /** Live Call pad body — surfaces first in Trip requests. */
-  callPadBody?: string | null
   requests: Array<{
     id: string
     ref: number
@@ -180,16 +145,13 @@ export function buildDispatchDrawers(input: {
 }): DispatchDrawerBucket {
   const out = emptyBuckets()
 
-  const callPad = callPadRequestCard(input.callPadBody ?? '')
-  if (callPad) out.requests.push(callPad)
-
   for (const r of input.requests) {
     if (r.status !== 'submitted' && r.status !== 'in_review') continue
     out.requests.push({
       kind: 'request',
       id: r.id,
       title: `R-${r.ref} · ${r.lane}`,
-      subtitle: `${r.source === 'portal' ? 'Portal' : 'Dispatch'} · ${r.summary}${
+      subtitle: `${requestSourceLabel(r.source)} · ${r.summary}${
         r.hard_quote_requested_at ? ' · HARD QUOTE' : ''
       }${r.email ? ` · ${r.email}` : ''}`,
       href: `/trips/new?request=${r.id}`,

@@ -147,7 +147,13 @@ export function buildPipeline(input: {
       id: r.id,
       stage: 'inbound',
       title: `R-${r.ref} · ${r.lane}`,
-      subtitle: `${r.source === 'portal' ? 'Portal' : 'Dispatch'} · ${r.summary}${
+      subtitle: `${
+        r.source === 'portal'
+          ? 'Portal'
+          : r.source === 'call_pad'
+            ? 'Call pad'
+            : 'Dispatch'
+      } · ${r.summary}${
         r.hard_quote_requested_at ? ' · HARD QUOTE' : ''
       }${r.email ? ` · ${r.email}` : ''}`,
       href: `/trips/new?request=${r.id}`,
