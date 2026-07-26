@@ -22,7 +22,7 @@ import { loadTaxRates } from '@/lib/taxRatesStore'
 import { generateCandidates } from '@/domain/routing'
 import {
   buildOffersFromCandidates,
-  sendAvailabilityPings,
+  openTripOffers,
 } from '@/lib/offerFlow'
 import {
   createRoutedTripWithShortlist,
@@ -176,7 +176,7 @@ export async function createRoutedTripFromRequest(
   return { trip, shortlist }
 }
 
-/** Approve shortlist → quoted_estimated → offers_out + availability pings. */
+/** Approve shortlist → quoted_estimated → offers_out (links only, no ping). */
 export async function approveShortlistAndSpoolOffers(
   tripId: string,
   aircraftIds?: string[],
@@ -205,14 +205,6 @@ export async function approveShortlistAndSpoolOffers(
     t.offers = offers
   })
 
-  const cur = getTrip(tripId)!
-  if (cur.state === 'quoted_estimated') {
-    safeTransitionTrip(tripId, 'offers_out', 'dispatcher', {
-      reason: 'Spooling trip offers to shortlist',
-      offer_count: offers.length,
-    })
-  }
-
-  await sendAvailabilityPings(tripId)
+  openTripOffers(tripId)
   return getTrip(tripId)
 }

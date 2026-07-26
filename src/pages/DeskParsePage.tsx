@@ -424,8 +424,8 @@ export default function DeskParsePage() {
       <div className="mx-auto max-w-lg space-y-4 p-6">
         <h1 className="text-2xl font-semibold text-cream">Offers out</h1>
         <p className="text-sm text-muted">
-          Availability links sent. Operators answer Yes / No, then enter tail,
-          TTP, live leg, and cost on their form.
+          Offer links ready — operators are not auto-pinged. Share a link; they
+          answer Yes / No, then enter tail, TTP, live leg, and cost.
         </p>
         <RawCallNotes notes={rawNotes || draft?.raw_notes || ''} />
         <div className="flex flex-wrap gap-2">
@@ -1422,7 +1422,7 @@ function SentOfferLinks({ tripId }: { tripId: string }) {
               target="_blank"
               rel="noreferrer"
             >
-              {o.operator_name} · {o.tail}
+              {o.operator_name}
             </Link>
           </li>
         ))}

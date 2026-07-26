@@ -152,6 +152,80 @@ function CardList({
   )
 }
 
+function OfferTripList({
+  cards,
+}: {
+  cards: ReturnType<typeof buildDispatchDrawers>['offers']
+}) {
+  if (!cards.length) {
+    return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
+  }
+  return (
+    <ul className="space-y-3">
+      {cards.map((c) => (
+        <li
+          key={`${c.kind}-${c.id}`}
+          className="rounded-md border border-border/70 bg-ink px-3 py-3"
+        >
+          <div className="font-medium text-cream">{c.title}</div>
+          <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+          {c.recipients && c.recipients.length > 0 ? (
+            <ul className="mt-2 space-y-1.5 border-t border-border/50 pt-2">
+              {c.recipients.map((r) => (
+                <li
+                  key={r.offer_id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                >
+                  <span className="text-cream">
+                    {r.name}
+                    {r.status === 'quote_submitted' ? (
+                      <span className="ml-1.5 text-xs text-gold">
+                        · Quote submitted
+                      </span>
+                    ) : null}
+                  </span>
+                  <span
+                    className={
+                      r.status === 'yes' || r.status === 'quote_submitted'
+                        ? 'text-xs text-onplan'
+                        : r.status === 'no'
+                          ? 'text-xs text-muted'
+                          : 'text-xs text-gold'
+                    }
+                  >
+                    {r.status_label}
+                    {r.quote_summary ? ` · ${r.quote_summary}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              to={c.href}
+              className="rounded-md bg-gold/15 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/25"
+            >
+              Open queue
+            </Link>
+            <Link
+              to={`${c.href}?add=1`}
+              className="rounded-md border border-border px-2.5 py-1.5 text-xs text-cream hover:border-gold/40"
+            >
+              Send to new operator
+            </Link>
+            <Link
+              to={`${c.href}?update=1`}
+              className="rounded-md border border-border px-2.5 py-1.5 text-xs text-cream hover:border-gold/40"
+            >
+              Update request
+            </Link>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function DispatchCenterPage() {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -253,8 +327,8 @@ export default function DispatchCenterPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-cream">Dispatch center</h1>
         <p className="text-sm text-muted">
-          Requests → trip offers → client quotes → approved → live tracking.
-          Open a drawer to work it.
+          Requests → trip offers → submitted quotes → client quotes → approved →
+          live tracking. Open a drawer to work it.
         </p>
       </header>
 
@@ -343,9 +417,16 @@ export default function DispatchCenterPage() {
           count={buckets[d.id].length}
           open={openDrawer === d.id}
           onToggle={() => toggle(d.id)}
-          attention={buckets[d.id].length > 0 && d.id === 'requests'}
+          attention={
+            buckets[d.id].length > 0 &&
+            (d.id === 'requests' || d.id === 'submitted_quotes')
+          }
         >
-          <CardList cards={buckets[d.id]} />
+          {d.id === 'offers' ? (
+            <OfferTripList cards={buckets.offers} />
+          ) : (
+            <CardList cards={buckets[d.id]} />
+          )}
         </Drawer>
       ))}
 

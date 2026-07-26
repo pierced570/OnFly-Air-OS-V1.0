@@ -11,7 +11,7 @@ describe('dispatchCenter', () => {
     expect(drawerForTripState('closed')).toBeNull()
   })
 
-  it('buckets inbound and trip cards', () => {
+  it('buckets inbound, trip cards, recipients, and submitted quotes', () => {
     const buckets = buildDispatchDrawers({
       intake: [
         {
@@ -39,7 +39,33 @@ describe('dispatchCenter', () => {
           lane: 'KCAK→KMDW',
           state: 'offers_out',
           legs: [],
-          offers: [{ state: 'pinged' }, { state: 'quoted' }],
+          offers: [
+            {
+              id: 'o1',
+              operator_name: 'Alpha Air',
+              state: 'pinged',
+            },
+            {
+              id: 'o2',
+              operator_name: 'Bravo Charter',
+              state: 'available',
+            },
+            {
+              id: 'o3',
+              operator_name: 'Charlie Jets',
+              state: 'quoted',
+              price_net: 5000,
+              time_to_position_min: 60,
+              live_leg_min: 90,
+              fee_scope: 'aircraft_and_fees',
+              tail: 'N9ZZ',
+            },
+            {
+              id: 'o4',
+              operator_name: 'Delta Freight',
+              state: 'unavailable',
+            },
+          ],
         },
         {
           id: 't2',
@@ -66,6 +92,15 @@ describe('dispatchCenter', () => {
     })
     expect(buckets.requests).toHaveLength(2)
     expect(buckets.offers[0]?.href).toContain('/offers')
+    expect(buckets.offers[0]?.recipients).toHaveLength(4)
+    expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Charlie Jets'))
+      .toMatchObject({
+        status: 'quote_submitted',
+        status_label: 'Quote submitted',
+      })
+    expect(buckets.submitted_quotes).toHaveLength(1)
+    expect(buckets.submitted_quotes[0]?.title).toContain('Charlie Jets')
+    expect(buckets.submitted_quotes[0]?.title).toContain('Quote submitted')
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
     expect(buckets.tracking[0]?.href).toContain('/chat/')
