@@ -458,30 +458,42 @@ export async function generateCandidates(
     })
   }
 
-  if (opts?.pickMode === 'all') {
-    return [...results].sort((a, b) => a.price - b.price)
-  }
-
-  // Rank + label top options
-  const byPrice = [...results].sort((a, b) => a.price - b.price)
-  const byTime = [...results].sort(
+  // Score every tail, then keep one best per operator — never recommend the
+  // same person multiple times because they have many aircraft.
+  const byPriceAll = [...results].sort((a, b) => a.price - b.price)
+  const byTimeAll = [...results].sort(
     (a, b) => new Date(a.eta_end).getTime() - new Date(b.eta_end).getTime(),
   )
-  const byBest = [...results].sort((a, b) => {
-    const score = (c: Candidate) => {
-      const priceRank = byPrice.indexOf(c)
-      const timeRank = byTime.indexOf(c)
-      const st = radar?.get(c.tail)
-      const radarPen = radarRankPenalty(st)
-      return 0.45 * priceRank + 0.3 * timeRank + 0.25 * radarPen
-    }
-    return score(a) - score(b)
-  })
+  const priceRank = new Map(byPriceAll.map((c, i) => [c.aircraft_id, i]))
+  const timeRank = new Map(byTimeAll.map((c, i) => [c.aircraft_id, i]))
+  const compositeRank = (c: Candidate) => {
+    const st = radar?.get(c.tail)
+    const radarPen = radarRankPenalty(st)
+    return (
+      0.45 * (priceRank.get(c.aircraft_id) ?? 9999) +
+      0.3 * (timeRank.get(c.aircraft_id) ?? 9999) +
+      0.25 * radarPen
+    )
+  }
+  const perOperator = bestCandidatePerOperator(results, compositeRank)
+
+  if (opts?.pickMode === 'all') {
+    return [...perOperator].sort((a, b) => a.price - b.price)
+  }
+
+  // Rank + label top options (already unique by operator)
+  const byPrice = [...perOperator].sort((a, b) => a.price - b.price)
+  const byTime = [...perOperator].sort(
+    (a, b) => new Date(a.eta_end).getTime() - new Date(b.eta_end).getTime(),
+  )
+  const byBest = [...perOperator].sort(
+    (a, b) => compositeRank(a) - compositeRank(b),
+  )
 
   const picked: Candidate[] = []
   const add = (c: Candidate | undefined, label: Candidate['label']) => {
     if (!c) return
-    if (picked.some((p) => p.aircraft_id === c.aircraft_id)) return
+    if (picked.some((p) => p.operator_id === c.operator_id)) return
     picked.push({ ...c, label })
   }
   add(byPrice[0], 'cheapest')
@@ -493,4 +505,20 @@ export async function generateCandidates(
   }
 
   return picked
+}
+
+/**
+ * Collapse scored aircraft candidates to one row per operator.
+ * Keeps the lowest-rank (best) tail for that operator's fleet.
+ */
+export function bestCandidatePerOperator(
+  candidates: Candidate[],
+  rank: (c: Candidate) => number,
+): Candidate[] {
+  const best = new Map<string, Candidate>()
+  for (const c of candidates) {
+    const prev = best.get(c.operator_id)
+    if (!prev || rank(c) < rank(prev)) best.set(c.operator_id, c)
+  }
+  return [...best.values()]
 }

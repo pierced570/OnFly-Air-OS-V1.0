@@ -213,46 +213,140 @@ export async function persistLegs(
   )
 }
 
+function offerNotesJson(o: OfferRow): string {
+  return JSON.stringify({
+    operator_name: o.operator_name,
+    tail: o.tail,
+    type_name: o.type_name,
+    contact_cell: o.contact_cell,
+    contact_cell_is_mock: o.contact_cell_is_mock,
+    contact_email: o.contact_email,
+    quote_link_channel: o.quote_link_channel,
+    notified_at: o.notified_at,
+    bookingGated: o.bookingGated,
+    needsInfo: o.needsInfo,
+    fee_scope: o.fee_scope,
+    offer_notes: o.notes,
+    // Keep raw ids in notes even when FK columns are nulled.
+    operator_id: o.operator_id,
+    aircraft_id: o.aircraft_id,
+  })
+}
+
+async function upsertOfferRow(
+  tripId: string,
+  o: OfferRow,
+  opts: { operator_id: string | null; aircraft_id: string | null },
+): Promise<boolean> {
+  const data = await safeQuery(`offers.upsert.${o.id}`, () =>
+    db().from('offers').upsert(
+      {
+        id: o.id,
+        trip_id: tripId,
+        operator_id: opts.operator_id,
+        aircraft_id: opts.aircraft_id,
+        state: o.state,
+        ping_sent_at: o.ping_sent_at,
+        replied_at: o.replied_at,
+        time_to_position_min: o.time_to_position_min,
+        live_leg_min: o.live_leg_min,
+        wait_ok: o.wait_ok,
+        max_wait_hrs: o.max_wait_hrs,
+        price_net: o.price_net,
+        magic_token: o.magic_token,
+        notes: offerNotesJson(o),
+      },
+      { onConflict: 'id' },
+    ),
+  )
+  return data !== null
+}
+
 async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> {
   if (!canPersist() || !offers.length) return
   for (const o of offers) {
+    if (!isUuid(o.id) || !o.magic_token?.trim()) {
+      console.warn('[db] offer missing uuid/token — skip', o.operator_name)
+      continue
+    }
     const opId = isUuid(o.operator_id) ? o.operator_id : null
-    const acId = isUuid(o.aircraft_id) ? o.aircraft_id : null
-    // Skip if operator uuid missing from DB would violate FK — try insert with null op
-    await safeQuery(`offers.upsert.${o.id}`, () =>
-      db().from('offers').upsert(
-        {
-          id: o.id,
-          trip_id: tripId,
-          operator_id: opId,
-          aircraft_id: acId,
-          state: o.state,
-          ping_sent_at: o.ping_sent_at,
-          replied_at: o.replied_at,
-          time_to_position_min: o.time_to_position_min,
-          live_leg_min: o.live_leg_min,
-          wait_ok: o.wait_ok,
-          max_wait_hrs: o.max_wait_hrs,
-          price_net: o.price_net,
-          magic_token: o.magic_token,
-          notes: JSON.stringify({
-            operator_name: o.operator_name,
-            tail: o.tail,
-            type_name: o.type_name,
-            contact_cell: o.contact_cell,
-            contact_cell_is_mock: o.contact_cell_is_mock,
-            contact_email: o.contact_email,
-            quote_link_channel: o.quote_link_channel,
-            notified_at: o.notified_at,
-            bookingGated: o.bookingGated,
-            needsInfo: o.needsInfo,
-            fee_scope: o.fee_scope,
-            offer_notes: o.notes,
-          }),
-        },
-        { onConflict: 'id' },
-      ),
+    // Never send aircraft_id unless we know it exists — stale/fixture UUIDs
+    // break FK and left public /offer/:token links unreadable.
+    const ok = await upsertOfferRow(tripId, o, {
+      operator_id: opId,
+      aircraft_id: null,
+    })
+    if (!ok) {
+      // Retry with both FKs null (operator uuid may also be missing in DB).
+      const retry = await upsertOfferRow(tripId, o, {
+        operator_id: null,
+        aircraft_id: null,
+      })
+      if (!retry) {
+        console.warn(
+          '[db] offers.upsert failed after null-FK retry',
+          o.operator_name,
+          o.magic_token,
+        )
+      }
+    }
+  }
+}
+
+/** True when every offer magic_token is readable via anon (public offer board). */
+export async function verifyOfferTokensReadable(
+  offers: OfferRow[],
+): Promise<{ ok: boolean; missing: string[] }> {
+  if (!canPersist()) return { ok: false, missing: offers.map((o) => o.operator_name) }
+  const missing: string[] = []
+  for (const o of offers) {
+    if (!o.magic_token?.trim()) {
+      missing.push(o.operator_name)
+      continue
+    }
+    const rows = await safeQuery('offers.verify_token', () =>
+      db()
+        .from('offers')
+        .select('id')
+        .eq('magic_token', o.magic_token)
+        .limit(1),
     )
+    const hit = Array.isArray(rows) ? rows[0] : null
+    if (!hit) missing.push(o.operator_name)
+  }
+  return { ok: missing.length === 0, missing }
+}
+
+/**
+ * Persist trip + offers and confirm public tokens resolve.
+ * Throws when Supabase is configured but a token is not readable.
+ */
+export async function persistTripOffersForPublicLinks(
+  trip: TripStoreRow,
+): Promise<void> {
+  if (!canPersist()) {
+    throw new Error(
+      'Supabase is not configured — offer links cannot be opened on other devices',
+    )
+  }
+  await persistTripSnapshot(trip)
+  const check = await verifyOfferTokensReadable(trip.offers)
+  if (!check.ok) {
+    // One more force-null upsert pass, then re-check.
+    for (const o of trip.offers) {
+      if (!check.missing.includes(o.operator_name)) continue
+      await upsertOfferRow(trip.id, o, {
+        operator_id: null,
+        aircraft_id: null,
+      })
+    }
+    const again = await verifyOfferTokensReadable(trip.offers)
+    if (!again.ok) {
+      throw new Error(
+        `Could not save offer link for: ${again.missing.join(', ')}. ` +
+          'Fix Supabase offers table / RLS, then send again.',
+      )
+    }
   }
 }
 

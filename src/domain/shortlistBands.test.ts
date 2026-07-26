@@ -41,30 +41,35 @@ function cand(
 describe('shortlistBands', () => {
   it('picks closest per portal band and collapses jet', () => {
     const pistonNear = cand({
+      operator_id: 'op-piston-near',
       aircraft_id: 'a1',
       tail: 'N1',
       type_name: 'C208',
       circuit_nm: 40,
     })
     const pistonFar = cand({
+      operator_id: 'op-piston-far',
       aircraft_id: 'a2',
       tail: 'N2',
       type_name: 'C208',
       circuit_nm: 200,
     })
     const tp = cand({
+      operator_id: 'op-tp',
       aircraft_id: 'a3',
       tail: 'N3',
       type_name: 'King Air 350',
       circuit_nm: 80,
     })
     const light = cand({
+      operator_id: 'op-light',
       aircraft_id: 'a4',
       tail: 'N4',
       type_name: 'Citation CJ3',
       circuit_nm: 90,
     })
     const heavy = cand({
+      operator_id: 'op-heavy',
       aircraft_id: 'a5',
       tail: 'N5',
       type_name: 'Challenger 350',
@@ -113,5 +118,66 @@ describe('shortlistBands', () => {
     // closest jet among light + larger
     expect(shortlist.jet?.aircraft_id).toBe('a5')
     expect(shortlistAircraftIds(shortlist)).toEqual(['a1', 'a3', 'a5'])
+  })
+
+  it('never assigns the same operator to two bands', () => {
+    const apexTp = cand({
+      operator_id: 'apex',
+      operator_name: 'Apex Jet',
+      aircraft_id: 'apex-ka',
+      tail: 'N716AP',
+      type_name: 'King Air 200',
+      circuit_nm: 30,
+    })
+    const apexJet = cand({
+      operator_id: 'apex',
+      operator_name: 'Apex Jet',
+      aircraft_id: 'apex-fal',
+      tail: 'N388BB',
+      type_name: 'Falcon 50',
+      circuit_nm: 40,
+    })
+    const otherJet = cand({
+      operator_id: 'other',
+      operator_name: 'Other Jets',
+      aircraft_id: 'other-1',
+      tail: 'N9ZZ',
+      type_name: 'Citation CJ3',
+      circuit_nm: 90,
+    })
+    const meta = new Map([
+      [
+        'apex-ka',
+        {
+          aircraft_id: 'apex-ka',
+          category: 'turboprop',
+          engines: 'multi',
+          type_name: 'King Air 200',
+        },
+      ],
+      [
+        'apex-fal',
+        {
+          aircraft_id: 'apex-fal',
+          category: 'midsize',
+          engines: 'multi',
+          type_name: 'Falcon 50',
+        },
+      ],
+      [
+        'other-1',
+        {
+          aircraft_id: 'other-1',
+          category: 'light jet',
+          engines: 'multi',
+          type_name: 'Citation CJ3',
+        },
+      ],
+    ])
+    const picks = pickClosestByBand([apexTp, apexJet, otherJet], meta)
+    const ops = picks.map((p) => p.candidate.operator_id)
+    expect(new Set(ops).size).toBe(ops.length)
+    expect(ops).toContain('apex')
+    expect(ops).toContain('other')
   })
 })

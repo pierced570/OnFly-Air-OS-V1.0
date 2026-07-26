@@ -149,7 +149,9 @@ describe('offerFlow — open vs notify', () => {
     expect(trip.offers[0]?.notified_at).toBeTruthy()
     expect(getMockSentEmails().length).toBeGreaterThan(emailBefore)
     expect(getMockSentEmails().at(-1)?.to).toBe('desk@alpha.example')
-    expect(getMockSentEmails().at(-1)?.text).toMatch(/Respond here:/)
+    expect(getMockSentEmails().at(-1)?.text).toMatch(/Yes or No/)
+    expect(getMockSentEmails().at(-1)?.text).toMatch(/\/offer\//)
+    expect(getMockSentEmails().at(-1)?.html).toMatch(/Open trip offer/)
   })
 
   it('appendOfferToTrip emails the new recipient', async () => {
