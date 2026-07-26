@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { extractFromScratchNotes } from './scratchParse'
+import { resolvePlaceToAirport } from './resolvePlace'
 
 describe('extractFromScratchNotes', () => {
   it('pulls client, ICAO lane, skids, and ASAP', () => {
@@ -21,5 +22,45 @@ ASAP AOG`,
     const r = extractFromScratchNotes('Need Akron to Chicago 1 skid 48x40x48 @ 400')
     expect(r.origin_text?.toLowerCase()).toContain('akron')
     expect(r.destination_text?.toLowerCase()).toContain('chicago')
+  })
+
+  it('parses PSA / CVG–HPN / techs + parts / ASAP call-pad notes', () => {
+    const r = extractFromScratchNotes(
+      `PSA
+CVG – HPN
+2 Techs + Parts
+One Way
+Ready ASAP`,
+    )
+    expect(r.client_name).toBe('PSA')
+    expect(r.origin_text).toBe('CVG')
+    expect(r.destination_text).toBe('HPN')
+    expect(r.pieces_text).toMatch(/2 Techs \+ Parts/i)
+    expect(r.pax_count).toBe(2)
+    expect(r.payload_kind).toBe('both')
+    expect(r.asap).toBe(true)
+    expect(resolvePlaceToAirport(r.origin_text!).icao).toBe('KCVG')
+    expect(resolvePlaceToAirport(r.destination_text!).icao).toBe('KHPN')
+  })
+
+  it('does not treat ASAP as an airport code', () => {
+    const r = extractFromScratchNotes('KCAK to KMDW\nReady ASAP')
+    expect(r.origin_text).toBe('KCAK')
+    expect(r.destination_text).toBe('KMDW')
+    expect(r.asap).toBe(true)
+  })
+
+  it('ignores to inside tomorrow when parsing subject+body', () => {
+    const r = extractFromScratchNotes(
+      'Need aircraft tomorrow\n\n3 skids Akron to Chicago ready 9am',
+    )
+    expect(r.origin_text?.toLowerCase()).toContain('akron')
+    expect(r.destination_text?.toLowerCase()).toContain('chicago')
+  })
+
+  it('accepts hyphen and slash lanes', () => {
+    expect(extractFromScratchNotes('CVG-HPN ASAP').origin_text).toBe('CVG')
+    expect(extractFromScratchNotes('CVG/HPN').destination_text).toBe('HPN')
+    expect(extractFromScratchNotes('CVG — HPN').origin_text).toBe('CVG')
   })
 })

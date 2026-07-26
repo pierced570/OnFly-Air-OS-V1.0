@@ -32,6 +32,7 @@ export type DeskDraft = {
   hazmat: boolean
   notes: string
   payload_kind: 'cargo' | 'pax' | 'both'
+  pax_count: number
 }
 
 export function deskDraftFromExtract(ex: ExtractedRequest): DeskDraft {
@@ -43,10 +44,11 @@ export function deskDraftFromExtract(ex: ExtractedRequest): DeskDraft {
     asap: Boolean(ex.asap),
     ready_label: ex.asap
       ? 'ASAP'
-      : ex.ready_local?.trim() || 'scheduled',
+      : ex.ready_local?.trim() || '',
     hazmat: Boolean(ex.hazmat),
     notes: ex.notes?.trim() || '',
     payload_kind: ex.payload_kind ?? 'cargo',
+    pax_count: ex.pax_count ?? 0,
   }
 }
 
@@ -74,10 +76,18 @@ export async function recommendForDeskDraft(
     }
   }
 
-  const pieces =
+  let pieces =
     draft.payload_kind === 'pax'
       ? []
-      : parseDims(draft.pieces_text || '1 skid 48x40x48 @ 500').pieces
+      : parseDims(draft.pieces_text || '').pieces
+  // Techs + parts / mission text often has no dims yet — soft default for scoring.
+  if (
+    draft.payload_kind !== 'pax' &&
+    !pieces.length &&
+    /\b(techs?|parts?|engineers?|mechanics?|pax)\b/i.test(draft.pieces_text)
+  ) {
+    pieces = parseDims('1 skid 24x24x24 @ 150').pieces
+  }
   if (draft.payload_kind !== 'pax' && !pieces.length) {
     return {
       candidates: [],
@@ -106,7 +116,7 @@ export async function recommendForDeskDraft(
         mode: 'a2a',
         payload_kind: draft.payload_kind,
         pieces,
-        pax_count: 0,
+        pax_count: draft.pax_count || 0,
         hazmat: draft.hazmat,
         ready_at: new Date().toISOString(),
         origin: {
