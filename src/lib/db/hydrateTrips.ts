@@ -173,6 +173,12 @@ export async function hydrateTrips(): Promise<number> {
           notes.fee_scope === 'aircraft_only' || notes.fee_scope === 'aircraft_and_fees'
             ? notes.fee_scope
             : null,
+        includes_aircraft_tax:
+          notes.includes_aircraft_tax == null
+            ? null
+            : Boolean(notes.includes_aircraft_tax),
+        includes_fees:
+          notes.includes_fees == null ? null : Boolean(notes.includes_fees),
         notes: notes.offer_notes == null ? null : String(notes.offer_notes),
         magic_token: String(r.magic_token || ''),
         bookingGated: Boolean(notes.bookingGated),
@@ -180,6 +186,10 @@ export async function hydrateTrips(): Promise<number> {
           ? (notes.needsInfo as string[])
           : [],
         contact_cell: String(notes.contact_cell || ''),
+        contact_email:
+          notes.contact_email == null || notes.contact_email === ''
+            ? null
+            : String(notes.contact_email),
       })
       offersByTrip.set(tripId, list)
     }

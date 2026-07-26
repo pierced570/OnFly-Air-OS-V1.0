@@ -8,11 +8,14 @@ import { DateTime } from 'luxon'
  */
 export default function OfferPreviewPage() {
   const [step, setStep] = useState<'avail' | 'quote' | 'no' | 'done'>('avail')
+  const [tail, setTail] = useState('N123XX')
   const [ttp, setTtp] = useState(90)
   const [live, setLive] = useState(75)
   const [price, setPrice] = useState(4500)
   const [waitOk, setWaitOk] = useState(true)
   const [maxWait, setMaxWait] = useState(2)
+  const [includesTax, setIncludesTax] = useState(false)
+  const [includesFees, setIncludesFees] = useState(false)
   const impliedEta = DateTime.utc()
     .plus({ minutes: ttp + live })
     .toFormat("HH:mm 'Z'")
@@ -31,9 +34,7 @@ export default function OfferPreviewPage() {
           <p className="mt-1 text-sm text-muted">
             2 skids 48×40×60 @ 800ea · ready ASAP
           </p>
-          <p className="mt-2 text-xs text-muted">
-            Sample Air · <span className="avionic text-gold">N123XX</span>
-          </p>
+          <p className="mt-2 text-xs text-muted">Sample Air</p>
         </div>
 
         {step === 'avail' && (
@@ -57,6 +58,9 @@ export default function OfferPreviewPage() {
                 No
               </button>
             </div>
+            <p className="text-xs text-muted">
+              Yes → enter tail, times, and cost. No → marked unavailable.
+            </p>
           </div>
         )}
 
@@ -78,7 +82,7 @@ export default function OfferPreviewPage() {
         {step === 'done' && (
           <div className="space-y-3">
             <div className="rounded-lg border border-onplan/40 bg-onplan/10 p-4 text-onplan">
-              Quote submitted (preview only).
+              Quote submitted (preview only). Dispatch sees Yes — no call needed.
             </div>
             <button
               type="button"
@@ -98,6 +102,14 @@ export default function OfferPreviewPage() {
               setStep('done')
             }}
           >
+            <label className="block text-sm">
+              Aircraft tail number
+              <input
+                value={tail}
+                onChange={(e) => setTail(e.target.value.toUpperCase())}
+                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-3 text-lg avionic uppercase"
+              />
+            </label>
             <label className="block text-sm">
               Time to position (min)
               <input
@@ -139,7 +151,7 @@ export default function OfferPreviewPage() {
               </label>
             )}
             <label className="block text-sm">
-              Price to aircraft NET ($)
+              Cost / price to aircraft NET ($)
               <input
                 type="number"
                 value={price}
@@ -147,6 +159,27 @@ export default function OfferPreviewPage() {
                 className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-3 text-lg avionic"
               />
             </label>
+            <div className="space-y-2 rounded-md border border-border bg-surface/60 px-3 py-3">
+              <p className="text-xs text-muted">
+                Check if your cost already includes:
+              </p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={includesTax}
+                  onChange={(e) => setIncludesTax(e.target.checked)}
+                />
+                Aircraft tax
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={includesFees}
+                  onChange={(e) => setIncludesFees(e.target.checked)}
+                />
+                Fees (landing, handling, etc.)
+              </label>
+            </div>
             <button
               type="submit"
               className="w-full rounded-md bg-gold py-3 text-base font-medium text-ink"

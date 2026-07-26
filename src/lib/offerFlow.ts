@@ -3,10 +3,15 @@
  * All trip state changes go through safeTransitionTrip.
  */
 import { createCommsAdapter, getMockCommsLog } from '@/adapters/comms'
-import { createEmailAdapter } from '@/adapters/email'
+import { createEmailAdapter, getMockSentEmails } from '@/adapters/email'
 import type { Candidate } from '@/domain/routing'
 import {
+  availabilityEmailHtml,
+  availabilityEmailSubject,
+  availabilityEmailText,
   availabilityPingBody,
+  feeScopeFromIncludes,
+  offerPublicUrl,
   parseAvailabilityReply,
   quoteLinkBody,
   standDownBody,
@@ -31,19 +36,53 @@ export function buildOffersFromCandidates(
   return candidates.map((c, i) => buildOfferRow(tripId, c, i))
 }
 
+function offerAppBase(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return ''
+}
+
 export async function sendAvailabilityPings(tripId: string) {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
   const comms = createCommsAdapter()
+  const email = createEmailAdapter()
   if (trip.state === 'quoted_estimated') {
     safeTransitionTrip(tripId, 'offers_out', 'dispatcher')
   }
   const now = new Date().toISOString()
+  const base = offerAppBase()
   const fresh = getTrip(tripId)!
   for (const o of fresh.offers) {
     if (o.state === 'stood_down' || o.state === 'unavailable') continue
-    const body = availabilityPingBody(fresh.lane, fresh.payload_summary, fresh.ready_label)
-    await comms.send({ channel: 'sms', to: o.contact_cell, body })
+    const link = offerPublicUrl(o.magic_token, base)
+    const smsBody = availabilityPingBody(
+      fresh.lane,
+      fresh.payload_summary,
+      fresh.ready_label,
+      link,
+    )
+    await comms.send({ channel: 'sms', to: o.contact_cell, body: smsBody })
+
+    const channels: string[] = ['sms']
+    if (o.contact_email) {
+      const mail = {
+        lane: fresh.lane,
+        payload: fresh.payload_summary,
+        ready: fresh.ready_label,
+        offerUrl: link,
+        operatorName: o.operator_name,
+      }
+      await email.send({
+        to: o.contact_email,
+        subject: availabilityEmailSubject(fresh.lane),
+        text: availabilityEmailText(mail),
+        html: availabilityEmailHtml(mail),
+      })
+      channels.push('email')
+    }
+
     mutateTrip(tripId, (t) => {
       const offer = t.offers.find((x) => x.id === o.id)!
       offer.ping_sent_at = now
@@ -52,7 +91,13 @@ export async function sendAvailabilityPings(tripId: string) {
         at: now,
         actor: 'comms',
         kind: 'offer_ping',
-        payload: { offer_id: o.id, to: o.contact_cell },
+        payload: {
+          offer_id: o.id,
+          to_sms: o.contact_cell,
+          to_email: o.contact_email,
+          channels,
+          offer_url: link,
+        },
       })
     })
   }
@@ -125,33 +170,50 @@ export async function respondOfferAvailability(
 export async function submitOperatorQuote(
   token: string,
   input: {
+    tail: string
     time_to_position_min: number
     live_leg_min: number
     price_net: number
     wait_ok: boolean
     max_wait_hrs: number | null
-    fee_scope: FeeScope
+    includes_aircraft_tax: boolean
+    includes_fees: boolean
+    /** Optional override; otherwise derived from tax/fees checkboxes. */
+    fee_scope?: FeeScope
     notes?: string | null
   },
 ) {
   const found = (await import('@/lib/tripStore')).getTripByOfferToken(token)
   if (!found) throw new Error('invalid offer token')
   const { trip, offer } = found
+  const tail = input.tail.trim().toUpperCase()
+  if (!tail) throw new Error('Aircraft tail number required')
+  const fee_scope =
+    input.fee_scope ??
+    feeScopeFromIncludes(input.includes_aircraft_tax, input.includes_fees)
   mutateTrip(trip.id, (t) => {
     const o = t.offers.find((x) => x.id === offer.id)!
+    o.tail = tail
     o.time_to_position_min = input.time_to_position_min
     o.live_leg_min = input.live_leg_min
     o.price_net = input.price_net
     o.wait_ok = input.wait_ok
     o.max_wait_hrs = input.max_wait_hrs
-    o.fee_scope = input.fee_scope
+    o.includes_aircraft_tax = input.includes_aircraft_tax
+    o.includes_fees = input.includes_fees
+    o.fee_scope = fee_scope
     o.notes = input.notes?.trim() || null
     o.state = 'quoted'
     t.events.push({
       at: new Date().toISOString(),
       actor: o.operator_name,
       kind: 'offer_quoted',
-      payload: { ...input, offer_id: o.id },
+      payload: {
+        ...input,
+        tail,
+        fee_scope,
+        offer_id: o.id,
+      },
     })
   })
   const { applyOfferTtpToTrip } = await import('@/lib/tripStore')
@@ -511,9 +573,37 @@ export function simulatorMessagesForTrip(tripId: string) {
   const cells = new Set(trip.offers.map((o) => o.contact_cell))
   cells.add('+1555CLIENT')
   cells.add('ONFLY')
-  return getMockCommsLog().filter(
-    (m) => cells.has(m.to) || m.body.includes(trip.lane) || m.body.includes(tripId),
+  const sms = getMockCommsLog()
+    .filter(
+      (m) =>
+        cells.has(m.to) ||
+        m.body.includes(trip.lane) ||
+        m.body.includes(tripId),
+    )
+    .map((m) => ({
+      channel: m.channel as string,
+      to: m.to,
+      body: m.body,
+    }))
+  const emails = new Set(
+    trip.offers
+      .map((o) => o.contact_email?.toLowerCase())
+      .filter((e): e is string => Boolean(e)),
   )
+  const mail = getMockSentEmails()
+    .filter(
+      (m) =>
+        emails.has(m.to.trim().toLowerCase()) ||
+        m.subject.includes(trip.lane) ||
+        (m.text ?? '').includes(trip.lane) ||
+        (m.html ?? '').includes(trip.lane),
+    )
+    .map((m) => ({
+      channel: 'email',
+      to: m.to,
+      body: m.text || m.subject,
+    }))
+  return [...sms, ...mail]
 }
 
 export type { OfferRow }

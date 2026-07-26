@@ -75,12 +75,18 @@ export default function OffersPage() {
     <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">Trip offers</div>
+          <div className="text-xs uppercase tracking-[0.2em] text-gold">
+            Operator queue
+          </div>
           <h1 className="mt-1 text-2xl font-semibold text-cream">
             T-<span className="avionic">{trip.ref}</span> · {trip.lane}
           </h1>
           <p className="mt-1 text-sm text-muted">
             State <span className="avionic text-gold">{trip.state}</span> · {trip.payload_summary}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Link goes to each operator&apos;s text + email. Yes = no phone
+            follow-up; No = unavailable in this queue.
           </p>
         </div>
         <button
@@ -90,7 +96,7 @@ export default function OffersPage() {
             void sendAvailabilityPings(trip.id).then(refresh).catch((e) => setError(String(e)))
           }
         >
-          Send availability pings
+          Send offer links (SMS + email)
         </button>
       </header>
 
@@ -98,7 +104,7 @@ export default function OffersPage() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="space-y-3">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Compare</h2>
+          <h2 className="text-xs uppercase tracking-wider text-muted">Queue</h2>
           {trip.offers.map((o) => {
             const priced =
               o.price_net != null ? clientTotalForOffer(o, trip) : null
@@ -110,6 +116,16 @@ export default function OffersPage() {
                   : o.state === 'quoted'
                     ? 'border-gold/40 bg-surface'
                     : 'border-border bg-surface'
+            const statusLabel =
+              o.state === 'available'
+                ? 'Available — no call needed'
+                : o.state === 'unavailable'
+                  ? 'Unavailable'
+                  : o.state === 'quoted'
+                    ? 'Quoted'
+                    : o.state === 'pinged'
+                      ? 'Link sent — waiting'
+                      : o.state
             return (
               <article key={o.id} className={`rounded-lg border p-4 ${borderCls}`}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -128,29 +144,48 @@ export default function OffersPage() {
                     )}
                     <div className="font-medium text-cream">{o.operator_name}</div>
                     <div className="avionic text-sm text-muted">
-                      {o.tail} · {o.type_name}
+                      {o.tail || '—'} · {o.type_name || '—'}
+                    </div>
+                    <div className="mt-1 text-[11px] text-muted">
+                      Text {o.contact_cell}
+                      {o.contact_email ? ` · ${o.contact_email}` : ' · no email on file'}
                     </div>
                     <div
-                      className={`mt-1 text-xs avionic ${
+                      className={`mt-1 text-xs font-medium ${
                         o.state === 'available'
                           ? 'text-onplan'
                           : o.state === 'unavailable'
-                            ? 'text-muted'
+                            ? 'text-late'
                             : 'text-gold'
                       }`}
                     >
-                      {o.state}
+                      {statusLabel}
                     </div>
                   </div>
                   <div className="text-right text-sm">
                     {o.price_net != null && (
-                      <div className="avionic text-cream">NET NET ${o.price_net}</div>
+                      <div className="avionic text-cream">NET ${o.price_net}</div>
                     )}
-                    {o.fee_scope && (
+                    {(o.includes_aircraft_tax != null ||
+                      o.includes_fees != null ||
+                      o.fee_scope) && (
                       <div className="text-[11px] text-muted">
-                        {o.fee_scope === 'aircraft_only'
-                          ? 'Aircraft only'
-                          : 'Aircraft + all fees'}
+                        {[
+                          o.includes_aircraft_tax ? 'tax incl.' : null,
+                          o.includes_fees ? 'fees incl.' : null,
+                          !o.includes_aircraft_tax &&
+                          !o.includes_fees &&
+                          o.fee_scope === 'aircraft_only'
+                            ? 'Aircraft only'
+                            : null,
+                          !o.includes_aircraft_tax &&
+                          !o.includes_fees &&
+                          o.fee_scope === 'aircraft_and_fees'
+                            ? 'Aircraft + fees'
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </div>
                     )}
                     {priced && (
@@ -161,6 +196,9 @@ export default function OffersPage() {
                     )}
                     {o.time_to_position_min != null && (
                       <div className="text-xs text-muted">TTP {o.time_to_position_min}m</div>
+                    )}
+                    {o.live_leg_min != null && (
+                      <div className="text-xs text-muted">Live {o.live_leg_min}m</div>
                     )}
                   </div>
                 </div>
@@ -212,14 +250,12 @@ export default function OffersPage() {
                   >
                     Reply
                   </button>
-                  {o.state === 'available' && (
-                    <Link
-                      className="rounded border border-onplan/40 px-2 py-1 text-xs text-onplan"
-                      to={`/offer/${o.magic_token}`}
-                    >
-                      Open offer link
-                    </Link>
-                  )}
+                  <Link
+                    className="rounded border border-gold/40 px-2 py-1 text-xs text-gold"
+                    to={`/offer/${o.magic_token}`}
+                  >
+                    Open offer link
+                  </Link>
                 </div>
               </article>
             )
@@ -299,9 +335,11 @@ export default function OffersPage() {
         </section>
 
         <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">Phone simulator</h2>
+          <h2 className="text-xs uppercase tracking-wider text-muted">
+            Comms simulator
+          </h2>
           <p className="mt-1 text-xs text-muted">
-            SMS via mock until RingCentral is wired
+            SMS + email (mock until RingCentral / Resend are live)
           </p>
           <ul className="mt-3 max-h-[28rem] space-y-2 overflow-auto text-sm">
             {msgs.length === 0 && <li className="text-muted">No messages yet</li>}

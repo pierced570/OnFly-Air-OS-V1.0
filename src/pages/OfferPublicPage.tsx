@@ -8,7 +8,7 @@ import {
 } from '@/lib/offerFlow'
 
 /**
- * Operator trip-offer board — Yes/No availability first, then TTP / live / wait / price.
+ * Operator trip-offer board — Yes/No availability first, then quote fields.
  * Never say "bid" on this surface.
  */
 export default function OfferPublicPage() {
@@ -25,11 +25,14 @@ export default function OfferPublicPage() {
       return found.offer.state === 'available' ? 'quote' : 'avail'
     return 'avail'
   })
+  const [tail, setTail] = useState(() => found?.offer.tail ?? '')
   const [ttp, setTtp] = useState(90)
   const [live, setLive] = useState(75)
   const [price, setPrice] = useState(4500)
   const [waitOk, setWaitOk] = useState(true)
   const [maxWait, setMaxWait] = useState(2)
+  const [includesTax, setIncludesTax] = useState(false)
+  const [includesFees, setIncludesFees] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -77,9 +80,7 @@ export default function OfferPublicPage() {
           <p className="mt-1 text-sm text-muted">
             {trip.payload_summary} · ready {ready}
           </p>
-          <p className="mt-2 text-xs text-muted">
-            {offer.operator_name} · <span className="avionic text-gold">{offer.tail}</span>
-          </p>
+          <p className="mt-2 text-xs text-muted">{offer.operator_name}</p>
         </div>
 
         {error && <p className="text-sm text-late">{error}</p>}
@@ -110,7 +111,8 @@ export default function OfferPublicPage() {
               </button>
             </div>
             <p className="text-xs text-muted">
-              Yes → enter times and price. No → we stand you down for this one.
+              Yes → enter tail, times, and cost. No → we mark you unavailable
+              (no phone follow-up).
             </p>
           </div>
         )}
@@ -124,7 +126,7 @@ export default function OfferPublicPage() {
 
         {step === 'done' && (
           <div className="rounded-lg border border-onplan/40 bg-onplan/10 p-4 text-onplan">
-            Quote submitted. Dispatch has been notified.
+            Quote submitted. Dispatch has been notified — no need for a call.
           </div>
         )}
 
@@ -135,12 +137,14 @@ export default function OfferPublicPage() {
               e.preventDefault()
               setBusy(true)
               void submitOperatorQuote(token!, {
+                tail,
                 time_to_position_min: ttp,
                 live_leg_min: live,
                 price_net: price,
                 wait_ok: waitOk,
                 max_wait_hrs: waitOk ? maxWait : null,
-                fee_scope: 'aircraft_only',
+                includes_aircraft_tax: includesTax,
+                includes_fees: includesFees,
               })
                 .then(() => setStep('done'))
                 .catch((err) =>
@@ -149,7 +153,20 @@ export default function OfferPublicPage() {
                 .finally(() => setBusy(false))
             }}
           >
-            <p className="text-sm text-onplan">You&apos;re available — quick quote:</p>
+            <p className="text-sm text-onplan">
+              You&apos;re available — dispatch sees Yes (no call needed). Quick
+              quote:
+            </p>
+            <label className="block text-sm">
+              Aircraft tail number
+              <input
+                value={tail}
+                onChange={(e) => setTail(e.target.value.toUpperCase())}
+                placeholder="N123AB"
+                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-3 text-lg avionic uppercase"
+                required
+              />
+            </label>
             <label className="block text-sm">
               Time to position (min)
               <input
@@ -193,7 +210,7 @@ export default function OfferPublicPage() {
               </label>
             )}
             <label className="block text-sm">
-              Price to aircraft NET ($)
+              Cost / price to aircraft NET ($)
               <input
                 type="number"
                 value={price}
@@ -202,6 +219,27 @@ export default function OfferPublicPage() {
                 required
               />
             </label>
+            <div className="space-y-2 rounded-md border border-border bg-surface/60 px-3 py-3">
+              <p className="text-xs text-muted">
+                Check if your cost already includes:
+              </p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={includesTax}
+                  onChange={(e) => setIncludesTax(e.target.checked)}
+                />
+                Aircraft tax
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={includesFees}
+                  onChange={(e) => setIncludesFees(e.target.checked)}
+                />
+                Fees (landing, handling, etc.)
+              </label>
+            </div>
             <button
               type="submit"
               disabled={busy}

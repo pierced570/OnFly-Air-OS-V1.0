@@ -33,6 +33,7 @@ import { getEtaDefaults } from '@/lib/etaDefaultsStore'
 import { getReferral } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
 import { roleOnOpsThread } from '@/domain/tripThread'
+import { getCachedNetwork } from '@/lib/networkData'
 import { listOnboardSubmissions } from '@/lib/operatorOnboardStore'
 import { listOperatorDrafts } from '@/lib/operatorDraftStore'
 
@@ -204,11 +205,18 @@ export type OfferRow = {
   price_net: number | null
   /** Aircraft-only vs aircraft + all fees (operator landing). */
   fee_scope: FeeScope | null
+  /** Operator said NET includes aircraft tax. */
+  includes_aircraft_tax: boolean | null
+  /** Operator said NET includes fees (landing, etc.). */
+  includes_fees: boolean | null
   notes: string | null
   magic_token: string
   bookingGated: boolean
   needsInfo: string[]
+  /** SMS / text number for the offer link. */
   contact_cell: string
+  /** Email for the offer link (null if unknown). */
+  contact_email: string | null
 }
 
 export type QuickDispatchMeta = {
@@ -444,34 +452,65 @@ export function listTripsStable(): TripStoreRow[] {
   return snapshot
 }
 
-/** Resolve RFQ contact from onboard / drafts; fallback is stable E.164 from operator id. */
-export function resolveOperatorContactCell(
+/** Resolve SMS + email for trip-offer links (network → onboard → draft → mock cell). */
+export function resolveOperatorContacts(
   operatorId: string,
   operatorName: string,
-): string {
+): { cell: string; email: string | null } {
+  let cell: string | null = null
+  let email: string | null = null
+
+  const net = getCachedNetwork()
+  const nameKey = operatorName.trim().toLowerCase()
+  const op =
+    net?.operators.find((o) => o.id === operatorId) ??
+    net?.operators.find((o) => o.name.trim().toLowerCase() === nameKey)
+  if (op) {
+    cell = normalizePhone(op.contact_cell)
+    email = normalizeEmail(op.contact_email || op.ops_email)
+  }
+
   const onboard = listOnboardSubmissions().find(
     (s) =>
       s.company_name.trim().toLowerCase() === operatorName.trim().toLowerCase(),
   )
   if (onboard) {
-    const normalized = normalizePhone(
-      onboard.after_hours_phone ||
-        onboard.primary_contact?.phone ||
-        onboard.company_phone,
-    )
-    if (normalized) return normalized
+    cell =
+      cell ||
+      normalizePhone(
+        onboard.after_hours_phone ||
+          onboard.primary_contact?.phone ||
+          onboard.company_phone,
+      )
+    email = email || normalizeEmail(onboard.email)
   }
+
   const draft = listOperatorDrafts().find(
     (d) => d.name.trim().toLowerCase() === operatorName.trim().toLowerCase(),
   )
-  const fromDraft = normalizePhone(draft?.contacts?.[0]?.cell)
-  if (fromDraft) return fromDraft
+  if (draft) {
+    cell = cell || normalizePhone(draft.contacts?.[0]?.cell)
+    email = email || normalizeEmail(draft.contacts?.[0]?.email)
+  }
 
-  // Deterministic mock contact (not the old shared +1555 pool) so SMS simulator still works.
-  let hash = 0
-  for (const ch of operatorId || operatorName) hash = (hash * 31 + ch.charCodeAt(0)) | 0
-  const n = Math.abs(hash) % 9000000
-  return `+1415${String(1000000 + n).slice(-7)}`
+  if (!cell) {
+    // Deterministic mock cell so SMS simulator still works without network data.
+    let hash = 0
+    for (const ch of operatorId || operatorName)
+      hash = (hash * 31 + ch.charCodeAt(0)) | 0
+    const n = Math.abs(hash) % 9000000
+    cell = `+1415${String(1000000 + n).slice(-7)}`
+  }
+
+  return { cell, email }
+}
+
+/** @deprecated use resolveOperatorContacts */
+export function resolveOperatorContactCell(
+  operatorId: string,
+  operatorName: string,
+): string {
+  return resolveOperatorContacts(operatorId, operatorName).cell
 }
 
 function normalizePhone(raw: string | undefined | null): string | null {
@@ -483,11 +522,18 @@ function normalizePhone(raw: string | undefined | null): string | null {
   return null
 }
 
+function normalizeEmail(raw: string | undefined | null): string | null {
+  const e = raw?.trim().toLowerCase()
+  if (!e || !e.includes('@')) return null
+  return e
+}
+
 export function buildOfferRow(
   tripId: string,
   c: Candidate,
   _index: number,
 ): OfferRow {
+  const contacts = resolveOperatorContacts(c.operator_id, c.operator_name)
   return {
     id: crypto.randomUUID(),
     trip_id: tripId,
@@ -505,11 +551,14 @@ export function buildOfferRow(
     max_wait_hrs: null,
     price_net: null,
     fee_scope: null,
+    includes_aircraft_tax: null,
+    includes_fees: null,
     notes: null,
     magic_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
     bookingGated: c.bookingGated,
     needsInfo: c.needsInfo,
-    contact_cell: resolveOperatorContactCell(c.operator_id, c.operator_name),
+    contact_cell: contacts.cell,
+    contact_email: contacts.email,
   }
 }
 

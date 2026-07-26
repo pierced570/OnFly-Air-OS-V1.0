@@ -343,7 +343,7 @@ export default function DeskParsePage() {
             >
               {sending
                 ? 'Sending…'
-                : `Send availability to ${selected.size} operator${selected.size === 1 ? '' : 's'}`}
+                : `Send offer link (text + email) to ${selected.size} operator${selected.size === 1 ? '' : 's'}`}
             </button>
             <button
               type="button"
