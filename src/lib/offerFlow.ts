@@ -19,6 +19,7 @@ import {
   standDownBody,
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
+import { appPublicUrl } from '@/lib/appUrl'
 import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
 import { clientTotalForOffer } from '@/lib/offerPricing'
 import {
@@ -55,13 +56,6 @@ export function buildOffersFromCandidates(
   })
 }
 
-function appBaseUrl(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin
-  }
-  return ''
-}
-
 export async function sendAvailabilityPings(tripId: string) {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
@@ -72,7 +66,14 @@ export async function sendAvailabilityPings(tripId: string) {
   }
   const now = new Date().toISOString()
   const fresh = getTrip(tripId)!
-  const base = appBaseUrl()
+  // Persist before outbound links so /offer/:token resolves on other devices.
+  try {
+    const { persistTripSnapshot } = await import('@/lib/db/persistTrip')
+    await persistTripSnapshot(fresh)
+  } catch (e) {
+    console.warn('[offers] persist before ping failed', e)
+  }
+  const base = appPublicUrl()
   for (const o of fresh.offers) {
     if (o.state === 'stood_down' || o.state === 'unavailable') continue
     const channel = normalizeQuoteLinkChannel(o.quote_link_channel)
@@ -146,7 +147,7 @@ export async function simulateOperatorReply(tripId: string, offerId: string, bod
     await comms.send({
       channel: 'sms',
       to: offer.contact_cell,
-      body: quoteLinkBody(token),
+      body: quoteLinkBody(token, appPublicUrl()),
     })
   }
   return { ok: true as const, result: parsed }
