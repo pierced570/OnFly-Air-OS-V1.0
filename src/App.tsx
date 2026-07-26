@@ -4,7 +4,7 @@ import { DispatchShell } from '@/components/DispatchShell'
 import { StaffGate } from '@/components/StaffGate'
 
 const ChatPage = lazy(() => import('@/pages/ChatPage'))
-const NetworkPage = lazy(() => import('@/pages/NetworkPage'))
+const NetworkHubPage = lazy(() => import('@/pages/NetworkHubPage'))
 const TripPage = lazy(() => import('@/pages/TripPage'))
 const AdminPage = lazy(() => import('@/pages/AdminPage'))
 const AdminTasksPage = lazy(() => import('@/pages/AdminTasksPage'))
@@ -25,14 +25,12 @@ const PortalTripTrackPage = lazy(() =>
     default: m.PortalTripTrackPage,
   })),
 )
-const RadarPage = lazy(() => import('@/pages/RadarPage'))
 const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
 const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
 const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 const LeadsPage = lazy(() => import('@/pages/LeadsPage'))
-const FbosPage = lazy(() => import('@/pages/FbosPage'))
 const IntakePage = lazy(() => import('@/pages/IntakePage'))
 const IntakeReviewPage = lazy(() => import('@/pages/IntakeReviewPage'))
 const ManifestPage = lazy(() => import('@/pages/ManifestPage'))
@@ -111,15 +109,21 @@ export function App() {
         <Route path="/referrals" element={<ReferralsPage />} />
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/leads" element={<LeadsPage />} />
-        <Route path="/fbos" element={<FbosPage />} />
+        <Route
+          path="/fbos"
+          element={<Navigate to="/network?tab=fbos" replace />}
+        />
         <Route path="/intake" element={<IntakePage />} />
         <Route path="/intake/:id" element={<IntakeReviewPage />} />
         <Route path="/trips/:id/offers" element={<OffersPage />} />
         <Route path="/trips/:id/manifest" element={<ManifestPage />} />
         <Route path="/trips/:id" element={<TripPage />} />
         <Route path="/quotes/preview" element={<QuotePreviewPage />} />
-        <Route path="/network" element={<NetworkPage />} />
-        <Route path="/radar" element={<RadarPage />} />
+        <Route path="/network" element={<NetworkHubPage />} />
+        <Route
+          path="/radar"
+          element={<Navigate to="/network?tab=radar" replace />}
+        />
         <Route path="/briefing" element={<BriefingPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/tasks" element={<AdminTasksPage />} />

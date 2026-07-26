@@ -24,7 +24,11 @@ function fmtWhen(iso: string | null): string {
   }
 }
 
-export default function RadarPage() {
+export default function RadarPage({
+  embedded = false,
+}: {
+  embedded?: boolean
+}) {
   const watched = useSyncExternalStore(
     subscribeWatchedTails,
     listWatchedTails,
@@ -78,10 +82,24 @@ export default function RadarPage() {
   const d085Count = watched.filter((w) => w.source === 'd085').length
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
+    <div
+      className={
+        embedded
+          ? 'flex flex-col gap-4'
+          : 'flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8'
+      }
+    >
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-cream">Fleet Radar</h1>
+          <h1
+            className={
+              embedded
+                ? 'text-lg font-semibold text-cream'
+                : 'text-2xl font-semibold text-cream'
+            }
+          >
+            Fleet Radar
+          </h1>
           <p className="mt-1 text-sm text-muted">
             {watched.length} watched tails
             {d085Count ? ` · ${d085Count} from D085 uploads` : ''}

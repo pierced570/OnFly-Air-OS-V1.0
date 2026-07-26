@@ -12,11 +12,11 @@ export const STAFF_SECTIONS = [
   { id: 'referrals', label: 'Referrals', pathPrefix: '/referrals' },
   { id: 'clients', label: 'Clients', pathPrefix: '/clients' },
   { id: 'leads', label: 'Leads', pathPrefix: '/leads' },
-  { id: 'fbos', label: 'FBOs', pathPrefix: '/fbos' },
+  { id: 'fbos', label: 'FBOs (Network hub)', pathPrefix: '/network' },
   { id: 'trips', label: 'Trips', pathPrefix: '/trips' },
   { id: 'quotes', label: 'Quotes', pathPrefix: '/quotes' },
   { id: 'network', label: 'Network', pathPrefix: '/network' },
-  { id: 'radar', label: 'Radar', pathPrefix: '/radar' },
+  { id: 'radar', label: 'Radar (Network hub)', pathPrefix: '/network' },
   { id: 'briefing', label: 'Briefing', pathPrefix: '/briefing' },
   { id: 'admin', label: 'Admin wizards', pathPrefix: '/admin' },
   { id: 'tasks', label: 'Tasks', pathPrefix: '/admin/tasks' },
@@ -156,11 +156,12 @@ export function sectionForPath(pathname: string): StaffSectionId | null {
   if (pathname.startsWith('/referrals')) return 'referrals'
   if (pathname.startsWith('/clients')) return 'clients'
   if (pathname.startsWith('/leads')) return 'leads'
-  if (pathname.startsWith('/fbos')) return 'fbos'
+  // Legacy /fbos + /radar redirect into Network hub — gate as network.
+  if (pathname.startsWith('/fbos')) return 'network'
   if (pathname.startsWith('/trips')) return 'trips'
   if (pathname.startsWith('/quotes')) return 'quotes'
   if (pathname.startsWith('/network')) return 'network'
-  if (pathname.startsWith('/radar')) return 'radar'
+  if (pathname.startsWith('/radar')) return 'network'
   if (pathname.startsWith('/briefing')) return 'briefing'
   if (pathname.startsWith('/chat')) return 'chat'
   if (pathname.startsWith('/desk')) return 'intake'

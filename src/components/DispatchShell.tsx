@@ -22,9 +22,8 @@ const nav: {
   { to: '/referrals', label: 'Referrals', section: 'referrals' },
   { to: '/clients', label: 'Clients', section: 'clients' },
   { to: '/leads', label: 'Leads', section: 'leads' },
-  { to: '/fbos', label: 'FBOs', section: 'fbos' },
+  // FBOs + Radar + recommend matrix + couriers live under Network hub tabs.
   { to: '/network', label: 'Network', section: 'network' },
-  { to: '/radar', label: 'Radar', section: 'radar' },
   { to: '/briefing', label: 'Briefing', section: 'briefing' },
   { to: '/admin', label: 'Admin', section: 'admin' },
   { to: '/admin/tasks', label: 'Tasks', section: 'tasks' },

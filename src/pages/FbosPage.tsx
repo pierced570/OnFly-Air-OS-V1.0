@@ -4,7 +4,11 @@ import { AirportSelect } from '@/components/AirportSelect'
 import { lookupAirport } from '@/domain/airports'
 import { listFbos, rankFbosForCargo, subscribeFbos } from '@/lib/fboStore'
 
-export default function FbosPage() {
+export default function FbosPage({
+  embedded = false,
+}: {
+  embedded?: boolean
+}) {
   const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
   const [q, setQ] = useState('')
   const [rankIcao, setRankIcao] = useState('')
@@ -22,10 +26,24 @@ export default function FbosPage() {
   const ranked = rankIcao.trim().length >= 3 ? rankFbosForCargo(rankIcao) : []
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
+    <div
+      className={
+        embedded
+          ? 'flex flex-col gap-4'
+          : 'flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8'
+      }
+    >
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-cream">FBOs</h1>
+          <h1
+            className={
+              embedded
+                ? 'text-lg font-semibold text-cream'
+                : 'text-2xl font-semibold text-cream'
+            }
+          >
+            FBOs
+          </h1>
           <p className="mt-1 text-sm text-muted">
             Survey data for airport choice — 24hr + forklift + insured ranks first on cargo.
           </p>
