@@ -2,7 +2,7 @@
  * Trip offers + booking flow — open requests (no auto-ping), hard quote, accept.
  * All trip state changes go through safeTransitionTrip.
  */
-import { createCommsAdapter, getMockCommsLog } from '@/adapters/comms'
+import { createCommsAdapter } from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
 import {
   channelIncludesEmail,
@@ -14,8 +14,6 @@ import type { Candidate } from '@/domain/routing'
 import {
   availabilityEmailSubject,
   availabilityPingWithLink,
-  parseAvailabilityReply,
-  quoteLinkBody,
   standDownBody,
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
@@ -49,7 +47,11 @@ export function buildOffersFromCandidates(
     const ov = overrides?.[c.operator_id]
     if (!ov) return row
     if (ov.contact_email !== undefined) row.contact_email = ov.contact_email.trim()
-    if (ov.contact_cell !== undefined) row.contact_cell = ov.contact_cell.trim()
+    if (ov.contact_cell !== undefined) {
+      row.contact_cell = ov.contact_cell.trim()
+      // Desk/profile override replaces any invented mock cell.
+      row.contact_cell_is_mock = false
+    }
     if (ov.quote_link_channel !== undefined) {
       row.quote_link_channel = normalizeQuoteLinkChannel(ov.quote_link_channel)
     }
@@ -107,7 +109,7 @@ export async function openTripOffers(tripId: string): Promise<TripStoreRow> {
   return getTrip(tripId)!
 }
 
-/** Append one operator to an existing trip offer list (no ping). */
+/** Append one operator to an existing trip offer list and send the offer link. */
 export async function appendOfferToTrip(
   tripId: string,
   candidate: Candidate,
@@ -136,7 +138,7 @@ export async function appendOfferToTrip(
         offer_id: row.id,
         operator_id: row.operator_id,
         operator_name: row.operator_name,
-        notify: false,
+        notify: true,
       },
     })
   })
@@ -147,7 +149,11 @@ export async function appendOfferToTrip(
     })
   }
   await persistOffersTrip(tripId)
-  return row
+  await sendAvailabilityPings(tripId, { offerIds: [row.id] })
+  const after = getTrip(tripId)!
+  const updated = after.offers.find((o) => o.id === row.id)
+  if (!updated) throw new Error('offer not found after notify')
+  return updated
 }
 
 /** Update mission fields on an open trip offer request (no re-ping). */
@@ -192,16 +198,15 @@ export async function updateTripOfferRequest(
 }
 
 /**
- * Optional SMS/email notify — not used by default desk / ladder send.
- * Prefer sharing the magic-link from the offers queue.
+ * Send trip-offer / quote-request links via email (and SMS when live).
+ * Desk + ladder + add-operator call this after creating offers.
  */
 export async function sendAvailabilityPings(
   tripId: string,
-  opts?: { offerIds?: string[] },
+  opts?: { offerIds?: string[]; requireDelivery?: boolean },
 ) {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
-  const comms = createCommsAdapter()
   const email = createEmailAdapter()
   if (trip.state === 'quoted_estimated') {
     safeTransitionTrip(tripId, 'offers_out', 'dispatcher')
@@ -211,11 +216,24 @@ export async function sendAvailabilityPings(
   // Persist before outbound links so /offer/:token resolves on other devices.
   await persistOffersTrip(tripId)
   const base = appPublicUrl()
+  if (!base) {
+    console.warn(
+      '[offers] VITE_APP_URL unset — offer links in email/SMS may be relative or wrong host',
+    )
+  }
   const filter = opts?.offerIds ? new Set(opts.offerIds) : null
+  const targeted: OfferRow[] = []
+  const missedNames: string[] = []
+  // RingCentral not wired — email is the live delivery path for offer links.
+  const smsLive = false
+
   for (const o of fresh.offers) {
     if (filter && !filter.has(o.id)) continue
     if (o.state === 'stood_down' || o.state === 'unavailable') continue
-    const channel = normalizeQuoteLinkChannel(o.quote_link_channel)
+    targeted.push(o)
+    let channel = normalizeQuoteLinkChannel(o.quote_link_channel)
+    // Until SMS is live, SMS-only falls back to email when an address is on file.
+    if (!smsLive && channel === 'sms') channel = 'email'
     const body = availabilityPingWithLink(
       fresh.lane,
       fresh.payload_summary,
@@ -224,7 +242,13 @@ export async function sendAvailabilityPings(
       base,
     )
     const sent: { sms?: string; email?: string } = {}
-    if (channelIncludesSms(channel) && o.contact_cell.trim()) {
+    if (
+      smsLive &&
+      channelIncludesSms(channel) &&
+      o.contact_cell.trim() &&
+      !o.contact_cell_is_mock
+    ) {
+      const comms = createCommsAdapter()
       await comms.send({ channel: 'sms', to: o.contact_cell, body })
       sent.sms = o.contact_cell
     }
@@ -237,9 +261,14 @@ export async function sendAvailabilityPings(
       })
       sent.email = o.contact_email.trim()
     }
+    if (!sent.sms && !sent.email) {
+      missedNames.push(o.operator_name)
+      continue
+    }
     mutateTrip(tripId, (t) => {
       const offer = t.offers.find((x) => x.id === o.id)!
       offer.ping_sent_at = now
+      offer.notified_at = now
       offer.state = 'pinged'
       t.events.push({
         at: now,
@@ -253,43 +282,66 @@ export async function sendAvailabilityPings(
       })
     })
   }
+  await persistOffersTrip(tripId)
+  const requireDelivery = opts?.requireDelivery !== false
+  if (requireDelivery && targeted.length > 0 && missedNames.length > 0) {
+    throw new Error(
+      `Could not deliver offer link to: ${missedNames.join(', ')}. ` +
+        'Add an email on file (SMS delivery is not connected yet).',
+    )
+  }
   return getTrip(tripId)!
 }
 
-export async function simulateOperatorReply(tripId: string, offerId: string, body: string) {
-  const parsed = parseAvailabilityReply(body)
-  if (!parsed) return { ok: false as const, reason: 'unrecognized reply' }
-  const trip = getTrip(tripId)!
-  const offer = trip.offers.find((o) => o.id === offerId)!
+/** Update destination contacts on an open offer before notify / share. */
+export async function updateOfferContacts(
+  tripId: string,
+  offerId: string,
+  patch: OfferContactOverride,
+): Promise<OfferRow> {
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
   const now = new Date().toISOString()
-  const comms = createCommsAdapter()
-  await comms.send({
-    channel: 'sms',
-    to: 'ONFLY',
-    body: `INBOUND from ${offer.contact_cell}: ${body}`,
-  })
-
   mutateTrip(tripId, (t) => {
-    const o = t.offers.find((x) => x.id === offerId)!
-    o.replied_at = now
-    o.state = parsed
+    const offer = t.offers.find((x) => x.id === offerId)
+    if (!offer) throw new Error('offer not found')
+    const before = {
+      contact_email: offer.contact_email,
+      contact_cell: offer.contact_cell,
+      quote_link_channel: offer.quote_link_channel,
+    }
+    if (patch.contact_email !== undefined) {
+      offer.contact_email = patch.contact_email.trim()
+    }
+    if (patch.contact_cell !== undefined) {
+      offer.contact_cell = patch.contact_cell.trim()
+      offer.contact_cell_is_mock = false
+    }
+    if (patch.quote_link_channel !== undefined) {
+      offer.quote_link_channel = normalizeQuoteLinkChannel(
+        patch.quote_link_channel,
+      )
+    }
     t.events.push({
       at: now,
-      actor: offer.operator_name,
-      kind: 'offer_reply',
-      payload: { offer_id: offerId, result: parsed },
+      actor: 'dispatcher',
+      kind: 'offer_contacts_updated',
+      payload: {
+        offer_id: offerId,
+        before,
+        after: {
+          contact_email: offer.contact_email,
+          contact_cell: offer.contact_cell,
+          quote_link_channel: offer.quote_link_channel,
+        },
+      },
     })
   })
-
-  if (parsed === 'available') {
-    const token = offer.magic_token
-    await comms.send({
-      channel: 'sms',
-      to: offer.contact_cell,
-      body: quoteLinkBody(token, appPublicUrl()),
-    })
-  }
-  return { ok: true as const, result: parsed }
+  await persistOffersTrip(tripId)
+  const fresh = getTrip(tripId)!
+  const row = fresh.offers.find((o) => o.id === offerId)
+  if (!row) throw new Error('offer not found')
+  return row
 }
 
 export async function respondOfferAvailability(
@@ -555,8 +607,11 @@ function recipientCells(trip: NonNullable<ReturnType<typeof getTrip>>): string[]
       }
     }
   }
-  if (!cells.length) cells.push('+1555CLIENT')
   return cells
+}
+
+function canSms(cell: string | null | undefined, isMock?: boolean): boolean {
+  return Boolean(cell?.trim()) && !isMock
 }
 
 export async function acceptHardQuote(token: string) {
@@ -596,13 +651,15 @@ export async function acceptHardQuote(token: string) {
   const selected = fresh.offers.find((o) => o.state === 'selected')
   const trackPath = `/portal/track/${fresh.id}`
 
-  await comms.send({
-    channel: 'sms',
-    to: '+1555CLIENT',
-    body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
-  })
+  for (const cell of recipientCells(fresh)) {
+    await comms.send({
+      channel: 'sms',
+      to: cell,
+      body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
+    })
+  }
 
-  if (selected) {
+  if (selected && canSms(selected.contact_cell, selected.contact_cell_is_mock)) {
     await comms.send({
       channel: 'sms',
       to: selected.contact_cell,
@@ -617,11 +674,13 @@ export async function acceptHardQuote(token: string) {
       o.state === 'quoted' ||
       o.state === 'pinged'
     ) {
-      await comms.send({
-        channel: 'sms',
-        to: o.contact_cell,
-        body: standDownBody(fresh.lane),
-      })
+      if (canSms(o.contact_cell, o.contact_cell_is_mock)) {
+        await comms.send({
+          channel: 'sms',
+          to: o.contact_cell,
+          body: standDownBody(fresh.lane),
+        })
+      }
       mutateTrip(trip.id, (t) => {
         const row = t.offers.find((x) => x.id === o.id)!
         row.state = 'stood_down'
@@ -716,17 +775,6 @@ function resolveOpsEmails(trip: NonNullable<ReturnType<typeof getTrip>>): string
   return [
     ...new Set(out.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))),
   ]
-}
-
-export function simulatorMessagesForTrip(tripId: string) {
-  const trip = getTrip(tripId)
-  if (!trip) return []
-  const cells = new Set(trip.offers.map((o) => o.contact_cell))
-  cells.add('+1555CLIENT')
-  cells.add('ONFLY')
-  return getMockCommsLog().filter(
-    (m) => cells.has(m.to) || m.body.includes(trip.lane) || m.body.includes(tripId),
-  )
 }
 
 export type { OfferRow }

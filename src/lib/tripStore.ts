@@ -203,6 +203,8 @@ export type OfferRow = {
   type_name: string | null
   state: OfferState
   ping_sent_at: string | null
+  /** Set only when email/SMS notify actually ran (offer_ping). */
+  notified_at: string | null
   replied_at: string | null
   time_to_position_min: number | null
   live_leg_min: number | null
@@ -216,6 +218,8 @@ export type OfferRow = {
   bookingGated: boolean
   needsInfo: string[]
   contact_cell: string
+  /** True when cell was invented for mock SMS — not a real on-file number. */
+  contact_cell_is_mock: boolean
   /** Blank when unknown — desk can fill before send. */
   contact_email: string
   /** Where this offer's quote link is sent (profile default or desk override). */
@@ -475,26 +479,17 @@ function normalizePhone(raw: string | undefined | null): string | null {
   return null
 }
 
-/** Deterministic mock cell when profile has none (keeps SMS simulator workable). */
-function mockContactCell(operatorId: string, operatorName: string): string {
-  let hash = 0
-  for (const ch of operatorId || operatorName)
-    hash = (hash * 31 + ch.charCodeAt(0)) | 0
-  const n = Math.abs(hash) % 9000000
-  return `+1415${String(1000000 + n).slice(-7)}`
-}
-
 export type ResolvedOperatorContacts = {
   contact_cell: string
   contact_email: string
   quote_link_channel: 'sms' | 'email' | 'both'
-  /** True when cell was invented for mock SMS (not from profile). */
+  /** Legacy flag — we no longer invent cells; always false for new resolves. */
   cell_is_mock: boolean
 }
 
 /**
  * Resolve RFQ contacts from network profile → onboard → drafts.
- * Prefer real profile data; only invent a cell when SMS channel needs a to-address.
+ * Never invents a phone — blank means fill before notify.
  */
 export function resolveOperatorContacts(
   operatorId: string,
@@ -545,17 +540,11 @@ export function resolveOperatorContacts(
     }
   }
 
-  let cell_is_mock = false
-  if (!cell && (channel === 'sms' || channel === 'both')) {
-    cell = mockContactCell(operatorId, operatorName)
-    cell_is_mock = true
-  }
-
   return {
     contact_cell: cell,
     contact_email: email,
     quote_link_channel: channel,
-    cell_is_mock,
+    cell_is_mock: false,
   }
 }
 
@@ -583,6 +572,7 @@ export function buildOfferRow(
     type_name: c.type_name,
     state: 'pinged',
     ping_sent_at: null,
+    notified_at: null,
     replied_at: null,
     time_to_position_min: null,
     live_leg_min: null,
@@ -595,6 +585,7 @@ export function buildOfferRow(
     bookingGated: c.bookingGated,
     needsInfo: c.needsInfo,
     contact_cell: contacts.contact_cell,
+    contact_cell_is_mock: contacts.cell_is_mock,
     contact_email: contacts.contact_email,
     quote_link_channel: contacts.quote_link_channel,
   }
@@ -1387,9 +1378,10 @@ export function postThreadMessage(
   return msg
 }
 
-/** Create QB invoice for a trip (mock or live). Does not use QBO email. */
+/** Create QB invoice for a trip. Does not use QBO email. */
 const invoiceInFlight = new Set<string>()
 
+/** @deprecated Use createInvoiceForTrip */
 export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
   return createInvoiceForTrip(tripId)
 }

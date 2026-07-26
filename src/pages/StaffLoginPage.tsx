@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import PhoneInput from '@/components/PhoneInput'
-import { loginStaff } from '@/lib/staffStore'
 import { BrandLockup } from '@/components/BrandLockup'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { loginStaff } from '@/lib/staffStore'
 
 export default function StaffLoginPage() {
   const [name, setName] = useState('')
@@ -30,9 +31,12 @@ export default function StaffLoginPage() {
 
   return (
     <div
-      className="flex min-h-screen flex-col items-center justify-center bg-ink px-4 text-cream"
+      className="relative flex min-h-screen flex-col items-center justify-center bg-ink px-4 text-cream"
       data-theme="dispatcher"
     >
+      <div className="absolute right-4 top-4">
+        <ThemeToggle compact />
+      </div>
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-3">
           <BrandLockup variant="mark" className="!h-12 !w-12" />

@@ -11,7 +11,7 @@ describe('dispatchCenter', () => {
     expect(drawerForTripState('closed')).toBeNull()
   })
 
-  it('labels Scratchpad requests distinctly', () => {
+  it('labels Scratchpad requests distinctly and shows client name', () => {
     const buckets = buildDispatchDrawers({
       requests: [
         {
@@ -21,10 +21,12 @@ describe('dispatchCenter', () => {
           summary: '2 pax · ASAP',
           source: 'scratchpad',
           status: 'submitted',
+          client_name: 'Acme Turbines',
         },
       ],
       trips: [],
     })
+    expect(buckets.requests[0]?.title).toBe('R-99 · Acme Turbines · KCKB→KDFW')
     expect(buckets.requests[0]?.subtitle).toMatch(/^Scratchpad ·/)
   })
 
@@ -112,13 +114,14 @@ describe('dispatchCenter', () => {
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air'))
       .toMatchObject({
         status: 'awaiting',
-        status_label: 'Sent — awaiting reply',
+        status_label: 'Link ready — not notified',
         href: '/offer/tok1',
+        notified: false,
       })
     expect(
       buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air')
         ?.sent_label,
-    ).toMatch(/^Sent @ /)
+    ).toMatch(/^Link ready @ /)
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Charlie Jets'))
       .toMatchObject({
         status: 'quote_submitted',

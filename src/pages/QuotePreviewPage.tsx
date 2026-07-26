@@ -227,7 +227,6 @@ export default function QuotePreviewPage() {
           </label>
           <p className="text-[11px] text-muted">
             Includes estimated timeline (stop-local + Zulu). Carrier stays unnamed.
-            Uses Resend when email adapter is live.
           </p>
 
           <button

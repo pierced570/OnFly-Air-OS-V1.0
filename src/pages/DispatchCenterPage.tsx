@@ -173,8 +173,8 @@ function OfferTripList({
             <div className="font-medium text-cream">{c.title}</div>
             <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
             <p className="mt-1 text-xs text-muted">
-              Share each offer link — operators are not auto-pinged. Status
-              updates when they answer Yes / No or submit a quote.
+              Quote-request links are emailed on send. Status updates when
+              they answer Yes / No or submit a quote.
             </p>
             {c.recipients && c.recipients.length > 0 ? (
               <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">
@@ -191,13 +191,21 @@ function OfferTripList({
                         {r.status_label}
                       </span>
                     </div>
+                    <div className="mt-1 font-mono text-[11px] text-muted">
+                      {r.destination_summary}
+                    </div>
+                    {r.destination_gaps.length > 0 ? (
+                      <div className="mt-0.5 text-[11px] text-late">
+                        {r.destination_gaps.join(' · ')}
+                      </div>
+                    ) : null}
                     {r.sent_label ? (
                       <div className="mt-1 font-mono text-[11px] text-muted">
                         {r.sent_label}
                       </div>
                     ) : (
                       <div className="mt-1 text-[11px] text-muted">
-                        Link ready — not marked sent yet
+                        Link not created yet
                       </div>
                     )}
                     {r.quote_summary ? (

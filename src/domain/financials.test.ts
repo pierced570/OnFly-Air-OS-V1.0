@@ -39,9 +39,104 @@ function base(partial: Partial<FinancialRecord> = {}): FinancialRecord {
     vendor_bill_url: null,
     vendor_bill_verified: false,
     notes: null,
+    vendor_lines: [],
     ...partial,
   }
 }
+
+describe('vendor lines under one PO', () => {
+  it('rolls multiple vendor amounts into margin math', () => {
+    const c = computeFields(
+      base({
+        vendor_lines: [
+          {
+            id: 'a',
+            kind: 'aircraft',
+            vendor_name: 'Axio',
+            tail_number: 'N4380W',
+            aircraft_type: 'Barron',
+            amount: 10000,
+            pay_terms: 'Net 30',
+            vendor_paid: false,
+            bill_logged_in_qb: false,
+            vendor_bill_url: null,
+            vendor_bill_verified: false,
+            notes: null,
+          },
+          {
+            id: 'g',
+            kind: 'ground',
+            vendor_name: 'Hotshot Co',
+            tail_number: null,
+            aircraft_type: null,
+            amount: 1713,
+            pay_terms: 'Net 15',
+            vendor_paid: false,
+            bill_logged_in_qb: false,
+            vendor_bill_url: null,
+            vendor_bill_verified: false,
+            notes: null,
+          },
+        ],
+      }),
+    )
+    expect(c.vendor_amount).toBe(11713)
+    expect(c.margin).toBe(1387)
+    expect(c.vendor_name).toBe('Axio + Hotshot Co')
+    expect(c.vendors).toHaveLength(2)
+    expect(c.operator_side_complete).toBe(false)
+  })
+
+  it('operator side complete only when every vendor bill is done', () => {
+    const incomplete = computeFields(
+      base({
+        vendor_lines: [
+          {
+            id: 'a',
+            kind: 'aircraft',
+            vendor_name: 'Axio',
+            tail_number: null,
+            aircraft_type: null,
+            amount: 5000,
+            pay_terms: 'Net 30',
+            vendor_paid: true,
+            bill_logged_in_qb: true,
+            vendor_bill_url: 'https://example.com/a.pdf',
+            vendor_bill_verified: true,
+            notes: null,
+          },
+          {
+            id: 'g',
+            kind: 'ground',
+            vendor_name: 'Ground',
+            tail_number: null,
+            aircraft_type: null,
+            amount: 800,
+            pay_terms: 'Net 30',
+            vendor_paid: false,
+            bill_logged_in_qb: false,
+            vendor_bill_url: null,
+            vendor_bill_verified: false,
+            notes: null,
+          },
+        ],
+      }),
+    )
+    expect(incomplete.operator_side_complete).toBe(false)
+
+    const done = computeFields(
+      base({
+        vendor_lines: incomplete.vendors.map((l) => ({
+          ...l,
+          vendor_paid: true,
+          bill_logged_in_qb: true,
+          vendor_bill_url: l.vendor_bill_url ?? 'https://example.com/b.pdf',
+        })),
+      }),
+    )
+    expect(done.operator_side_complete).toBe(true)
+  })
+})
 
 describe('computeFields', () => {
   it('Jonny 1% matches CSV sample PO #00338', () => {

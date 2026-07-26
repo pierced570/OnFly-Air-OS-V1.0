@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BrandLockup } from '@/components/BrandLockup'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { getSession, subscribeStaff } from '@/lib/staffStore'
 import {
   getScratchPad,
@@ -46,11 +47,11 @@ export default function ScratchPadPage({
   const textarea = (
     <>
       {!embedded ? (
-        <p className="mb-4 text-sm leading-relaxed text-[#9a948a]">
+        <p className="mb-4 text-sm leading-relaxed text-muted">
           Phone rings — open this page and type. Client name, route, cargo,
           timing, whatever you hear. No login until you&apos;re off the call.
           For general ops (no scratch), use{' '}
-          <span className="text-[#f7f2e3]/80">Login</span>.
+          <span className="text-cream/80">Login</span>.
         </p>
       ) : (
         <p className="mb-3 text-sm text-muted">
@@ -67,13 +68,13 @@ ASAP / AOG
 Forklift at dest
 Contact: ops@acme…`}
         className={[
-          'flex-1 resize-y rounded-xl border border-[#2a2a2e] bg-[#141414] px-4 py-4 font-mono text-base leading-relaxed text-[#f7f2e3] outline-none placeholder:text-[#5c574c] focus:border-[#c9a227]/60',
+          'flex-1 resize-y rounded-xl border border-border bg-surface px-4 py-4 font-mono text-base leading-relaxed text-cream outline-none placeholder:text-muted focus:border-gold/60',
           embedded ? 'min-h-[45vh]' : 'min-h-[55vh]',
         ].join(' ')}
         autoFocus
         spellCheck
       />
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6b6560]">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
         <span>
           Autosaved
           {pad.updated_at
@@ -82,7 +83,7 @@ Contact: ops@acme…`}
         </span>
         <button
           type="button"
-          className="text-[#9a948a] hover:text-[#c9a227]"
+          className="text-muted hover:text-gold"
           onClick={() => setScratchPadBody('')}
         >
           Clear Scratchpad
@@ -111,31 +112,32 @@ Contact: ops@acme…`}
 
   return (
     <div
-      className="flex min-h-screen flex-col bg-[#0c0c0e] text-[#f7f2e3]"
+      className="flex min-h-screen flex-col bg-ink text-cream"
       data-theme="dispatcher"
     >
-      <header className="flex items-center justify-between gap-3 border-b border-[#2a2a2e] px-4 py-3 sm:px-6">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
           <BrandLockup variant="mark" className="!h-9 !w-9" showTagline={false} />
           <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-[#c9a227]">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-gold">
               OnFly Air
             </div>
             <h1 className="text-lg font-semibold tracking-tight">Scratchpad</h1>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ThemeToggle compact />
           <button
             type="button"
             onClick={goOps}
-            className="rounded-md border border-[#2a2a2e] px-3 py-2 text-xs font-medium text-[#f7f2e3] hover:border-[#c9a227]/50"
+            className="rounded-md border border-border px-3 py-2 text-xs font-medium text-cream hover:border-gold/50"
           >
             {session ? 'Dispatch center' : 'Login'}
           </button>
           <button
             type="button"
             onClick={goParse}
-            className="rounded-md bg-[#c9a227] px-3 py-2 text-xs font-semibold text-[#0c0c0e] hover:bg-[#e3b341]"
+            className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt"
           >
             {session ? 'Parse & shortlist' : 'Login & parse'}
           </button>

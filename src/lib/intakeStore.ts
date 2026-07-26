@@ -1,6 +1,6 @@
 /**
  * Inbound email/SMS intake drafts (DB hydrate only).
- * The intake simulator UI was removed — real webhooks can land here later.
+ * Inbound intake drafts land here (webhooks / email ingest).
  */
 
 export type IntakeDraft = {

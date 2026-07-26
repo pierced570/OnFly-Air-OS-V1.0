@@ -4,7 +4,11 @@
  */
 
 import { computeReferralShareAmount } from '@/domain/referrals'
-import type { FinancialRecord } from '@/domain/financials'
+import {
+  newVendorLine,
+  type FinancialRecord,
+  type FinancialVendorLine,
+} from '@/domain/financials'
 import { getReferral, getReferralByName } from '@/lib/referralStore'
 import { upsertFinancial, getFinancial } from '@/lib/financialsStore'
 import type { TripStoreRow } from '@/lib/tripStore'
@@ -63,30 +67,66 @@ export function ensureFinancialFromBookedTrip(trip: TripStoreRow): FinancialReco
     : 0
 
   const selected = trip.offers.find((o) => o.state === 'selected')
+  const po =
+    trip.quick?.po || trip.po_number || existing?.operator_po || null
+  const aircraftType =
+    trip.quick?.aircraft_type ||
+    selected?.type_name ||
+    existing?.aircraft_type ||
+    null
+  const tail =
+    trip.quick?.tail || selected?.tail || existing?.tail_number || null
+  const vendorName =
+    trip.quick?.operator_name ||
+    selected?.operator_name ||
+    existing?.vendor_name ||
+    null
+  const payTerms = trip.quick?.pay_terms || existing?.pay_terms || 'Net 30'
+
+  // Keep extra vendors already on the ledger; refresh / seed the primary aircraft line.
+  const priorLines = existing?.vendor_lines ?? []
+  const nonAircraft = priorLines.filter((l) => l.kind !== 'aircraft')
+  const priorAircraft =
+    priorLines.find((l) => l.kind === 'aircraft') ?? priorLines[0]
+  const aircraftLine: FinancialVendorLine = newVendorLine({
+    id: priorAircraft?.id ?? `${id}-aircraft`,
+    kind: 'aircraft',
+    vendor_name: vendorName ?? priorAircraft?.vendor_name ?? '',
+    tail_number: tail,
+    aircraft_type: aircraftType,
+    amount:
+      Number(vendorCost) ||
+      priorAircraft?.amount ||
+      0,
+    pay_terms: payTerms,
+    vendor_paid: priorAircraft?.vendor_paid ?? existing?.vendor_paid ?? false,
+    bill_logged_in_qb:
+      priorAircraft?.bill_logged_in_qb ?? existing?.bill_logged_in_qb ?? false,
+    vendor_bill_url:
+      priorAircraft?.vendor_bill_url ?? existing?.vendor_bill_url ?? null,
+    vendor_bill_verified:
+      priorAircraft?.vendor_bill_verified ??
+      existing?.vendor_bill_verified ??
+      false,
+    notes: priorAircraft?.notes ?? null,
+  })
+  const vendor_lines = [aircraftLine, ...nonAircraft]
+
   const row: FinancialRecord = {
     id,
     is_legacy: false,
     source: trip.quick ? 'quick_dispatch' : 'live',
     date_of_flight: flightDateFromTrip(trip),
-    operator_po: trip.quick?.po || trip.po_number || existing?.operator_po || null,
+    operator_po: po,
     client_name:
       trip.quick?.client_name ||
       existing?.client_name ||
       null,
     route_text: trip.lane || existing?.route_text || null,
-    aircraft_type:
-      trip.quick?.aircraft_type ||
-      selected?.type_name ||
-      existing?.aircraft_type ||
-      null,
-    tail_number:
-      trip.quick?.tail || selected?.tail || existing?.tail_number || null,
-    vendor_name:
-      trip.quick?.operator_name ||
-      selected?.operator_name ||
-      existing?.vendor_name ||
-      null,
-    pay_terms: trip.quick?.pay_terms || existing?.pay_terms || 'Net 30',
+    aircraft_type: aircraftType,
+    tail_number: tail,
+    vendor_name: vendorName,
+    pay_terms: payTerms,
     referral_name: referralName,
     referral_share_amount,
     client_subtotal_pre_tax:
@@ -113,11 +153,12 @@ export function ensureFinancialFromBookedTrip(trip: TripStoreRow): FinancialReco
     vendor_bill_url: existing?.vendor_bill_url ?? null,
     vendor_bill_verified: existing?.vendor_bill_verified ?? false,
     notes: trip.quick?.notes || existing?.notes || null,
+    vendor_lines,
     qb_invoice_id: existing?.qb_invoice_id,
     qb_invoice_number: existing?.qb_invoice_number,
     invoice_date: existing?.invoice_date,
     due_date: existing?.due_date,
-    po_number: trip.quick?.po || existing?.po_number,
+    po_number: po || existing?.po_number,
   }
 
   upsertFinancial(row)

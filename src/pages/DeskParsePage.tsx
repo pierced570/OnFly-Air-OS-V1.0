@@ -8,6 +8,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
 import {
+  describeOfferDestination,
+  formatOfferDestinationConfirm,
+} from '@/domain/offerRecipients'
+import {
   DEFAULT_QUOTE_LINK_CHANNEL,
   type QuoteLinkChannel,
 } from '@/domain/quoteLinkChannel'
@@ -348,16 +352,45 @@ export default function DeskParsePage() {
       setError('Select at least one operator')
       return
     }
+    const overridesForSend: Record<string, DeskContactOverride> = {}
+    for (const c of picks) {
+      overridesForSend[c.operator_id] =
+        contactOverrides[c.operator_id] ??
+        profileContactsForOperator(c.operator_id)
+    }
+    // SMS provider not live yet — every recipient needs email on the channel.
+    const missingEmail = picks.filter((c) => {
+      const ov = overridesForSend[c.operator_id]!
+      const dest = describeOfferDestination({
+        operator_name: c.operator_name,
+        ...ov,
+      })
+      return !dest.email
+    })
+    if (missingEmail.length) {
+      setError(
+        `Add an email on file before sending (SMS not connected yet): ${missingEmail
+          .map((c) => c.operator_name)
+          .join(', ')}`,
+      )
+      return
+    }
+    const confirmed = window.confirm(
+      formatOfferDestinationConfirm(
+        picks.map((c) => ({
+          operator_name: c.operator_name,
+          ...overridesForSend[c.operator_id]!,
+        })),
+        'notify',
+      ),
+    )
+    if (!confirmed) return
     setSending(true)
     setError(null)
     try {
-      const overridesForSend: Record<string, DeskContactOverride> = {}
       // Persist desk-edited contacts onto the operator profile when filled.
       for (const c of picks) {
-        const ov =
-          contactOverrides[c.operator_id] ??
-          profileContactsForOperator(c.operator_id)
-        overridesForSend[c.operator_id] = ov
+        const ov = overridesForSend[c.operator_id]!
         if (ov.contact_email.trim()) {
           updateSheetOperatorField(
             c.operator_id,
@@ -1009,12 +1042,12 @@ export default function DeskParsePage() {
           {selectedCandidates.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-cream">
-                Send contacts ({selectedCandidates.length})
+                Offer destinations ({selectedCandidates.length})
               </h2>
               <p className="text-xs text-muted">
-                Email and SMS prefill from the operator profile when we have
-                them — blank means add before send. Channel defaults to both
-                unless the profile says otherwise.
+                Confirm email on file — we email the quote-request link when
+                you send. SMS delivery is not connected yet (use Email or
+                Both with an email).
               </p>
               <ul className="space-y-3">
                 {selectedCandidates.map((c) => {
@@ -1123,7 +1156,9 @@ export default function DeskParsePage() {
             >
               {sending
                 ? 'Sending…'
-                : `Send offer link to ${selected.size} operator${selected.size === 1 ? '' : 's'}`}
+                : `Send offer request to ${selected.size} operator${
+                    selected.size === 1 ? '' : 's'
+                  }`}
             </button>
             <button
               type="button"

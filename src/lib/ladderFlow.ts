@@ -23,6 +23,7 @@ import { generateCandidates } from '@/domain/routing'
 import {
   buildOffersFromCandidates,
   openTripOffers,
+  sendAvailabilityPings,
 } from '@/lib/offerFlow'
 import {
   createRoutedTripWithShortlist,
@@ -206,5 +207,6 @@ export async function approveShortlistAndSpoolOffers(
   })
 
   await openTripOffers(tripId)
+  await sendAvailabilityPings(tripId)
   return getTrip(tripId)
 }

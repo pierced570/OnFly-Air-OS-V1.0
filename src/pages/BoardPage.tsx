@@ -15,7 +15,6 @@ import {
   acknowledgeException,
   listExceptions,
   subscribeExceptions,
-  syncExceptionsFromTrips,
 } from '@/lib/exceptionStore'
 import {
   acknowledgeCheckpoint,
@@ -71,11 +70,7 @@ export default function BoardPage() {
   )
 
   const [shiftName, setShiftName] = useState('')
-  const [shiftPhone, setShiftPhone] = useState('+15555550100')
-
-  useEffect(() => {
-    syncExceptionsFromTrips(trips)
-  }, [trips])
+  const [shiftPhone, setShiftPhone] = useState('')
 
   useEffect(() => {
     prunePresence()

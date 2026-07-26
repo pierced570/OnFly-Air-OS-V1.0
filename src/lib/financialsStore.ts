@@ -5,9 +5,13 @@
 
 import fixture from '@/fixtures/financials.json'
 import {
+  applyVendorLineRollup,
   computeFields,
+  ensureVendorLines,
+  newVendorLine,
   type ComputedFinancial,
   type FinancialRecord,
+  type FinancialVendorLine,
 } from '@/domain/financials'
 
 const OVERRIDES_KEY = 'onfly.financials.overrides.v1'
@@ -73,61 +77,84 @@ function applyOverride(id: string, patch: Partial<FinancialRecord>): void {
   Object.assign(row, patch)
 }
 
+function normalizeRecord(r: FinancialRecord): FinancialRecord {
+  const withLines: FinancialRecord = {
+    ...r,
+    tax_breakdown: r.tax_breakdown ?? [],
+    referral_share_amount: r.referral_share_amount ?? 0,
+    vendor_lines: Array.isArray(r.vendor_lines) ? r.vendor_lines : [],
+  }
+  // Persist synthesized primary line so multi-vendor edits have a real array.
+  if (!withLines.vendor_lines.length) {
+    const synthesized = ensureVendorLines(withLines)
+    if (synthesized.length) withLines.vendor_lines = synthesized
+  }
+  return withLines
+}
+
 function seed() {
   if (records.size) return
   loadOverrides()
   for (const r of fixture.records as unknown as FinancialRecord[]) {
-    const base = {
+    const base = normalizeRecord({
       ...r,
       tax_breakdown: r.tax_breakdown ?? [],
       referral_share_amount: r.referral_share_amount ?? 0,
-    }
+      vendor_lines: r.vendor_lines ?? [],
+    })
     const patch = overrides.get(r.id)
-    records.set(r.id, patch ? { ...base, ...patch } : base)
+    records.set(
+      r.id,
+      patch ? normalizeRecord({ ...base, ...patch }) : base,
+    )
   }
   // Edits that created brand-new ids (rare) — keep overrides-only rows
   for (const [id, patch] of overrides) {
     if (records.has(id)) continue
     if (!patch.id && !patch.client_name && !patch.operator_po) continue
-    records.set(id, {
+    records.set(
       id,
-      is_legacy: false,
-      source: 'edit',
-      date_of_flight: null,
-      operator_po: null,
-      client_name: null,
-      route_text: null,
-      aircraft_type: null,
-      tail_number: null,
-      vendor_name: null,
-      pay_terms: 'Net 30',
-      referral_name: null,
-      referral_share_amount: 0,
-      client_subtotal_pre_tax: null,
-      tax_total: 0,
-      tax_breakdown: [],
-      client_invoiced_amount: 0,
-      vendor_amount: 0,
-      margin: 0,
-      funded_by: 'Jonny 1%',
-      deposited_to: null,
-      check_deposit_number: null,
-      jonnys_profits: 0,
-      jonny_invested: 0,
-      jonny_money_owed: 0,
-      jonny_money_returned: 0,
-      ofa_profit_per_trip: 0,
-      was_it_paid: false,
-      vendor_paid: false,
-      investor_paid: false,
-      has_ofa_seen_profit: false,
-      bill_logged_in_qb: false,
-      referral_paid_out: false,
-      vendor_bill_url: null,
-      vendor_bill_verified: false,
-      notes: null,
-      ...patch,
-    })
+      normalizeRecord({
+        id,
+        is_legacy: false,
+        source: 'edit',
+        date_of_flight: null,
+        operator_po: null,
+        client_name: null,
+        route_text: null,
+        aircraft_type: null,
+        tail_number: null,
+        vendor_name: null,
+        pay_terms: 'Net 30',
+        referral_name: null,
+        referral_share_amount: 0,
+        client_subtotal_pre_tax: null,
+        tax_total: 0,
+        tax_breakdown: [],
+        client_invoiced_amount: 0,
+        vendor_amount: 0,
+        margin: 0,
+        funded_by: 'Jonny 1%',
+        deposited_to: null,
+        check_deposit_number: null,
+        jonnys_profits: 0,
+        jonny_invested: 0,
+        jonny_money_owed: 0,
+        jonny_money_returned: 0,
+        ofa_profit_per_trip: 0,
+        was_it_paid: false,
+        vendor_paid: false,
+        investor_paid: false,
+        has_ofa_seen_profit: false,
+        bill_logged_in_qb: false,
+        referral_paid_out: false,
+        vendor_bill_url: null,
+        vendor_bill_verified: false,
+        notes: null,
+        vendor_lines: [],
+        ...patch,
+      }),
+    )
   }
   rebuild()
 }
@@ -151,9 +178,80 @@ export function getFinancial(id: string): ComputedFinancial | null {
 }
 
 export function upsertFinancial(row: FinancialRecord): void {
-  records.set(row.id, row)
-  applyOverride(row.id, row)
+  const normalized = normalizeRecord(row)
+  records.set(normalized.id, normalized)
+  applyOverride(normalized.id, normalized)
   bump()
+}
+
+function commitVendorLines(
+  id: string,
+  lines: FinancialVendorLine[],
+): ComputedFinancial | null {
+  const row = records.get(id)
+  if (!row) return null
+  const rolled = applyVendorLineRollup({
+    ...row,
+    vendor_lines: lines,
+    is_legacy: false,
+  })
+  Object.assign(row, rolled)
+  applyOverride(id, {
+    vendor_lines: rolled.vendor_lines,
+    vendor_amount: rolled.vendor_amount,
+    vendor_name: rolled.vendor_name,
+    vendor_paid: rolled.vendor_paid,
+    bill_logged_in_qb: rolled.bill_logged_in_qb,
+    vendor_bill_url: rolled.vendor_bill_url,
+    vendor_bill_verified: rolled.vendor_bill_verified,
+    tail_number: rolled.tail_number,
+    aircraft_type: rolled.aircraft_type,
+    pay_terms: rolled.pay_terms,
+    is_legacy: false,
+  })
+  bump()
+  return computeFields(row)
+}
+
+/** Replace all vendor lines on a PO / financial row (re-rolls op cost). */
+export function setFinancialVendorLines(
+  id: string,
+  lines: FinancialVendorLine[],
+): ComputedFinancial | null {
+  return commitVendorLines(id, lines)
+}
+
+export function addFinancialVendorLine(
+  id: string,
+  partial?: Partial<FinancialVendorLine>,
+): ComputedFinancial | null {
+  const row = records.get(id)
+  if (!row) return null
+  const lines = [...ensureVendorLines(row), newVendorLine(partial)]
+  return commitVendorLines(id, lines)
+}
+
+export function updateFinancialVendorLine(
+  id: string,
+  lineId: string,
+  patch: Partial<FinancialVendorLine>,
+): ComputedFinancial | null {
+  const row = records.get(id)
+  if (!row) return null
+  const lines = ensureVendorLines(row).map((l) =>
+    l.id === lineId ? { ...l, ...patch } : l,
+  )
+  return commitVendorLines(id, lines)
+}
+
+export function removeFinancialVendorLine(
+  id: string,
+  lineId: string,
+): ComputedFinancial | null {
+  const row = records.get(id)
+  if (!row) return null
+  const lines = ensureVendorLines(row).filter((l) => l.id !== lineId)
+  return commitVendorLines(id, lines)
 }
 
 export function updateFinancialField(
@@ -170,6 +268,62 @@ export function updateFinancialField(
   // Editing money on a legacy import unlocks live investor/margin math.
   if (row.is_legacy && LIVE_MATH_FIELDS.has(field)) {
     patch.is_legacy = false
+  }
+
+  // Keep primary vendor line in sync when sheet edits touch rolled fields.
+  if (
+    field === 'vendor_amount' ||
+    field === 'vendor_name' ||
+    field === 'vendor_paid' ||
+    field === 'bill_logged_in_qb' ||
+    field === 'vendor_bill_url' ||
+    field === 'tail_number' ||
+    field === 'aircraft_type' ||
+    field === 'pay_terms'
+  ) {
+    const lines = ensureVendorLines(row)
+    if (lines.length) {
+      const primary =
+        lines.find((l) => l.kind === 'aircraft') ?? lines[0]!
+      const nextPrimary = { ...primary }
+      if (field === 'vendor_amount') nextPrimary.amount = Number(value) || 0
+      if (field === 'vendor_name') nextPrimary.vendor_name = String(value ?? '')
+      if (field === 'vendor_paid') nextPrimary.vendor_paid = Boolean(value)
+      if (field === 'bill_logged_in_qb') {
+        nextPrimary.bill_logged_in_qb = Boolean(value)
+      }
+      if (field === 'vendor_bill_url') {
+        nextPrimary.vendor_bill_url = (value as string | null) ?? null
+      }
+      if (field === 'tail_number') {
+        nextPrimary.tail_number = (value as string | null) ?? null
+      }
+      if (field === 'aircraft_type') {
+        nextPrimary.aircraft_type = (value as string | null) ?? null
+      }
+      if (field === 'pay_terms') {
+        nextPrimary.pay_terms = (value as string | null) ?? null
+      }
+      const nextLines = lines.map((l) =>
+        l.id === primary.id ? nextPrimary : l,
+      )
+      const rolled = applyVendorLineRollup({
+        ...row,
+        ...patch,
+        vendor_lines: nextLines,
+      })
+      Object.assign(row, rolled)
+      applyOverride(id, {
+        ...patch,
+        vendor_lines: rolled.vendor_lines,
+        vendor_amount: rolled.vendor_amount,
+        vendor_name: rolled.vendor_name,
+        vendor_paid: rolled.vendor_paid,
+        bill_logged_in_qb: rolled.bill_logged_in_qb,
+      })
+      bump()
+      return
+    }
   }
 
   Object.assign(row, patch)
@@ -189,6 +343,70 @@ export function updateFinancialRecord(
     LIVE_MATH_FIELDS.has(k as keyof FinancialRecord),
   )
   if (row.is_legacy && touchesMoney) next.is_legacy = false
+
+  // If money/vendor identity changes without an explicit vendor_lines patch,
+  // keep the primary aircraft line aligned so rollup doesn't stomp the edit.
+  if (
+    !next.vendor_lines &&
+    (next.vendor_amount != null ||
+      next.vendor_name != null ||
+      next.vendor_paid != null ||
+      next.bill_logged_in_qb != null ||
+      next.vendor_bill_url !== undefined ||
+      next.tail_number !== undefined ||
+      next.aircraft_type !== undefined)
+  ) {
+    const lines = ensureVendorLines({ ...row, ...next })
+    if (lines.length) {
+      const primary =
+        lines.find((l) => l.kind === 'aircraft') ?? lines[0]!
+      const nextPrimary = {
+        ...primary,
+        amount:
+          next.vendor_amount != null
+            ? Number(next.vendor_amount) || 0
+            : primary.amount,
+        vendor_name:
+          next.vendor_name != null
+            ? String(next.vendor_name)
+            : primary.vendor_name,
+        vendor_paid:
+          next.vendor_paid != null ? Boolean(next.vendor_paid) : primary.vendor_paid,
+        bill_logged_in_qb:
+          next.bill_logged_in_qb != null
+            ? Boolean(next.bill_logged_in_qb)
+            : primary.bill_logged_in_qb,
+        vendor_bill_url:
+          next.vendor_bill_url !== undefined
+            ? next.vendor_bill_url
+            : primary.vendor_bill_url,
+        tail_number:
+          next.tail_number !== undefined
+            ? next.tail_number
+            : primary.tail_number,
+        aircraft_type:
+          next.aircraft_type !== undefined
+            ? next.aircraft_type
+            : primary.aircraft_type,
+      }
+      next.vendor_lines = lines.map((l) =>
+        l.id === primary.id ? nextPrimary : l,
+      )
+    }
+  }
+
+  if (next.vendor_lines) {
+    const rolled = applyVendorLineRollup({
+      ...row,
+      ...next,
+      vendor_lines: next.vendor_lines,
+    })
+    Object.assign(row, rolled)
+    applyOverride(id, rolled)
+    bump()
+    return computeFields(row)
+  }
+
   Object.assign(row, next)
   applyOverride(id, next)
   bump()

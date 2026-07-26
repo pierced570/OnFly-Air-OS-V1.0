@@ -52,11 +52,7 @@ export function ClientInvitePanel(props?: {
         recipientName: name || undefined,
         template,
       })
-      setStatus(
-        live
-          ? `Welcome email sent to ${result.to}.`
-          : `Mock-sent to ${result.to}. Set VITE_EMAIL_ADAPTER=real for live delivery.`,
-      )
+      setStatus(`Welcome email sent to ${result.to}.`)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
     } finally {
@@ -86,11 +82,9 @@ export function ClientInvitePanel(props?: {
           link (
           <span className="avionic text-cream">/client</span>
           ).
-          {live
-            ? ' Email is live.'
-            : realFlag
-              ? ' Email adapter is real but Supabase keys are missing.'
-              : ' Email is mock until Resend is wired.'}
+          {!live && realFlag
+            ? ' Email delivery needs Supabase keys configured.'
+            : ''}
         </p>
       </div>
 

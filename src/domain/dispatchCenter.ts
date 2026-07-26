@@ -6,6 +6,7 @@
 import type { TripState } from '@/domain/stateMachine'
 import { tripStateLabel } from '@/domain/pipelineStages'
 import {
+  describeOfferDestination,
   formatOfferQuoteSummary,
   formatOfferSentAt,
   offerRecipientStatus,
@@ -55,6 +56,10 @@ export type DispatchRecipient = {
   quote_summary: string | null
   sent_at: string | null
   sent_label: string | null
+  /** Channel + email/SMS on file for this offer. */
+  destination_summary: string
+  destination_gaps: string[]
+  notified: boolean
   magic_token: string
   href: string
 }
@@ -119,6 +124,7 @@ export function buildDispatchDrawers(input: {
     source: string
     status: string
     email?: string
+    client_name?: string | null
     hard_quote_requested_at?: string | null
   }>
   trips: Array<{
@@ -133,6 +139,7 @@ export function buildDispatchDrawers(input: {
       operator_name: string
       state: string
       ping_sent_at?: string | null
+      notified_at?: string | null
       replied_at?: string | null
       magic_token?: string
       price_net?: number | null
@@ -140,6 +147,10 @@ export function buildDispatchDrawers(input: {
       live_leg_min?: number | null
       fee_scope?: string | null
       tail?: string | null
+      contact_email?: string | null
+      contact_cell?: string | null
+      contact_cell_is_mock?: boolean
+      quote_link_channel?: string | null
     }>
   }>
 }): DispatchDrawerBucket {
@@ -147,10 +158,13 @@ export function buildDispatchDrawers(input: {
 
   for (const r of input.requests) {
     if (r.status !== 'submitted' && r.status !== 'in_review') continue
+    const client = (r.client_name ?? '').trim()
     out.requests.push({
       kind: 'request',
       id: r.id,
-      title: `R-${r.ref} · ${r.lane}`,
+      title: client
+        ? `R-${r.ref} · ${client} · ${r.lane}`
+        : `R-${r.ref} · ${r.lane}`,
       subtitle: `${requestSourceLabel(r.source)} · ${r.summary}${
         r.hard_quote_requested_at ? ' · HARD QUOTE' : ''
       }${r.email ? ` · ${r.email}` : ''}`,
@@ -168,15 +182,21 @@ export function buildDispatchDrawers(input: {
     const recipients: DispatchRecipient[] = (t.offers ?? []).map((o) => {
       const status = offerRecipientStatus(o.state)
       const token = o.magic_token ?? ''
-      const sent = formatOfferSentAt(o.ping_sent_at)
+      const notified = Boolean(o.notified_at)
+      const dest = describeOfferDestination(o)
+      const atIso = notified ? o.notified_at : o.ping_sent_at
+      const sent = formatOfferSentAt(atIso, Date.now(), notified ? 'notified' : 'link')
       return {
         offer_id: o.id,
         name: o.operator_name,
         status,
-        status_label: offerRecipientStatusLabel(status),
+        status_label: offerRecipientStatusLabel(status, { notified }),
         quote_summary: formatOfferQuoteSummary(o),
-        sent_at: o.ping_sent_at ?? null,
+        sent_at: atIso ?? null,
         sent_label: sent?.display ?? null,
+        destination_summary: dest.summary,
+        destination_gaps: dest.gaps,
+        notified,
         magic_token: token,
         href: token ? `/offer/${token}` : `/trips/${t.id}/offers`,
       }
@@ -185,9 +205,10 @@ export function buildDispatchDrawers(input: {
     const no = recipients.filter((r) => r.status === 'no').length
     const quoted = recipients.filter((r) => r.status === 'quote_submitted').length
     const awaiting = recipients.filter((r) => r.status === 'awaiting').length
+    const notifiedN = recipients.filter((r) => r.notified).length
     const offerBit =
       t.state === 'offers_out' && recipients.length
-        ? ` · ${recipients.length} sent · ${yes} yes · ${no} no · ${quoted} quoted · ${awaiting} awaiting`
+        ? ` · ${recipients.length} recipients · ${notifiedN} notified · ${yes} yes · ${no} no · ${quoted} quoted · ${awaiting} awaiting`
         : ''
     out[drawer].push({
       kind: 'trip',
