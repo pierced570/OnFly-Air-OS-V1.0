@@ -89,6 +89,8 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
   await ensureTripRow(trip)
 
   const clientUuid = await resolveClientUuid(trip.client_id)
+  // Keep ETA/thread fields in session_meta too — prod may lag migrations
+  // that add service_pattern / thread_number columns (0014 / 0016).
   await safeQuery('trips.shell', () =>
     db()
       .from('trips')
@@ -99,15 +101,28 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
         ready_label: trip.ready_label,
         accept_token: trip.hard_quote?.accept_token ?? null,
         po_number: trip.quick?.po || null,
-        thread_number: trip.thread_number,
-        thread_disbanded_at: trip.thread_disbanded_at,
         session_meta: {
           ref: trip.ref,
           quick: trip.quick ?? null,
           hard_quote: trip.hard_quote ?? null,
           candidates: trip.candidates.slice(0, 8),
           invoice: trip.invoice,
+          service_pattern: trip.service_pattern,
+          promised_delivery: trip.promised_delivery,
+          eta_defaults_snapshot: trip.eta_defaults_snapshot,
+          thread_number: trip.thread_number,
+          thread_disbanded_at: trip.thread_disbanded_at,
         },
+      })
+      .eq('id', trip.id),
+  )
+  // Best-effort column writes when migrations are applied.
+  await safeQuery('trips.shell_extended', () =>
+    db()
+      .from('trips')
+      .update({
+        thread_number: trip.thread_number,
+        thread_disbanded_at: trip.thread_disbanded_at,
       })
       .eq('id', trip.id),
   )
@@ -239,27 +254,31 @@ async function upsertOfferRow(
   opts: { operator_id: string | null; aircraft_id: string | null },
 ): Promise<boolean> {
   const data = await safeQuery(`offers.upsert.${o.id}`, () =>
-    db().from('offers').upsert(
-      {
-        id: o.id,
-        trip_id: tripId,
-        operator_id: opts.operator_id,
-        aircraft_id: opts.aircraft_id,
-        state: o.state,
-        ping_sent_at: o.ping_sent_at,
-        replied_at: o.replied_at,
-        time_to_position_min: o.time_to_position_min,
-        live_leg_min: o.live_leg_min,
-        wait_ok: o.wait_ok,
-        max_wait_hrs: o.max_wait_hrs,
-        price_net: o.price_net,
-        magic_token: o.magic_token,
-        notes: offerNotesJson(o),
-      },
-      { onConflict: 'id' },
-    ),
+    db()
+      .from('offers')
+      .upsert(
+        {
+          id: o.id,
+          trip_id: tripId,
+          operator_id: opts.operator_id,
+          aircraft_id: opts.aircraft_id,
+          state: o.state,
+          ping_sent_at: o.ping_sent_at,
+          replied_at: o.replied_at,
+          time_to_position_min: o.time_to_position_min,
+          live_leg_min: o.live_leg_min,
+          wait_ok: o.wait_ok,
+          max_wait_hrs: o.max_wait_hrs,
+          price_net: o.price_net,
+          magic_token: o.magic_token,
+          notes: offerNotesJson(o),
+        },
+        { onConflict: 'id' },
+      )
+      .select('id')
+      .maybeSingle(),
   )
-  return data !== null
+  return Boolean(data && typeof data === 'object' && 'id' in data)
 }
 
 async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> {
@@ -324,10 +343,12 @@ export async function verifyOfferTokensReadable(
 export async function persistTripOffersForPublicLinks(
   trip: TripStoreRow,
 ): Promise<void> {
+  // Local/demo (no Supabase): session-only links still work on this device.
   if (!canPersist()) {
-    throw new Error(
-      'Supabase is not configured — offer links cannot be opened on other devices',
+    console.warn(
+      '[db] Supabase unset — offer links will not open on other devices',
     )
+    return
   }
   await persistTripSnapshot(trip)
   const check = await verifyOfferTokensReadable(trip.offers)
