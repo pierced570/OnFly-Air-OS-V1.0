@@ -434,60 +434,104 @@ export async function respondOfferAvailability(
   return { ok: true, available }
 }
 
-export async function submitOperatorQuote(
-  token: string,
-  input: {
-    /** Operator-chosen tail — never pre-recommended on the offer board. */
-    tail?: string
-    time_to_position_min: number
-    /** Ground time at origin after position ETA (default 40). */
-    quick_turn_min?: number
-    live_leg_min: number
-    price_net: number
-    wait_ok: boolean
-    max_wait_hrs: number | null
-    fee_scope: FeeScope
-    notes?: string | null
-  },
+export type OperatorQuoteInput = {
+  /** Operator-chosen tail — never pre-recommended on the offer board. */
+  tail?: string
+  time_to_position_min: number
+  /** Ground time at origin after position ETA (default 40). */
+  quick_turn_min?: number
+  live_leg_min: number
+  price_net: number
+  wait_ok: boolean
+  max_wait_hrs: number | null
+  fee_scope: FeeScope
+  notes?: string | null
+}
+
+async function applyOfferQuote(
+  tripId: string,
+  offerId: string,
+  input: OperatorQuoteInput,
+  meta: { actor: string; kind: string; source: 'operator' | 'desk_manual' },
 ) {
-  const found = (await import('@/lib/tripStore')).getTripByOfferToken(token)
-  if (!found) throw new Error('invalid offer token')
-  const { trip, offer } = found
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
+  const offer = trip.offers.find((o) => o.id === offerId)
+  if (!offer) throw new Error('offer not found')
+  if (offer.state === 'unavailable' || offer.state === 'stood_down') {
+    throw new Error('cannot quote a declined or stood-down offer')
+  }
+  if (['booked', 'in_progress', 'delivered', 'invoiced', 'closed'].includes(trip.state)) {
+    throw new Error(`cannot quote from trip state ${trip.state}`)
+  }
   const tail = input.tail?.trim().toUpperCase()
   const quickTurn =
     input.quick_turn_min != null && Number.isFinite(input.quick_turn_min)
       ? Math.max(0, Math.floor(input.quick_turn_min))
       : 40
-  mutateTrip(trip.id, (t) => {
-    const o = t.offers.find((x) => x.id === offer.id)!
+  const price = Math.max(0, Math.round(Number(input.price_net) || 0))
+  if (!(price > 0)) throw new Error('price NET NET is required')
+  const at = new Date().toISOString()
+  mutateTrip(tripId, (t) => {
+    const o = t.offers.find((x) => x.id === offerId)!
     if (tail) o.tail = tail
     o.time_to_position_min = input.time_to_position_min
     o.quick_turn_min = quickTurn
     o.live_leg_min = input.live_leg_min
-    o.price_net = input.price_net
+    o.price_net = price
     o.wait_ok = input.wait_ok
     o.max_wait_hrs = input.max_wait_hrs
     o.fee_scope = input.fee_scope
     o.notes = input.notes?.trim() || null
-    o.state = 'quoted'
+    if (o.state !== 'selected') o.state = 'quoted'
+    if (!o.replied_at) o.replied_at = at
     t.events.push({
-      at: new Date().toISOString(),
-      actor: o.operator_name,
-      kind: 'offer_quoted',
+      at,
+      actor: meta.actor,
+      kind: meta.kind,
       payload: {
         ...input,
+        price_net: price,
         quick_turn_min: quickTurn,
         tail: tail || o.tail,
         offer_id: o.id,
+        source: meta.source,
       },
     })
   })
   const { applyOfferTtpToTrip, flushPersistTrip } = await import(
     '@/lib/tripStore'
   )
-  applyOfferTtpToTrip(trip.id, offer.id, input.time_to_position_min)
-  await flushPersistTrip(trip.id)
-  return getTrip(trip.id)!
+  applyOfferTtpToTrip(tripId, offerId, input.time_to_position_min)
+  await flushPersistTrip(tripId)
+  return getTrip(tripId)!
+}
+
+export async function submitOperatorQuote(
+  token: string,
+  input: OperatorQuoteInput,
+) {
+  const found = (await import('@/lib/tripStore')).getTripByOfferToken(token)
+  if (!found) throw new Error('invalid offer token')
+  const { trip, offer } = found
+  return applyOfferQuote(trip.id, offer.id, input, {
+    actor: offer.operator_name,
+    kind: 'offer_quoted',
+    source: 'operator',
+  })
+}
+
+/** Desk enters a quote from phone/email — same fields as the operator form. */
+export async function submitDeskManualQuote(
+  tripId: string,
+  offerId: string,
+  input: OperatorQuoteInput,
+) {
+  return applyOfferQuote(tripId, offerId, input, {
+    actor: 'dispatcher',
+    kind: 'offer_quoted_manual',
+    source: 'desk_manual',
+  })
 }
 
 export async function selectOfferAndHardQuote(

@@ -14,11 +14,13 @@ import {
   appendOfferToTrip,
   selectOffersAndHardQuote,
   sendAvailabilityPings,
+  submitDeskManualQuote,
   updateOfferContacts,
   updateTripOfferRequest,
 } from '@/lib/offerFlow'
 import { clientTotalForOffer } from '@/lib/offerPricing'
 import { ClientQuoteLayoutPanel } from '@/components/ClientQuoteLayoutPanel'
+import { OfferQuoteForm } from '@/components/OfferQuoteForm'
 import {
   hardQuoteClientStatus,
   hardQuoteClientStatusLabel,
@@ -75,6 +77,10 @@ export default function OffersPage() {
   const [opQuery, setOpQuery] = useState('')
   const [opHits, setOpHits] = useState<DeskOperatorHit[]>([])
   const [composeAnotherQuote, setComposeAnotherQuote] = useState(false)
+  const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
+    null,
+  )
+  const [manualQuoteBusy, setManualQuoteBusy] = useState(false)
   const [addFocus, setAddFocus] = useState(
     () => searchParams.get('add') === '1',
   )
@@ -553,9 +559,68 @@ export default function OffersPage() {
                       >
                         Offer link →
                       </Link>
+                      {status !== 'no' &&
+                      status !== 'stood_down' &&
+                      status !== 'expired' &&
+                      hardQuoteStatus !== 'accepted' ? (
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-gold hover:text-gold-lt"
+                          onClick={() =>
+                            setManualQuoteOfferId((id) =>
+                              id === o.id ? null : o.id,
+                            )
+                          }
+                        >
+                          {manualQuoteOfferId === o.id
+                            ? 'Cancel manual quote'
+                            : o.price_net != null
+                              ? 'Edit quote manually'
+                              : 'Enter quote manually'}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
+                {manualQuoteOfferId === o.id ? (
+                  <div className="mt-3 rounded border border-gold/40 bg-ink/50 p-3">
+                    <div className="mb-2 text-[11px] uppercase tracking-wider text-gold">
+                      Manual quote
+                    </div>
+                    <p className="mb-3 text-xs text-muted">
+                      Enter NET NET + timing from a phone/email quote. Saves as a
+                      submitted operator quote for this trip offer.
+                    </p>
+                    <OfferQuoteForm
+                      lane={trip.lane}
+                      busy={manualQuoteBusy}
+                      submitLabel={
+                        o.price_net != null ? 'Update quote' : 'Save quote'
+                      }
+                      intro=""
+                      initialTail={o.tail || ''}
+                      initialPriceNet={o.price_net ?? undefined}
+                      initialTtpMin={o.time_to_position_min ?? undefined}
+                      initialQuickTurnMin={o.quick_turn_min ?? undefined}
+                      initialLiveLegMin={o.live_leg_min ?? undefined}
+                      onSubmit={(values) => {
+                        setManualQuoteBusy(true)
+                        void submitDeskManualQuote(trip.id, o.id, values)
+                          .then(() => {
+                            setManualQuoteOfferId(null)
+                            setSelected((s) => ({ ...s, [o.id]: true }))
+                            setError(null)
+                          })
+                          .catch((e) =>
+                            setError(
+                              e instanceof Error ? e.message : String(e),
+                            ),
+                          )
+                          .finally(() => setManualQuoteBusy(false))
+                      }}
+                    />
+                  </div>
+                ) : null}
                 {status === 'awaiting' || status === 'yes' ? (
                 <div className="mt-3 space-y-2 rounded border border-border/50 bg-ink/40 p-3">
                   <div className="text-[11px] uppercase tracking-wider text-muted">

@@ -34,6 +34,14 @@ type Props = {
   roundTrip?: boolean
   busy?: boolean
   submitLabel?: string
+  /** Override the default operator intro; pass empty string to hide. */
+  intro?: string
+  /** Prefill when editing / desk entry from a known tail. */
+  initialTail?: string
+  initialPriceNet?: number
+  initialTtpMin?: number
+  initialQuickTurnMin?: number
+  initialLiveLegMin?: number
   onSubmit: (values: OfferQuoteFormValues) => void
 }
 
@@ -70,14 +78,22 @@ export function OfferQuoteForm({
   roundTrip,
   busy = false,
   submitLabel = 'Submit quote',
+  intro = "You're available — enter your aircraft and quote:",
+  initialTail = '',
+  initialPriceNet,
+  initialTtpMin,
+  initialQuickTurnMin,
+  initialLiveLegMin,
   onSubmit,
 }: Props) {
   const showWait = roundTrip ?? isRoundTripLane(lane)
-  const [tail, setTail] = useState('')
-  const [ttp, setTtp] = useState(90)
-  const [quickTurn, setQuickTurn] = useState(DEFAULT_QUICK_TURN_MIN)
-  const [live, setLive] = useState(75)
-  const [price, setPrice] = useState(4500)
+  const [tail, setTail] = useState(initialTail)
+  const [ttp, setTtp] = useState(initialTtpMin ?? 90)
+  const [quickTurn, setQuickTurn] = useState(
+    initialQuickTurnMin ?? DEFAULT_QUICK_TURN_MIN,
+  )
+  const [live, setLive] = useState(initialLiveLegMin ?? 75)
+  const [price, setPrice] = useState(initialPriceNet ?? 4500)
   const [waitOk, setWaitOk] = useState(true)
   const [maxWait, setMaxWait] = useState(2)
   /** Prefill: price includes all other fees. */
@@ -118,9 +134,7 @@ export function OfferQuoteForm({
         })
       }}
     >
-      <p className="text-base text-onplan">
-        You&apos;re available — enter your aircraft and quote:
-      </p>
+      {intro ? <p className="text-base text-onplan">{intro}</p> : null}
       {localError && <p className="text-base text-late">{localError}</p>}
 
       <label className={offerLabel}>
