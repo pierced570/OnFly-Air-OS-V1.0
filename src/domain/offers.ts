@@ -19,10 +19,11 @@ export function availabilityPingBody(
   ready: string,
 ): string {
   return [
-    `OnFly trip offer: ${lane}`,
-    `${payload}, ready ${ready}.`,
+    'OnFly Air Charter Quote Request',
     '',
-    'Open the link and tap Yes or No on the page — then submit your quote if you can.',
+    'Click the link to see a request for a flight. On the page you’ll see the details and can tap Yes or No — even a No helps us (no need to reply to this email).',
+    '',
+    `${lane} · ${payload} · ready ${ready}`,
   ].join('\n')
 }
 
@@ -49,17 +50,17 @@ export function availabilityPingHtml(
   const url = offerLinkUrl(token, appBase)
   return [
     `<div style="font-family:system-ui,-apple-system,sans-serif;line-height:1.45;color:#0c0c0e">`,
-    `<p style="margin:0 0 12px"><strong>OnFly trip offer</strong> · ${escapeHtml(lane)}</p>`,
-    `<p style="margin:0 0 16px;color:#6b6560">${escapeHtml(payload)} · ready ${escapeHtml(ready)}</p>`,
-    `<p style="margin:0 0 20px">Open the page and tap <strong>Yes</strong> or <strong>No</strong> — then submit your quote if you can. No need to reply to this email.</p>`,
-    `<p style="margin:0"><a href="${escapeAttr(url)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;font-weight:600;text-decoration:none;padding:12px 18px;border-radius:6px">Open trip offer →</a></p>`,
+    `<p style="margin:0 0 12px"><strong>OnFly Air Charter Quote Request</strong></p>`,
+    `<p style="margin:0 0 16px">Click the link to see a <strong>request for a flight</strong>. On the page you’ll see the details and can tap <strong>Yes</strong> or <strong>No</strong> — even a No helps us move on quickly. No need to reply to this email.</p>`,
+    `<p style="margin:0 0 20px;color:#6b6560">${escapeHtml(lane)} · ${escapeHtml(payload)} · ready ${escapeHtml(ready)}</p>`,
+    `<p style="margin:0"><a href="${escapeAttr(url)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;font-weight:600;text-decoration:none;padding:12px 18px;border-radius:6px">View flight request →</a></p>`,
     `<p style="margin:16px 0 0;font-size:12px;color:#8a8680">${escapeHtml(url)}</p>`,
     `</div>`,
   ].join('')
 }
 
-export function availabilityEmailSubject(lane: string): string {
-  return `OnFly trip offer — ${lane}`
+export function availabilityEmailSubject(_lane: string): string {
+  return 'OnFly Air Charter Quote Request'
 }
 
 export function quoteLinkBody(token: string, appBase = ''): string {

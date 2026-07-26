@@ -151,7 +151,10 @@ describe('offerFlow — open vs notify', () => {
     expect(getMockSentEmails().at(-1)?.to).toBe('desk@alpha.example')
     expect(getMockSentEmails().at(-1)?.text).toMatch(/Yes or No/)
     expect(getMockSentEmails().at(-1)?.text).toMatch(/\/offer\//)
-    expect(getMockSentEmails().at(-1)?.html).toMatch(/Open trip offer/)
+    expect(getMockSentEmails().at(-1)?.html).toMatch(/View flight request/)
+    expect(getMockSentEmails().at(-1)?.subject).toBe(
+      'OnFly Air Charter Quote Request',
+    )
   })
 
   it('appendOfferToTrip emails the new recipient', async () => {
