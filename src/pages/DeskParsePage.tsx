@@ -410,12 +410,6 @@ export default function DeskParsePage() {
           >
             Open operator queue
           </Link>
-          <Link
-            to="/offer/preview"
-            className="rounded-md border border-border px-4 py-2 text-sm text-cream"
-          >
-            Operator board preview
-          </Link>
           <Link to="/" className="rounded-md border border-border px-4 py-2 text-sm text-muted">
             Back to call pad
           </Link>
@@ -1150,12 +1144,6 @@ export default function DeskParsePage() {
               <h2 className="text-lg font-semibold text-cream">
                 Recommended operators
               </h2>
-              <Link
-                to="/offer/preview"
-                className="text-xs text-gold hover:text-gold-lt"
-              >
-                What they see →
-              </Link>
             </div>
             {matchedClient && (
               <p className="text-xs text-muted">

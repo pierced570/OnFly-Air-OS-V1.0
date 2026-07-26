@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import {
   OfferBoardChrome,
   offerBtnNo,
@@ -65,12 +65,6 @@ export default function OfferPublicPage() {
     return (
       <div className="min-h-dvh bg-ink px-4 py-6 text-base text-cream">
         <p>Invalid or expired trip offer link.</p>
-        <Link
-          to="/offer/preview"
-          className="mt-4 inline-block text-base text-gold"
-        >
-          See sample operator board
-        </Link>
       </div>
     )
   }

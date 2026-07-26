@@ -42,7 +42,6 @@ const VendorPacketPage = lazy(() => import('@/pages/VendorPacketPage'))
 const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
 const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
 const DispatchCenterPage = lazy(() => import('@/pages/DispatchCenterPage'))
-const OfferPreviewPage = lazy(() => import('@/pages/OfferPreviewPage'))
 const StaffLoginPage = lazy(() => import('@/pages/StaffLoginPage'))
 
 function Fallback() {
@@ -126,7 +125,6 @@ export function App() {
         <Route path="/admin/tasks" element={<AdminTasksPage />} />
         <Route path="/admin/staff" element={<StaffAccessPage />} />
         <Route path="/admin/keys" element={<VaultKeysPage />} />
-        <Route path="/offer/preview" element={<OfferPreviewPage />} />
         <Route path="/offer/:token" element={<OfferPublicPage />} />
         <Route path="/accept/:token" element={<AcceptPage />} />
         <Route path="/t/:legToken" element={<OneTapPage />} />
