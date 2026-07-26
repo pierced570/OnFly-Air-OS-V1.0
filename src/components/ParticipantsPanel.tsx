@@ -15,11 +15,13 @@ import {
   releaseTripParticipant,
   type TripStoreRow,
 } from '@/lib/tripStore'
+import { formatChatMemberLine } from '@/domain/chatRoster'
 import { roleOnOpsThread } from '@/domain/tripThread'
 
 const ROLES = [
   { value: 'operator_ops', label: 'Operator ops' },
   { value: 'pilot', label: 'Pilot' },
+  { value: 'dispatcher', label: 'Dispatch' },
   { value: 'driver', label: 'Driver / truck' },
   { value: 'fbo', label: 'FBO' },
   { value: 'client_supply', label: 'Client (tracker)' },
@@ -29,6 +31,7 @@ const ROLES = [
 
 export function ParticipantsPanel({ trip }: { trip: TripStoreRow }) {
   const [name, setName] = useState('')
+  const [company, setCompany] = useState('')
   const [role, setRole] = useState<string>('driver')
   const [cell, setCell] = useState('')
   const [email, setEmail] = useState('')
@@ -86,12 +89,13 @@ export function ParticipantsPanel({ trip }: { trip: TripStoreRow }) {
             className="flex flex-wrap items-start justify-between gap-2 border-b border-border/40 pb-2 last:border-0"
           >
             <div>
-              <div className="text-cream">{p.name || '—'}</div>
+              <div className="text-cream">{formatChatMemberLine(p)}</div>
               <div className="text-[11px] text-muted">
-                {p.role}
-                {p.cell ? ` · ${p.cell}` : ''}
-                {p.email ? ` · ${p.email}` : ''}
-                {p.in_thread ? ' · on thread' : ' · portal/tracker'}
+                {p.cell ? p.cell : ''}
+                {p.cell && p.email ? ' · ' : ''}
+                {p.email ? p.email : ''}
+                {p.cell || p.email ? ' · ' : ''}
+                {p.in_thread ? 'on thread' : 'portal/tracker'}
                 {p.invite_sent_at ? ' · invited' : ''}
               </div>
             </div>
@@ -142,11 +146,13 @@ export function ParticipantsPanel({ trip }: { trip: TripStoreRow }) {
             if (!name.trim()) return
             const p = addTripParticipant(trip.id, {
               name,
+              company,
               role,
               cell,
               email,
             })
             setName('')
+            setCompany('')
             setCell('')
             setEmail('')
             setMsg(`Added ${p.name}`)
@@ -164,6 +170,12 @@ export function ParticipantsPanel({ trip }: { trip: TripStoreRow }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
+          />
+          <input
+            className="rounded border border-border bg-black/30 px-2 py-1.5 text-sm text-cream"
+            placeholder="Company"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
           />
           <select
             className="rounded border border-border bg-black/30 px-2 py-1.5 text-sm text-cream"
@@ -183,7 +195,7 @@ export function ParticipantsPanel({ trip }: { trip: TripStoreRow }) {
             onChange={(e) => setCell(e.target.value)}
           />
           <input
-            className="rounded border border-border bg-black/30 px-2 py-1.5 text-sm text-cream"
+            className="rounded border border-border bg-black/30 px-2 py-1.5 text-sm text-cream sm:col-span-2"
             placeholder="Email (portal / tracker)"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

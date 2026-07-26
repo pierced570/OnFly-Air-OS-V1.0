@@ -1,5 +1,5 @@
 /**
- * Match free-text call-pad client names to the directory.
+ * Match free-text scratchpad client names to the directory.
  * Pure — no React / store imports.
  */
 

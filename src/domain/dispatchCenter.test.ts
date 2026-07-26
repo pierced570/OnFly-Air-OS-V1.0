@@ -11,17 +11,25 @@ describe('dispatchCenter', () => {
     expect(drawerForTripState('closed')).toBeNull()
   })
 
-  it('buckets inbound, trip cards, recipients, and submitted quotes', () => {
+  it('labels Scratchpad requests distinctly', () => {
     const buckets = buildDispatchDrawers({
-      intake: [
+      requests: [
         {
-          id: 'i1',
-          channel: 'email',
-          from: 'ops@x.com',
-          subject: 'Need lift',
-          extracted: { origin_text: 'KCAK', destination_text: 'KMDW' },
+          id: 'r-pad',
+          ref: 99,
+          lane: 'KCKB→KDFW',
+          summary: '2 pax · ASAP',
+          source: 'scratchpad',
+          status: 'submitted',
         },
       ],
+      trips: [],
+    })
+    expect(buckets.requests[0]?.subtitle).toMatch(/^Scratchpad ·/)
+  })
+
+  it('buckets inbound, trip cards, recipients, and submitted quotes', () => {
+    const buckets = buildDispatchDrawers({
       requests: [
         {
           id: 'r1',
@@ -44,16 +52,22 @@ describe('dispatchCenter', () => {
               id: 'o1',
               operator_name: 'Alpha Air',
               state: 'pinged',
+              ping_sent_at: '2026-07-26T18:00:00.000Z',
+              magic_token: 'tok1',
             },
             {
               id: 'o2',
               operator_name: 'Bravo Charter',
               state: 'available',
+              ping_sent_at: '2026-07-26T18:00:00.000Z',
+              magic_token: 'tok2',
             },
             {
               id: 'o3',
               operator_name: 'Charlie Jets',
               state: 'quoted',
+              ping_sent_at: '2026-07-26T17:00:00.000Z',
+              magic_token: 'tok3',
               price_net: 5000,
               time_to_position_min: 60,
               live_leg_min: 90,
@@ -64,6 +78,8 @@ describe('dispatchCenter', () => {
               id: 'o4',
               operator_name: 'Delta Freight',
               state: 'unavailable',
+              ping_sent_at: '2026-07-26T18:00:00.000Z',
+              magic_token: 'tok4',
             },
           ],
         },
@@ -90,19 +106,39 @@ describe('dispatchCenter', () => {
         },
       ],
     })
-    expect(buckets.requests).toHaveLength(2)
+    expect(buckets.requests).toHaveLength(1)
     expect(buckets.offers[0]?.href).toContain('/offers')
     expect(buckets.offers[0]?.recipients).toHaveLength(4)
+    expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air'))
+      .toMatchObject({
+        status: 'awaiting',
+        status_label: 'Sent — awaiting reply',
+        href: '/offer/tok1',
+      })
+    expect(
+      buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air')
+        ?.sent_label,
+    ).toMatch(/^Sent @ /)
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Charlie Jets'))
       .toMatchObject({
         status: 'quote_submitted',
         status_label: 'Quote submitted',
+      })
+    expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Bravo Charter'))
+      .toMatchObject({
+        status: 'yes',
+        status_label: 'Accepted (Yes)',
+      })
+    expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Delta Freight'))
+      .toMatchObject({
+        status: 'no',
+        status_label: 'Declined (No)',
       })
     expect(buckets.submitted_quotes).toHaveLength(1)
     expect(buckets.submitted_quotes[0]?.title).toContain('Charlie Jets')
     expect(buckets.submitted_quotes[0]?.title).toContain('Quote submitted')
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
-    expect(buckets.tracking[0]?.href).toContain('/chat/')
+    expect(buckets.tracking[0]?.href).toContain('/trips/')
   })
 })

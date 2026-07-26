@@ -3,6 +3,8 @@
  * Pure TypeScript.
  */
 
+import { DateTime } from 'luxon'
+
 export type OfferRecipientStatus =
   | 'awaiting'
   | 'yes'
@@ -48,11 +50,11 @@ export function offerRecipientStatusLabel(
 ): string {
   switch (status) {
     case 'awaiting':
-      return 'Awaiting'
+      return 'Sent — awaiting reply'
     case 'yes':
-      return 'Yes'
+      return 'Accepted (Yes)'
     case 'no':
-      return 'No'
+      return 'Declined (No)'
     case 'quote_submitted':
       return 'Quote submitted'
     case 'selected':
@@ -62,6 +64,42 @@ export function offerRecipientStatusLabel(
     case 'expired':
       return 'Expired'
   }
+}
+
+/** Dispatcher: Sent @ Zulu + browser-local, plus relative age. */
+export function formatOfferSentAt(
+  utcIso: string | null | undefined,
+  nowMs = Date.now(),
+): { zulu: string; local: string; ago: string; display: string } | null {
+  if (!utcIso) return null
+  const utc = DateTime.fromISO(utcIso, { zone: 'utc' })
+  if (!utc.isValid) return null
+  const local = utc.setZone(DateTime.local().zoneName)
+  const zulu = utc.toFormat("dd HHmm'Z'")
+  const localStr = local.toFormat('dd MMM h:mm a ZZZZ')
+  const ago = formatOfferAge(utcIso, nowMs)
+  return {
+    zulu,
+    local: localStr,
+    ago,
+    display: `Sent @ ${zulu} · ${localStr}${ago ? ` · ${ago}` : ''}`,
+  }
+}
+
+export function formatOfferAge(
+  utcIso: string | null | undefined,
+  nowMs = Date.now(),
+): string {
+  if (!utcIso) return ''
+  const then = DateTime.fromISO(utcIso, { zone: 'utc' })
+  if (!then.isValid) return ''
+  const mins = Math.max(0, Math.floor(nowMs / 1000 / 60 - then.toSeconds() / 60))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 48) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
 }
 
 export function formatOfferQuoteSummary(o: {

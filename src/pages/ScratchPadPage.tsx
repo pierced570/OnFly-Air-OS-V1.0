@@ -5,7 +5,7 @@
  */
 
 import { useSyncExternalStore } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { BrandLockup } from '@/components/BrandLockup'
 import { getSession, subscribeStaff } from '@/lib/staffStore'
 import {
@@ -85,7 +85,7 @@ Contact: ops@acme…`}
           className="text-[#9a948a] hover:text-[#c9a227]"
           onClick={() => setScratchPadBody('')}
         >
-          Clear pad
+          Clear Scratchpad
         </button>
       </div>
     </>
@@ -95,7 +95,7 @@ Contact: ops@acme…`}
     return (
       <div className="flex flex-col p-4 sm:p-6" data-theme="dispatcher">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-cream">Call pad</h2>
+          <h2 className="text-base font-semibold text-cream">Scratchpad</h2>
           <button
             type="button"
             onClick={goParse}
@@ -121,16 +121,10 @@ Contact: ops@acme…`}
             <div className="text-[10px] uppercase tracking-[0.2em] text-[#c9a227]">
               OnFly Air
             </div>
-            <h1 className="text-lg font-semibold tracking-tight">Call pad</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Scratchpad</h1>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to="/offer/preview"
-            className="rounded-md border border-[#2a2a2e] px-3 py-2 text-xs text-[#f7f2e3]/80 hover:border-[#c9a227]/50"
-          >
-            Operator board preview
-          </Link>
           <button
             type="button"
             onClick={goOps}

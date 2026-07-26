@@ -678,6 +678,7 @@ export async function acceptHardQuote(token: string) {
       if (!already) {
         const p = addTripParticipant(trip.id, {
           name: sel.operator_name,
+          company: sel.operator_name,
           role: 'operator_ops',
           cell: sel.contact_cell,
           in_thread: true,

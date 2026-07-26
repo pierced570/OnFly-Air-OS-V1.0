@@ -75,10 +75,12 @@ export type TripRequestDraft = {
   forklift_required: boolean
 }
 
+export type TripRequestSource = 'portal' | 'dispatch' | 'scratchpad'
+
 export type TripRequestRecord = TripRequestDraft & {
   id: string
   ref: number
-  source: 'portal' | 'dispatch'
+  source: TripRequestSource
   status: 'submitted' | 'in_review' | 'quoted' | 'withdrawn'
   created_at: string
   ready_at: string

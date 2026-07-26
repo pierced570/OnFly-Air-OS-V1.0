@@ -300,6 +300,7 @@ export async function hydrateTrips(): Promise<number> {
         id: String(r.id),
         role: String(r.role || 'other'),
         name: String(r.name || ''),
+        company: String(r.company || ''),
         cell: String(r.cell || ''),
         email: String(r.email || ''),
         in_thread: r.in_thread !== false,

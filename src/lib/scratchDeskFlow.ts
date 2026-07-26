@@ -58,7 +58,7 @@ export type DeskDraft = {
   pieces_text: string
   hazmat: boolean
   notes: string
-  /** Original call-pad scratch — always keep visible on desk. */
+  /** Original scratchpad notes — always keep visible on desk. */
   raw_notes: string
   payload_kind: 'cargo' | 'pax' | 'both'
   pax_count: number

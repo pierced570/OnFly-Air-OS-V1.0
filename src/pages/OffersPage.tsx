@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   formatOfferQuoteSummary,
+  formatOfferSentAt,
   offerRecipientStatus,
   offerRecipientStatusLabel,
 } from '@/domain/offerRecipients'
@@ -342,6 +343,18 @@ export default function OffersPage() {
                     >
                       {statusLabel}
                     </div>
+                    {(() => {
+                      const sent = formatOfferSentAt(o.ping_sent_at)
+                      return sent ? (
+                        <div className="mt-1 font-mono text-[11px] text-muted">
+                          {sent.display}
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[11px] text-muted">
+                          Link ready — not marked sent yet
+                        </div>
+                      )
+                    })()}
                     {quoteSummary && (
                       <div className="mt-1 font-mono text-xs text-cream/90">
                         {quoteSummary}

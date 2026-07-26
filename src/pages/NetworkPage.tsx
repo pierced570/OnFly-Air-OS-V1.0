@@ -80,7 +80,11 @@ function displayTails(tails: string[], max = 4): { shown: string[]; extra: numbe
   return { shown: real.slice(0, max), extra: Math.max(0, real.length - max) }
 }
 
-export default function NetworkPage() {
+export default function NetworkPage({
+  embedded = false,
+}: {
+  embedded?: boolean
+}) {
   const [data, setData] = useState<LoadedNetwork | null>(null)
   const [statusByTail, setStatusByTail] = useState<Map<string, FleetStatus>>(
     () => new Map(),
@@ -431,10 +435,23 @@ export default function NetworkPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:gap-5 sm:p-6 lg:p-8">
+    <div
+      className={
+        embedded
+          ? 'flex flex-col gap-4'
+          : 'flex flex-col gap-4 p-4 sm:gap-5 sm:p-6 lg:p-8'
+      }
+    >
       <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-cream sm:text-2xl">Network</h1>
+          {!embedded && (
+            <h1 className="text-xl font-semibold text-cream sm:text-2xl">
+              Network
+            </h1>
+          )}
+          {embedded && (
+            <h2 className="text-lg font-semibold text-cream">Operators</h2>
+          )}
           <p className="mt-1 text-sm text-muted">
             <span className="avionic text-cream">{data.counts.operators}</span>{' '}
             operators ·{' '}

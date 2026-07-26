@@ -15,16 +15,15 @@ const nav: {
   section: StaffSectionId
   end?: boolean
 }[] = [
-  // Day-to-day ops live in Dispatch center (Board / call pad / parse / chat /
-  // QD / intake / new trip condensed — tools drawer keeps full pages).
+  // Day-to-day ops live in Dispatch center (Board / scratchpad / parse / chat /
+  // QD / new trip condensed — tools drawer keeps full pages).
   { to: '/dispatch', label: 'Dispatch center', section: 'board', end: true },
   { to: '/financials', label: 'Financials', section: 'financials' },
   { to: '/referrals', label: 'Referrals', section: 'referrals' },
   { to: '/clients', label: 'Clients', section: 'clients' },
   { to: '/leads', label: 'Leads', section: 'leads' },
-  { to: '/fbos', label: 'FBOs', section: 'fbos' },
+  // FBOs + Radar + recommend matrix + couriers live under Network hub tabs.
   { to: '/network', label: 'Network', section: 'network' },
-  { to: '/radar', label: 'Radar', section: 'radar' },
   { to: '/briefing', label: 'Briefing', section: 'briefing' },
   { to: '/admin', label: 'Admin', section: 'admin' },
   { to: '/admin/tasks', label: 'Tasks', section: 'tasks' },

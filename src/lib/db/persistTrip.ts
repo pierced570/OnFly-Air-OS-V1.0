@@ -261,6 +261,7 @@ async function persistParticipants(trip: TripStoreRow): Promise<void> {
     trip_id: trip.id,
     role: partyRole(p.role),
     name: p.name,
+    company: p.company || null,
     cell: p.cell || null,
     email: p.email || null,
     in_thread: p.in_thread !== false,

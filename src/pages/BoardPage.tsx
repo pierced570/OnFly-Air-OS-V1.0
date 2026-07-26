@@ -35,11 +35,6 @@ import {
   subscribePresence,
 } from '@/lib/presenceStore'
 import { getSession, subscribeStaff } from '@/lib/staffStore'
-import {
-  deleteIntakeDraft,
-  listPendingIntake,
-  subscribeIntake,
-} from '@/lib/intakeStore'
 import { listOpenNeedsInfo, subscribeNeedsInfo } from '@/lib/needsInfoStore'
 import { shortlistLabel } from '@/domain/shortlistBands'
 import { approveShortlistAndSpoolOffers } from '@/lib/ladderFlow'
@@ -69,11 +64,6 @@ export default function BoardPage() {
     listLoggedIn,
   )
   const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
-  const intake = useSyncExternalStore(
-    subscribeIntake,
-    listPendingIntake,
-    listPendingIntake,
-  )
   const openTasks = useSyncExternalStore(
     subscribeNeedsInfo,
     listOpenNeedsInfo,
@@ -113,7 +103,6 @@ export default function BoardPage() {
   const columns = useMemo(
     () =>
       buildPipeline({
-        intake,
         requests,
         trips: trips.map((t) => ({
           id: t.id,
@@ -124,7 +113,7 @@ export default function BoardPage() {
           legs: t.legs,
         })),
       }),
-    [intake, requests, trips],
+    [requests, trips],
   )
 
   const activeCount = PIPELINE_STAGES.reduce(
@@ -345,12 +334,6 @@ export default function BoardPage() {
           </div>
           <ul className="mt-2 space-y-1 text-xs">
             <li>
-              <Link to="/intake" className="text-gold">
-                Intake
-              </Link>
-              <span className="ml-2 avionic text-muted">{intake.length}</span>
-            </li>
-            <li>
               <Link to="/admin/tasks" className="text-gold">
                 NEEDS-INFO
               </Link>
@@ -401,12 +384,6 @@ export default function BoardPage() {
               className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink hover:bg-gold-lt"
             >
               Quick Dispatch
-            </Link>
-            <Link
-              to="/intake"
-              className="rounded-md border border-border px-4 py-2 text-sm text-cream hover:border-gold/40"
-            >
-              Intake
             </Link>
             <Link
               to="/trips/new"
@@ -495,13 +472,11 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
   const trip =
     card.kind === 'trip' ? getTrip(card.id) : null
   const border =
-    card.kind === 'intake'
-      ? 'border-late/40 bg-late/10'
-      : card.kind === 'request'
-        ? 'border-gold/40 bg-gold/10'
-        : card.kind === 'trip' && card.state === 'routed'
-          ? 'border-gold/50 bg-gold/10'
-          : 'border-border bg-ink/50'
+    card.kind === 'request'
+      ? 'border-gold/40 bg-gold/10'
+      : card.kind === 'trip' && card.state === 'routed'
+        ? 'border-gold/50 bg-gold/10'
+        : 'border-border bg-ink/50'
 
   const shortBits =
     trip?.shortlist != null ? shortlistLabel(trip.shortlist) : ''
@@ -581,23 +556,6 @@ function PipelineCardView({ card }: { card: PipelineCard }) {
                 )
               ) {
                 deleteRequest(card.id)
-              }
-            }}
-          >
-            Delete
-          </button>
-        )}
-        {card.kind === 'intake' && (
-          <button
-            type="button"
-            className="tap rounded-md text-sm text-late"
-            onClick={() => {
-              if (
-                window.confirm(
-                  `Delete intake “${card.title}”? This cannot be undone.`,
-                )
-              ) {
-                deleteIntakeDraft(card.id)
               }
             }}
           >

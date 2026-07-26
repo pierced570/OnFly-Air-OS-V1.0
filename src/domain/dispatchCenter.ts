@@ -7,16 +7,16 @@ import type { TripState } from '@/domain/stateMachine'
 import { tripStateLabel } from '@/domain/pipelineStages'
 import {
   formatOfferQuoteSummary,
+  formatOfferSentAt,
   offerRecipientStatus,
   offerRecipientStatusLabel,
   type OfferRecipientStatus,
 } from '@/domain/offerRecipients'
-
 export const DISPATCH_DRAWERS = [
   {
     id: 'requests',
     label: 'Trip requests',
-    blurb: 'Inbound portal, email/SMS, and open requests',
+    blurb: 'Scratchpad, portal requests, and open requests',
   },
   {
     id: 'offers',
@@ -53,6 +53,10 @@ export type DispatchRecipient = {
   status: OfferRecipientStatus
   status_label: string
   quote_summary: string | null
+  sent_at: string | null
+  sent_label: string | null
+  magic_token: string
+  href: string
 }
 
 export type DispatchCard = {
@@ -60,12 +64,18 @@ export type DispatchCard = {
   title: string
   subtitle: string
   href: string
-  kind: 'intake' | 'request' | 'trip' | 'offer_quote'
+  kind: 'request' | 'trip' | 'offer_quote'
   state?: TripState
   ref?: number
   /** Per-operator rows for trip-offer cards. */
   recipients?: DispatchRecipient[]
   trip_id?: string
+}
+
+function requestSourceLabel(source: string): string {
+  if (source === 'portal') return 'Portal'
+  if (source === 'scratchpad') return 'Scratchpad'
+  return 'Dispatch'
 }
 
 export type DispatchDrawerBucket = Record<DispatchDrawerId, DispatchCard[]>
@@ -101,17 +111,6 @@ export function drawerForTripState(state: TripState): DispatchDrawerId | null {
 }
 
 export function buildDispatchDrawers(input: {
-  intake: Array<{
-    id: string
-    channel: string
-    from: string
-    subject: string
-    extracted?: {
-      origin_text?: string
-      destination_text?: string
-      [k: string]: unknown
-    } | null
-  }>
   requests: Array<{
     id: string
     ref: number
@@ -133,6 +132,9 @@ export function buildDispatchDrawers(input: {
       id: string
       operator_name: string
       state: string
+      ping_sent_at?: string | null
+      replied_at?: string | null
+      magic_token?: string
       price_net?: number | null
       time_to_position_min?: number | null
       live_leg_min?: number | null
@@ -143,26 +145,13 @@ export function buildDispatchDrawers(input: {
 }): DispatchDrawerBucket {
   const out = emptyBuckets()
 
-  for (const d of input.intake) {
-    const route = d.extracted
-      ? `${String(d.extracted.origin_text ?? '?')} → ${String(d.extracted.destination_text ?? '?')}`
-      : d.subject
-    out.requests.push({
-      kind: 'intake',
-      id: d.id,
-      title: `${d.channel.toUpperCase()} · ${d.from}`,
-      subtitle: route,
-      href: `/intake/${d.id}`,
-    })
-  }
-
   for (const r of input.requests) {
     if (r.status !== 'submitted' && r.status !== 'in_review') continue
     out.requests.push({
       kind: 'request',
       id: r.id,
       title: `R-${r.ref} · ${r.lane}`,
-      subtitle: `${r.source === 'portal' ? 'Portal' : 'Dispatch'} · ${r.summary}${
+      subtitle: `${requestSourceLabel(r.source)} · ${r.summary}${
         r.hard_quote_requested_at ? ' · HARD QUOTE' : ''
       }${r.email ? ` · ${r.email}` : ''}`,
       href: `/trips/new?request=${r.id}`,
@@ -178,12 +167,18 @@ export function buildDispatchDrawers(input: {
     const po = t.quick?.po ? ` · PO ${t.quick.po}` : ''
     const recipients: DispatchRecipient[] = (t.offers ?? []).map((o) => {
       const status = offerRecipientStatus(o.state)
+      const token = o.magic_token ?? ''
+      const sent = formatOfferSentAt(o.ping_sent_at)
       return {
         offer_id: o.id,
         name: o.operator_name,
         status,
         status_label: offerRecipientStatusLabel(status),
         quote_summary: formatOfferQuoteSummary(o),
+        sent_at: o.ping_sent_at ?? null,
+        sent_label: sent?.display ?? null,
+        magic_token: token,
+        href: token ? `/offer/${token}` : `/trips/${t.id}/offers`,
       }
     })
     const yes = recipients.filter((r) => r.status === 'yes').length
@@ -202,9 +197,7 @@ export function buildDispatchDrawers(input: {
       href:
         t.state === 'offers_out'
           ? `/trips/${t.id}/offers`
-          : t.state === 'in_progress'
-            ? `/chat/${t.id}`
-            : `/trips/${t.id}`,
+          : `/trips/${t.id}`,
       ref: t.ref,
       state: t.state,
       recipients: t.state === 'offers_out' ? recipients : undefined,
