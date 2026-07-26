@@ -7,6 +7,7 @@ import type { TripState } from '@/domain/stateMachine'
 import { tripStateLabel } from '@/domain/pipelineStages'
 import {
   formatOfferQuoteSummary,
+  formatOfferSentAt,
   offerRecipientStatus,
   offerRecipientStatusLabel,
   type OfferRecipientStatus,
@@ -53,6 +54,10 @@ export type DispatchRecipient = {
   status: OfferRecipientStatus
   status_label: string
   quote_summary: string | null
+  sent_at: string | null
+  sent_label: string | null
+  magic_token: string
+  href: string
 }
 
 export type DispatchCard = {
@@ -133,6 +138,9 @@ export function buildDispatchDrawers(input: {
       id: string
       operator_name: string
       state: string
+      ping_sent_at?: string | null
+      replied_at?: string | null
+      magic_token?: string
       price_net?: number | null
       time_to_position_min?: number | null
       live_leg_min?: number | null
@@ -178,12 +186,18 @@ export function buildDispatchDrawers(input: {
     const po = t.quick?.po ? ` · PO ${t.quick.po}` : ''
     const recipients: DispatchRecipient[] = (t.offers ?? []).map((o) => {
       const status = offerRecipientStatus(o.state)
+      const token = o.magic_token ?? ''
+      const sent = formatOfferSentAt(o.ping_sent_at)
       return {
         offer_id: o.id,
         name: o.operator_name,
         status,
         status_label: offerRecipientStatusLabel(status),
         quote_summary: formatOfferQuoteSummary(o),
+        sent_at: o.ping_sent_at ?? null,
+        sent_label: sent?.display ?? null,
+        magic_token: token,
+        href: token ? `/offer/${token}` : `/trips/${t.id}/offers`,
       }
     })
     const yes = recipients.filter((r) => r.status === 'yes').length

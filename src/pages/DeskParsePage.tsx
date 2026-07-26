@@ -51,7 +51,6 @@ import {
   getScratchPad,
   subscribeScratchPad,
 } from '@/lib/scratchPadStore'
-import { getTrip } from '@/lib/tripStore'
 
 const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold placeholder:text-muted'
@@ -81,7 +80,6 @@ export default function DeskParsePage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
   const [sending, setSending] = useState(false)
-  const [sentTripId, setSentTripId] = useState<string | null>(null)
   const [recError, setRecError] = useState<string | null>(null)
   const [showNewClient, setShowNewClient] = useState(false)
   const [newName, setNewName] = useState('')
@@ -385,38 +383,15 @@ export default function DeskParsePage() {
         candidates: picks,
         contactOverrides: overridesForSend,
       })
-      setSentTripId(trip.id)
+      // Land in Dispatch center waterfall — not a separate “Offers out” page.
+      nav(`/dispatch?drawer=offers&focus=${encodeURIComponent(trip.id)}`, {
+        replace: true,
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSending(false)
     }
-  }
-
-  if (sentTripId) {
-    return (
-      <div className="mx-auto max-w-lg space-y-4 p-6">
-        <h1 className="text-2xl font-semibold text-cream">Offers out</h1>
-        <p className="text-sm text-muted">
-          Offer links ready — operators are not auto-pinged. Share a link; they
-          answer Yes / No, then enter their aircraft, times, and price on their
-          form.
-        </p>
-        <RawCallNotes notes={rawNotes || draft?.raw_notes || ''} />
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to={`/trips/${sentTripId}/offers`}
-            className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
-          >
-            Open operator queue
-          </Link>
-          <Link to="/" className="rounded-md border border-border px-4 py-2 text-sm text-muted">
-            Back to call pad
-          </Link>
-        </div>
-        <SentOfferLinks tripId={sentTripId} />
-      </div>
-    )
   }
 
   return (
@@ -1329,28 +1304,3 @@ function RawCallNotes({ notes }: { notes: string }) {
   )
 }
 
-function SentOfferLinks({ tripId }: { tripId: string }) {
-  const trip = getTrip(tripId)
-  if (!trip?.offers.length) return null
-  return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <div className="text-xs uppercase tracking-wider text-muted">
-        Operator links
-      </div>
-      <ul className="mt-2 space-y-1 text-sm">
-        {trip.offers.map((o) => (
-          <li key={o.id}>
-            <Link
-              className="text-gold hover:text-gold-lt"
-              to={`/offer/${o.magic_token}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {o.operator_name}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}

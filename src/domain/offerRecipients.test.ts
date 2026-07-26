@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatOfferAge,
   formatOfferQuoteSummary,
+  formatOfferSentAt,
   offerRecipientStatus,
   offerRecipientStatusLabel,
 } from './offerRecipients'
@@ -12,8 +14,18 @@ describe('offerRecipients', () => {
     expect(offerRecipientStatus('unavailable')).toBe('no')
     expect(offerRecipientStatus('quoted')).toBe('quote_submitted')
     expect(offerRecipientStatusLabel('quote_submitted')).toBe('Quote submitted')
-    expect(offerRecipientStatusLabel('yes')).toBe('Yes')
-    expect(offerRecipientStatusLabel('no')).toBe('No')
+    expect(offerRecipientStatusLabel('yes')).toBe('Accepted (Yes)')
+    expect(offerRecipientStatusLabel('no')).toBe('Declined (No)')
+    expect(offerRecipientStatusLabel('awaiting')).toBe('Sent — awaiting reply')
+  })
+
+  it('formats sent-at Zulu + age', () => {
+    const sent = formatOfferSentAt('2026-07-26T18:00:00.000Z', Date.parse('2026-07-26T19:30:00.000Z'))
+    expect(sent?.zulu).toContain('Z')
+    expect(sent?.ago).toBe('1h ago')
+    expect(formatOfferAge('2026-07-26T19:29:00.000Z', Date.parse('2026-07-26T19:30:00.000Z'))).toBe(
+      '1m ago',
+    )
   })
 
   it('formats quote summary for waterfall cards', () => {
