@@ -4,7 +4,10 @@
  */
 
 import { adapterMode } from '@/adapters/types'
-import { extractFromScratchNotes } from '@/domain/scratchParse'
+import {
+  applyOperatorScratchDefaults,
+  extractFromScratchNotes,
+} from '@/domain/scratchParse'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 export type ExtractedRequest = {
@@ -42,7 +45,7 @@ export function mergeScratchExtract(
   primary: ExtractedRequest,
   fallback: ExtractedRequest,
 ): ExtractedRequest {
-  return {
+  const merged: ExtractedRequest = {
     raw: primary.raw || fallback.raw,
     origin_text: primary.origin_text?.trim() || fallback.origin_text,
     destination_text:
@@ -55,8 +58,10 @@ export function mergeScratchExtract(
     hazmat: primary.hazmat ?? fallback.hazmat,
     pax_count: primary.pax_count ?? fallback.pax_count,
     payload_kind: primary.payload_kind ?? fallback.payload_kind ?? 'cargo',
-    notes: [fallback.notes, primary.notes].filter(Boolean).join('; ') || undefined,
+    notes:
+      [fallback.notes, primary.notes].filter(Boolean).join('; ') || undefined,
   }
+  return applyOperatorScratchDefaults(merged)
 }
 
 export class MockLlmAdapter implements LlmAdapter {

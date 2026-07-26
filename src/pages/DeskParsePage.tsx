@@ -13,8 +13,6 @@ import {
   addClientContact,
   getClient,
   listClients,
-  recordPoUsed,
-  suggestNextPo,
   subscribeClients,
 } from '@/lib/clientStore'
 import {
@@ -85,13 +83,7 @@ export default function DeskParsePage() {
     void parseScratchToDeskDraft()
       .then(async ({ draft: d }) => {
         if (cancelled) return
-        let matched = withClientMatch(d, listClients())
-        if (matched.client_id) {
-          const c = getClient(matched.client_id)
-          if (c && !matched.po) {
-            matched = { ...matched, po: suggestNextPo(c.last_po) }
-          }
-        }
+        const matched = withClientMatch(d, listClients())
         setDraft(matched)
         if (!matched.client_id && matched.client_name) {
           setNewName(matched.client_name)
@@ -124,10 +116,6 @@ export default function DeskParsePage() {
   }, [draft?.client_name, clients])
 
   const matchedClient = draft?.client_id ? getClient(draft.client_id) : undefined
-  const suggestedPo = useMemo(
-    () => suggestNextPo(matchedClient?.last_po ?? null),
-    [matchedClient?.last_po],
-  )
 
   function patch(p: Partial<DeskDraft>) {
     setDraft((d) => (d ? syncDeskDraftDerived({ ...d, ...p }) : d))
@@ -148,7 +136,6 @@ export default function DeskParsePage() {
       ...draft,
       client_id: c.id,
       client_name: c.name,
-      po: draft.po || suggestNextPo(c.last_po),
     })
     setDraft(next)
     setShowNewClient(false)
@@ -204,11 +191,7 @@ export default function DeskParsePage() {
     setRecError(null)
     try {
       const { draft: d } = await parseScratchToDeskDraft()
-      let matched = withClientMatch(d, listClients())
-      if (matched.client_id) {
-        const c = getClient(matched.client_id)
-        if (c && !matched.po) matched = { ...matched, po: suggestNextPo(c.last_po) }
-      }
+      const matched = withClientMatch(d, listClients())
       setDraft(matched)
       if (!matched.client_id && matched.client_name) {
         setNewName(matched.client_name)
@@ -259,10 +242,8 @@ export default function DeskParsePage() {
     setSending(true)
     setError(null)
     try {
-      const poFinal = draft.po.trim() || suggestedPo
-      recordPoUsed(draft.client_id, poFinal)
       const trip = await sendDeskTripOffers({
-        draft: { ...draft, po: poFinal },
+        draft,
         candidates: picks,
       })
       setSentTripId(trip.id)
@@ -444,28 +425,6 @@ export default function DeskParsePage() {
                 </button>
               </div>
             )}
-
-            <label className={label}>
-              PO / Trip #
-              <div className="mt-1 flex overflow-hidden rounded-md border border-border">
-                <span className="flex items-center bg-surface-2 px-3 text-xs text-muted">
-                  PO #
-                </span>
-                <input
-                  value={draft.po}
-                  onChange={(e) => patch({ po: e.target.value })}
-                  placeholder={suggestedPo}
-                  className="min-w-0 flex-1 bg-ink px-3 py-2.5 text-sm text-cream outline-none"
-                />
-              </div>
-              {matchedClient && (
-                <span className="mt-1 block text-[11px] text-muted">
-                  {matchedClient.last_po
-                    ? `Last used ${matchedClient.last_po} · suggesting ${suggestedPo}`
-                    : `No prior PO — suggesting ${suggestedPo}`}
-                </span>
-              )}
-            </label>
 
             <div className="space-y-2">
               <div className={label}>Timing *</div>
@@ -761,17 +720,6 @@ export default function DeskParsePage() {
                       />
                     </label>
                   )}
-                  <label className={`${label} col-span-2`}>
-                    Repo time
-                    <input
-                      className={input}
-                      value={leg.repo_time}
-                      onChange={(e) =>
-                        patchLeg(leg.id, { repo_time: e.target.value })
-                      }
-                      placeholder="e.g. 1h 30m"
-                    />
-                  </label>
                 </div>
               </div>
             ))}
@@ -803,7 +751,7 @@ export default function DeskParsePage() {
               className={input}
               value={draft.pieces_text}
               onChange={(e) => patch({ pieces_text: e.target.value })}
-              placeholder="e.g. 2 techs + parts, or skid dims @ weight"
+              placeholder="e.g. tools → standard tooling, or skid dims @ weight"
             />
             <div className="flex flex-wrap gap-2">
               <button
