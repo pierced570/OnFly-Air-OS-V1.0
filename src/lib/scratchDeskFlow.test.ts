@@ -23,6 +23,7 @@ Ready ASAP`)
     expect(draft.ready_label).toBe('ASAP')
     expect(draft.pieces_text).toMatch(/Techs/i)
     expect(draft.pax_count).toBe(2)
+    expect(draft.parse_source).toMatch(/heuristic|claude|demo/)
   })
 
   it('resolves CVG/HPN and scores without hard-failing on techs mission', async () => {

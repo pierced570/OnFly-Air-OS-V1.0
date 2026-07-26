@@ -1,28 +1,21 @@
 /**
  * LLM adapter — mock canned extract or Claude via edge `llm-extract`.
  * ANTHROPIC_API_KEY lives in Supabase secrets only (never VITE_*).
+ *
+ * Desk call-pad: Claude reviews freeform notes (any formatting) and plugs
+ * fields; local heuristics fill gaps when Claude is thin or unavailable.
  */
 
 import { adapterMode } from '@/adapters/types'
+import {
+  mergeTripExtract,
+  normalizeTripExtract,
+  type NormalizedTripExtract,
+} from '@/domain/normalizeExtract'
 import { extractFromScratchNotes } from '@/domain/scratchParse'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
-export type ExtractedRequest = {
-  pieces_text?: string
-  origin_text?: string
-  destination_text?: string
-  ready_local?: string
-  deadline_local?: string
-  hazmat?: boolean
-  pax_count?: number
-  payload_kind?: 'cargo' | 'pax' | 'both'
-  /** Soft-parsed client / company name from scratch notes */
-  client_name?: string
-  /** Call sounded ASAP / AOG */
-  asap?: boolean
-  notes?: string
-  raw: string
-}
+export type ExtractedRequest = NormalizedTripExtract
 
 export type D085ExtractRow = {
   tail: string
@@ -37,25 +30,34 @@ export interface LlmAdapter {
   extractD085(rawText: string): Promise<D085ExtractRow[]>
 }
 
-/** Fill blank LLM fields from local scratch heuristics (IATA lanes, ASAP, client). */
+/** @deprecated use mergeTripExtract — kept for existing imports/tests */
 export function mergeScratchExtract(
   primary: ExtractedRequest,
   fallback: ExtractedRequest,
 ): ExtractedRequest {
+  return mergeTripExtract(primary, fallback)
+}
+
+function heuristicExtract(rawText: string): ExtractedRequest {
+  const parsed = extractFromScratchNotes(rawText)
   return {
-    raw: primary.raw || fallback.raw,
-    origin_text: primary.origin_text?.trim() || fallback.origin_text,
-    destination_text:
-      primary.destination_text?.trim() || fallback.destination_text,
-    pieces_text: primary.pieces_text?.trim() || fallback.pieces_text,
-    client_name: primary.client_name?.trim() || fallback.client_name,
-    ready_local: primary.ready_local?.trim() || fallback.ready_local,
-    deadline_local: primary.deadline_local?.trim() || fallback.deadline_local,
-    asap: primary.asap ?? fallback.asap,
-    hazmat: primary.hazmat ?? fallback.hazmat,
-    pax_count: primary.pax_count ?? fallback.pax_count,
-    payload_kind: primary.payload_kind ?? fallback.payload_kind ?? 'cargo',
-    notes: [fallback.notes, primary.notes].filter(Boolean).join('; ') || undefined,
+    ...normalizeTripExtract(parsed, rawText),
+    parse_source: 'heuristic',
+    notes: parsed.notes || 'heuristic extract',
+  }
+}
+
+function hintsForClaude(h: ExtractedRequest): Record<string, unknown> {
+  return {
+    client_name: h.client_name ?? null,
+    origin_text: h.origin_text ?? null,
+    destination_text: h.destination_text ?? null,
+    pieces_text: h.pieces_text ?? null,
+    asap: h.asap ?? null,
+    hazmat: h.hazmat ?? null,
+    pax_count: h.pax_count ?? null,
+    payload_kind: h.payload_kind ?? null,
+    ready_local: h.ready_local ?? null,
   }
 }
 
@@ -72,16 +74,11 @@ export class MockLlmAdapter implements LlmAdapter {
         hazmat: false,
         notes: 'empty scratch — demo seed',
         raw: rawText,
+        parse_source: 'demo',
       }
     }
-    const parsed = extractFromScratchNotes(rawText)
-    return {
-      ...parsed,
-      payload_kind: parsed.payload_kind ?? 'cargo',
-      hazmat: parsed.hazmat ?? /hazmat/i.test(rawText),
-      notes: parsed.notes || 'mock extraction',
-      raw: rawText,
-    }
+    // Mock = local heuristics (Claude path is real adapter)
+    return heuristicExtract(rawText)
   }
 
   async plainEnglish(text: string, _context?: string): Promise<string> {
@@ -107,7 +104,10 @@ export class MockLlmAdapter implements LlmAdapter {
 /** Real path → edge `llm-extract` (Claude when ANTHROPIC_API_KEY is set). */
 export class ClaudeLlmAdapter implements LlmAdapter {
   async extractTripRequest(rawText: string): Promise<ExtractedRequest> {
-    const heuristic = extractFromScratchNotes(rawText)
+    // Keep full pad text (unicode dashes, bullets, etc.) — only skip empty pads.
+    const heuristic = heuristicExtract(rawText)
+    if (!rawText.trim()) return heuristic
+
     if (!supabase || !isSupabaseConfigured) {
       throw new Error(
         'LLM real mode needs VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY',
@@ -115,20 +115,27 @@ export class ClaudeLlmAdapter implements LlmAdapter {
     }
     try {
       const { data, error } = await supabase.functions.invoke('llm-extract', {
-        body: { mode: 'extract_trip', text: rawText },
+        body: {
+          mode: 'extract_scratch',
+          text: rawText,
+          hints: hintsForClaude(heuristic),
+        },
       })
       if (error) throw new Error(error.message || 'llm-extract failed')
-      const body = data as ExtractedRequest & { error?: string }
+      const body = data as Record<string, unknown> & { error?: string }
       if (body?.error) throw new Error(body.error)
-      // Edge prompt may omit client/asap or miss IATA dash lanes — fill gaps locally.
-      return mergeScratchExtract({ ...body, raw: rawText }, heuristic)
+      const claude = normalizeTripExtract(body, rawText)
+      const merged = mergeTripExtract(claude, heuristic)
+      return {
+        ...merged,
+        parse_source: merged.parse_source ?? 'claude',
+      }
     } catch (e) {
-      console.warn('[llm] extract_trip failed — using scratch heuristics', e)
+      console.warn('[llm] Claude scratch review failed — heuristic only', e)
       return {
         ...heuristic,
-        payload_kind: heuristic.payload_kind ?? 'cargo',
-        notes: [heuristic.notes, 'llm_fallback'].filter(Boolean).join('; '),
-        raw: rawText,
+        notes: [heuristic.notes, 'claude_unavailable'].filter(Boolean).join('; '),
+        parse_source: 'heuristic',
       }
     }
   }
@@ -178,5 +185,7 @@ export function createLlmAdapter(): LlmAdapter {
 }
 
 export function isRealLlmEnabled(): boolean {
-  return adapterMode('VITE_LLM_ADAPTER', 'real') === 'real'
+  return (
+    adapterMode('VITE_LLM_ADAPTER', 'real') === 'real' && isSupabaseConfigured
+  )
 }

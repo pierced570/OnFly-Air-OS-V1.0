@@ -33,6 +33,8 @@ export type DeskDraft = {
   notes: string
   payload_kind: 'cargo' | 'pax' | 'both'
   pax_count: number
+  /** claude | heuristic | claude+heuristic | demo */
+  parse_source: string
 }
 
 export function deskDraftFromExtract(ex: ExtractedRequest): DeskDraft {
@@ -49,6 +51,7 @@ export function deskDraftFromExtract(ex: ExtractedRequest): DeskDraft {
     notes: ex.notes?.trim() || '',
     payload_kind: ex.payload_kind ?? 'cargo',
     pax_count: ex.pax_count ?? 0,
+    parse_source: ex.parse_source || 'heuristic',
   }
 }
 
@@ -56,6 +59,7 @@ export async function parseScratchToDeskDraft(): Promise<{
   extract: ExtractedRequest
   draft: DeskDraft
 }> {
+  // Full pad body — do not strip unicode / punctuation before Claude review.
   const body = getScratchPad().body
   const extract = await createLlmAdapter().extractTripRequest(body)
   return { extract, draft: deskDraftFromExtract(extract) }

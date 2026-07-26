@@ -13,10 +13,40 @@ const corsHeaders = {
 }
 
 type Body = {
-  mode: 'extract_trip' | 'plain_english' | 'extract_d085'
+  mode: 'extract_trip' | 'extract_scratch' | 'plain_english' | 'extract_d085'
   text: string
   context?: string
+  /** Optional local heuristic guesses for Claude to review (not authoritative). */
+  hints?: Record<string, unknown>
 }
+
+const SCRATCH_SYSTEM = `You are an OnFly Air dispatcher desk assistant.
+Review messy phone-call scratch notes and fill a structured trip draft JSON.
+
+The notes may use ANY formatting: newlines, bullets, commas, slashes, arrows (→ ->),
+ASCII hyphen, en-dash (–), em-dash (—), minus (−), "to", "from/to", shorthand, typos.
+Do NOT refuse or drop fields because of unusual punctuation or unicode.
+Do NOT invent airports, clients, or cargo that are not implied by the notes.
+Keep airport codes exactly as written when they are IATA or ICAO (CVG, HPN, KCAK).
+City names are fine when no code is given.
+
+Return JSON with keys:
+client_name, pieces_text, origin_text, destination_text, ready_local, deadline_local,
+hazmat (boolean), asap (boolean), pax_count (number|null),
+payload_kind ("cargo"|"pax"|"both"), notes (short reasoning).
+
+Field guidance:
+- client_name: company/account if present (often first line, e.g. PSA)
+- origin_text / destination_text: lane ends (codes preferred)
+- pieces_text: cargo/mission as written (e.g. "2 Techs + Parts", skid dims)
+- asap: true for ASAP / AOG / hot / ready ASAP
+- ready_local: clock time if scheduled (else null)
+- pax_count: techs/engineers/pax headcount when stated
+- payload_kind: cargo | pax | both (techs + parts → both)
+- notes: one short line on what you inferred
+
+If optional heuristic hints are provided, treat them as a first pass only —
+correct them from the raw notes. Reply with a single JSON object only.`
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -35,8 +65,9 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json()) as Body
-    const text = String(body.text ?? '').trim()
-    if (!text) return json({ error: 'text required' }, 400)
+    // Preserve interior characters; only reject empty/whitespace-only pads.
+    const text = String(body.text ?? '')
+    if (!text.trim()) return json({ error: 'text required' }, 400)
     const mode = body.mode ?? 'extract_trip'
 
     const complete = anthropicKey
@@ -87,19 +118,23 @@ Reply JSON only.`,
       })
     }
 
-    const raw = await complete(
-      `Extract a charter/air-freight trip request as JSON with keys:
-client_name, pieces_text, origin_text, destination_text, ready_local, deadline_local,
-hazmat (boolean), asap (boolean), pax_count (number|null), payload_kind ("cargo"|"pax"|"both"),
-notes.
-Rules: origin_text/destination_text keep IATA or ICAO when written (e.g. CVG, HPN, KCAK).
-Treat en-dash/em-dash/hyphen lanes like "CVG – HPN" as origin→destination.
-asap=true for ASAP/AOG/hot/ready ASAP. client_name = company on first line when obvious (e.g. PSA).
-"2 Techs + Parts" → pieces_text that phrase, pax_count=2, payload_kind="both".
-Use null/omit when unknown. ready_local/deadline_local as local ISO-like strings if present. Reply JSON only.`,
-      text.slice(0, 12000),
-      true,
-    )
+    // extract_trip + extract_scratch — Claude reviews freeform notes (any formatting)
+    const hints =
+      body.hints && typeof body.hints === 'object' ? body.hints : null
+    const userBlock = [
+      'Dispatcher call-pad scratch notes (formatting may be messy; read every line):',
+      '<<<NOTES',
+      text.slice(0, 16000),
+      'NOTES>>>',
+      hints
+        ? `Optional local heuristic guesses (may be wrong — prefer the notes):\n${JSON.stringify(hints)}`
+        : '',
+      'Fill the trip draft JSON now.',
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+
+    const raw = await complete(SCRATCH_SYSTEM, userBlock, true)
     let parsed: Record<string, unknown>
     try {
       parsed = JSON.parse(raw)
@@ -111,6 +146,7 @@ Use null/omit when unknown. ready_local/deadline_local as local ISO-like strings
       ...parsed,
       raw: text,
       provider: anthropicKey ? 'anthropic' : 'openai',
+      parse_source: 'claude',
     })
   } catch (e) {
     console.error('[llm-extract]', e)
@@ -138,7 +174,7 @@ async function anthropicChat(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1024,
+      max_tokens: 1536,
       system: jsonMode
         ? `${system}\n\nRespond with a single JSON object only.`
         : system,

@@ -79,10 +79,10 @@ export default function ScratchPadPage() {
 
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:px-6">
         <p className="mb-4 text-sm leading-relaxed text-[#9a948a]">
-          Phone rings — open this page and type. Client name, route, cargo,
-          timing, whatever you hear. No login until you&apos;re off the call.
-          For general ops (no scratch), use{' '}
-          <span className="text-[#f7f2e3]/80">Login</span>.
+          Phone rings — open this page and type however it comes out (dashes,
+          arrows, shorthand). After login, Claude reviews the pad and plugs the
+          desk fields. No login until you&apos;re off the call. For general ops,
+          use <span className="text-[#f7f2e3]/80">Login</span>.
         </p>
         <textarea
           value={pad.body}

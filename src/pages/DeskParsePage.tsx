@@ -29,6 +29,7 @@ export default function DeskParsePage() {
   const [sending, setSending] = useState(false)
   const [sentTripId, setSentTripId] = useState<string | null>(null)
   const [recError, setRecError] = useState<string | null>(null)
+  const [parseSource, setParseSource] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -37,6 +38,7 @@ export default function DeskParsePage() {
       .then(async ({ draft: d }) => {
         if (cancelled) return
         setDraft(d)
+        setParseSource(d.parse_source)
         const rec = await recommendForDeskDraft(d)
         if (cancelled) return
         setCandidates(rec.candidates)
@@ -54,7 +56,14 @@ export default function DeskParsePage() {
     }
   }, [])
 
-  const scratchPreview = useMemo(() => getScratchPad().body.trim(), [])
+  const scratchPreview = useMemo(() => getScratchPad().body, [])
+
+  function parseSourceLabel(src: string | null): string {
+    if (src === 'claude') return 'Claude reviewed notes → fields'
+    if (src === 'claude+heuristic') return 'Claude + local fill-in'
+    if (src === 'demo') return 'Demo seed (empty pad)'
+    return 'Local heuristics (Claude unavailable)'
+  }
 
   function patch(p: Partial<DeskDraft>) {
     setDraft((d) => (d ? { ...d, ...p } : d))
@@ -67,6 +76,7 @@ export default function DeskParsePage() {
     try {
       const { draft: d } = await parseScratchToDeskDraft()
       setDraft(d)
+      setParseSource(d.parse_source)
       const rec = await recommendForDeskDraft(d)
       setCandidates(rec.candidates)
       setRecError(rec.error ?? null)
@@ -150,16 +160,20 @@ export default function DeskParsePage() {
             Parse call notes
           </h1>
           <p className="mt-1 text-sm text-muted">
-            AI draft — confirm every field before we ping operators.
+            Claude reviews the call pad (any formatting) and plugs fields —
+            confirm before we ping operators.
           </p>
+          {parseSource && (
+            <p className="mt-1 text-xs text-gold/80">{parseSourceLabel(parseSource)}</p>
+          )}
         </div>
         <Link to="/" className="text-sm text-gold hover:text-gold-lt">
           ← Call pad
         </Link>
       </header>
 
-      {scratchPreview && (
-        <details className="rounded-lg border border-border bg-surface p-3 text-sm">
+      {scratchPreview.trim() && (
+        <details open className="rounded-lg border border-border bg-surface p-3 text-sm">
           <summary className="cursor-pointer text-muted">Raw scratch</summary>
           <pre className="mt-2 whitespace-pre-wrap font-mono text-xs text-cream/80">
             {scratchPreview}
@@ -168,7 +182,7 @@ export default function DeskParsePage() {
       )}
 
       {busy && !draft && (
-        <p className="text-sm text-muted">Parsing notes…</p>
+        <p className="text-sm text-muted">Claude reviewing notes…</p>
       )}
       {error && <p className="text-sm text-late">{error}</p>}
 
