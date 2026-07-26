@@ -128,11 +128,13 @@ function buildQuickLegs(
 }
 
 function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
+  const opCompany = meta.operator_name || 'Operator'
   const out: TripParticipant[] = [
     {
       id: crypto.randomUUID(),
       role: 'dispatcher',
       name: 'On-shift',
+      company: 'OnFly Air',
       cell: '',
       email: '',
       in_thread: true,
@@ -142,7 +144,8 @@ function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
     {
       id: crypto.randomUUID(),
       role: 'operator_ops',
-      name: meta.operator_name || 'Operator',
+      name: opCompany,
+      company: opCompany,
       cell: '',
       email: '',
       in_thread: true,
@@ -155,6 +158,7 @@ function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
       id: crypto.randomUUID(),
       role: 'client_ap',
       name: 'AP',
+      company: meta.client_name || '',
       cell: '',
       email: meta.invoice_email,
       in_thread: false,
@@ -167,6 +171,7 @@ function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
       id: crypto.randomUUID(),
       role: 'client_supply',
       name: email.split('@')[0] || 'CC',
+      company: meta.client_name || '',
       cell: '',
       email,
       in_thread: false,
@@ -270,6 +275,8 @@ export type TripParticipant = {
   id: string
   role: string
   name: string
+  /** Company / org for Chat roster: Name - Company - Role. */
+  company: string
   cell: string
   email: string
   /** On the ops SMS thread (false for portal-only clients). */
@@ -410,6 +417,7 @@ function loadLocal(): void {
       if (!Array.isArray(row.participants)) row.participants = []
       row.participants = row.participants.map((p) => ({
         ...p,
+        company: p.company ?? '',
         in_thread: p.in_thread ?? true,
         released_at: p.released_at ?? null,
         invite_sent_at: p.invite_sent_at ?? null,
@@ -646,6 +654,7 @@ export function createRoutedTripWithShortlist(opts: {
         id: crypto.randomUUID(),
         role: 'dispatcher',
         name: 'On-shift',
+        company: 'OnFly Air',
         cell: '',
         email: '',
         in_thread: true,
@@ -731,6 +740,7 @@ export function createTripFromCandidates(opts: {
         id: crypto.randomUUID(),
         role: 'dispatcher',
         name: 'On-shift',
+        company: 'OnFly Air',
         cell: '',
         email: '',
         in_thread: true,
@@ -1090,40 +1100,18 @@ export function listTrips() {
   return [...trips.values()].sort((a, b) => b.ref - a.ref)
 }
 
-const CHAT_STATES = new Set<TripState>([
-  'offers_out',
-  'quoted_hard',
-  'booked',
-  'in_progress',
-  'delivered',
-])
-
 /**
- * Trips that belong in the Chat menu — active ops threads first,
- * then bookable/in-progress trips the dispatcher can join.
+ * Trips for the Chat roster — booked / in progress only.
+ * Lost, offers, quotes, and trip detail stay in Dispatch waterfall.
  */
 export function listChatTrips(): TripStoreRow[] {
-  const score = (t: TripStoreRow) => {
-    const live = t.thread_number && !t.thread_disbanded_at ? 3 : 0
-    const hasMsgs = t.thread.length ? 2 : 0
-    const liveState = CHAT_STATES.has(t.state) ? 1 : 0
-    return live + hasMsgs + liveState
-  }
-  const lastAt = (t: TripStoreRow) =>
-    t.thread.at(-1)?.at ?? t.events.at(-1)?.at ?? ''
-
   return [...trips.values()]
-    .filter(
-      (t) =>
-        score(t) > 0 ||
-        t.thread.length > 0 ||
-        Boolean(t.thread_number) ||
-        CHAT_STATES.has(t.state),
-    )
+    .filter((t) => t.state === 'booked' || t.state === 'in_progress')
     .sort((a, b) => {
-      const ds = score(b) - score(a)
-      if (ds !== 0) return ds
-      return lastAt(b).localeCompare(lastAt(a)) || b.ref - a.ref
+      if (a.state !== b.state) {
+        return a.state === 'in_progress' ? -1 : 1
+      }
+      return b.ref - a.ref
     })
 }
 
@@ -1575,6 +1563,7 @@ export function addTripParticipant(
   input: {
     name: string
     role: string
+    company?: string
     cell?: string
     email?: string
     /** Force onto ops thread; default by role. */
@@ -1582,11 +1571,15 @@ export function addTripParticipant(
   },
 ): TripParticipant {
   const inThread = input.in_thread ?? roleOnOpsThread(input.role)
+  const company =
+    (input.company ?? '').trim() ||
+    (input.role === 'dispatcher' ? 'OnFly Air' : '')
   let created!: TripParticipant
   mutateTrip(tripId, (t) => {
     created = {
       id: crypto.randomUUID(),
       name: input.name.trim(),
+      company,
       role: input.role,
       cell: (input.cell ?? '').trim(),
       email: (input.email ?? '').trim(),
@@ -1602,6 +1595,7 @@ export function addTripParticipant(
       payload: {
         participant_id: created.id,
         role: created.role,
+        company: created.company,
         in_thread: created.in_thread,
       },
     })

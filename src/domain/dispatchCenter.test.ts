@@ -131,6 +131,6 @@ describe('dispatchCenter', () => {
     expect(buckets.submitted_quotes[0]?.title).toContain('Quote submitted')
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
-    expect(buckets.tracking[0]?.href).toContain('/chat/')
+    expect(buckets.tracking[0]?.href).toContain('/trips/')
   })
 })

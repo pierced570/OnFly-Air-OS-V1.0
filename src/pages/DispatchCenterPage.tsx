@@ -59,7 +59,7 @@ const TOOLS: { id: ToolId; label: string; hint: string }[] = [
   { id: 'quick', label: 'Quick dispatch', hint: 'Known aircraft → book' },
   { id: 'newtrip', label: 'New trip', hint: 'Full request form' },
   { id: 'intake', label: 'Intake', hint: 'Email / SMS drafts' },
-  { id: 'chat', label: 'Chat', hint: 'Trip threads' },
+  { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
 ]
 
 function Drawer({

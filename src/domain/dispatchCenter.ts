@@ -216,9 +216,7 @@ export function buildDispatchDrawers(input: {
       href:
         t.state === 'offers_out'
           ? `/trips/${t.id}/offers`
-          : t.state === 'in_progress'
-            ? `/chat/${t.id}`
-            : `/trips/${t.id}`,
+          : `/trips/${t.id}`,
       ref: t.ref,
       state: t.state,
       recipients: t.state === 'offers_out' ? recipients : undefined,
