@@ -7,6 +7,12 @@ import { createLlmAdapter, type ExtractedRequest } from '@/adapters/llm'
 import { parseDims } from '@/domain/dimsParser'
 import { resolvePlaceToAirport } from '@/domain/resolvePlace'
 import { generateCandidates, type Candidate } from '@/domain/routing'
+import {
+  mentionsRoundTrip,
+  operatorMissionSummary,
+  todayLocalDate,
+  toolingDimsForParse,
+} from '@/domain/standardTooling'
 import { createMapsAdapter } from '@/adapters/maps'
 import {
   clientRuleChips,
@@ -32,18 +38,19 @@ export type DeskLeg = {
   id: string
   origin_icao: string
   dest_icao: string
+  /** Local date — defaults to today at parse. */
   date: string
   pax: number
-  /** Reposition time — not live leg (operators enter live on offer form). */
-  repo_time: string
 }
 
 export type DeskDraft = {
   client_name: string
   /** Matched / selected directory client (null until matched or created). */
   client_id: string | null
+  /** PO is not collected at parse — filled later in booking/financials. */
   po: string
   timing: 'asap' | 'scheduled'
+  /** One-way unless notes/UI say roundtrip. */
   roundtrip: boolean
   cargo_only: boolean
   legs: DeskLeg[]
@@ -66,9 +73,8 @@ export function newDeskLeg(partial?: Partial<DeskLeg>): DeskLeg {
     id: crypto.randomUUID(),
     origin_icao: '',
     dest_icao: '',
-    date: '',
+    date: todayLocalDate(),
     pax: 0,
-    repo_time: '',
     ...partial,
   }
 }
@@ -84,22 +90,26 @@ export function deskDraftFromExtract(
 ): DeskDraft {
   const origin = icaoFromPlace(ex.origin_text)
   const dest = icaoFromPlace(ex.destination_text)
-  const asap = Boolean(ex.asap)
+  // Default ASAP unless extract found a schedule cue.
+  const asap = ex.asap !== false && !ex.ready_local
   const pax = ex.pax_count ?? 0
   const payload_kind = ex.payload_kind ?? (pax > 0 ? 'both' : 'cargo')
-  const cargo_only = payload_kind === 'cargo' && pax === 0
+  const cargo_only = pax === 0 && payload_kind === 'cargo'
   const raw_notes = (rawNotes ?? ex.raw ?? '').trim()
+  const today = todayLocalDate()
+  const roundtrip = mentionsRoundTrip(raw_notes)
   return {
     client_name: ex.client_name?.trim() || '',
     client_id: null,
     po: '',
     timing: asap ? 'asap' : 'scheduled',
-    roundtrip: false,
+    roundtrip,
     cargo_only,
     legs: [
       newDeskLeg({
         origin_icao: origin,
         dest_icao: dest,
+        date: today,
         pax: cargo_only ? 0 : pax,
       }),
     ],
@@ -112,7 +122,9 @@ export function deskDraftFromExtract(
     origin_text: origin || (ex.origin_text?.trim() || ''),
     destination_text: dest || (ex.destination_text?.trim() || ''),
     asap,
-    ready_label: asap ? 'ASAP' : ex.ready_local?.trim() || '',
+    ready_label: asap
+      ? 'ASAP'
+      : ex.ready_local?.trim() || `${today}`,
   }
 }
 
@@ -193,19 +205,13 @@ export async function recommendForDeskDraft(
   let pieces =
     draft.payload_kind === 'pax'
       ? []
-      : parseDims(draft.pieces_text || '').pieces
-  if (
-    draft.payload_kind !== 'pax' &&
-    !pieces.length &&
-    /\b(techs?|parts?|engineers?|mechanics?|pax)\b/i.test(draft.pieces_text)
-  ) {
-    pieces = parseDims('1 skid 24x24x24 @ 150').pieces
-  }
+      : parseDims(toolingDimsForParse(draft.pieces_text || '')).pieces
   if (draft.payload_kind !== 'pax' && !pieces.length) {
     return {
       candidates: [],
       lane: `${origin.icao}→${destination.icao}`,
-      error: 'Add cargo / mission (e.g. 2 techs + parts, or skid dims @ weight)',
+      error:
+        'Add cargo (e.g. tools → standard tooling) or dims @ weight — techs count as pax',
       client_rules_applied,
       rule_chips,
     }
@@ -299,9 +305,14 @@ export async function sendDeskTripOffers(opts: {
   const payload =
     draft.pieces_text.trim() ||
     (draft.payload_kind === 'pax' ? 'pax' : 'cargo')
+  const mission = operatorMissionSummary({
+    pieces_text: draft.pieces_text,
+    pax_count: draft.pax_count,
+    cargo_only: draft.cargo_only,
+  })
   const trip = createTripFromCandidates({
     lane,
-    payload_summary: payload,
+    payload_summary: mission || payload,
     ready_label: draft.ready_label || (draft.asap ? 'ASAP' : 'scheduled'),
     candidates: opts.candidates,
     payload_kind: draft.payload_kind,
@@ -317,10 +328,13 @@ export async function sendDeskTripOffers(opts: {
       payload: {
         client_id: draft.client_id || null,
         client_name: draft.client_name || null,
-        po: draft.po || null,
+        // PO deferred past parse stage
+        po: null,
         roundtrip: draft.roundtrip,
         cargo_only: draft.cargo_only,
         legs: draft.legs,
+        mission_summary: mission,
+        cargo_summary: toolingDimsForParse(draft.pieces_text),
         notes: draft.notes || null,
         raw_notes: draft.raw_notes || null,
       },

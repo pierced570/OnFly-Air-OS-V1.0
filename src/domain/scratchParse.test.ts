@@ -35,12 +35,41 @@ Ready ASAP`,
     expect(r.client_name).toBe('PSA')
     expect(r.origin_text).toBe('CVG')
     expect(r.destination_text).toBe('HPN')
-    expect(r.pieces_text).toMatch(/2 Techs \+ Parts/i)
+    // Techs → pax; no tools mentioned → no cargo dims yet
+    expect(r.pieces_text).toBeUndefined()
     expect(r.pax_count).toBe(2)
-    expect(r.payload_kind).toBe('both')
+    expect(r.payload_kind).toBe('pax')
     expect(r.asap).toBe(true)
     expect(resolvePlaceToAirport(r.origin_text ?? '')?.icao).toBe('KCVG')
     expect(resolvePlaceToAirport(r.destination_text ?? '')?.icao).toBe('KHPN')
+  })
+
+  it('maps tools to standard tooling and techs to pax', () => {
+    const r = extractFromScratchNotes(
+      `PSA
+CVG – HPN
+2 techs + tools`,
+    )
+    expect(r.pax_count).toBe(2)
+    expect(r.pieces_text).toMatch(/standard tooling/i)
+    expect(r.pieces_text).toMatch(/12x12x12/)
+    expect(r.payload_kind).toBe('both')
+    expect(r.asap).toBe(true)
+  })
+
+  it('defaults ASAP + one-way when timing/direction omitted', () => {
+    const r = extractFromScratchNotes('Acme\nKCAK → KMDW\n1 skid 48x40x48 @ 400')
+    expect(r.asap).toBe(true)
+    expect(r.notes).toMatch(/one-way/i)
+    expect(r.notes).toMatch(/ASAP/i)
+  })
+
+  it('does not default ASAP when a ready clock is noted', () => {
+    const r = extractFromScratchNotes(
+      'KCAK → KMDW\n1 skid 48x40x48 @ 400\nready at 9:00am',
+    )
+    expect(r.asap).toBe(false)
+    expect(r.ready_local).toMatch(/9/i)
   })
 
   it('does not treat ASAP as an airport code', () => {
