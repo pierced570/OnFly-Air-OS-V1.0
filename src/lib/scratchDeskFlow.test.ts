@@ -26,12 +26,29 @@ Ready ASAP`)
     expect(draft.legs[0]?.dest_icao).toBe('KHPN')
     expect(draft.origin_text).toBe('KCVG')
     expect(draft.destination_text).toBe('KHPN')
-    expect(draft.pieces_text).toMatch(/Techs/i)
+    expect(draft.pieces_text).toBe('')
     expect(draft.pax_count).toBe(2)
-    // Desk draft has no live_leg field — operators enter that on the offer link.
+    expect(draft.roundtrip).toBe(false)
+    expect(draft.po).toBe('')
+    expect(draft.legs[0]?.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    // Desk draft has no live_leg / repo — operators enter live on the offer link.
     expect(
       Object.prototype.hasOwnProperty.call(draft.legs[0] ?? {}, 'live_leg_time'),
     ).toBe(false)
+    expect(
+      Object.prototype.hasOwnProperty.call(draft.legs[0] ?? {}, 'repo_time'),
+    ).toBe(false)
+  })
+
+  it('tools → standard tooling on desk draft', async () => {
+    setScratchPadBody(`PSA
+CVG – HPN
+2 techs + tools`)
+    const { draft } = await parseScratchToDeskDraft()
+    expect(draft.pax_count).toBe(2)
+    expect(draft.pieces_text).toMatch(/standard tooling/i)
+    expect(draft.timing).toBe('asap')
+    expect(draft.roundtrip).toBe(false)
   })
 
   it('resolves CVG/HPN and scores without hard-failing on techs mission', async () => {

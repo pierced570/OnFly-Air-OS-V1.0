@@ -1,11 +1,20 @@
 /**
  * Heuristic extraction from call scratch notes → ExtractedRequest shape.
  * Used by MockLlmAdapter (and as fill-in for real LLM) so demos parse typed notes.
+ *
+ * Defaults: one-way, ASAP + today unless scheduled cues; techs → pax;
+ * tools → standard tooling (12×12×12 @ 50 lb).
  */
 
 import type { ExtractedRequest } from '@/adapters/llm'
 import { lookupAirport } from '@/domain/airports'
 import { parseDims } from '@/domain/dimsParser'
+import {
+  STANDARD_TOOLING,
+  mentionsRoundTrip,
+  mentionsScheduledTiming,
+  mentionsTools,
+} from '@/domain/standardTooling'
 
 /** Words that look like 3–4 letter codes but are not airports. */
 const CODE_NOISE = new Set([
@@ -44,6 +53,8 @@ const CODE_NOISE = new Set([
   'ETD',
   'UTC',
   'ZULU',
+  'TOOL',
+  'TOOLS',
 ])
 
 const CLIENT_LABEL =
@@ -55,11 +66,12 @@ const CITY_LANE =
   /([A-Za-z][A-Za-z0-9 .,'/-]{1,40}?)\s*(?:→|->|\bto\b|\bTO\b)\s*([A-Za-z][A-Za-z0-9 .,'/-]{1,40})/
 const ASAP = /\b(asap|aog|emergency|hot)\b/i
 const READY_TIME =
-  /\b(?:ready|pickup|pick up|need(?:ed)?)\s*(?:at|by)?\s*(\d{1,2}:\d{2}|\d{1,2}\s*(?:am|pm))\b/i
+  /\b(?:ready|pickup|pick up|need(?:ed)?)\s*(?:at|by)?\s*(\d{1,2}:\d{2}\s*(?:am|pm)?|\d{1,2}\s*(?:am|pm))\b/i
 const SKIDS =
   /(\d+\s*(?:skids?|crates?|pallets?|boxes?)[^.\n;]{0,80}(?:@\s*\d+\s*(?:ea|each)?)?)/i
-const TECHS_PARTS =
-  /(\d+)\s*(techs?|engineers?|mechanics?|technicians?)(?:\s*\+\s*parts?)?/i
+/** Techs / engineers count as pax (not cargo). */
+const TECHS =
+  /(\d+)\s*(techs?|engineers?|mechanics?|technicians?)\b/i
 const HAZMAT = /\b(hazmat|dangerous goods|dg\b)/i
 const PAX = /(\d+)\s*(?:pax|passengers?)\b/i
 
@@ -67,7 +79,6 @@ function plausibleAirportToken(raw: string): boolean {
   const u = raw.trim().toUpperCase()
   if (!u || CODE_NOISE.has(u)) return false
   if (lookupAirport(u)) return true
-  // Unknown but ICAO-shaped (K/C + 3 letters)
   if (/^[KC][A-Z]{3}$/.test(u)) return true
   return false
 }
@@ -91,7 +102,6 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
     client_name = clientMatch[1].trim()
     notes.push(`client: ${client_name}`)
   } else {
-    // First line often "PSA" / "Acme MRO" before the route
     const first = text.split(/\n/)[0]?.trim() ?? ''
     if (
       first &&
@@ -99,7 +109,7 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
       !looksLikeLaneLine(first) &&
       !/\d+\s*[x×]\s*\d+/i.test(first) &&
       !ASAP.test(first) &&
-      !TECHS_PARTS.test(first) &&
+      !TECHS.test(first) &&
       !SKIDS.test(first)
     ) {
       client_name = first
@@ -121,7 +131,6 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
     destination_text = codeLane[2].toUpperCase()
     notes.push(`lane: ${origin_text}→${destination_text}`)
   } else {
-    // Scan known ICAO/IATA tokens in order (skip noise like ASAP)
     const tokens = [...text.matchAll(/\b([A-Za-z]{3,4})\b/g)]
       .map((m) => m[1]!.toUpperCase())
       .filter((t) => plausibleAirportToken(t))
@@ -143,19 +152,31 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
   let pax_count: number | undefined
   let payload_kind: ExtractedRequest['payload_kind'] = 'cargo'
 
-  const tech = text.match(TECHS_PARTS)
+  const tech = text.match(TECHS)
   if (tech?.[1]) {
     pax_count = Number(tech[1])
-    pieces_text = tech[0].trim()
-    payload_kind = /\+?\s*parts?/i.test(tech[0]) ? 'both' : 'pax'
-    notes.push(`mission: ${pieces_text}`)
+    payload_kind = 'pax'
+    notes.push(`techs→pax: ${pax_count}`)
+  }
+
+  const paxMatch = text.match(PAX)
+  if (paxMatch && pax_count == null) {
+    pax_count = Number(paxMatch[1])
+    payload_kind = 'pax'
+    notes.push(`pax: ${pax_count}`)
+  }
+
+  // Tools → OnFly standard tooling (operator-facing name + fixed dims/weight).
+  if (mentionsTools(text)) {
+    pieces_text = `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`
+    payload_kind = pax_count ? 'both' : 'cargo'
+    notes.push('tools→standard tooling 12x12x12 @ 50')
   }
 
   const skid = text.match(SKIDS)
-  if (skid?.[1]) {
+  if (skid?.[1] && !mentionsTools(text)) {
     pieces_text = skid[1].trim()
-    if (pax_count) payload_kind = 'both'
-    else payload_kind = 'cargo'
+    payload_kind = pax_count ? 'both' : 'cargo'
   } else if (!pieces_text) {
     const dimOnly = text.match(
       /(\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?[^.\n]{0,40})/i,
@@ -167,23 +188,25 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
   }
 
   if (pieces_text && payload_kind !== 'pax') {
-    const parsed = parseDims(pieces_text)
+    const parsed = parseDims(
+      pieces_text.replace(/^standard tooling\s+/i, ''),
+    )
     if (!parsed.pieces.length && payload_kind === 'cargo') notes.push('dims weak')
-  }
-
-  const paxMatch = text.match(PAX)
-  if (paxMatch && pax_count == null) {
-    pax_count = Number(paxMatch[1])
-    payload_kind = pieces_text && payload_kind === 'cargo' ? 'both' : 'pax'
   }
 
   const readyMatch = text.match(READY_TIME)
   const ready_local = readyMatch?.[1]?.trim()
-  const asap = ASAP.test(text)
-  if (asap) notes.push('timing: ASAP')
+  // Default ASAP unless notes clearly schedule a ready time / day.
+  const asap =
+    ASAP.test(text) || (!ready_local && !mentionsScheduledTiming(text))
+  if (asap) notes.push('timing: ASAP (default)')
   else if (ready_local) notes.push(`ready: ${ready_local}`)
+  else notes.push('timing: scheduled')
 
-  return {
+  if (!mentionsRoundTrip(text)) notes.push('one-way (default)')
+  else notes.push('round-trip')
+
+  return applyOperatorScratchDefaults({
     client_name,
     pieces_text,
     origin_text,
@@ -195,5 +218,65 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
     payload_kind,
     notes: notes.join('; ') || 'scratch parse',
     raw: rawText,
+  })
+}
+
+/**
+ * Re-assert operator defaults after LLM merge (tools/techs/ASAP/one-way).
+ * Safe to call twice — idempotent for these fields.
+ */
+export function applyOperatorScratchDefaults(
+  ex: ExtractedRequest,
+): ExtractedRequest {
+  const text = (ex.raw ?? '').trim()
+  if (!text) return ex
+
+  let pieces_text = ex.pieces_text
+  let pax_count = ex.pax_count
+  let payload_kind = ex.payload_kind ?? 'cargo'
+  const notes = [...(ex.notes ? [ex.notes] : [])]
+
+  const tech = text.match(TECHS)
+  if (tech?.[1]) {
+    pax_count = Number(tech[1])
+  } else if (pax_count == null) {
+    const paxMatch = text.match(PAX)
+    if (paxMatch?.[1]) pax_count = Number(paxMatch[1])
+  }
+
+  // LLM sometimes puts "2 Techs + Parts" in pieces — techs are pax, not cargo.
+  if (
+    pieces_text &&
+    /\btechs?\b|\bengineers?\b|\bmechanics?\b|\btechnicians?\b/i.test(
+      pieces_text,
+    ) &&
+    !/\d+\s*[x×]\s*\d+/i.test(pieces_text) &&
+    !mentionsTools(pieces_text)
+  ) {
+    pieces_text = undefined
+  }
+
+  if (mentionsTools(text)) {
+    pieces_text = `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`
+  }
+
+  if (pax_count && pieces_text) payload_kind = 'both'
+  else if (pax_count) payload_kind = 'pax'
+  else if (pieces_text) payload_kind = 'cargo'
+
+  const ready_local = ex.ready_local
+  // Today + ASAP unless a ready clock / day is noted (or ASAP/AOG words).
+  const asap =
+    ASAP.test(text) ||
+    (!ready_local?.trim() && !mentionsScheduledTiming(text))
+
+  return {
+    ...ex,
+    pieces_text,
+    pax_count,
+    payload_kind,
+    ready_local,
+    asap,
+    notes: notes.join('; ') || ex.notes,
   }
 }
