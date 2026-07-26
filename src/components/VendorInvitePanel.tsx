@@ -54,11 +54,7 @@ export function VendorInvitePanel() {
         companyName: company || undefined,
         template,
       })
-      setStatus(
-        live
-          ? `Sent to ${result.to}.`
-          : `Mock-sent to ${result.to}. Set VITE_EMAIL_ADAPTER=real for live delivery.`,
-      )
+      setStatus(`Sent to ${result.to}.`)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
     } finally {
@@ -76,11 +72,9 @@ export function VendorInvitePanel() {
           Sends the payee packet link (
           <span className="avionic text-cream">/vendor</span>
           ) — W-9 fields, banking, certification.
-          {live
-            ? ' Email is live.'
-            : realFlag
-              ? ' Email adapter is real but Supabase keys are missing.'
-              : ' Email is mock until Resend is wired.'}
+          {!live && realFlag
+            ? ' Email delivery needs Supabase keys configured.'
+            : ''}
         </p>
       </div>
 

@@ -172,7 +172,7 @@ export default function AdminPage() {
             >
               {d.label}
               <span className="ml-1 opacity-70">
-                {d.state === 'live' ? 'live' : d.state === 'blocked' ? 'wire' : 'mock'}
+                {d.state === 'live' ? 'live' : d.state === 'blocked' ? 'wire' : 'local'}
               </span>
             </li>
           ))}

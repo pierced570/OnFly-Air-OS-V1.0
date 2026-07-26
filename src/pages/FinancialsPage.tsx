@@ -196,9 +196,9 @@ export default function FinancialsPage() {
       setInvoiceMsg(
         result.emailed
           ? `Invoice ${result.poNumber} created + emailed to ${result.to.join(', ')}`
-          : `Invoice ${result.poNumber} created in ${result.created.mock ? 'mock' : 'QuickBooks'}${
-              result.to.length ? '' : ' — no AP email on file'
-            }`,
+          : `Invoice ${result.poNumber} created${
+              result.created.mock ? ' locally' : ' in QuickBooks'
+            }${result.to.length ? '' : ' — no AP email on file'}`,
       )
       void qb.refresh()
     } catch (e) {
@@ -236,7 +236,7 @@ export default function FinancialsPage() {
             onClick={() => {
               if (
                 window.confirm(
-                  `Discard ${editedCount} local correction(s) and reload fixture values?`,
+                  `Discard ${editedCount} local correction(s) and reload saved values?`,
                 )
               ) {
                 clearFinancialOverrides()
@@ -545,7 +545,7 @@ function QbConnectBanner({
         </div>
         <p className="mt-0.5 text-sm text-cream">
           {!realMode
-            ? 'Mock mode — invoices stay local until VITE_QB_ADAPTER=real + OAuth secrets'
+            ? 'QuickBooks not connected — invoices stay local until OAuth is linked'
             : connected
               ? `Connected${environment ? ` · ${environment}` : ''}`
               : 'Not connected — Connect to create QBO invoices (EmailStatus=NotSet)'}

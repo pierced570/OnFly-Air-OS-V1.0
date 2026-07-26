@@ -81,7 +81,7 @@ export function listAdapterDoorStatus(): AdapterDoorStatus[] {
       state: 'blocked',
       detail: isRealAdsbEnabled()
         ? 'Provider key / edge not returning tracks yet'
-        : 'Stub only (no fake tracks) — wire provider API, then VITE_ADSB_ADAPTER=real',
+        : 'Provider API not wired yet — set VITE_ADSB_ADAPTER=real when ready',
     },
     {
       id: 'comms',

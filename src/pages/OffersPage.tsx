@@ -12,7 +12,6 @@ import type { QuoteLinkChannel } from '@/domain/quoteLinkChannel'
 import {
   appendOfferToTrip,
   selectOffersAndHardQuote,
-  acceptHardQuote,
   sendAvailabilityPings,
   updateOfferContacts,
   updateTripOfferRequest,
@@ -662,15 +661,6 @@ export default function OffersPage() {
               >
                 Open client accept page →
               </Link>
-              <button
-                type="button"
-                className="ml-3 text-sm text-muted underline"
-                onClick={() =>
-                  void acceptHardQuote(trip.hard_quote!.accept_token)
-                }
-              >
-                Simulate accept
-              </button>
             </div>
           )}
         </section>

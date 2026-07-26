@@ -109,8 +109,8 @@ export default function RadarPage({
           </p>
           {!adsbLive && (
             <p className="mt-2 text-xs text-gold">
-              Positions are off until the live ADS-B provider is wired — no mock
-              tracks. Tails below are from Network.
+              Positions are off until the ADS-B provider is connected. Tails
+              below are from Network.
             </p>
           )}
           {wx && (
@@ -135,7 +135,7 @@ export default function RadarPage({
             title={
               adsbLive
                 ? 'Refresh live positions'
-                : 'Enable when VITE_ADSB_ADAPTER=real + provider key'
+                : 'ADS-B provider not connected'
             }
           >
             {busy ? 'Refreshing…' : adsbLive ? 'Refresh ADS-B' : 'ADS-B pending'}

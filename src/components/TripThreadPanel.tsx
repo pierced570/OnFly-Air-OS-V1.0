@@ -24,7 +24,6 @@ export function TripThreadPanel({
   title = 'Trip thread',
 }: Props) {
   const [body, setBody] = useState('')
-  const [simFrom, setSimFrom] = useState('Pilot')
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -39,17 +38,6 @@ export function TripThreadPanel({
     postThreadMessage(trip.id, {
       from: dispatcherName,
       channel: 'web',
-      body: text,
-    })
-    setBody('')
-  }
-
-  function simulateInbound() {
-    const text = body.trim()
-    if (!text) return
-    postThreadMessage(trip.id, {
-      from: simFrom.trim() || 'Crew',
-      channel: 'sms',
       body: text,
     })
     setBody('')
@@ -116,53 +104,28 @@ export function TripThreadPanel({
         <div ref={bottomRef} />
       </ul>
 
-      <div className="mt-3 space-y-2 border-t border-border pt-3">
-        <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted">
-          <span>Simulate as</span>
-          <select
-            className="rounded border border-border bg-ink px-2 py-1 text-xs text-cream"
-            value={simFrom}
-            onChange={(e) => setSimFrom(e.target.value)}
-          >
-            <option>Pilot</option>
-            <option>Driver</option>
-            <option>FBO</option>
-            <option>Operator ops</option>
-          </select>
-          <span className="text-muted/70">· or post as you (dispatch)</span>
-        </div>
-        <div className="flex gap-2">
-          <input
-            className="min-w-0 flex-1 rounded border border-border bg-ink px-3 py-2 text-sm text-cream"
-            placeholder="Message · wheels up / arrived / delivered…"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                postAsDispatch()
-              }
-            }}
-            disabled={Boolean(trip.thread_disbanded_at)}
-          />
-          <button
-            type="button"
-            className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
-            disabled={!body.trim() || Boolean(trip.thread_disbanded_at)}
-            onClick={postAsDispatch}
-          >
-            Send
-          </button>
-          <button
-            type="button"
-            className="rounded border border-border px-3 py-2 text-xs text-muted hover:text-cream disabled:opacity-40"
-            disabled={!body.trim() || Boolean(trip.thread_disbanded_at)}
-            onClick={simulateInbound}
-            title="Demo inbound SMS from crew/ground"
-          >
-            As crew
-          </button>
-        </div>
+      <div className="mt-3 flex gap-2 border-t border-border pt-3">
+        <input
+          className="min-w-0 flex-1 rounded border border-border bg-ink px-3 py-2 text-sm text-cream"
+          placeholder="Message · wheels up / arrived / delivered…"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              postAsDispatch()
+            }
+          }}
+          disabled={Boolean(trip.thread_disbanded_at)}
+        />
+        <button
+          type="button"
+          className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
+          disabled={!body.trim() || Boolean(trip.thread_disbanded_at)}
+          onClick={postAsDispatch}
+        >
+          Send
+        </button>
       </div>
     </section>
   )

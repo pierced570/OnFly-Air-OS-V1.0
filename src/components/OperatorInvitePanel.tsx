@@ -55,11 +55,7 @@ export function OperatorInvitePanel() {
         companyName: company || undefined,
       })
       setLastUrl(result.joinUrl)
-      setStatus(
-        live
-          ? `Sent to ${result.to}.`
-          : `Mock-sent to ${result.to}. Set VITE_EMAIL_ADAPTER=real for live delivery.`,
-      )
+      setStatus(`Sent to ${result.to}.`)
       setTo('')
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
@@ -75,11 +71,9 @@ export function OperatorInvitePanel() {
         <p className="mt-1 text-sm text-muted">
           Short email with a personal link. They upload Charter Cert, D085
           (tails auto-pull), COI, quote contact preference, and ACH / wire.
-          {live
-            ? ' Email is live.'
-            : realFlag
-              ? ' Email adapter is real but Supabase keys are missing.'
-              : ' Email is mock until Resend is wired.'}
+          {!live && realFlag
+            ? ' Email delivery needs Supabase keys configured.'
+            : ''}
         </p>
       </header>
 

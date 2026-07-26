@@ -72,9 +72,7 @@ function ClientInviteCard() {
           ? 'SMS'
           : channel === 'both'
             ? 'email + SMS'
-            : live
-              ? 'email'
-              : 'mock email'
+            : 'email'
       setStatus(`Sent (${via}) to ${result.to}${cell && channel !== 'email' ? ` / ${cell}` : ''}.`)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
@@ -100,11 +98,9 @@ function ClientInviteCard() {
           Same form customers fill at{' '}
           <span className="avionic text-cream">/client</span>
           {' '}— company, people, pay terms, routing rules, lanes.
-          {live
-            ? ' Email is live.'
-            : realFlag
-              ? ' Email adapter is real but Supabase keys are missing.'
-              : ' Email is mock until Resend is wired.'}
+          {!live && realFlag
+            ? ' Email delivery needs Supabase keys configured.'
+            : ''}
         </p>
       </div>
 

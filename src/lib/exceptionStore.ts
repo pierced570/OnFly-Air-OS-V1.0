@@ -72,7 +72,7 @@ export function acknowledgeException(id: string): void {
   bump()
 }
 
-/** Seed demo exceptions from active trips that look overdue / need attention. */
+/** Optional: derive ASAP watch cards from active trips (not auto-wired to Board). */
 export function syncExceptionsFromTrips(
   trips: Array<{
     id: string

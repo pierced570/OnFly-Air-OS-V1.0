@@ -479,26 +479,17 @@ function normalizePhone(raw: string | undefined | null): string | null {
   return null
 }
 
-/** Deterministic mock cell when profile has none (keeps SMS simulator workable). */
-function mockContactCell(operatorId: string, operatorName: string): string {
-  let hash = 0
-  for (const ch of operatorId || operatorName)
-    hash = (hash * 31 + ch.charCodeAt(0)) | 0
-  const n = Math.abs(hash) % 9000000
-  return `+1415${String(1000000 + n).slice(-7)}`
-}
-
 export type ResolvedOperatorContacts = {
   contact_cell: string
   contact_email: string
   quote_link_channel: 'sms' | 'email' | 'both'
-  /** True when cell was invented for mock SMS (not from profile). */
+  /** Legacy flag — we no longer invent cells; always false for new resolves. */
   cell_is_mock: boolean
 }
 
 /**
  * Resolve RFQ contacts from network profile → onboard → drafts.
- * Prefer real profile data; only invent a cell when SMS channel needs a to-address.
+ * Never invents a phone — blank means fill before notify.
  */
 export function resolveOperatorContacts(
   operatorId: string,
@@ -549,17 +540,11 @@ export function resolveOperatorContacts(
     }
   }
 
-  let cell_is_mock = false
-  if (!cell && (channel === 'sms' || channel === 'both')) {
-    cell = mockContactCell(operatorId, operatorName)
-    cell_is_mock = true
-  }
-
   return {
     contact_cell: cell,
     contact_email: email,
     quote_link_channel: channel,
-    cell_is_mock,
+    cell_is_mock: false,
   }
 }
 
@@ -1393,9 +1378,10 @@ export function postThreadMessage(
   return msg
 }
 
-/** Create QB invoice for a trip (mock or live). Does not use QBO email. */
+/** Create QB invoice for a trip. Does not use QBO email. */
 const invoiceInFlight = new Set<string>()
 
+/** @deprecated Use createInvoiceForTrip */
 export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
   return createInvoiceForTrip(tripId)
 }

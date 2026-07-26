@@ -582,8 +582,11 @@ function recipientCells(trip: NonNullable<ReturnType<typeof getTrip>>): string[]
       }
     }
   }
-  if (!cells.length) cells.push('+1555CLIENT')
   return cells
+}
+
+function canSms(cell: string | null | undefined, isMock?: boolean): boolean {
+  return Boolean(cell?.trim()) && !isMock
 }
 
 export async function acceptHardQuote(token: string) {
@@ -623,13 +626,15 @@ export async function acceptHardQuote(token: string) {
   const selected = fresh.offers.find((o) => o.state === 'selected')
   const trackPath = `/portal/track/${fresh.id}`
 
-  await comms.send({
-    channel: 'sms',
-    to: '+1555CLIENT',
-    body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
-  })
+  for (const cell of recipientCells(fresh)) {
+    await comms.send({
+      channel: 'sms',
+      to: cell,
+      body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
+    })
+  }
 
-  if (selected) {
+  if (selected && canSms(selected.contact_cell, selected.contact_cell_is_mock)) {
     await comms.send({
       channel: 'sms',
       to: selected.contact_cell,
@@ -644,11 +649,13 @@ export async function acceptHardQuote(token: string) {
       o.state === 'quoted' ||
       o.state === 'pinged'
     ) {
-      await comms.send({
-        channel: 'sms',
-        to: o.contact_cell,
-        body: standDownBody(fresh.lane),
-      })
+      if (canSms(o.contact_cell, o.contact_cell_is_mock)) {
+        await comms.send({
+          channel: 'sms',
+          to: o.contact_cell,
+          body: standDownBody(fresh.lane),
+        })
+      }
       mutateTrip(trip.id, (t) => {
         const row = t.offers.find((x) => x.id === o.id)!
         row.state = 'stood_down'
