@@ -324,10 +324,12 @@ export async function verifyOfferTokensReadable(
 export async function persistTripOffersForPublicLinks(
   trip: TripStoreRow,
 ): Promise<void> {
+  // Local/demo (no Supabase): session-only links still work on this device.
   if (!canPersist()) {
-    throw new Error(
-      'Supabase is not configured — offer links cannot be opened on other devices',
+    console.warn(
+      '[db] Supabase unset — offer links will not open on other devices',
     )
+    return
   }
   await persistTripSnapshot(trip)
   const check = await verifyOfferTokensReadable(trip.offers)
