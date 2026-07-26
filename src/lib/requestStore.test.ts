@@ -29,10 +29,10 @@ describe('requestStore delete', () => {
 })
 
 describe('pushScratchPadToTripRequest', () => {
-  it('creates a Call pad request and clears the scratch pad', () => {
+  it('creates a Scratchpad request and clears the scratch pad', () => {
     setScratchPadBody('PSA\nCKB — DFW\n2 Techs + Tools\nASAP')
     const row = pushScratchPadToTripRequest()
-    expect(row.source).toBe('call_pad')
+    expect(row.source).toBe('scratchpad')
     expect(row.client_name).toBe('PSA')
     expect(row.notes).toContain('CKB')
     expect(getScratchPad().body).toBe('')

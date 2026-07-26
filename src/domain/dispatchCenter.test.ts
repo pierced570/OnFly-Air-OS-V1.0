@@ -11,7 +11,7 @@ describe('dispatchCenter', () => {
     expect(drawerForTripState('closed')).toBeNull()
   })
 
-  it('labels Call pad requests distinctly', () => {
+  it('labels Scratchpad requests distinctly', () => {
     const buckets = buildDispatchDrawers({
       requests: [
         {
@@ -19,13 +19,13 @@ describe('dispatchCenter', () => {
           ref: 99,
           lane: 'KCKB→KDFW',
           summary: '2 pax · ASAP',
-          source: 'call_pad',
+          source: 'scratchpad',
           status: 'submitted',
         },
       ],
       trips: [],
     })
-    expect(buckets.requests[0]?.subtitle).toMatch(/^Call pad ·/)
+    expect(buckets.requests[0]?.subtitle).toMatch(/^Scratchpad ·/)
   })
 
   it('buckets inbound, trip cards, recipients, and submitted quotes', () => {

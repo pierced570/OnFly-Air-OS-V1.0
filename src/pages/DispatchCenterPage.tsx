@@ -1,6 +1,6 @@
 /**
  * Dispatch Center — one waterfall dashboard for day-to-day ops.
- * Consolidates Board / call pad / parse / chat / QD / new trip
+ * Consolidates Board / scratchpad / parse / chat / QD / new trip
  * without dropping their routes (tools drawer + deep links).
  */
 
@@ -38,11 +38,11 @@ const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
 
-type ToolId = 'callpad' | 'parse' | 'quick' | 'chat' | 'newtrip'
+type ToolId = 'scratchpad' | 'parse' | 'quick' | 'chat' | 'newtrip'
 
 /** Work tools drawer — Quick Dispatch is a top-of-page button, not here. */
 const TOOLS: { id: Exclude<ToolId, 'quick'>; label: string; hint: string }[] = [
-  { id: 'callpad', label: 'Call pad', hint: 'Live phone notes' },
+  { id: 'scratchpad', label: 'Scratchpad', hint: 'Live phone notes' },
   { id: 'parse', label: 'Parse & shortlist', hint: 'Notes → operators' },
   { id: 'newtrip', label: 'New trip', hint: 'Full request form' },
   { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
@@ -328,14 +328,14 @@ export default function DispatchCenterPage() {
 
   function eraseScratchPad() {
     if (!scratchPreview) return
-    if (!window.confirm('Erase Call pad notes? This cannot be undone.')) return
+    if (!window.confirm('Erase Scratchpad notes? This cannot be undone.')) return
     clearScratchPad()
     setPushError(null)
   }
 
   if (tool) {
     const Tool = {
-      callpad: ScratchPadPage,
+      scratchpad: ScratchPadPage,
       parse: DeskParsePage,
       quick: QuickDispatchPage,
       chat: ChatPage,
@@ -363,7 +363,7 @@ export default function DispatchCenterPage() {
               <p className="p-6 text-sm text-muted">Loading tool…</p>
             }
           >
-            {tool === 'callpad' ? <ScratchPadPage embedded /> : <Tool />}
+            {tool === 'scratchpad' ? <ScratchPadPage embedded /> : <Tool />}
           </Suspense>
         </div>
       </div>
@@ -392,7 +392,7 @@ export default function DispatchCenterPage() {
       {scratchPreview ? (
         <div className="rounded-lg border border-gold/40 bg-gold/5 px-3 py-3">
           <div className="text-xs font-medium uppercase tracking-wider text-gold">
-            Call pad has notes
+            Scratchpad has notes
           </div>
           <pre className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-cream/85">
             {scratchPreview.slice(0, 600)}
@@ -421,7 +421,7 @@ export default function DispatchCenterPage() {
               onClick={eraseScratchPad}
               className="rounded-md border border-border px-3 py-2 text-xs text-muted hover:border-late/50 hover:text-late"
             >
-              Erase ScratchPad
+              Erase Scratchpad
             </button>
           </div>
         </div>
@@ -452,7 +452,7 @@ export default function DispatchCenterPage() {
       <Drawer
         id="tools"
         title="Work tools"
-        blurb="Call pad, parse, chat, new trip"
+        blurb="Scratchpad, parse, chat, new trip"
         count={TOOLS.length}
         open={openDrawer === 'tools'}
         onToggle={() => toggle('tools')}

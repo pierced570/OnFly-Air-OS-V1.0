@@ -16,7 +16,7 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'requests',
     label: 'Trip requests',
-    blurb: 'Call pad pushes, portal requests, and open requests',
+    blurb: 'Scratchpad, portal requests, and open requests',
   },
   {
     id: 'offers',
@@ -74,7 +74,7 @@ export type DispatchCard = {
 
 function requestSourceLabel(source: string): string {
   if (source === 'portal') return 'Portal'
-  if (source === 'call_pad') return 'Call pad'
+  if (source === 'scratchpad') return 'Scratchpad'
   return 'Dispatch'
 }
 

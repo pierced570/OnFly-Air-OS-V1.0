@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { tripRequestDraftFromScratchNotes } from './scratchToTripRequest'
 
 describe('scratchToTripRequest', () => {
-  it('builds a trip request draft from call pad notes', () => {
+  it('builds a trip request draft from scratchpad notes', () => {
     const draft = tripRequestDraftFromScratchNotes(
       'PSA\nCKB — DFW\n2 Techs + Tools\nASAP',
     )

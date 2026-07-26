@@ -15,7 +15,7 @@ const nav: {
   section: StaffSectionId
   end?: boolean
 }[] = [
-  // Day-to-day ops live in Dispatch center (Board / call pad / parse / chat /
+  // Day-to-day ops live in Dispatch center (Board / scratchpad / parse / chat /
   // QD / new trip condensed — tools drawer keeps full pages).
   { to: '/dispatch', label: 'Dispatch center', section: 'board', end: true },
   { to: '/financials', label: 'Financials', section: 'financials' },

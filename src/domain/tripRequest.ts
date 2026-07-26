@@ -75,7 +75,7 @@ export type TripRequestDraft = {
   forklift_required: boolean
 }
 
-export type TripRequestSource = 'portal' | 'dispatch' | 'call_pad'
+export type TripRequestSource = 'portal' | 'dispatch' | 'scratchpad'
 
 export type TripRequestRecord = TripRequestDraft & {
   id: string

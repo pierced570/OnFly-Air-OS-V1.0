@@ -123,13 +123,13 @@ export function submitTripRequest(
 }
 
 /**
- * Push live Call pad notes into Trip requests, then clear the scratch pad.
+ * Push live Scratchpad notes into Trip requests, then clear the scratch pad.
  */
 export function pushScratchPadToTripRequest(): TripRequestRecord {
   const body = getScratchPad().body.trim()
-  if (!body) throw new Error('Call pad is empty')
+  if (!body) throw new Error('Scratchpad is empty')
   const draft = tripRequestDraftFromScratchNotes(body)
-  const row = submitTripRequest(draft, 'call_pad')
+  const row = submitTripRequest(draft, 'scratchpad')
   clearScratchPad()
   return row
 }

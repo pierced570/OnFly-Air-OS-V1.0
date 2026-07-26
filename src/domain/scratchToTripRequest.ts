@@ -1,5 +1,5 @@
 /**
- * Call pad notes → TripRequestDraft for "Push to trip requests".
+ * Scratchpad notes → TripRequestDraft for "Push to trip requests".
  * Pure TypeScript — heuristic extract only (approve/edit on New trip).
  */
 

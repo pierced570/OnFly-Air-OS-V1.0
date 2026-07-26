@@ -47,7 +47,7 @@ export default function StaffLoginPage() {
         </div>
         <p className="mt-2 text-sm text-muted">
           {goingToDesk
-            ? 'Sign in to parse your call pad and shortlist operators.'
+            ? 'Sign in to parse your scratchpad and shortlist operators.'
             : 'Enter your name and phone for general ops (Board, network, trips).'}
         </p>
 
@@ -84,7 +84,7 @@ export default function StaffLoginPage() {
 
         <p className="mt-6 text-center text-[11px] text-muted">
           <a href="/" className="text-gold hover:text-gold-lt">
-            ← Back to call pad
+            ← Back to scratchpad
           </a>
           {' · '}no login needed until you parse
         </p>

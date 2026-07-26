@@ -95,7 +95,7 @@ Contact: ops@acme…`}
     return (
       <div className="flex flex-col p-4 sm:p-6" data-theme="dispatcher">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-cream">Call pad</h2>
+          <h2 className="text-base font-semibold text-cream">Scratchpad</h2>
           <button
             type="button"
             onClick={goParse}
@@ -121,7 +121,7 @@ Contact: ops@acme…`}
             <div className="text-[10px] uppercase tracking-[0.2em] text-[#c9a227]">
               OnFly Air
             </div>
-            <h1 className="text-lg font-semibold tracking-tight">Call pad</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Scratchpad</h1>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -150,8 +150,8 @@ export function buildPipeline(input: {
       subtitle: `${
         r.source === 'portal'
           ? 'Portal'
-          : r.source === 'call_pad'
-            ? 'Call pad'
+          : r.source === 'scratchpad'
+            ? 'Scratchpad'
             : 'Dispatch'
       } · ${r.summary}${
         r.hard_quote_requested_at ? ' · HARD QUOTE' : ''

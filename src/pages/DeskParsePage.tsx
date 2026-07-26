@@ -1,5 +1,5 @@
 /**
- * After call pad → login: parse notes into a Quick Dispatch–style trip draft
+ * After scratchpad → login: parse notes into a Quick Dispatch–style trip draft
  * (no live leg / no operator pricing), then recommend & send offer links.
  */
 
@@ -400,7 +400,7 @@ export default function DeskParsePage() {
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-cream">Parse call notes</h1>
           <p className="mt-1 text-sm text-muted">
-            Quick Dispatch–style trip info from the call pad — no live leg or
+            Quick Dispatch–style trip info from the scratchpad — no live leg or
             operator pricing. Operators quote on their link.
           </p>
         </div>
@@ -1288,17 +1288,17 @@ function RawCallNotes({ notes }: { notes: string }) {
   return (
     <section className="rounded-lg border border-gold/30 bg-gold/5 p-3">
       <div className="text-xs font-medium uppercase tracking-wider text-gold">
-        Call pad notes
+        Scratchpad notes
       </div>
       {notes.trim() ? (
         <pre className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-cream/90">
           {notes}
         </pre>
       ) : (
-        <p className="mt-2 text-xs text-muted">No call-pad notes captured.</p>
+        <p className="mt-2 text-xs text-muted">No scratchpad notes captured.</p>
       )}
       <Link to="/" className="mt-2 inline-block text-[11px] text-gold hover:text-gold-lt">
-        Edit on call pad →
+        Edit on scratchpad →
       </Link>
     </section>
   )

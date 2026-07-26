@@ -24,7 +24,7 @@ ASAP AOG`,
     expect(r.destination_text?.toLowerCase()).toContain('chicago')
   })
 
-  it('parses PSA / CVG–HPN / techs + parts / ASAP call-pad notes', () => {
+  it('parses PSA / CVG–HPN / techs + parts / ASAP scratchpad notes', () => {
     const r = extractFromScratchNotes(
       `PSA
 CVG – HPN
