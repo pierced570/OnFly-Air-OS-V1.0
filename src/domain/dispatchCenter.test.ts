@@ -13,15 +13,6 @@ describe('dispatchCenter', () => {
 
   it('buckets inbound, trip cards, recipients, and submitted quotes', () => {
     const buckets = buildDispatchDrawers({
-      intake: [
-        {
-          id: 'i1',
-          channel: 'email',
-          from: 'ops@x.com',
-          subject: 'Need lift',
-          extracted: { origin_text: 'KCAK', destination_text: 'KMDW' },
-        },
-      ],
       requests: [
         {
           id: 'r1',
@@ -98,7 +89,7 @@ describe('dispatchCenter', () => {
         },
       ],
     })
-    expect(buckets.requests).toHaveLength(2)
+    expect(buckets.requests).toHaveLength(1)
     expect(buckets.offers[0]?.href).toContain('/offers')
     expect(buckets.offers[0]?.recipients).toHaveLength(4)
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air'))

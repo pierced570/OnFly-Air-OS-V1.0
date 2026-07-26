@@ -65,7 +65,7 @@ export type DispatchCard = {
   title: string
   subtitle: string
   href: string
-  kind: 'intake' | 'request' | 'trip' | 'offer_quote'
+  kind: 'request' | 'trip' | 'offer_quote'
   state?: TripState
   ref?: number
   /** Per-operator rows for trip-offer cards. */
@@ -106,17 +106,6 @@ export function drawerForTripState(state: TripState): DispatchDrawerId | null {
 }
 
 export function buildDispatchDrawers(input: {
-  intake: Array<{
-    id: string
-    channel: string
-    from: string
-    subject: string
-    extracted?: {
-      origin_text?: string
-      destination_text?: string
-      [k: string]: unknown
-    } | null
-  }>
   requests: Array<{
     id: string
     ref: number
@@ -150,19 +139,6 @@ export function buildDispatchDrawers(input: {
   }>
 }): DispatchDrawerBucket {
   const out = emptyBuckets()
-
-  for (const d of input.intake) {
-    const route = d.extracted
-      ? `${String(d.extracted.origin_text ?? '?')} → ${String(d.extracted.destination_text ?? '?')}`
-      : d.subject
-    out.requests.push({
-      kind: 'intake',
-      id: d.id,
-      title: `${d.channel.toUpperCase()} · ${d.from}`,
-      subtitle: route,
-      href: `/intake/${d.id}`,
-    })
-  }
 
   for (const r of input.requests) {
     if (r.status !== 'submitted' && r.status !== 'in_review') continue

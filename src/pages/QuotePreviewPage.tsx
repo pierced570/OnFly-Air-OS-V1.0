@@ -61,7 +61,7 @@ export default function QuotePreviewPage() {
   if (!draft) {
     return (
       <div className="p-8">
-        <p className="text-muted">No quote draft — start from intake.</p>
+        <p className="text-muted">No quote draft — start from Dispatch center.</p>
         <Link className="text-gold" to="/trips/new">
           New trip
         </Link>

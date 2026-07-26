@@ -7,7 +7,6 @@ export const STAFF_SECTIONS = [
   { id: 'board', label: 'Dispatch center', pathPrefix: '/dispatch' },
   { id: 'chat', label: 'Chat', pathPrefix: '/chat' },
   { id: 'quick_dispatch', label: 'Quick Dispatch', pathPrefix: '/quick-dispatch' },
-  { id: 'intake', label: 'Intake', pathPrefix: '/intake' },
   { id: 'financials', label: 'Financials', pathPrefix: '/financials' },
   { id: 'referrals', label: 'Referrals', pathPrefix: '/referrals' },
   { id: 'clients', label: 'Clients', pathPrefix: '/clients' },
@@ -151,7 +150,6 @@ export function sectionForPath(pathname: string): StaffSectionId | null {
   if (pathname.startsWith('/admin/tasks')) return 'tasks'
   if (pathname.startsWith('/admin')) return 'admin'
   if (pathname.startsWith('/quick-dispatch')) return 'quick_dispatch'
-  if (pathname.startsWith('/intake')) return 'intake'
   if (pathname.startsWith('/financials')) return 'financials'
   if (pathname.startsWith('/referrals')) return 'referrals'
   if (pathname.startsWith('/clients')) return 'clients'
@@ -164,12 +162,13 @@ export function sectionForPath(pathname: string): StaffSectionId | null {
   if (pathname.startsWith('/radar')) return 'network'
   if (pathname.startsWith('/briefing')) return 'briefing'
   if (pathname.startsWith('/chat')) return 'chat'
-  if (pathname.startsWith('/desk')) return 'intake'
+  if (pathname.startsWith('/desk')) return 'board'
   if (
     pathname === '/dispatch' ||
     pathname.startsWith('/dispatch/') ||
     pathname === '/board' ||
-    pathname.startsWith('/board/')
+    pathname.startsWith('/board/') ||
+    pathname.startsWith('/intake')
   ) {
     return 'board'
   }
@@ -180,7 +179,6 @@ export const DISPATCH_DEFAULT_SECTIONS: StaffSectionId[] = [
   'board',
   'chat',
   'quick_dispatch',
-  'intake',
   'financials',
   'referrals',
   'clients',

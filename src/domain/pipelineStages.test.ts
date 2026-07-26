@@ -22,17 +22,8 @@ describe('pipelineStages', () => {
     expect(tripStateLabel('in_progress')).toBe('Tracking')
   })
 
-  it('builds columns from intake, requests, and trips', () => {
+  it('builds columns from requests and trips', () => {
     const cols = buildPipeline({
-      intake: [
-        {
-          id: 'i1',
-          channel: 'email',
-          from: 'ops@x.com',
-          subject: 'Need plane',
-          extracted: { origin_text: 'Akron', destination_text: 'Chicago' },
-        },
-      ],
       requests: [
         {
           id: 'r1',
@@ -61,9 +52,10 @@ describe('pipelineStages', () => {
         },
       ],
     })
-    expect(cols.inbound).toHaveLength(2)
+    expect(cols.inbound).toHaveLength(1)
     expect(cols.booked).toHaveLength(1)
     expect(cols.tracking[0]?.title).toContain('T-101')
     expect(cols.quote).toHaveLength(0)
   })
 })
+

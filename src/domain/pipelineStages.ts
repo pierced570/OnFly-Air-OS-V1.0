@@ -90,14 +90,6 @@ export function tripStateLabel(state: TripState): string {
 
 export type PipelineCard =
   | {
-      kind: 'intake'
-      id: string
-      stage: 'inbound'
-      title: string
-      subtitle: string
-      href: string
-    }
-  | {
       kind: 'request'
       id: string
       stage: 'inbound'
@@ -118,17 +110,6 @@ export type PipelineCard =
     }
 
 export function buildPipeline(input: {
-  intake: Array<{
-    id: string
-    channel: string
-    from: string
-    subject: string
-    extracted?: {
-      origin_text?: string
-      destination_text?: string
-      [k: string]: unknown
-    } | null
-  }>
   requests: Array<{
     id: string
     ref: number
@@ -158,20 +139,6 @@ export function buildPipeline(input: {
     out: [],
   })
   const out = empty()
-
-  for (const d of input.intake) {
-    const route = d.extracted
-      ? `${String(d.extracted.origin_text ?? '?')} → ${String(d.extracted.destination_text ?? '?')}`
-      : d.subject
-    out.inbound.push({
-      kind: 'intake',
-      id: d.id,
-      stage: 'inbound',
-      title: `${d.channel.toUpperCase()} · ${d.from}`,
-      subtitle: route,
-      href: `/intake/${d.id}`,
-    })
-  }
 
   for (const r of input.requests) {
     if (r.status !== 'submitted' && r.status !== 'in_review') continue

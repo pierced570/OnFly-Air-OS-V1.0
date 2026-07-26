@@ -31,8 +31,6 @@ const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
 const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
 const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 const LeadsPage = lazy(() => import('@/pages/LeadsPage'))
-const IntakePage = lazy(() => import('@/pages/IntakePage'))
-const IntakeReviewPage = lazy(() => import('@/pages/IntakeReviewPage'))
 const ManifestPage = lazy(() => import('@/pages/ManifestPage'))
 const OnboardPage = lazy(() => import('@/pages/OnboardPage'))
 const ClientOnboardPage = lazy(() => import('@/pages/ClientOnboardPage'))
@@ -116,8 +114,8 @@ export function App() {
           path="/fbos"
           element={<Navigate to="/network?tab=fbos" replace />}
         />
-        <Route path="/intake" element={<IntakePage />} />
-        <Route path="/intake/:id" element={<IntakeReviewPage />} />
+        <Route path="/intake" element={<Navigate to="/dispatch" replace />} />
+        <Route path="/intake/:id" element={<Navigate to="/dispatch" replace />} />
         <Route path="/trips/:id/offers" element={<OffersPage />} />
         <Route path="/trips/:id/manifest" element={<ManifestPage />} />
         <Route path="/trips/:id" element={<TripPage />} />

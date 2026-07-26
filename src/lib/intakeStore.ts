@@ -1,13 +1,7 @@
 /**
- * Inbound email/SMS intake → draft trips awaiting dispatcher review.
+ * Inbound email/SMS intake drafts (DB hydrate only).
+ * The intake simulator UI was removed — real webhooks can land here later.
  */
-
-import { listRequestAlertEmails } from '@/lib/clientStore'
-import {
-  FALLBACK_DISPATCH_PHONE,
-  resolveDispatchPhone,
-} from '@/lib/dispatchNotify'
-import { getOnShift } from '@/lib/shiftStore'
 
 export type IntakeDraft = {
   id: string
@@ -66,96 +60,10 @@ export function getIntakeDraft(id: string): IntakeDraft | undefined {
   return drafts.get(id)
 }
 
-export async function simulateInboundEmail(opts: {
-  from: string
-  subject: string
-  body: string
-}): Promise<IntakeDraft> {
-  const from = opts.from.trim().toLowerCase()
-  const alerts = listRequestAlertEmails()
-  const requesterMatch =
-    alerts.length === 0
-      ? from.includes('@') // allow demo when no contacts flagged yet
-      : alerts.includes(from)
-
-  const notifyPhone = resolveDispatchPhone()
-  const { handleInboundEmail } = await import('@/domain/intakeEmail')
-  const result = await handleInboundEmail({
-    from: opts.from,
-    subject: opts.subject,
-    body: opts.body,
-    requesterMatch,
-    notifyPhone,
-  })
-
-  const shift = getOnShift()
-  const id = crypto.randomUUID()
-  const row: IntakeDraft = {
-    id,
-    channel: 'email',
-    from: opts.from.trim(),
-    subject: opts.subject.trim(),
-    body: opts.body.trim(),
-    created_at: new Date().toISOString(),
-    status: result.ignored ? 'ignored' : 'pending_review',
-    extracted: result.ignored ? null : (result.extracted as IntakeDraft['extracted']),
-    ignore_reason: result.ignored ? result.reason : undefined,
-    notified_phone: result.ignored
-      ? undefined
-      : shift?.phone || FALLBACK_DISPATCH_PHONE,
-  }
-  drafts.set(id, row)
-  bump()
-  void persistIntakeDraft(row)
-  return row
-}
-
 export function replaceIntakeFromDb(rows: IntakeDraft[]): void {
   if (!rows.length) return
   for (const r of rows) drafts.set(r.id, r)
   bump()
-}
-
-async function persistIntakeDraft(row: IntakeDraft): Promise<void> {
-  try {
-    const { canPersist, db, safeQuery } = await import('@/lib/db/client')
-    if (!canPersist()) return
-    await safeQuery('intake_drafts.upsert', () =>
-      db().from('intake_drafts').upsert({
-        id: row.id,
-        channel: row.channel,
-        from_addr: row.from,
-        subject: row.subject,
-        body: row.body,
-        status: row.status,
-        extracted: row.extracted,
-        ignore_reason: row.ignore_reason ?? null,
-        notified_phone: row.notified_phone ?? null,
-      }),
-    )
-  } catch (e) {
-    console.warn('[intake] persist failed', e)
-  }
-}
-
-export async function simulateInboundSms(opts: {
-  from: string
-  body: string
-}): Promise<IntakeDraft> {
-  const d = await simulateInboundEmail({
-    from: opts.from.includes('@')
-      ? opts.from
-      : `${opts.from.replace(/\D/g, '')}@sms.local`,
-    subject: 'SMS intake',
-    body: opts.body,
-  })
-  const row = drafts.get(d.id)
-  if (row) {
-    row.channel = 'sms'
-    bump()
-    return row
-  }
-  return d
 }
 
 export function acceptIntakeDraft(id: string): void {

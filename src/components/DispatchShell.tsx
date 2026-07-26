@@ -16,7 +16,7 @@ const nav: {
   end?: boolean
 }[] = [
   // Day-to-day ops live in Dispatch center (Board / call pad / parse / chat /
-  // QD / intake / new trip condensed — tools drawer keeps full pages).
+  // QD / new trip condensed — tools drawer keeps full pages).
   { to: '/dispatch', label: 'Dispatch center', section: 'board', end: true },
   { to: '/financials', label: 'Financials', section: 'financials' },
   { to: '/referrals', label: 'Referrals', section: 'referrals' },

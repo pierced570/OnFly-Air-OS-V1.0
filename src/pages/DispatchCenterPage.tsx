@@ -1,6 +1,6 @@
 /**
  * Dispatch Center — one waterfall dashboard for day-to-day ops.
- * Consolidates Board / call pad / parse / chat / QD / intake / new trip
+ * Consolidates Board / call pad / parse / chat / QD / new trip
  * without dropping their routes (tools drawer + deep links).
  */
 
@@ -30,10 +30,6 @@ import {
   subscribeExceptions,
   syncExceptionsFromTrips,
 } from '@/lib/exceptionStore'
-import {
-  listPendingIntake,
-  subscribeIntake,
-} from '@/lib/intakeStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
 import { getScratchPad, subscribeScratchPad } from '@/lib/scratchPadStore'
 import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
@@ -43,22 +39,14 @@ const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
-const IntakePage = lazy(() => import('@/pages/IntakePage'))
 
-type ToolId =
-  | 'callpad'
-  | 'parse'
-  | 'quick'
-  | 'chat'
-  | 'newtrip'
-  | 'intake'
+type ToolId = 'callpad' | 'parse' | 'quick' | 'chat' | 'newtrip'
 
 const TOOLS: { id: ToolId; label: string; hint: string }[] = [
   { id: 'callpad', label: 'Call pad', hint: 'Live phone notes' },
   { id: 'parse', label: 'Parse & shortlist', hint: 'Notes → operators' },
   { id: 'quick', label: 'Quick dispatch', hint: 'Known aircraft → book' },
   { id: 'newtrip', label: 'New trip', hint: 'Full request form' },
-  { id: 'intake', label: 'Intake', hint: 'Email / SMS drafts' },
   { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
 ]
 
@@ -280,11 +268,6 @@ export default function DispatchCenterPage() {
   const [searchParams] = useSearchParams()
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
-  const intake = useSyncExternalStore(
-    subscribeIntake,
-    listPendingIntake,
-    listPendingIntake,
-  )
   const exceptions = useSyncExternalStore(
     subscribeExceptions,
     listExceptions,
@@ -332,7 +315,6 @@ export default function DispatchCenterPage() {
   const buckets = useMemo(
     () =>
       buildDispatchDrawers({
-        intake,
         requests,
         trips: trips.map((t) => ({
           id: t.id,
@@ -344,7 +326,7 @@ export default function DispatchCenterPage() {
           offers: t.offers,
         })),
       }),
-    [intake, requests, trips],
+    [requests, trips],
   )
 
   const openExceptions = exceptions
@@ -363,7 +345,6 @@ export default function DispatchCenterPage() {
       quick: QuickDispatchPage,
       chat: ChatPage,
       newtrip: NewTripPage,
-      intake: IntakePage,
     }[tool]
     return (
       <div className="mx-auto max-w-5xl space-y-3 p-4 md:p-6">
@@ -503,7 +484,7 @@ export default function DispatchCenterPage() {
       <Drawer
         id="tools"
         title="Work tools"
-        blurb="Call pad, parse, quick dispatch, chat, new trip, intake"
+        blurb="Call pad, parse, quick dispatch, chat, new trip"
         count={TOOLS.length}
         open={openDrawer === 'tools'}
         onToggle={() => toggle('tools')}
