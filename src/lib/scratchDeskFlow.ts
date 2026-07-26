@@ -50,6 +50,8 @@ export type DeskDraft = {
   pieces_text: string
   hazmat: boolean
   notes: string
+  /** Original call-pad scratch — always keep visible on desk. */
+  raw_notes: string
   payload_kind: 'cargo' | 'pax' | 'both'
   pax_count: number
   /** Synced from first leg for resolve/recommend. */
@@ -76,13 +78,17 @@ function icaoFromPlace(text: string | undefined): string {
   return resolvePlaceToAirport(text)?.icao ?? text.trim().toUpperCase()
 }
 
-export function deskDraftFromExtract(ex: ExtractedRequest): DeskDraft {
+export function deskDraftFromExtract(
+  ex: ExtractedRequest,
+  rawNotes?: string,
+): DeskDraft {
   const origin = icaoFromPlace(ex.origin_text)
   const dest = icaoFromPlace(ex.destination_text)
   const asap = Boolean(ex.asap)
   const pax = ex.pax_count ?? 0
   const payload_kind = ex.payload_kind ?? (pax > 0 ? 'both' : 'cargo')
   const cargo_only = payload_kind === 'cargo' && pax === 0
+  const raw_notes = (rawNotes ?? ex.raw ?? '').trim()
   return {
     client_name: ex.client_name?.trim() || '',
     client_id: null,
@@ -100,6 +106,7 @@ export function deskDraftFromExtract(ex: ExtractedRequest): DeskDraft {
     pieces_text: ex.pieces_text?.trim() || '',
     hazmat: Boolean(ex.hazmat),
     notes: ex.notes?.trim() || '',
+    raw_notes,
     payload_kind,
     pax_count: pax,
     origin_text: origin || (ex.origin_text?.trim() || ''),
@@ -148,7 +155,7 @@ export async function parseScratchToDeskDraft(): Promise<{
 }> {
   const body = getScratchPad().body
   const extract = await createLlmAdapter().extractTripRequest(body)
-  return { extract, draft: deskDraftFromExtract(extract) }
+  return { extract, draft: deskDraftFromExtract(extract, body) }
 }
 
 export type DeskRecommendResult = {
@@ -315,6 +322,7 @@ export async function sendDeskTripOffers(opts: {
         cargo_only: draft.cargo_only,
         legs: draft.legs,
         notes: draft.notes || null,
+        raw_notes: draft.raw_notes || null,
       },
     })
   })

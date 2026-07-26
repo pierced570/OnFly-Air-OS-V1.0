@@ -26,7 +26,10 @@ import {
   type DeskDraft,
   type DeskLeg,
 } from '@/lib/scratchDeskFlow'
-import { getScratchPad } from '@/lib/scratchPadStore'
+import {
+  getScratchPad,
+  subscribeScratchPad,
+} from '@/lib/scratchPadStore'
 import { getTrip } from '@/lib/tripStore'
 
 const input =
@@ -107,7 +110,13 @@ export default function DeskParsePage() {
     }
   }, [])
 
-  const scratchPreview = useMemo(() => getScratchPad().body.trim(), [])
+  const liveScratch = useSyncExternalStore(
+    subscribeScratchPad,
+    () => getScratchPad().body,
+    () => getScratchPad().body,
+  )
+  /** Prefer live pad; fall back to snapshot captured at parse. */
+  const rawNotes = (liveScratch.trim() || draft?.raw_notes || '').trim()
 
   const clientHits = useMemo(() => {
     if (!draft?.client_name.trim()) return []
@@ -272,6 +281,7 @@ export default function DeskParsePage() {
           Availability links sent. Operators answer Yes / No, then enter tail,
           TTP, live leg, and cost on their form.
         </p>
+        <RawCallNotes notes={rawNotes || draft?.raw_notes || ''} />
         <div className="flex flex-wrap gap-2">
           <Link
             to={`/trips/${sentTripId}/offers`}
@@ -313,14 +323,7 @@ export default function DeskParsePage() {
         </Link>
       </header>
 
-      {scratchPreview && (
-        <details className="rounded-lg border border-border bg-surface p-3 text-sm">
-          <summary className="cursor-pointer text-muted">Raw scratch</summary>
-          <pre className="mt-2 whitespace-pre-wrap font-mono text-xs text-cream/80">
-            {scratchPreview}
-          </pre>
-        </details>
-      )}
+      <RawCallNotes notes={rawNotes} />
 
       {busy && !draft && (
         <p className="text-sm text-muted">Parsing notes…</p>
@@ -913,6 +916,26 @@ export default function DeskParsePage() {
         </>
       )}
     </div>
+  )
+}
+
+function RawCallNotes({ notes }: { notes: string }) {
+  return (
+    <section className="rounded-lg border border-gold/30 bg-gold/5 p-3">
+      <div className="text-xs font-medium uppercase tracking-wider text-gold">
+        Call pad notes
+      </div>
+      {notes.trim() ? (
+        <pre className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-cream/90">
+          {notes}
+        </pre>
+      ) : (
+        <p className="mt-2 text-xs text-muted">No call-pad notes captured.</p>
+      )}
+      <Link to="/" className="mt-2 inline-block text-[11px] text-gold hover:text-gold-lt">
+        Edit on call pad →
+      </Link>
+    </section>
   )
 }
 
