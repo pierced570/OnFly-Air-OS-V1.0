@@ -1175,12 +1175,13 @@ export default function DeskParsePage() {
                 Recommended operators
               </h2>
             </div>
-            {matchedClient && (
-              <p className="text-xs text-muted">
-                Shortlist respects {matchedClient.name}&apos;s aircraft rules.
-                No operator pricing here — they quote on the link.
-              </p>
-            )}
+            <p className="text-xs text-muted">
+              One row per operator (best-fit tail from their fleet).
+              {matchedClient
+                ? ` Shortlist respects ${matchedClient.name}'s aircraft rules.`
+                : ''}{' '}
+              No operator pricing here — they quote on the link.
+            </p>
             {recError && <p className="text-sm text-late">{recError}</p>}
             {!candidates.length && !recError && (
               <p className="text-sm text-muted">
@@ -1191,9 +1192,18 @@ export default function DeskParsePage() {
               {candidates.map((c) => {
                 const id = c.aircraft_id
                 const on = selected.has(id)
+                const base =
+                  listDeskOperators().find((o) => o.id === c.operator_id)
+                    ?.base_icao ?? '—'
+                const tailBit =
+                  c.tail && c.tail !== 'TBD'
+                    ? ` · best fit ${c.tail}${c.type_name ? ` ${c.type_name}` : ''}`
+                    : c.type_name
+                      ? ` · ${c.type_name}`
+                      : ''
                 return (
                   <li
-                    key={id}
+                    key={c.operator_id}
                     className={[
                       'flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-3',
                       on ? 'border-gold/50 bg-gold/5' : 'border-border bg-surface',
@@ -1209,6 +1219,16 @@ export default function DeskParsePage() {
                             const next = new Set(prev)
                             if (next.has(id)) next.delete(id)
                             else {
+                              // One checkbox per operator — drop any other
+                              // aircraft_id already selected for this op.
+                              for (const other of candidates) {
+                                if (
+                                  other.operator_id === c.operator_id &&
+                                  other.aircraft_id !== id
+                                ) {
+                                  next.delete(other.aircraft_id)
+                                }
+                              }
                               next.add(id)
                               seedOverrideForCandidate(c)
                             }
@@ -1221,9 +1241,8 @@ export default function DeskParsePage() {
                           {c.operator_name}
                         </div>
                         <div className="text-xs text-muted">
-                          {listDeskOperators().find((o) => o.id === c.operator_id)
-                            ?.base_icao ?? '—'}{' '}
-                          · {c.label ?? 'option'} · confidence{' '}
+                          <span className="avionic">{base}</span>
+                          {tailBit} · {c.label ?? 'option'} · confidence{' '}
                           <span className="avionic">
                             {(c.confidence * 100).toFixed(0)}%
                           </span>

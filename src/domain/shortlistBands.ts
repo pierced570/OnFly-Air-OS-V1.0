@@ -62,21 +62,28 @@ export function pickClosestByBand(
   candidates: Candidate[],
   metaByAircraftId: Map<string, AircraftBandMeta>,
 ): BandShortlistPick[] {
-  const best = new Map<PortalBand, BandShortlistPick>()
+  type Row = { c: Candidate; band: PortalBand; closeness: number }
+  const rows: Row[] = []
   for (const c of candidates) {
     const meta = metaByAircraftId.get(c.aircraft_id)
     const band = bandOf(meta, c)
     if (!band) continue
-    const closeness = closenessScore(c)
-    const prev = best.get(band)
-    if (!prev || closeness < prev.closeness) {
-      best.set(band, {
-        band,
-        label: PORTAL_BAND_LABELS[band],
-        candidate: c,
-        closeness,
-      })
-    }
+    rows.push({ c, band, closeness: closenessScore(c) })
+  }
+  // Closest first — claim an operator for at most one band.
+  rows.sort((a, b) => a.closeness - b.closeness)
+  const best = new Map<PortalBand, BandShortlistPick>()
+  const usedOperators = new Set<string>()
+  for (const row of rows) {
+    if (best.has(row.band)) continue
+    if (usedOperators.has(row.c.operator_id)) continue
+    best.set(row.band, {
+      band: row.band,
+      label: PORTAL_BAND_LABELS[row.band],
+      candidate: row.c,
+      closeness: row.closeness,
+    })
+    usedOperators.add(row.c.operator_id)
   }
   return PORTAL_BANDS.map((b) => best.get(b)).filter(
     (x): x is BandShortlistPick => Boolean(x),
