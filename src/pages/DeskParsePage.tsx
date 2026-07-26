@@ -9,6 +9,13 @@ import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
 import type { Candidate } from '@/domain/routing'
 import {
+  STANDARD_CARGO_DEFAULTS,
+  STANDARD_TOOLING,
+  composeStandardCargoDims,
+  parseStandardCargoDims,
+  type StandardCargoDims,
+} from '@/domain/standardTooling'
+import {
   addClient,
   addClientContact,
   getClient,
@@ -743,15 +750,29 @@ export default function DeskParsePage() {
             </button>
           </section>
 
-          <section className="space-y-2">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted">
-              Cargo / mission
+          <section className="space-y-3">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                {STANDARD_TOOLING.ui_label}
+              </div>
+              <p className="mt-1 text-[11px] text-muted">
+                Tools default to 12×12×12 @ 50 lb. Parts collection notes go
+                below as we grow the catalog.
+              </p>
             </div>
-            <input
-              className={input}
-              value={draft.pieces_text}
-              onChange={(e) => patch({ pieces_text: e.target.value })}
-              placeholder="e.g. tools → standard tooling, or skid dims @ weight"
+            <StandardCargoFields
+              piecesText={draft.pieces_text}
+              notes={draft.notes}
+              onDimsChange={(dims) => {
+                const pieces_text = composeStandardCargoDims(dims)
+                const next = syncDeskDraftDerived({ ...draft, pieces_text })
+                setDraft(next)
+                if (dims.length && dims.width && dims.height && dims.weight) {
+                  setBusy(true)
+                  void applyRecommend(next).finally(() => setBusy(false))
+                }
+              }}
+              onNotesChange={(notes) => patch({ notes })}
             />
             <div className="flex flex-wrap gap-2">
               <button
@@ -863,6 +884,99 @@ export default function DeskParsePage() {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+const dimBox =
+  'mt-1 w-full rounded-md border border-border bg-ink px-2 py-2.5 text-center avionic text-sm text-cream outline-none focus:border-gold placeholder:text-muted'
+
+function StandardCargoFields({
+  piecesText,
+  notes,
+  onDimsChange,
+  onNotesChange,
+}: {
+  piecesText: string
+  notes: string
+  onDimsChange: (dims: StandardCargoDims) => void
+  onNotesChange: (notes: string) => void
+}) {
+  const dims = parseStandardCargoDims(piecesText)
+
+  function patchDim(key: keyof StandardCargoDims, value: string) {
+    onDimsChange({ ...dims, [key]: value })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <label className={label}>
+          Length (in)
+          <input
+            type="number"
+            min={0}
+            step="any"
+            inputMode="decimal"
+            className={dimBox}
+            value={dims.length}
+            placeholder={STANDARD_CARGO_DEFAULTS.length}
+            onChange={(e) => patchDim('length', e.target.value)}
+            aria-label="Standard cargo length inches"
+          />
+        </label>
+        <label className={label}>
+          Width (in)
+          <input
+            type="number"
+            min={0}
+            step="any"
+            inputMode="decimal"
+            className={dimBox}
+            value={dims.width}
+            placeholder={STANDARD_CARGO_DEFAULTS.width}
+            onChange={(e) => patchDim('width', e.target.value)}
+            aria-label="Standard cargo width inches"
+          />
+        </label>
+        <label className={label}>
+          Height (in)
+          <input
+            type="number"
+            min={0}
+            step="any"
+            inputMode="decimal"
+            className={dimBox}
+            value={dims.height}
+            placeholder={STANDARD_CARGO_DEFAULTS.height}
+            onChange={(e) => patchDim('height', e.target.value)}
+            aria-label="Standard cargo height inches"
+          />
+        </label>
+        <label className={label}>
+          Weight (lb)
+          <input
+            type="number"
+            min={0}
+            step="any"
+            inputMode="decimal"
+            className={dimBox}
+            value={dims.weight}
+            placeholder={STANDARD_CARGO_DEFAULTS.weight}
+            onChange={(e) => patchDim('weight', e.target.value)}
+            aria-label="Standard cargo weight pounds"
+          />
+        </label>
+      </div>
+      <label className={label}>
+        Notes
+        <textarea
+          className={`${input} min-h-[4.5rem] resize-y`}
+          value={notes}
+          onChange={(e) => onNotesChange(e.target.value)}
+          placeholder="Parts / tooling notes — grows with the parts collection"
+        />
+      </label>
     </div>
   )
 }

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  STANDARD_CARGO_DEFAULTS,
   STANDARD_TOOLING,
+  composeStandardCargoDims,
   mentionsRoundTrip,
   mentionsScheduledTiming,
   mentionsTools,
   operatorMissionSummary,
+  parseStandardCargoDims,
   toolingDimsForParse,
 } from './standardTooling'
 
@@ -44,5 +47,28 @@ describe('standardTooling', () => {
         cargo_only: false,
       }),
     ).toBe(`2 pax + ${STANDARD_TOOLING.summary}`)
+  })
+
+  it('round-trips standard cargo L/W/H/weight boxes', () => {
+    const fromTools = parseStandardCargoDims(
+      `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`,
+    )
+    expect(fromTools).toEqual(STANDARD_CARGO_DEFAULTS)
+    expect(composeStandardCargoDims(fromTools)).toMatch(/standard tooling/i)
+    expect(
+      parseStandardCargoDims(
+        composeStandardCargoDims({
+          length: '48',
+          width: '40',
+          height: '60',
+          weight: '800',
+        }),
+      ),
+    ).toEqual({
+      length: '48',
+      width: '40',
+      height: '60',
+      weight: '800',
+    })
   })
 })
