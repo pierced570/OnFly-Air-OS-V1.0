@@ -7,10 +7,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
-import {
-  describeOfferDestination,
-  formatOfferDestinationConfirm,
-} from '@/domain/offerRecipients'
+import { describeOfferDestination } from '@/domain/offerRecipients'
 import {
   DEFAULT_QUOTE_LINK_CHANNEL,
   type QuoteLinkChannel,
@@ -375,16 +372,6 @@ export default function DeskParsePage() {
       )
       return
     }
-    const confirmed = window.confirm(
-      formatOfferDestinationConfirm(
-        picks.map((c) => ({
-          operator_name: c.operator_name,
-          ...overridesForSend[c.operator_id]!,
-        })),
-        'notify',
-      ),
-    )
-    if (!confirmed) return
     setSending(true)
     setError(null)
     try {
