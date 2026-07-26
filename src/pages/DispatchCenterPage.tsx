@@ -16,6 +16,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import {
   DISPATCH_DRAWERS,
   buildDispatchDrawers,
+  type DispatchCard,
   type DispatchDrawerId,
 } from '@/domain/dispatchCenter'
 import { absoluteAppUrl } from '@/lib/appUrl'
@@ -107,8 +108,12 @@ function Drawer({
 
 function CardList({
   cards,
+  onParseCallPad,
+  onEditCallPad,
 }: {
-  cards: ReturnType<typeof buildDispatchDrawers>[DispatchDrawerId]
+  cards: DispatchCard[]
+  onParseCallPad?: () => void
+  onEditCallPad?: () => void
 }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
@@ -117,13 +122,45 @@ function CardList({
     <ul className="space-y-2">
       {cards.map((c) => (
         <li key={`${c.kind}-${c.id}`}>
-          <Link
-            to={c.href}
-            className="block rounded-md border border-border/70 bg-ink px-3 py-3 hover:border-gold/40"
-          >
-            <div className="font-medium text-cream">{c.title}</div>
-            <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-          </Link>
+          {c.kind === 'call_pad' ? (
+            <div className="rounded-md border border-gold/50 bg-gold/5 px-3 py-3">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-gold">
+                From call pad
+              </div>
+              <div className="mt-1 font-medium text-cream">{c.title}</div>
+              {c.notes ? (
+                <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-cream/85">
+                  {c.notes}
+                </pre>
+              ) : (
+                <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onParseCallPad?.()}
+                  className="rounded-md bg-gold px-3 py-1.5 text-xs font-semibold text-ink hover:bg-gold-lt"
+                >
+                  Parse & shortlist →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEditCallPad?.()}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+                >
+                  Edit on call pad
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Link
+              to={c.href}
+              className="block rounded-md border border-border/70 bg-ink px-3 py-3 hover:border-gold/40"
+            >
+              <div className="font-medium text-cream">{c.title}</div>
+              <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+            </Link>
+          )}
         </li>
       ))}
     </ul>
@@ -289,6 +326,7 @@ export default function DispatchCenterPage() {
   const buckets = useMemo(
     () =>
       buildDispatchDrawers({
+        callPadBody: scratch.body,
         requests,
         trips: trips.map((t) => ({
           id: t.id,
@@ -300,10 +338,8 @@ export default function DispatchCenterPage() {
           offers: t.offers,
         })),
       }),
-    [requests, trips],
+    [scratch.body, requests, trips],
   )
-
-  const scratchPreview = scratch.body.trim()
 
   function toggle(id: DispatchDrawerId | 'tools') {
     setOpenDrawer((cur) => (cur === id ? null : id))
@@ -366,27 +402,6 @@ export default function DispatchCenterPage() {
         </button>
       </header>
 
-      {scratchPreview ? (
-        <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-medium uppercase tracking-wider text-gold">
-              Call pad has notes
-            </div>
-            <button
-              type="button"
-              className="text-xs font-semibold text-gold hover:text-gold-lt"
-              onClick={() => setTool('parse')}
-            >
-              Parse & shortlist →
-            </button>
-          </div>
-          <pre className="mt-2 max-h-20 overflow-hidden whitespace-pre-wrap font-mono text-xs text-cream/80">
-            {scratchPreview.slice(0, 280)}
-            {scratchPreview.length > 280 ? '…' : ''}
-          </pre>
-        </div>
-      ) : null}
-
       {DISPATCH_DRAWERS.map((d) => (
         <Drawer
           key={d.id}
@@ -403,6 +418,12 @@ export default function DispatchCenterPage() {
         >
           {d.id === 'offers' ? (
             <OfferTripList cards={buckets.offers} focusTripId={focusTripId} />
+          ) : d.id === 'requests' ? (
+            <CardList
+              cards={buckets.requests}
+              onParseCallPad={() => setTool('parse')}
+              onEditCallPad={() => setTool('callpad')}
+            />
           ) : (
             <CardList cards={buckets[d.id]} />
           )}
