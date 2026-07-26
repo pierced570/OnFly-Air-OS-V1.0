@@ -42,10 +42,10 @@ const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
 
 type ToolId = 'callpad' | 'parse' | 'quick' | 'chat' | 'newtrip'
 
-const TOOLS: { id: ToolId; label: string; hint: string }[] = [
+/** Work tools drawer — Quick Dispatch is a top-of-page button, not here. */
+const TOOLS: { id: Exclude<ToolId, 'quick'>; label: string; hint: string }[] = [
   { id: 'callpad', label: 'Call pad', hint: 'Live phone notes' },
   { id: 'parse', label: 'Parse & shortlist', hint: 'Notes → operators' },
-  { id: 'quick', label: 'Quick dispatch', hint: 'Known aircraft → book' },
   { id: 'newtrip', label: 'New trip', hint: 'Full request form' },
   { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
 ]
@@ -357,7 +357,9 @@ export default function DispatchCenterPage() {
             ← Back to Dispatch center
           </button>
           <span className="text-xs uppercase tracking-wider text-muted">
-            {TOOLS.find((t) => t.id === tool)?.label}
+            {tool === 'quick'
+              ? 'Quick Dispatch'
+              : TOOLS.find((t) => t.id === tool)?.label}
           </span>
         </div>
         <div className="min-h-[70vh] rounded-lg border border-border bg-ink">
@@ -375,12 +377,21 @@ export default function DispatchCenterPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-cream">Dispatch center</h1>
-        <p className="text-sm text-muted">
-          Requests → trip offers → submitted quotes → client quotes → approved →
-          live tracking. Open a drawer to work it.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <h1 className="text-2xl font-semibold text-cream">Dispatch center</h1>
+          <p className="text-sm text-muted">
+            Requests → trip offers → submitted quotes → client quotes → approved
+            → live tracking. Open a drawer to work it.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setTool('quick')}
+          className="shrink-0 rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt"
+        >
+          Quick Dispatch
+        </button>
       </header>
 
       {scratchPreview ? (
@@ -484,7 +495,7 @@ export default function DispatchCenterPage() {
       <Drawer
         id="tools"
         title="Work tools"
-        blurb="Call pad, parse, quick dispatch, chat, new trip"
+        blurb="Call pad, parse, chat, new trip"
         count={TOOLS.length}
         open={openDrawer === 'tools'}
         onToggle={() => toggle('tools')}
