@@ -11,7 +11,8 @@ export default function StaffLoginPage() {
   const [busy, setBusy] = useState(false)
   const [params] = useSearchParams()
   const nav = useNavigate()
-  const next = params.get('next') || '/desk'
+  const next = params.get('next') || '/board'
+  const goingToDesk = next === '/desk' || next.startsWith('/desk?')
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -24,7 +25,7 @@ export default function StaffLoginPage() {
       return
     }
     setBusy(false)
-    nav(next.startsWith('/') ? next : '/desk')
+    nav(next.startsWith('/') ? next : '/board')
   }
 
   return (
@@ -45,9 +46,9 @@ export default function StaffLoginPage() {
           </div>
         </div>
         <p className="mt-2 text-sm text-muted">
-          {next === '/desk'
+          {goingToDesk
             ? 'Sign in to parse your call pad and shortlist operators.'
-            : 'Enter your name and phone to open the desk.'}
+            : 'Enter your name and phone for general ops (Board, network, trips).'}
         </p>
 
         <form onSubmit={submit} className="mt-8 space-y-4">
@@ -77,7 +78,7 @@ export default function StaffLoginPage() {
             disabled={busy || !name.trim() || phone.length < 10}
             className="w-full rounded-md bg-gold py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
           >
-            {busy ? 'Checking…' : next === '/desk' ? 'Login & parse' : 'Enter'}
+            {busy ? 'Checking…' : goingToDesk ? 'Login & parse' : 'Enter desk'}
           </button>
         </form>
 
