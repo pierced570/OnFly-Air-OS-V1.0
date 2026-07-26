@@ -39,8 +39,8 @@ Ready ASAP`,
     expect(r.pax_count).toBe(2)
     expect(r.payload_kind).toBe('both')
     expect(r.asap).toBe(true)
-    expect(resolvePlaceToAirport(r.origin_text!).icao).toBe('KCVG')
-    expect(resolvePlaceToAirport(r.destination_text!).icao).toBe('KHPN')
+    expect(resolvePlaceToAirport(r.origin_text ?? '')?.icao).toBe('KCVG')
+    expect(resolvePlaceToAirport(r.destination_text ?? '')?.icao).toBe('KHPN')
   })
 
   it('does not treat ASAP as an airport code', () => {
