@@ -1139,6 +1139,26 @@ export default function DeskParsePage() {
             </section>
           )}
 
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={sending || !selected.size}
+              onClick={() => void send()}
+              className="rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
+            >
+              {sending
+                ? 'Sending…'
+                : `Send offer link to ${selected.size} operator${selected.size === 1 ? '' : 's'}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => nav('/dispatch')}
+              className="rounded-md border border-border px-4 py-2.5 text-sm text-muted"
+            >
+              Dispatch center
+            </button>
+          </div>
+
           <section className="space-y-3">
             <div className="flex flex-wrap items-end justify-between gap-2">
               <h2 className="text-lg font-semibold text-cream">
@@ -1205,26 +1225,6 @@ export default function DeskParsePage() {
               })}
             </ul>
           </section>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={sending || !selected.size}
-              onClick={() => void send()}
-              className="rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
-            >
-              {sending
-                ? 'Sending…'
-                : `Send offer link to ${selected.size} operator${selected.size === 1 ? '' : 's'}`}
-            </button>
-            <button
-              type="button"
-              onClick={() => nav('/dispatch')}
-              className="rounded-md border border-border px-4 py-2.5 text-sm text-muted"
-            >
-              Dispatch center
-            </button>
-          </div>
         </>
       )}
     </div>
