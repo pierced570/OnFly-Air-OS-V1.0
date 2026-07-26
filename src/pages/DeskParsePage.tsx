@@ -60,6 +60,24 @@ export default function DeskParsePage() {
     setDraft((d) => (d ? { ...d, ...p } : d))
   }
 
+  async function reparse() {
+    setBusy(true)
+    setError(null)
+    setRecError(null)
+    try {
+      const { draft: d } = await parseScratchToDeskDraft()
+      setDraft(d)
+      const rec = await recommendForDeskDraft(d)
+      setCandidates(rec.candidates)
+      setRecError(rec.error ?? null)
+      setSelected(new Set(rec.candidates.slice(0, 5).map((c) => c.aircraft_id)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function refreshRecs() {
     if (!draft) return
     setBusy(true)
@@ -171,7 +189,7 @@ export default function DeskParsePage() {
                 className={input}
                 value={draft.origin_text}
                 onChange={(e) => patch({ origin_text: e.target.value })}
-                placeholder="KCAK or Akron"
+                placeholder="ICAO, IATA, or city"
               />
             </label>
             <label className={label}>
@@ -180,7 +198,7 @@ export default function DeskParsePage() {
                 className={input}
                 value={draft.destination_text}
                 onChange={(e) => patch({ destination_text: e.target.value })}
-                placeholder="KMDW or Chicago"
+                placeholder="ICAO, IATA, or city"
               />
             </label>
             <label className={`${label} sm:col-span-2`}>
@@ -189,7 +207,7 @@ export default function DeskParsePage() {
                 className={input}
                 value={draft.pieces_text}
                 onChange={(e) => patch({ pieces_text: e.target.value })}
-                placeholder="2 skids 48x40x60 @ 800ea"
+                placeholder="e.g. 2 techs + parts, or skid dims @ weight"
               />
             </label>
             <label className={label}>
@@ -221,7 +239,15 @@ export default function DeskParsePage() {
               />
               Hazmat
             </label>
-            <div className="sm:col-span-2">
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void reparse()}
+                className="rounded-md border border-border px-3 py-2 text-sm text-cream hover:border-gold/40 disabled:opacity-50"
+              >
+                {busy ? 'Parsing…' : 'Re-parse notes'}
+              </button>
               <button
                 type="button"
                 disabled={busy}

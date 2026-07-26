@@ -37,6 +37,28 @@ export interface LlmAdapter {
   extractD085(rawText: string): Promise<D085ExtractRow[]>
 }
 
+/** Fill blank LLM fields from local scratch heuristics (IATA lanes, ASAP, client). */
+export function mergeScratchExtract(
+  primary: ExtractedRequest,
+  fallback: ExtractedRequest,
+): ExtractedRequest {
+  return {
+    raw: primary.raw || fallback.raw,
+    origin_text: primary.origin_text?.trim() || fallback.origin_text,
+    destination_text:
+      primary.destination_text?.trim() || fallback.destination_text,
+    pieces_text: primary.pieces_text?.trim() || fallback.pieces_text,
+    client_name: primary.client_name?.trim() || fallback.client_name,
+    ready_local: primary.ready_local?.trim() || fallback.ready_local,
+    deadline_local: primary.deadline_local?.trim() || fallback.deadline_local,
+    asap: primary.asap ?? fallback.asap,
+    hazmat: primary.hazmat ?? fallback.hazmat,
+    pax_count: primary.pax_count ?? fallback.pax_count,
+    payload_kind: primary.payload_kind ?? fallback.payload_kind ?? 'cargo',
+    notes: [fallback.notes, primary.notes].filter(Boolean).join('; ') || undefined,
+  }
+}
+
 export class MockLlmAdapter implements LlmAdapter {
   async extractTripRequest(rawText: string): Promise<ExtractedRequest> {
     if (!rawText.trim()) {
@@ -53,26 +75,6 @@ export class MockLlmAdapter implements LlmAdapter {
       }
     }
     const parsed = extractFromScratchNotes(rawText)
-    // Fall back to older mock heuristics if scratch parse is thin
-    if (!parsed.origin_text || !parsed.destination_text) {
-      const fromTo =
-        rawText.match(
-          /\bfrom\s+([^.\n]+?)\s+to\s+([^.\n]+?)(?:\s+ready|\s*$|[.])/i,
-        ) ??
-        rawText.match(/\b([A-Z]{3,4})\s*(?:→|->|to)\s*([A-Z]{3,4})\b/i)
-      if (fromTo) {
-        parsed.origin_text = parsed.origin_text || fromTo[1]?.trim()
-        parsed.destination_text =
-          parsed.destination_text || fromTo[2]?.trim()
-      }
-    }
-    if (!parsed.pieces_text) {
-      const pieces =
-        rawText.match(
-          /(\d+\s*(?:skids?|crates?|pieces?)[^.\n]{0,40})/i,
-        )?.[1]
-      if (pieces) parsed.pieces_text = pieces.trim()
-    }
     return {
       ...parsed,
       payload_kind: parsed.payload_kind ?? 'cargo',
@@ -105,18 +107,30 @@ export class MockLlmAdapter implements LlmAdapter {
 /** Real path → edge `llm-extract` (Claude when ANTHROPIC_API_KEY is set). */
 export class ClaudeLlmAdapter implements LlmAdapter {
   async extractTripRequest(rawText: string): Promise<ExtractedRequest> {
+    const heuristic = extractFromScratchNotes(rawText)
     if (!supabase || !isSupabaseConfigured) {
       throw new Error(
         'LLM real mode needs VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY',
       )
     }
-    const { data, error } = await supabase.functions.invoke('llm-extract', {
-      body: { mode: 'extract_trip', text: rawText },
-    })
-    if (error) throw new Error(error.message || 'llm-extract failed')
-    const body = data as ExtractedRequest & { error?: string }
-    if (body?.error) throw new Error(body.error)
-    return { ...body, raw: rawText }
+    try {
+      const { data, error } = await supabase.functions.invoke('llm-extract', {
+        body: { mode: 'extract_trip', text: rawText },
+      })
+      if (error) throw new Error(error.message || 'llm-extract failed')
+      const body = data as ExtractedRequest & { error?: string }
+      if (body?.error) throw new Error(body.error)
+      // Edge prompt may omit client/asap or miss IATA dash lanes — fill gaps locally.
+      return mergeScratchExtract({ ...body, raw: rawText }, heuristic)
+    } catch (e) {
+      console.warn('[llm] extract_trip failed — using scratch heuristics', e)
+      return {
+        ...heuristic,
+        payload_kind: heuristic.payload_kind ?? 'cargo',
+        notes: [heuristic.notes, 'llm_fallback'].filter(Boolean).join('; '),
+        raw: rawText,
+      }
+    }
   }
 
   async plainEnglish(text: string, context?: string): Promise<string> {

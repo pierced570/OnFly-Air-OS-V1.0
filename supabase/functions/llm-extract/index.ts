@@ -89,9 +89,14 @@ Reply JSON only.`,
 
     const raw = await complete(
       `Extract a charter/air-freight trip request as JSON with keys:
-pieces_text, origin_text, destination_text, ready_local, deadline_local,
-hazmat (boolean), pax_count (number|null), payload_kind ("cargo"|"pax"|"both"),
-notes. Use null/omit when unknown. ready_local/deadline_local as local ISO-like strings if present. Reply JSON only.`,
+client_name, pieces_text, origin_text, destination_text, ready_local, deadline_local,
+hazmat (boolean), asap (boolean), pax_count (number|null), payload_kind ("cargo"|"pax"|"both"),
+notes.
+Rules: origin_text/destination_text keep IATA or ICAO when written (e.g. CVG, HPN, KCAK).
+Treat en-dash/em-dash/hyphen lanes like "CVG – HPN" as origin→destination.
+asap=true for ASAP/AOG/hot/ready ASAP. client_name = company on first line when obvious (e.g. PSA).
+"2 Techs + Parts" → pieces_text that phrase, pax_count=2, payload_kind="both".
+Use null/omit when unknown. ready_local/deadline_local as local ISO-like strings if present. Reply JSON only.`,
       text.slice(0, 12000),
       true,
     )

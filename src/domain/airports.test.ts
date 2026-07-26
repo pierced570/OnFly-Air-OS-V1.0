@@ -40,6 +40,11 @@ describe('airports catalog', () => {
     expect(lookupAirport('KHPN')?.iata).toBe('HPN')
   })
 
+  it('maps IATA CVG to Cincinnati KCVG (not obscure 3-letter ICAO)', () => {
+    expect(lookupAirport('CVG')?.icao).toBe('KCVG')
+    expect(lookupAirport('CVG')?.city).toMatch(/Cincinnati/i)
+  })
+
   it('covers a broad US catalog (not a tiny hand list)', () => {
     const sample = searchAirports('K', 50)
     expect(sample.length).toBeGreaterThan(20)

@@ -77,15 +77,23 @@ export function listAirports(): AirportInfo[] {
 
 /**
  * Resolve ICAO, IATA, or bare US 3-letter (HPN → KHPN).
+ * For 3-letter tokens, prefer IATA / K-prefix over obscure 3-letter ICAOs
+ * (e.g. CVG → KCVG Cincinnati, not Campo Verde "CVG").
  */
 export function lookupAirport(code: string): AirportInfo | null {
   const key = code.trim().toUpperCase()
   if (!key) return null
+
+  if (key.length === 3) {
+    const viaIata = IATA_INDEX[key]
+    if (viaIata && AIRPORTS[viaIata]) return AIRPORTS[viaIata]
+    if (AIRPORTS[`K${key}`]) return AIRPORTS[`K${key}`]
+    if (AIRPORTS[`C${key}`]) return AIRPORTS[`C${key}`]
+  }
+
   if (AIRPORTS[key]) return AIRPORTS[key]
   const viaIata = IATA_INDEX[key]
   if (viaIata && AIRPORTS[viaIata]) return AIRPORTS[viaIata]
-  if (key.length === 3 && AIRPORTS[`K${key}`]) return AIRPORTS[`K${key}`]
-  if (key.length === 3 && AIRPORTS[`C${key}`]) return AIRPORTS[`C${key}`]
   return null
 }
 
