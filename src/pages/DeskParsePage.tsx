@@ -50,6 +50,16 @@ export default function DeskParsePage() {
   const [newInvoice, setNewInvoice] = useState('')
   const [newContactName, setNewContactName] = useState('')
   const [newContactEmail, setNewContactEmail] = useState('')
+  const [ruleChips, setRuleChips] = useState<string[]>([])
+
+  async function applyRecommend(next: DeskDraft) {
+    const rec = await recommendForDeskDraft(next)
+    setCandidates(rec.candidates)
+    setRecError(rec.error ?? null)
+    setRuleChips(rec.rule_chips)
+    setSelected(new Set(rec.candidates.slice(0, 5).map((c) => c.aircraft_id)))
+    return rec
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -63,11 +73,7 @@ export default function DeskParsePage() {
           setNewName(matched.client_name)
           setShowNewClient(true)
         }
-        const rec = await recommendForDeskDraft(matched)
-        if (cancelled) return
-        setCandidates(rec.candidates)
-        setRecError(rec.error ?? null)
-        setSelected(new Set(rec.candidates.slice(0, 5).map((c) => c.aircraft_id)))
+        await applyRecommend(matched)
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
@@ -93,20 +99,36 @@ export default function DeskParsePage() {
     setDraft((d) => (d ? { ...d, ...p } : d))
   }
 
-  function selectClient(id: string) {
+  async function selectClient(id: string) {
     const c = getClient(id)
-    if (!c) return
-    patch({ client_id: c.id, client_name: c.name })
+    if (!c || !draft) return
+    const next = { ...draft, client_id: c.id, client_name: c.name }
+    setDraft(next)
     setShowNewClient(false)
+    setBusy(true)
+    setRecError(null)
+    try {
+      await applyRecommend(next)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function onClientNameChange(value: string) {
     const best = bestClientMatch(value, clients)
+    const nextId = best?.id ?? null
+    const prevId = draft?.client_id ?? null
     patch({
       client_name: value,
-      client_id: best?.id ?? null,
+      client_id: nextId,
     })
     if (best) setShowNewClient(false)
+    // Re-score when a directory match appears or clears.
+    if (nextId !== prevId && draft) {
+      const next = { ...draft, client_name: value, client_id: nextId }
+      setBusy(true)
+      void applyRecommend(next).finally(() => setBusy(false))
+    }
   }
 
   function saveNewClient() {
@@ -130,7 +152,7 @@ export default function DeskParsePage() {
     if (invEmail && invEmail.toLowerCase() !== contactEmail.toLowerCase()) {
       addClientContact(c.id, invEmail.split('@')[0] || 'AP', invEmail, 'ap')
     }
-    selectClient(c.id)
+    void selectClient(c.id)
     setNewName('')
     setNewInvoice('')
     setNewContactName('')
@@ -149,10 +171,7 @@ export default function DeskParsePage() {
         setNewName(matched.client_name)
         setShowNewClient(true)
       }
-      const rec = await recommendForDeskDraft(matched)
-      setCandidates(rec.candidates)
-      setRecError(rec.error ?? null)
-      setSelected(new Set(rec.candidates.slice(0, 5).map((c) => c.aircraft_id)))
+      await applyRecommend(matched)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -165,10 +184,7 @@ export default function DeskParsePage() {
     setBusy(true)
     setRecError(null)
     try {
-      const rec = await recommendForDeskDraft(draft)
-      setCandidates(rec.candidates)
-      setRecError(rec.error ?? null)
-      setSelected(new Set(rec.candidates.slice(0, 5).map((c) => c.aircraft_id)))
+      await applyRecommend(draft)
     } finally {
       setBusy(false)
     }
@@ -314,13 +330,29 @@ export default function DeskParsePage() {
               </div>
 
               {matchedClient ? (
-                <p className="text-xs text-onplan">
-                  Matched directory client:{' '}
-                  <span className="font-medium text-cream">{matchedClient.name}</span>
-                  {matchedClient.invoice_email
-                    ? ` · ${matchedClient.invoice_email}`
-                    : ''}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-onplan">
+                    Previous client:{' '}
+                    <span className="font-medium text-cream">{matchedClient.name}</span>
+                    {matchedClient.invoice_email
+                      ? ` · ${matchedClient.invoice_email}`
+                      : ''}
+                    {' — '}
+                    operators filtered by their parameters
+                  </p>
+                  {ruleChips.length > 0 && (
+                    <ul className="flex flex-wrap gap-1.5">
+                      {ruleChips.map((chip) => (
+                        <li
+                          key={chip}
+                          className="rounded border border-gold/30 bg-gold/10 px-2 py-0.5 text-[11px] text-gold"
+                        >
+                          {chip}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               ) : draft.client_name.trim() ? (
                 <p className="text-xs text-late">
                   No exact directory match — pick a suggestion or add a new client.
@@ -487,6 +519,12 @@ export default function DeskParsePage() {
                 What they see →
               </Link>
             </div>
+            {matchedClient && (
+              <p className="text-xs text-muted">
+                Shortlist respects {matchedClient.name}&apos;s aircraft rules
+                {ruleChips.length ? ` (${ruleChips.length})` : ''}.
+              </p>
+            )}
             {recError && <p className="text-sm text-late">{recError}</p>}
             {!candidates.length && !recError && (
               <p className="text-sm text-muted">No candidates yet — fix origin/dest/dims.</p>

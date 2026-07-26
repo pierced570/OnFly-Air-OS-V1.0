@@ -7,6 +7,11 @@ import { parseDims } from '@/domain/dimsParser'
 import { resolvePlaceToAirport } from '@/domain/resolvePlace'
 import { generateCandidates, type Candidate } from '@/domain/routing'
 import { createMapsAdapter } from '@/adapters/maps'
+import {
+  clientRuleChips,
+  clientRulesForRouting,
+  getClient,
+} from '@/lib/clientStore'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { fboFeesForAirport } from '@/lib/fboStore'
@@ -64,9 +69,23 @@ export async function parseScratchToDeskDraft(): Promise<{
   return { extract, draft: deskDraftFromExtract(extract) }
 }
 
+export type DeskRecommendResult = {
+  candidates: Candidate[]
+  error?: string
+  lane: string
+  /** True when a directory client’s rules were applied to filtering. */
+  client_rules_applied: boolean
+  rule_chips: string[]
+}
+
 export async function recommendForDeskDraft(
   draft: DeskDraft,
-): Promise<{ candidates: Candidate[]; error?: string; lane: string }> {
+): Promise<DeskRecommendResult> {
+  const client = draft.client_id ? getClient(draft.client_id) : undefined
+  const client_rules = clientRulesForRouting(client, draft.payload_kind)
+  const rule_chips = draft.client_id ? clientRuleChips(draft.client_id) : []
+  const client_rules_applied = Boolean(client)
+
   const origin = resolvePlaceToAirport(draft.origin_text)
   const destination = resolvePlaceToAirport(draft.destination_text)
   if (!origin || !destination) {
@@ -76,6 +95,8 @@ export async function recommendForDeskDraft(
       error: !origin
         ? `Could not resolve origin from “${draft.origin_text || '—'}”`
         : `Could not resolve destination from “${draft.destination_text || '—'}”`,
+      client_rules_applied,
+      rule_chips,
     }
   }
 
@@ -96,6 +117,8 @@ export async function recommendForDeskDraft(
       candidates: [],
       lane: `${origin.icao}→${destination.icao}`,
       error: 'Add cargo dims with weight (e.g. 1 skid 48x40x60 @ 800ea)',
+      client_rules_applied,
+      rule_chips,
     }
   }
 
@@ -105,6 +128,8 @@ export async function recommendForDeskDraft(
       candidates: [],
       lane: `${origin.icao}→${destination.icao}`,
       error: 'No fleet loaded',
+      client_rules_applied,
+      rule_chips,
     }
   }
 
@@ -122,6 +147,8 @@ export async function recommendForDeskDraft(
         pax_count: draft.pax_count || 0,
         hazmat: draft.hazmat,
         ready_at: new Date().toISOString(),
+        // Previous client → filter / soft-gate tails by their parameters.
+        client_rules,
         origin: {
           kind: 'airport',
           text: draft.origin_text || origin.icao,
@@ -153,12 +180,16 @@ export async function recommendForDeskDraft(
     return {
       candidates: candidates.slice(0, 8),
       lane: `${origin.icao}→${destination.icao}`,
+      client_rules_applied,
+      rule_chips,
     }
   } catch (e) {
     return {
       candidates: [],
       lane: `${origin.icao}→${destination.icao}`,
       error: e instanceof Error ? e.message : String(e),
+      client_rules_applied,
+      rule_chips,
     }
   }
 }
