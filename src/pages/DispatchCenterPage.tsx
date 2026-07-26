@@ -19,17 +19,6 @@ import {
   type DispatchDrawerId,
 } from '@/domain/dispatchCenter'
 import { absoluteAppUrl } from '@/lib/appUrl'
-import {
-  acknowledgeCheckpoint,
-  listUpcomingCheckpoints,
-  subscribeCheckpoints,
-} from '@/lib/checkpointStore'
-import {
-  acknowledgeException,
-  listExceptions,
-  subscribeExceptions,
-  syncExceptionsFromTrips,
-} from '@/lib/exceptionStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
 import { getScratchPad, subscribeScratchPad } from '@/lib/scratchPadStore'
 import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
