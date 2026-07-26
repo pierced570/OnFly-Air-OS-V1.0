@@ -1,21 +1,30 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
+  addFinancialVendorLine,
   listFinancials,
+  removeFinancialVendorLine,
   subscribeFinancials,
   updateFinancialField,
   updateFinancialRecord,
+  updateFinancialVendorLine,
   financialOverrideCount,
   clearFinancialOverrides,
 } from '@/lib/financialsStore'
 import {
   dueDateFor,
   summarize,
+  vendorKindLabel,
   type ComputedFinancial,
+  type VendorLineKind,
 } from '@/domain/financials'
 import { sendFinancialInvoice } from '@/lib/invoiceFlow'
 import { useQuickBooksDashboard } from '@/lib/useQuickBooksDashboard'
 import { isRealQbEnabled } from '@/adapters/accounting'
 import { BrandLockup } from '@/components/BrandLockup'
+import {
+  canUseStorage,
+  uploadTripDocToStorage,
+} from '@/lib/storage'
 
 function usd(n: number, digits = 2) {
   return n.toLocaleString(undefined, {
@@ -1226,37 +1235,249 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
   )
 }
 
+async function attachVendorBill(
+  financialId: string,
+  lineId: string,
+  file: File,
+  po: string | null,
+): Promise<void> {
+  let url: string | null = null
+  if (canUseStorage()) {
+    const tripId = financialId.startsWith('trip-')
+      ? financialId.slice('trip-'.length)
+      : financialId
+    try {
+      const up = await uploadTripDocToStorage({
+        tripId,
+        kind: `vendor_bill_${lineId}`,
+        file,
+      })
+      url = up.signedUrl || up.path
+    } catch (e) {
+      console.warn('[financials] bill upload failed', e)
+    }
+  }
+  if (!url) {
+    url = URL.createObjectURL(file)
+  }
+  updateFinancialVendorLine(financialId, lineId, {
+    vendor_bill_url: url,
+    vendor_bill_verified: false,
+    notes: po ? `PO ${po} · ${file.name}` : file.name,
+  })
+}
+
 function OpDrawer({ r }: { r: ComputedFinancial }) {
+  const vendors = r.vendors
   return (
     <div className="rounded-lg border border-gold/30 bg-gold/5 p-3">
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-gold">
-        Op Pmts
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gold">
+          Op Pmts · same PO
+        </div>
+        <span className="avionic text-xs text-muted">
+          {r.operator_po ?? r.po_number ?? 'No PO yet'} · total owed{' '}
+          <span className="text-gold">{usd(r.vendor_amount)}</span>
+        </span>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-xs text-muted">
-          Operator
-          <input
-            className={field}
-            defaultValue={r.vendor_name ?? ''}
-            onBlur={(e) => updateFinancialField(r.id, 'vendor_name', e.target.value)}
-          />
-        </label>
-        <label className="text-xs text-muted">
-          Owed ($)
-          <input
-            type="number"
-            className={field}
-            defaultValue={r.vendor_amount}
-            onBlur={(e) =>
-              updateFinancialField(r.id, 'vendor_amount', Number(e.target.value) || 0)
-            }
-          />
-        </label>
-        <label className="text-xs text-muted">
+      <p className="mb-3 text-[11px] text-muted">
+        Aircraft, ground, and FBO vendors on this mission share one PO. Upload a
+        bill for each.
+      </p>
+
+      <div className="space-y-3">
+        {vendors.map((line) => (
+          <div
+            key={line.id}
+            className="rounded-md border border-border/70 bg-ink/60 px-3 py-2.5"
+          >
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-gold">
+                {vendorKindLabel(line.kind)}
+              </span>
+              {vendors.length > 1 ? (
+                <button
+                  type="button"
+                  className="text-[11px] text-late hover:underline"
+                  onClick={() => removeFinancialVendorLine(r.id, line.id)}
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs text-muted">
+                Vendor
+                <input
+                  className={field}
+                  key={`vn-${line.id}-${line.vendor_name}`}
+                  defaultValue={line.vendor_name}
+                  onBlur={(e) =>
+                    updateFinancialVendorLine(r.id, line.id, {
+                      vendor_name: e.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="text-xs text-muted">
+                Kind
+                <select
+                  className={field}
+                  value={line.kind}
+                  onChange={(e) =>
+                    updateFinancialVendorLine(r.id, line.id, {
+                      kind: e.target.value as VendorLineKind,
+                    })
+                  }
+                >
+                  <option value="aircraft">Aircraft</option>
+                  <option value="ground">Ground</option>
+                  <option value="fbo">FBO</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="text-xs text-muted">
+                Owed ($)
+                <input
+                  type="number"
+                  className={field}
+                  key={`am-${line.id}-${line.amount}`}
+                  defaultValue={line.amount}
+                  onBlur={(e) =>
+                    updateFinancialVendorLine(r.id, line.id, {
+                      amount: Number(e.target.value) || 0,
+                    })
+                  }
+                />
+              </label>
+              <label className="text-xs text-muted">
+                Tail / type
+                <input
+                  className={field}
+                  key={`tl-${line.id}-${line.tail_number}-${line.aircraft_type}`}
+                  defaultValue={
+                    [line.tail_number, line.aircraft_type]
+                      .filter(Boolean)
+                      .join(' · ') || ''
+                  }
+                  placeholder="N123AB · Caravan"
+                  onBlur={(e) => {
+                    const raw = e.target.value.trim()
+                    const [tail, ...rest] = raw.split('·').map((s) => s.trim())
+                    updateFinancialVendorLine(r.id, line.id, {
+                      tail_number: tail || null,
+                      aircraft_type: rest.join(' · ') || null,
+                    })
+                  }}
+                />
+              </label>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-cream">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={line.vendor_paid}
+                  onChange={(e) =>
+                    updateFinancialVendorLine(r.id, line.id, {
+                      vendor_paid: e.target.checked,
+                    })
+                  }
+                />
+                Paid
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={line.bill_logged_in_qb}
+                  onChange={(e) =>
+                    updateFinancialVendorLine(r.id, line.id, {
+                      bill_logged_in_qb: e.target.checked,
+                    })
+                  }
+                />
+                Logged in QB
+              </label>
+              {line.vendor_bill_url ? (
+                <a
+                  href={line.vendor_bill_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-gold hover:text-gold-lt"
+                >
+                  View bill →
+                </a>
+              ) : (
+                <span className="text-xs text-muted">No bill yet</span>
+              )}
+              <label className="cursor-pointer text-xs font-medium text-gold hover:text-gold-lt">
+                {line.vendor_bill_url ? 'Replace bill' : 'Upload bill'}
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    void attachVendorBill(
+                      r.id,
+                      line.id,
+                      file,
+                      r.operator_po ?? r.po_number ?? null,
+                    )
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="rounded-md border border-gold/50 px-3 py-1.5 text-xs font-medium text-gold hover:bg-gold/10"
+          onClick={() =>
+            addFinancialVendorLine(r.id, {
+              kind: 'aircraft',
+              vendor_name: '',
+              pay_terms: r.pay_terms ?? 'Net 30',
+            })
+          }
+        >
+          + Aircraft vendor
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          onClick={() =>
+            addFinancialVendorLine(r.id, {
+              kind: 'ground',
+              vendor_name: '',
+              pay_terms: r.pay_terms ?? 'Net 30',
+            })
+          }
+        >
+          + Ground vendor
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          onClick={() =>
+            addFinancialVendorLine(r.id, {
+              kind: 'fbo',
+              vendor_name: '',
+              pay_terms: r.pay_terms ?? 'Net 30',
+            })
+          }
+        >
+          + FBO
+        </button>
+        <label className="ml-auto text-xs text-muted">
           Funded
           <select
-            className={field}
-            defaultValue={r.funded_by ?? 'Jonny 1%'}
+            className={`${field} mt-1 min-w-[8rem]`}
+            value={r.funded_by ?? 'Jonny 1%'}
             onChange={(e) => updateFinancialField(r.id, 'funded_by', e.target.value)}
           >
             <option>Jonny 1%</option>
@@ -1265,32 +1486,12 @@ function OpDrawer({ r }: { r: ComputedFinancial }) {
             <option>Awaiting $</option>
           </select>
         </label>
-        <div className="flex flex-col justify-end gap-2 text-sm text-cream">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={r.vendor_paid}
-              onChange={(e) =>
-                updateFinancialField(r.id, 'vendor_paid', e.target.checked)
-              }
-            />
-            Operator paid
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={r.bill_logged_in_qb}
-              onChange={(e) =>
-                updateFinancialField(r.id, 'bill_logged_in_qb', e.target.checked)
-              }
-            />
-            Logged in QB
-          </label>
-        </div>
       </div>
       <p className="mt-2 text-[11px] text-muted">
-        Vendor bill upload → private storage (next pass). Inv owed now:{' '}
+        Investor owed now:{' '}
         <span className="avionic text-gold">{usd(r.jonny_money_owed)}</span>
+        {' · '}
+        Op complete when every vendor has bill + paid + QB.
       </p>
     </div>
   )
