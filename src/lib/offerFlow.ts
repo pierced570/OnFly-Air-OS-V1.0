@@ -526,6 +526,7 @@ export async function selectOffersAndHardQuote(
   const kind = payloadKindOf(trip)
   const accept_token = crypto.randomUUID().replace(/-/g, '').slice(0, 20)
 
+  const sentAt = new Date().toISOString()
   const options = selectedOffers.map((o, i) => {
     const priced = clientTotalForOffer(o, trip)
     const client =
@@ -539,6 +540,10 @@ export async function selectOffersAndHardQuote(
       client_total: client,
       eta_end: cand?.eta_end ?? trip.promised_delivery,
       fee_scope: o.fee_scope,
+      // Desk display — never shown on client accept / portal.
+      operator_name: o.operator_name,
+      type_name: o.type_name ?? cand?.type_name ?? null,
+      tail: o.tail || null,
     }
   })
   const primaryTotal = Math.min(...options.map((o) => o.client_total))
@@ -563,6 +568,10 @@ export async function selectOffersAndHardQuote(
       payload_kind: kind,
       disclosure_text:
         kind === 'pax' || kind === 'both' ? DISCLOSURE_295_24_TEMPLATE : undefined,
+      sent_at: sentAt,
+      client_decision: undefined,
+      accepted_at: undefined,
+      declined_at: undefined,
       options,
     }
   })
@@ -717,10 +726,21 @@ export async function acceptHardQuote(token: string) {
     throw new Error(`cannot accept from state ${trip.state}`)
   }
   const kind = payloadKindOf(trip)
+  const acceptedAt = new Date().toISOString()
   mutateTrip(trip.id, (t) => {
-    if (t.hard_quote && (kind === 'pax' || kind === 'both')) {
-      t.hard_quote.disclosure_at = new Date().toISOString()
+    if (!t.hard_quote) return
+    t.hard_quote.client_decision = 'accepted'
+    t.hard_quote.accepted_at = acceptedAt
+    t.hard_quote.declined_at = undefined
+    if (kind === 'pax' || kind === 'both') {
+      t.hard_quote.disclosure_at = acceptedAt
     }
+    t.events.push({
+      at: acceptedAt,
+      actor: 'client',
+      kind: 'hard_quote_accepted',
+      payload: { accept_token: token },
+    })
   })
   safeTransitionTrip(trip.id, 'booked', 'client', { accept_token: token })
   {
@@ -850,6 +870,36 @@ export async function acceptHardQuote(token: string) {
   const { runOnBookedAutomations } = await import('@/lib/onBooked')
   await runOnBookedAutomations(trip.id)
 
+  return getTrip(trip.id)!
+}
+
+/** Client declines the hard quote → trip lost; desk sees Declined (No). */
+export async function declineHardQuote(token: string) {
+  const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
+  if (!trip) throw new Error('invalid accept token')
+  if (trip.state === 'lost') return getTrip(trip.id)!
+  if (trip.state !== 'quoted_hard') {
+    throw new Error(`cannot decline from state ${trip.state}`)
+  }
+  const declinedAt = new Date().toISOString()
+  mutateTrip(trip.id, (t) => {
+    if (t.hard_quote) {
+      t.hard_quote.client_decision = 'declined'
+      t.hard_quote.declined_at = declinedAt
+      t.hard_quote.accepted_at = undefined
+    }
+    t.lost_reason = 'client_declined_quote'
+    t.events.push({
+      at: declinedAt,
+      actor: 'client',
+      kind: 'hard_quote_declined',
+      payload: { accept_token: token },
+    })
+  })
+  safeTransitionTrip(trip.id, 'lost', 'client', {
+    accept_token: token,
+    reason: 'client_declined_quote',
+  })
   return getTrip(trip.id)!
 }
 

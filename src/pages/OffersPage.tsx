@@ -20,6 +20,10 @@ import {
 import { clientTotalForOffer } from '@/lib/offerPricing'
 import { ClientQuoteLayoutPanel } from '@/components/ClientQuoteLayoutPanel'
 import {
+  hardQuoteClientStatus,
+  hardQuoteClientStatusLabel,
+} from '@/domain/hardQuoteClientStatus'
+import {
   candidateFromDeskHit,
   contactOverrideFromHit,
   ensureDeskOperatorsLoaded,
@@ -702,31 +706,131 @@ export default function OffersPage() {
             </div>
           )}
 
-          {trip.hard_quote && (
-            <div className="rounded-lg border border-gold bg-gold/10 p-4">
-              <div className="text-sm text-gold">Hard quote ready</div>
-              {trip.hard_quote.options?.length ? (
-                <ul className="mt-2 space-y-1 text-sm text-cream">
-                  {trip.hard_quote.options.map((opt) => (
-                    <li key={opt.offer_id} className="avionic">
-                      {opt.label}: ${opt.client_total.toFixed(0)}
-                      {opt.eta_end ? ` · ${opt.eta_end.slice(0, 16)}Z` : ''}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="avionic text-xl text-cream">
-                  ${trip.hard_quote.total.toFixed(0)}
-                </div>
-              )}
-              <Link
-                className="mt-2 inline-block text-sm text-gold"
-                to={`/accept/${trip.hard_quote.accept_token}`}
+          {trip.hard_quote && (() => {
+            const hq = trip.hard_quote
+            const clientStatus = hardQuoteClientStatus({
+              trip_state: trip.state,
+              client_decision: hq.client_decision,
+              accepted_at: hq.accepted_at,
+              declined_at: hq.declined_at,
+            })
+            const statusLabel = hardQuoteClientStatusLabel(clientStatus)
+            const statusCls =
+              clientStatus === 'accepted'
+                ? 'text-onplan'
+                : clientStatus === 'declined'
+                  ? 'text-muted'
+                  : 'text-gold'
+            const options = hq.options?.length
+              ? hq.options
+              : [
+                  {
+                    offer_id: '_primary',
+                    label: 'Option A',
+                    client_total: hq.total,
+                    eta_end: trip.promised_delivery,
+                    fee_scope: null as null,
+                    operator_name: undefined as string | undefined,
+                    type_name: null as string | null,
+                    tail: null as string | null,
+                  },
+                ]
+            return (
+              <div
+                className={`rounded-lg border p-4 ${
+                  clientStatus === 'accepted'
+                    ? 'border-onplan/50 bg-onplan/10'
+                    : clientStatus === 'declined'
+                      ? 'border-border/50 bg-ink/30'
+                      : 'border-gold bg-gold/10'
+                }`}
               >
-                Open client accept page →
-              </Link>
-            </div>
-          )}
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div
+                    className={`text-sm ${
+                      clientStatus === 'pending' ? 'text-gold' : 'text-cream'
+                    }`}
+                  >
+                    Hard quote {clientStatus === 'pending' ? 'sent' : 'response'}
+                  </div>
+                  <div className={`text-xs font-medium ${statusCls}`}>
+                    {statusLabel}
+                  </div>
+                </div>
+                <ul className="mt-3 space-y-2">
+                  {options.map((opt) => {
+                    const offer = trip.offers.find((o) => o.id === opt.offer_id)
+                    const operator =
+                      opt.operator_name || offer?.operator_name || 'Operator'
+                    const typeName =
+                      opt.type_name || offer?.type_name || null
+                    const tail = opt.tail || offer?.tail || null
+                    let optLabel = statusLabel
+                    let optCls = statusCls
+                    if (clientStatus === 'accepted') {
+                      if (offer?.state === 'selected' || options.length === 1) {
+                        optLabel = 'Accepted (Yes)'
+                        optCls = 'text-onplan'
+                      } else {
+                        optLabel = 'Stood down'
+                        optCls = 'text-muted'
+                      }
+                    } else if (clientStatus === 'declined') {
+                      optLabel = 'Declined (No)'
+                      optCls = 'text-muted'
+                    } else {
+                      optLabel = 'Pending update'
+                      optCls = 'text-gold'
+                    }
+                    return (
+                      <li
+                        key={opt.offer_id}
+                        className="rounded-md border border-border/40 bg-ink/40 px-3 py-2"
+                      >
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <div className="text-sm font-medium text-cream">
+                            {operator}
+                            {typeName ? (
+                              <span className="font-normal text-cream/80">
+                                {' '}
+                                · {typeName}
+                              </span>
+                            ) : null}
+                            {tail ? (
+                              <span className="avionic ml-1 text-xs text-cream/70">
+                                {tail}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className={`text-xs font-medium ${optCls}`}>
+                            {optLabel}
+                          </div>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm text-cream">
+                          <span className="avionic text-gold">
+                            ${opt.client_total.toFixed(0)}
+                          </span>
+                          {opt.eta_end ? (
+                            <span className="avionic text-xs text-muted">
+                              ETA {opt.eta_end.slice(0, 16)}Z
+                            </span>
+                          ) : null}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {clientStatus === 'pending' ? (
+                  <Link
+                    className="mt-3 inline-block text-sm text-gold"
+                    to={`/accept/${hq.accept_token}`}
+                  >
+                    Open client accept page →
+                  </Link>
+                ) : null}
+              </div>
+            )
+          })()}
         </section>
 
         <ClientQuoteLayoutPanel

@@ -338,14 +338,27 @@ export type TripStoreRow = {
     accept_token: string
     disclosure_text?: string
     disclosure_at?: string
+    /** When the hard quote was sent / locked for the client. */
+    sent_at?: string
+    /** Client accept/decline stamp (desk also derives from trip state). */
+    client_decision?: 'accepted' | 'declined'
+    accepted_at?: string
+    declined_at?: string
     payload_kind: 'cargo' | 'pax' | 'both'
-    /** Client-safe multi-option cards (no operator cost / name / margin). */
+    /**
+     * Multi-option cards. Client surfaces use `label` only (no carrier).
+     * Desk may show operator_name / type_name / tail.
+     */
     options?: Array<{
       offer_id: string
       label: string
       client_total: number
       eta_end: string | null
       fee_scope: FeeScope | null
+      /** Desk-only — never render on client accept / portal. */
+      operator_name?: string
+      type_name?: string | null
+      tail?: string | null
     }>
   }
   lost_reason?: string
