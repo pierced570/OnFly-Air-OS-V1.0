@@ -13,12 +13,14 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { AirportSelect } from '@/components/AirportSelect'
 import {
   DISPATCH_DRAWERS,
   buildDispatchDrawers,
   type DispatchCard,
   type DispatchDrawerId,
 } from '@/domain/dispatchCenter'
+import { parseLaneAirports } from '@/domain/offerMissionDisplay'
 import { absoluteAppUrl } from '@/lib/appUrl'
 import {
   deleteRequest,
@@ -32,9 +34,16 @@ import {
   subscribeScratchPad,
 } from '@/lib/scratchPadStore'
 import { getClient } from '@/lib/clientStore'
-import { acknowledgeDeclinedOffer } from '@/lib/offerFlow'
+import {
+  acknowledgeDeclinedOffer,
+  updateTripOfferRequest,
+} from '@/lib/offerFlow'
 import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
-import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
+import {
+  getTrip,
+  listTripsStable,
+  subscribeTrips,
+} from '@/lib/tripStore'
 
 const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
 const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
@@ -169,6 +178,118 @@ function recipientTone(status: string): string {
   return 'text-gold'
 }
 
+const updateField =
+  'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold'
+
+function OfferUpdateForm({
+  tripId,
+  onClose,
+  onError,
+}: {
+  tripId: string
+  onClose: () => void
+  onError: (msg: string) => void
+}) {
+  const trip = getTrip(tripId)
+  const parsed = parseLaneAirports(trip?.lane ?? '')
+  const [origin, setOrigin] = useState(parsed?.origin ?? '')
+  const [dest, setDest] = useState(parsed?.dest ?? '')
+  const [payload, setPayload] = useState(trip?.payload_summary ?? '')
+  const [ready, setReady] = useState(trip?.ready_label ?? '')
+  const [saving, setSaving] = useState(false)
+
+  if (!trip) {
+    return (
+      <p className="mt-3 text-sm text-late">Trip not found in this session.</p>
+    )
+  }
+
+  function save() {
+    const o = origin.trim().toUpperCase()
+    const d = dest.trim().toUpperCase()
+    if (!o || !d) {
+      onError('Pick departure and arrival airports')
+      return
+    }
+    const rest = parsed?.rest
+    const lane = rest ? `${o}→${d} · ${rest}` : `${o}→${d}`
+    setSaving(true)
+    void updateTripOfferRequest(tripId, {
+      lane,
+      payload_summary: payload,
+      ready_label: ready,
+    })
+      .then(() => {
+        onError('')
+        onClose()
+      })
+      .catch((e) => onError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <div className="mt-3 space-y-3 rounded-md border border-gold/40 bg-gold/5 px-3 py-3">
+      <div className="text-sm font-semibold text-cream">Update request</div>
+      <p className="text-xs text-muted">
+        Same mission fields as Parse & shortlist. Changes show on existing offer
+        links — no re-ping.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <AirportSelect
+          label="Departure"
+          value={origin}
+          onChange={setOrigin}
+          allowUnknown
+          inputClassName={updateField}
+        />
+        <AirportSelect
+          label="Arrival"
+          value={dest}
+          onChange={setDest}
+          allowUnknown
+          inputClassName={updateField}
+        />
+      </div>
+      <label className="block text-xs font-medium uppercase tracking-wider text-muted">
+        Mission / payload
+        <input
+          value={payload}
+          onChange={(e) => setPayload(e.target.value)}
+          className={updateField}
+          placeholder="2 pax + standard tooling…"
+        />
+      </label>
+      <label className="block text-xs font-medium uppercase tracking-wider text-muted">
+        Ready
+        <input
+          value={ready}
+          onChange={(e) => setReady(e.target.value)}
+          className={updateField}
+          placeholder="ASAP"
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={save}
+          className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save update'}
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onClose}
+          className="rounded-md border border-border px-3 py-2 text-xs text-muted hover:text-cream"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function OfferTripList({
   cards,
   focusTripId,
@@ -178,6 +299,9 @@ function OfferTripList({
   focusTripId?: string | null
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
 }) {
+  const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
@@ -185,13 +309,14 @@ function OfferTripList({
     <ul className="space-y-3">
       {cards.map((c) => {
         const focused = Boolean(focusTripId && c.trip_id === focusTripId)
+        const editing = Boolean(c.trip_id && updatingTripId === c.trip_id)
         return (
           <li
             key={`${c.kind}-${c.id}`}
             id={c.trip_id ? `offer-trip-${c.trip_id}` : undefined}
             className={[
               'rounded-md border bg-ink px-3 py-3',
-              focused
+              focused || editing
                 ? 'border-gold/60 ring-1 ring-gold/30'
                 : 'border-border/70',
             ].join(' ')}
@@ -285,6 +410,22 @@ function OfferTripList({
                 )}
               </ul>
             ) : null}
+            {editing && c.trip_id ? (
+              <>
+                {updateError ? (
+                  <p className="mt-2 text-xs text-late">{updateError}</p>
+                ) : null}
+                <OfferUpdateForm
+                  key={c.trip_id}
+                  tripId={c.trip_id}
+                  onClose={() => {
+                    setUpdatingTripId(null)
+                    setUpdateError(null)
+                  }}
+                  onError={(msg) => setUpdateError(msg || null)}
+                />
+              </>
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
                 to={c.href}
@@ -298,12 +439,23 @@ function OfferTripList({
               >
                 Send to new operator
               </Link>
-              <Link
-                to={`${c.href}?update=1`}
-                className="rounded-md border border-border px-2.5 py-1.5 text-xs text-cream hover:border-gold/40"
-              >
-                Update request
-              </Link>
+              {c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md border px-2.5 py-1.5 text-xs',
+                    editing
+                      ? 'border-gold/50 bg-gold/10 text-gold'
+                      : 'border-border text-cream hover:border-gold/40',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdateError(null)
+                    setUpdatingTripId(editing ? null : c.trip_id!)
+                  }}
+                >
+                  {editing ? 'Close update' : 'Update request'}
+                </button>
+              ) : null}
             </div>
           </li>
         )
