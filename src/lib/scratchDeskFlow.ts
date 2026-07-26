@@ -130,6 +130,67 @@ export function deskDraftFromExtract(
   }
 }
 
+/**
+ * Rebuild a desk draft from an open trip so Dispatch can re-run recommend
+ * / send-to-new-operator without leaving the waterfall.
+ */
+export function deskDraftFromTrip(trip: {
+  lane: string
+  payload_summary: string
+  ready_label: string
+  client_id?: string | null
+  quick?: { client_name?: string } | null
+}): DeskDraft {
+  const parts = trip.lane
+    .split(/\s*·\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+  const first = parts[0] ?? ''
+  const m = first.match(
+    /^([A-Z0-9]{3,4})\s*(?:→|->|–|-)\s*([A-Z0-9]{3,4})$/i,
+  )
+  const origin = m?.[1]?.toUpperCase() ?? ''
+  const dest = m?.[2]?.toUpperCase() ?? ''
+  const paxMatch = trip.payload_summary.match(
+    /(\d+)\s*(?:pax|passengers?|techs?|engineers?)\b/i,
+  )
+  const pax = paxMatch ? Number(paxMatch[1]) : 0
+  const cargoBit = trip.payload_summary
+    .replace(paxMatch?.[0] ?? '', '')
+    .replace(/^\s*\+\s*/, '')
+    .trim()
+  const cargo_only = pax === 0
+  const asap = /asap/i.test(trip.ready_label || '')
+  const clientName =
+    trip.quick?.client_name?.trim() ||
+    (trip.client_id ? getClient(trip.client_id)?.name?.trim() || '' : '')
+  return syncDeskDraftDerived({
+    client_name: clientName,
+    client_id: trip.client_id ?? null,
+    po: '',
+    timing: asap ? 'asap' : 'scheduled',
+    roundtrip: parts.length > 1,
+    cargo_only,
+    legs: [
+      newDeskLeg({
+        origin_icao: origin,
+        dest_icao: dest,
+        pax: cargo_only ? 0 : pax,
+      }),
+    ],
+    pieces_text: cargoBit,
+    hazmat: false,
+    notes: '',
+    raw_notes: '',
+    payload_kind: cargo_only ? 'cargo' : cargoBit ? 'both' : 'pax',
+    pax_count: pax,
+    origin_text: origin,
+    destination_text: dest,
+    asap,
+    ready_label: trip.ready_label || (asap ? 'ASAP' : 'scheduled'),
+  })
+}
+
 /** Keep origin/dest/asap/payload in sync with QD-style controls. */
 export function syncDeskDraftDerived(draft: DeskDraft): DeskDraft {
   const leg0 = draft.legs[0]

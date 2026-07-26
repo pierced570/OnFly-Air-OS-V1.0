@@ -14,6 +14,7 @@ import {
 } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
+import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
 import {
   DISPATCH_DRAWERS,
   buildDispatchDrawers,
@@ -300,6 +301,7 @@ function OfferTripList({
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
 }) {
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
+  const [addingTripId, setAddingTripId] = useState<string | null>(null)
   const [updateError, setUpdateError] = useState<string | null>(null)
 
   if (!cards.length) {
@@ -310,13 +312,14 @@ function OfferTripList({
       {cards.map((c) => {
         const focused = Boolean(focusTripId && c.trip_id === focusTripId)
         const editing = Boolean(c.trip_id && updatingTripId === c.trip_id)
+        const adding = Boolean(c.trip_id && addingTripId === c.trip_id)
         return (
           <li
             key={`${c.kind}-${c.id}`}
             id={c.trip_id ? `offer-trip-${c.trip_id}` : undefined}
             className={[
               'rounded-md border bg-ink px-3 py-3',
-              focused || editing
+              focused || editing || adding
                 ? 'border-gold/60 ring-1 ring-gold/30'
                 : 'border-border/70',
             ].join(' ')}
@@ -416,7 +419,7 @@ function OfferTripList({
                   <p className="mt-2 text-xs text-late">{updateError}</p>
                 ) : null}
                 <OfferUpdateForm
-                  key={c.trip_id}
+                  key={`update-${c.trip_id}`}
                   tripId={c.trip_id}
                   onClose={() => {
                     setUpdatingTripId(null)
@@ -426,6 +429,13 @@ function OfferTripList({
                 />
               </>
             ) : null}
+            {adding && c.trip_id ? (
+              <OfferAddOperatorPanel
+                key={`add-${c.trip_id}`}
+                tripId={c.trip_id}
+                onClose={() => setAddingTripId(null)}
+              />
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
                 to={c.href}
@@ -433,12 +443,24 @@ function OfferTripList({
               >
                 Manage trip offers
               </Link>
-              <Link
-                to={`${c.href}?add=1`}
-                className="rounded-md border border-border px-2.5 py-1.5 text-xs text-cream hover:border-gold/40"
-              >
-                Send to new operator
-              </Link>
+              {c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md border px-2.5 py-1.5 text-xs',
+                    adding
+                      ? 'border-gold/50 bg-gold/10 text-gold'
+                      : 'border-border text-cream hover:border-gold/40',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setUpdateError(null)
+                    setAddingTripId(adding ? null : c.trip_id!)
+                  }}
+                >
+                  {adding ? 'Close send' : 'Send to new operator'}
+                </button>
+              ) : null}
               {c.trip_id ? (
                 <button
                   type="button"
@@ -449,6 +471,7 @@ function OfferTripList({
                       : 'border-border text-cream hover:border-gold/40',
                   ].join(' ')}
                   onClick={() => {
+                    setAddingTripId(null)
                     setUpdateError(null)
                     setUpdatingTripId(editing ? null : c.trip_id!)
                   }}
