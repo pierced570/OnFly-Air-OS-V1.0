@@ -45,16 +45,15 @@ function OptionCard({
   return (
     <article className="space-y-3 rounded-lg border border-border bg-ink/50 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="font-medium text-cream">{preview.label}</div>
-        <div className="text-xs text-muted">
+        <div className="font-medium text-cream">
           {preview.operator_name}
           {preview.tail ? (
-            <>
-              {' '}
-              · <span className="avionic text-cream/80">{preview.tail}</span>
-            </>
+            <span className="avionic ml-2 text-xs font-normal text-cream/70">
+              {preview.tail}
+            </span>
           ) : null}
         </div>
+        <div className="text-xs text-muted">{preview.label}</div>
       </div>
 
       <div className="space-y-1.5 rounded-md border border-gold/30 bg-gold/5 px-3 py-2.5">
