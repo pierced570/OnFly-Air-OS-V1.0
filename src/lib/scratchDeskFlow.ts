@@ -25,6 +25,7 @@ import { fboFeesForAirport } from '@/lib/fboStore'
 import {
   buildOffersFromCandidates,
   sendAvailabilityPings,
+  type OfferContactOverride,
 } from '@/lib/offerFlow'
 import { getScratchPad } from '@/lib/scratchPadStore'
 import {
@@ -292,6 +293,8 @@ export async function recommendForDeskDraft(
 export async function sendDeskTripOffers(opts: {
   draft: DeskDraft
   candidates: Candidate[]
+  /** Per-operator email / SMS / channel overrides from the desk. */
+  contactOverrides?: Record<string, OfferContactOverride>
 }): Promise<TripStoreRow> {
   if (!opts.candidates.length) throw new Error('Select at least one operator')
   const draft = syncDeskDraftDerived(opts.draft)
@@ -319,7 +322,11 @@ export async function sendDeskTripOffers(opts: {
     client_id: draft.client_id || undefined,
   })
   mutateTrip(trip.id, (t) => {
-    t.offers = buildOffersFromCandidates(trip.id, opts.candidates)
+    t.offers = buildOffersFromCandidates(
+      trip.id,
+      opts.candidates,
+      opts.contactOverrides,
+    )
     if (draft.client_id) t.client_id = draft.client_id
     t.events.push({
       at: new Date().toISOString(),

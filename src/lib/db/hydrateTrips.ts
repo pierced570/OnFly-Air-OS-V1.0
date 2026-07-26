@@ -180,6 +180,13 @@ export async function hydrateTrips(): Promise<number> {
           ? (notes.needsInfo as string[])
           : [],
         contact_cell: String(notes.contact_cell || ''),
+        contact_email: String(notes.contact_email || ''),
+        quote_link_channel:
+          notes.quote_link_channel === 'sms' ||
+          notes.quote_link_channel === 'email' ||
+          notes.quote_link_channel === 'both'
+            ? notes.quote_link_channel
+            : 'both',
       })
       offersByTrip.set(tripId, list)
     }

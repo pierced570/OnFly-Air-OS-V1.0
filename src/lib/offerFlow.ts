@@ -4,9 +4,16 @@
  */
 import { createCommsAdapter, getMockCommsLog } from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
+import {
+  channelIncludesEmail,
+  channelIncludesSms,
+  normalizeQuoteLinkChannel,
+  type QuoteLinkChannel,
+} from '@/domain/quoteLinkChannel'
 import type { Candidate } from '@/domain/routing'
 import {
-  availabilityPingBody,
+  availabilityEmailSubject,
+  availabilityPingWithLink,
   parseAvailabilityReply,
   quoteLinkBody,
   standDownBody,
@@ -24,26 +31,72 @@ import {
   type OfferRow,
 } from '@/lib/tripStore'
 
+export type OfferContactOverride = {
+  contact_email?: string
+  contact_cell?: string
+  quote_link_channel?: QuoteLinkChannel
+}
+
 export function buildOffersFromCandidates(
   tripId: string,
   candidates: Candidate[],
+  overrides?: Record<string, OfferContactOverride>,
 ): OfferRow[] {
-  return candidates.map((c, i) => buildOfferRow(tripId, c, i))
+  return candidates.map((c, i) => {
+    const row = buildOfferRow(tripId, c, i)
+    const ov = overrides?.[c.operator_id]
+    if (!ov) return row
+    if (ov.contact_email !== undefined) row.contact_email = ov.contact_email.trim()
+    if (ov.contact_cell !== undefined) row.contact_cell = ov.contact_cell.trim()
+    if (ov.quote_link_channel !== undefined) {
+      row.quote_link_channel = normalizeQuoteLinkChannel(ov.quote_link_channel)
+    }
+    return row
+  })
+}
+
+function appBaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return ''
 }
 
 export async function sendAvailabilityPings(tripId: string) {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
   const comms = createCommsAdapter()
+  const email = createEmailAdapter()
   if (trip.state === 'quoted_estimated') {
     safeTransitionTrip(tripId, 'offers_out', 'dispatcher')
   }
   const now = new Date().toISOString()
   const fresh = getTrip(tripId)!
+  const base = appBaseUrl()
   for (const o of fresh.offers) {
     if (o.state === 'stood_down' || o.state === 'unavailable') continue
-    const body = availabilityPingBody(fresh.lane, fresh.payload_summary, fresh.ready_label)
-    await comms.send({ channel: 'sms', to: o.contact_cell, body })
+    const channel = normalizeQuoteLinkChannel(o.quote_link_channel)
+    const body = availabilityPingWithLink(
+      fresh.lane,
+      fresh.payload_summary,
+      fresh.ready_label,
+      o.magic_token,
+      base,
+    )
+    const sent: { sms?: string; email?: string } = {}
+    if (channelIncludesSms(channel) && o.contact_cell.trim()) {
+      await comms.send({ channel: 'sms', to: o.contact_cell, body })
+      sent.sms = o.contact_cell
+    }
+    if (channelIncludesEmail(channel) && o.contact_email.includes('@')) {
+      await email.send({
+        to: o.contact_email.trim(),
+        subject: availabilityEmailSubject(fresh.lane),
+        text: body,
+        html: `<p>${body.replace(/\n/g, '<br/>')}</p>`,
+      })
+      sent.email = o.contact_email.trim()
+    }
     mutateTrip(tripId, (t) => {
       const offer = t.offers.find((x) => x.id === o.id)!
       offer.ping_sent_at = now
@@ -52,7 +105,11 @@ export async function sendAvailabilityPings(tripId: string) {
         at: now,
         actor: 'comms',
         kind: 'offer_ping',
-        payload: { offer_id: o.id, to: o.contact_cell },
+        payload: {
+          offer_id: o.id,
+          channel,
+          to: sent,
+        },
       })
     })
   }
@@ -125,7 +182,11 @@ export async function respondOfferAvailability(
 export async function submitOperatorQuote(
   token: string,
   input: {
+    /** Operator-chosen tail — never pre-recommended on the offer board. */
+    tail?: string
     time_to_position_min: number
+    /** Ground time at origin after position ETA (default 40). */
+    quick_turn_min?: number
     live_leg_min: number
     price_net: number
     wait_ok: boolean
@@ -137,8 +198,14 @@ export async function submitOperatorQuote(
   const found = (await import('@/lib/tripStore')).getTripByOfferToken(token)
   if (!found) throw new Error('invalid offer token')
   const { trip, offer } = found
+  const tail = input.tail?.trim().toUpperCase()
+  const quickTurn =
+    input.quick_turn_min != null && Number.isFinite(input.quick_turn_min)
+      ? Math.max(0, Math.floor(input.quick_turn_min))
+      : 40
   mutateTrip(trip.id, (t) => {
     const o = t.offers.find((x) => x.id === offer.id)!
+    if (tail) o.tail = tail
     o.time_to_position_min = input.time_to_position_min
     o.live_leg_min = input.live_leg_min
     o.price_net = input.price_net
@@ -151,7 +218,12 @@ export async function submitOperatorQuote(
       at: new Date().toISOString(),
       actor: o.operator_name,
       kind: 'offer_quoted',
-      payload: { ...input, offer_id: o.id },
+      payload: {
+        ...input,
+        quick_turn_min: quickTurn,
+        tail: tail || o.tail,
+        offer_id: o.id,
+      },
     })
   })
   const { applyOfferTtpToTrip } = await import('@/lib/tripStore')

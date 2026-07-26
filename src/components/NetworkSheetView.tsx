@@ -138,6 +138,7 @@ export function NetworkSheetView({ filter }: { filter: string }) {
               <th className="px-2 py-2">Contact</th>
               <th className="px-2 py-2">Cell</th>
               <th className="px-2 py-2">Email</th>
+              <th className="px-2 py-2">Quote links</th>
               <th className="px-2 py-2">Ops email</th>
               <th className="px-2 py-2">Active</th>
             </tr>
@@ -393,6 +394,24 @@ export function NetworkSheetView({ filter }: { filter: string }) {
                     }
                     placeholder="email"
                   />
+                </td>
+                <td className="px-1 py-1">
+                  <select
+                    className={cellText}
+                    value={r.quote_link_channel ?? 'both'}
+                    title="Where trip-offer / quote links are sent"
+                    onChange={(e) =>
+                      updateSheetOperatorField(
+                        r.operator_id,
+                        'quote_link_channel',
+                        e.target.value,
+                      )
+                    }
+                  >
+                    <option value="both">Email + SMS</option>
+                    <option value="email">Email only</option>
+                    <option value="sms">SMS only</option>
+                  </select>
                 </td>
                 <td className="px-1 py-1">
                   <input

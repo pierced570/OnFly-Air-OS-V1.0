@@ -11,9 +11,28 @@ export function availabilityPingBody(lane: string, payload: string, ready: strin
   return `OnFly trip offer: ${lane}, ${payload}, ready ${ready}. Available to quote? Reply 1 YES / 2 NO.`
 }
 
+export function offerLinkUrl(token: string, appBase = ''): string {
+  const base = appBase.replace(/\/$/, '')
+  return `${base}/offer/${token}`
+}
+
+/** SMS / email body with magic link (desk + pings). */
+export function availabilityPingWithLink(
+  lane: string,
+  payload: string,
+  ready: string,
+  token: string,
+  appBase = '',
+): string {
+  return `${availabilityPingBody(lane, payload, ready)}\nRespond here: ${offerLinkUrl(token, appBase)}`
+}
+
+export function availabilityEmailSubject(lane: string): string {
+  return `OnFly trip offer — ${lane}`
+}
+
 export function quoteLinkBody(token: string, appBase = ''): string {
-  const url = `${appBase}/offer/${token}`
-  return `Great — quote here: ${url}`
+  return `Great — quote here: ${offerLinkUrl(token, appBase)}`
 }
 
 export function standDownBody(lane: string): string {

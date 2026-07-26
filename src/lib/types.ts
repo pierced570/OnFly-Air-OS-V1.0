@@ -13,6 +13,11 @@ export type OperatorRow = {
   contact_email?: string | null
   ops_email?: string | null
   notes?: string | null
+  /**
+   * Where quote / availability links go: sms | email | both.
+   * Default both when unset.
+   */
+  quote_link_channel?: 'sms' | 'email' | 'both' | null
 }
 
 export type AircraftRow = {

@@ -179,6 +179,9 @@ async function persistOperatorToDb(
   if (patch.ops_email !== undefined) opBody.ops_email = patch.ops_email
   if (patch.base_icao !== undefined) opBody.base_icao = patch.base_icao
   if (patch.notes !== undefined) opBody.notes = patch.notes
+  if (patch.quote_link_channel !== undefined) {
+    opBody.quote_link_channel = patch.quote_link_channel
+  }
   if (Object.keys(opBody).length) {
     const { error } = await supabase
       .from('operators')

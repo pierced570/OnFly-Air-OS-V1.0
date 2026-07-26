@@ -7,6 +7,10 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
+import {
+  DEFAULT_QUOTE_LINK_CHANNEL,
+  type QuoteLinkChannel,
+} from '@/domain/quoteLinkChannel'
 import type { Candidate } from '@/domain/routing'
 import {
   STANDARD_CARGO_DEFAULTS,
@@ -22,6 +26,18 @@ import {
   listClients,
   subscribeClients,
 } from '@/lib/clientStore'
+import {
+  addDeskOperator,
+  candidateFromDeskHit,
+  contactOverrideFromHit,
+  ensureDeskOperatorsLoaded,
+  listDeskOperators,
+  searchDeskOperators,
+  toDeskOperatorHit,
+  type DeskContactOverride,
+  type DeskOperatorHit,
+} from '@/lib/deskOperatorSearch'
+import { updateSheetOperatorField } from '@/lib/networkSheetStore'
 import {
   newDeskLeg,
   parseScratchToDeskDraft,
@@ -73,6 +89,45 @@ export default function DeskParsePage() {
   const [newContactName, setNewContactName] = useState('')
   const [newContactEmail, setNewContactEmail] = useState('')
   const [ruleChips, setRuleChips] = useState<string[]>([])
+  /** Extra candidates pulled via operator search (not from recommend). */
+  const [extraCandidates, setExtraCandidates] = useState<Candidate[]>([])
+  const [contactOverrides, setContactOverrides] = useState<
+    Record<string, DeskContactOverride>
+  >({})
+  const [opQuery, setOpQuery] = useState('')
+  const [showAddOp, setShowAddOp] = useState(false)
+  const [addOpName, setAddOpName] = useState('')
+  const [addOpBase, setAddOpBase] = useState('')
+  const [addOpEmail, setAddOpEmail] = useState('')
+  const [addOpCell, setAddOpCell] = useState('')
+  const [addOpChannel, setAddOpChannel] = useState<QuoteLinkChannel>(
+    DEFAULT_QUOTE_LINK_CHANNEL,
+  )
+
+  function seedOverride(hit: DeskOperatorHit) {
+    setContactOverrides((prev) => {
+      if (prev[hit.operator_id]) return prev
+      return { ...prev, [hit.operator_id]: contactOverrideFromHit(hit) }
+    })
+  }
+
+  function seedOverrideForCandidate(c: Candidate) {
+    const op = listDeskOperators().find((o) => o.id === c.operator_id)
+    if (op) seedOverride(toDeskOperatorHit(op))
+    else {
+      setContactOverrides((prev) => {
+        if (prev[c.operator_id]) return prev
+        return {
+          ...prev,
+          [c.operator_id]: {
+            contact_email: '',
+            contact_cell: '',
+            quote_link_channel: DEFAULT_QUOTE_LINK_CHANNEL,
+          },
+        }
+      })
+    }
+  }
 
   async function applyRecommend(next: DeskDraft) {
     const synced = syncDeskDraftDerived(next)
@@ -80,14 +135,26 @@ export default function DeskParsePage() {
     setCandidates(rec.candidates)
     setRecError(rec.error ?? null)
     setRuleChips(rec.rule_chips)
-    setSelected(new Set(rec.candidates.slice(0, 5).map((c) => c.aircraft_id)))
+    setSelected((prev) => {
+      const recommendedIds = new Set(rec.candidates.map((c) => c.aircraft_id))
+      const nextSel = new Set(
+        rec.candidates.slice(0, 5).map((c) => c.aircraft_id),
+      )
+      // Keep search / manual picks that aren't in the recommend list.
+      for (const id of prev) {
+        if (!recommendedIds.has(id)) nextSel.add(id)
+      }
+      return nextSel
+    })
+    for (const c of rec.candidates.slice(0, 5)) seedOverrideForCandidate(c)
     return rec
   }
 
   useEffect(() => {
     let cancelled = false
     setBusy(true)
-    void parseScratchToDeskDraft()
+    void ensureDeskOperatorsLoaded()
+      .then(() => parseScratchToDeskDraft())
       .then(async ({ draft: d }) => {
         if (cancelled) return
         const matched = withClientMatch(d, listClients())
@@ -123,6 +190,72 @@ export default function DeskParsePage() {
   }, [draft?.client_name, clients])
 
   const matchedClient = draft?.client_id ? getClient(draft.client_id) : undefined
+
+  const opHits = useMemo(
+    () => searchDeskOperators(opQuery, 8),
+    [opQuery, contactOverrides],
+  )
+
+  const allCandidates = useMemo(() => {
+    const byAc = new Map<string, Candidate>()
+    for (const c of candidates) byAc.set(c.aircraft_id, c)
+    for (const c of extraCandidates) {
+      if (!byAc.has(c.aircraft_id)) byAc.set(c.aircraft_id, c)
+    }
+    return [...byAc.values()]
+  }, [candidates, extraCandidates])
+
+  const selectedCandidates = useMemo(
+    () => allCandidates.filter((c) => selected.has(c.aircraft_id)),
+    [allCandidates, selected],
+  )
+
+  function patchOverride(
+    operatorId: string,
+    patch: Partial<DeskContactOverride>,
+  ) {
+    setContactOverrides((prev) => {
+      const cur = prev[operatorId] ?? {
+        contact_email: '',
+        contact_cell: '',
+        quote_link_channel: DEFAULT_QUOTE_LINK_CHANNEL,
+      }
+      return { ...prev, [operatorId]: { ...cur, ...patch } }
+    })
+  }
+
+  function addOperatorHit(hit: DeskOperatorHit) {
+    const cand = candidateFromDeskHit(hit)
+    setExtraCandidates((prev) => {
+      if (prev.some((c) => c.aircraft_id === cand.aircraft_id)) return prev
+      if (candidates.some((c) => c.aircraft_id === cand.aircraft_id)) return prev
+      return [...prev, cand]
+    })
+    setSelected((prev) => new Set(prev).add(cand.aircraft_id))
+    seedOverride(hit)
+    setOpQuery('')
+  }
+
+  function saveNewOperator() {
+    try {
+      const hit = addDeskOperator({
+        name: addOpName,
+        base_icao: addOpBase,
+        contact_email: addOpEmail,
+        contact_cell: addOpCell,
+        quote_link_channel: addOpChannel,
+      })
+      addOperatorHit(hit)
+      setShowAddOp(false)
+      setAddOpName('')
+      setAddOpBase('')
+      setAddOpEmail('')
+      setAddOpCell('')
+      setAddOpChannel(DEFAULT_QUOTE_LINK_CHANNEL)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   function patch(p: Partial<DeskDraft>) {
     setDraft((d) => (d ? syncDeskDraftDerived({ ...d, ...p }) : d))
@@ -241,7 +374,7 @@ export default function DeskParsePage() {
         return
       }
     }
-    const picks = candidates.filter((c) => selected.has(c.aircraft_id))
+    const picks = allCandidates.filter((c) => selected.has(c.aircraft_id))
     if (!picks.length) {
       setError('Select at least one operator / tail')
       return
@@ -249,9 +382,34 @@ export default function DeskParsePage() {
     setSending(true)
     setError(null)
     try {
+      // Persist desk-edited contacts onto the operator profile when filled.
+      for (const c of picks) {
+        const ov = contactOverrides[c.operator_id]
+        if (!ov) continue
+        if (ov.contact_email.trim()) {
+          updateSheetOperatorField(
+            c.operator_id,
+            'contact_email',
+            ov.contact_email.trim(),
+          )
+        }
+        if (ov.contact_cell.trim()) {
+          updateSheetOperatorField(
+            c.operator_id,
+            'contact_cell',
+            ov.contact_cell.trim(),
+          )
+        }
+        updateSheetOperatorField(
+          c.operator_id,
+          'quote_link_channel',
+          ov.quote_link_channel,
+        )
+      }
       const trip = await sendDeskTripOffers({
         draft,
         candidates: picks,
+        contactOverrides,
       })
       setSentTripId(trip.id)
     } catch (e) {
@@ -797,6 +955,249 @@ export default function DeskParsePage() {
           <section className="space-y-3">
             <div className="flex flex-wrap items-end justify-between gap-2">
               <h2 className="text-lg font-semibold text-cream">
+                Operator search
+              </h2>
+              <button
+                type="button"
+                className="text-xs text-gold hover:text-gold-lt"
+                onClick={() => setShowAddOp((v) => !v)}
+              >
+                {showAddOp ? 'Cancel' : '+ Add new operator'}
+              </button>
+            </div>
+            <label className={label}>
+              Search operators
+              <input
+                className={input}
+                value={opQuery}
+                onChange={(e) => setOpQuery(e.target.value)}
+                placeholder="Name, base, email, or phone"
+              />
+            </label>
+            {opQuery.trim() && (
+              <ul className="space-y-2">
+                {opHits.length === 0 && (
+                  <li className="text-sm text-muted">No operators match.</li>
+                )}
+                {opHits.map((hit) => (
+                  <li
+                    key={hit.operator_id}
+                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium text-cream">{hit.name}</div>
+                      <div className="mt-1 grid gap-0.5 text-xs text-muted sm:grid-cols-2">
+                        <span>
+                          Location:{' '}
+                          <span className="avionic text-cream">
+                            {hit.base_icao || '—'}
+                          </span>
+                        </span>
+                        <span>
+                          Email:{' '}
+                          <span className="text-cream">
+                            {hit.contact_email || '—'}
+                          </span>
+                        </span>
+                        <span>
+                          Text:{' '}
+                          <span className="avionic text-cream">
+                            {hit.contact_cell || '—'}
+                          </span>
+                        </span>
+                        <span>
+                          Links:{' '}
+                          {hit.quote_link_channel === 'both'
+                            ? 'Email + SMS'
+                            : hit.quote_link_channel === 'email'
+                              ? 'Email only'
+                              : 'SMS only'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-md bg-gold px-3 py-1.5 text-xs font-semibold text-ink"
+                      onClick={() => addOperatorHit(hit)}
+                    >
+                      Add to send
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {showAddOp && (
+              <div className="space-y-2 rounded-lg border border-gold/30 bg-gold/5 p-3">
+                <div className="text-xs font-medium uppercase tracking-wider text-gold">
+                  New operator
+                </div>
+                <input
+                  className={input}
+                  placeholder="Operator name *"
+                  value={addOpName}
+                  onChange={(e) => setAddOpName(e.target.value)}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className={input}
+                    placeholder="Base ICAO"
+                    value={addOpBase}
+                    onChange={(e) => setAddOpBase(e.target.value)}
+                  />
+                  <select
+                    className={input}
+                    value={addOpChannel}
+                    onChange={(e) =>
+                      setAddOpChannel(e.target.value as QuoteLinkChannel)
+                    }
+                  >
+                    <option value="both">Email + SMS</option>
+                    <option value="email">Email only</option>
+                    <option value="sms">SMS only</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className={input}
+                    type="email"
+                    placeholder="Email"
+                    value={addOpEmail}
+                    onChange={(e) => setAddOpEmail(e.target.value)}
+                  />
+                  <input
+                    className={input}
+                    placeholder="Text / SMS number"
+                    value={addOpCell}
+                    onChange={(e) => setAddOpCell(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="w-full rounded-md bg-gold py-2 text-sm font-medium text-ink"
+                  onClick={saveNewOperator}
+                >
+                  Save & add to send
+                </button>
+              </div>
+            )}
+          </section>
+
+          {selectedCandidates.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-cream">
+                Send contacts ({selectedCandidates.length})
+              </h2>
+              <p className="text-xs text-muted">
+                Email and SMS prefill from the operator profile when we have
+                them — blank means add before send. Channel defaults to both
+                unless the profile says otherwise.
+              </p>
+              <ul className="space-y-3">
+                {selectedCandidates.map((c) => {
+                  const ov = contactOverrides[c.operator_id] ?? {
+                    contact_email: '',
+                    contact_cell: '',
+                    quote_link_channel: DEFAULT_QUOTE_LINK_CHANNEL,
+                  }
+                  const loc =
+                    listDeskOperators().find((o) => o.id === c.operator_id)
+                      ?.base_icao ?? '—'
+                  return (
+                    <li
+                      key={c.aircraft_id}
+                      className="space-y-2 rounded-lg border border-gold/40 bg-gold/5 p-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <div className="font-medium text-cream">
+                            {c.operator_name}{' '}
+                            <span className="avionic text-gold">{c.tail}</span>
+                          </div>
+                          <div className="text-xs text-muted">
+                            Location{' '}
+                            <span className="avionic text-cream">{loc}</span>
+                            {c.type_name ? ` · ${c.type_name}` : ''}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-xs text-muted hover:text-late"
+                          onClick={() => {
+                            setSelected((prev) => {
+                              const next = new Set(prev)
+                              next.delete(c.aircraft_id)
+                              return next
+                            })
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className={label}>
+                          Email
+                          <input
+                            className={input}
+                            type="email"
+                            value={ov.contact_email}
+                            placeholder="ops@operator.com"
+                            onChange={(e) =>
+                              patchOverride(c.operator_id, {
+                                contact_email: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className={label}>
+                          Text / SMS
+                          <input
+                            className={input}
+                            value={ov.contact_cell}
+                            placeholder="+1…"
+                            onChange={(e) =>
+                              patchOverride(c.operator_id, {
+                                contact_cell: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div
+                        className="flex rounded-lg border border-border bg-surface-2 p-0.5"
+                        role="group"
+                        aria-label="Quote link channel"
+                      >
+                        {(
+                          [
+                            ['both', 'Both'],
+                            ['email', 'Email'],
+                            ['sms', 'SMS'],
+                          ] as const
+                        ).map(([val, lab]) => (
+                          <button
+                            key={val}
+                            type="button"
+                            className={seg(ov.quote_link_channel === val)}
+                            onClick={() =>
+                              patchOverride(c.operator_id, {
+                                quote_link_channel: val,
+                              })
+                            }
+                          >
+                            {lab}
+                          </button>
+                        ))}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <h2 className="text-lg font-semibold text-cream">
                 Recommended operators
               </h2>
               <Link
@@ -839,7 +1240,10 @@ export default function DeskParsePage() {
                           setSelected((prev) => {
                             const next = new Set(prev)
                             if (next.has(id)) next.delete(id)
-                            else next.add(id)
+                            else {
+                              next.add(id)
+                              seedOverrideForCandidate(c)
+                            }
                             return next
                           })
                         }}
