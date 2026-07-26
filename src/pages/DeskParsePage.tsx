@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
+import { formatOfferDestinationConfirm } from '@/domain/offerRecipients'
 import {
   DEFAULT_QUOTE_LINK_CHANNEL,
   type QuoteLinkChannel,
@@ -348,16 +349,28 @@ export default function DeskParsePage() {
       setError('Select at least one operator')
       return
     }
+    const overridesForSend: Record<string, DeskContactOverride> = {}
+    for (const c of picks) {
+      overridesForSend[c.operator_id] =
+        contactOverrides[c.operator_id] ??
+        profileContactsForOperator(c.operator_id)
+    }
+    const confirmed = window.confirm(
+      formatOfferDestinationConfirm(
+        picks.map((c) => ({
+          operator_name: c.operator_name,
+          ...overridesForSend[c.operator_id]!,
+        })),
+        'create_links',
+      ),
+    )
+    if (!confirmed) return
     setSending(true)
     setError(null)
     try {
-      const overridesForSend: Record<string, DeskContactOverride> = {}
       // Persist desk-edited contacts onto the operator profile when filled.
       for (const c of picks) {
-        const ov =
-          contactOverrides[c.operator_id] ??
-          profileContactsForOperator(c.operator_id)
-        overridesForSend[c.operator_id] = ov
+        const ov = overridesForSend[c.operator_id]!
         if (ov.contact_email.trim()) {
           updateSheetOperatorField(
             c.operator_id,
@@ -1009,12 +1022,12 @@ export default function DeskParsePage() {
           {selectedCandidates.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-cream">
-                Send contacts ({selectedCandidates.length})
+                Offer destinations ({selectedCandidates.length})
               </h2>
               <p className="text-xs text-muted">
-                Email and SMS prefill from the operator profile when we have
-                them — blank means add before send. Channel defaults to both
-                unless the profile says otherwise.
+                Confirm email / SMS on file before creating links. Creating
+                links does not notify — you notify later from Trip offers only
+                after confirming destinations again.
               </p>
               <ul className="space-y-3">
                 {selectedCandidates.map((c) => {
@@ -1122,8 +1135,8 @@ export default function DeskParsePage() {
               className="rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
             >
               {sending
-                ? 'Sending…'
-                : `Send offer link to ${selected.size} operator${selected.size === 1 ? '' : 's'}`}
+                ? 'Creating links…'
+                : `Create offer links (${selected.size}) — no notify`}
             </button>
             <button
               type="button"

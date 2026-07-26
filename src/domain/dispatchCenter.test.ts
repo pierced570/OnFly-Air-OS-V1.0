@@ -112,13 +112,14 @@ describe('dispatchCenter', () => {
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air'))
       .toMatchObject({
         status: 'awaiting',
-        status_label: 'Sent — awaiting reply',
+        status_label: 'Link ready — not notified',
         href: '/offer/tok1',
+        notified: false,
       })
     expect(
       buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air')
         ?.sent_label,
-    ).toMatch(/^Sent @ /)
+    ).toMatch(/^Link ready @ /)
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Charlie Jets'))
       .toMatchObject({
         status: 'quote_submitted',

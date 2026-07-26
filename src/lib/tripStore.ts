@@ -203,6 +203,8 @@ export type OfferRow = {
   type_name: string | null
   state: OfferState
   ping_sent_at: string | null
+  /** Set only when email/SMS notify actually ran (offer_ping). */
+  notified_at: string | null
   replied_at: string | null
   time_to_position_min: number | null
   live_leg_min: number | null
@@ -216,6 +218,8 @@ export type OfferRow = {
   bookingGated: boolean
   needsInfo: string[]
   contact_cell: string
+  /** True when cell was invented for mock SMS — not a real on-file number. */
+  contact_cell_is_mock: boolean
   /** Blank when unknown — desk can fill before send. */
   contact_email: string
   /** Where this offer's quote link is sent (profile default or desk override). */
@@ -583,6 +587,7 @@ export function buildOfferRow(
     type_name: c.type_name,
     state: 'pinged',
     ping_sent_at: null,
+    notified_at: null,
     replied_at: null,
     time_to_position_min: null,
     live_leg_min: null,
@@ -595,6 +600,7 @@ export function buildOfferRow(
     bookingGated: c.bookingGated,
     needsInfo: c.needsInfo,
     contact_cell: contacts.contact_cell,
+    contact_cell_is_mock: contacts.cell_is_mock,
     contact_email: contacts.contact_email,
     quote_link_channel: contacts.quote_link_channel,
   }

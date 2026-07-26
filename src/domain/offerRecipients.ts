@@ -4,6 +4,13 @@
  */
 
 import { DateTime } from 'luxon'
+import {
+  channelIncludesEmail,
+  channelIncludesSms,
+  normalizeQuoteLinkChannel,
+  quoteLinkChannelLabel,
+  type QuoteLinkChannel,
+} from '@/domain/quoteLinkChannel'
 
 export type OfferRecipientStatus =
   | 'awaiting'
@@ -23,6 +30,16 @@ export type OfferStateLike =
   | 'stood_down'
   | 'expired'
   | string
+
+export type OfferDestinationLike = {
+  operator_name?: string
+  contact_email?: string | null
+  contact_cell?: string | null
+  quote_link_channel?: QuoteLinkChannel | string | null
+  /** True when SMS number was invented for mocks — not a real on-file contact. */
+  contact_cell_is_mock?: boolean
+  notified_at?: string | null
+}
 
 /** Map offer row state → dispatcher-facing status. */
 export function offerRecipientStatus(state: OfferStateLike): OfferRecipientStatus {
@@ -47,10 +64,13 @@ export function offerRecipientStatus(state: OfferStateLike): OfferRecipientStatu
 
 export function offerRecipientStatusLabel(
   status: OfferRecipientStatus,
+  opts?: { notified?: boolean },
 ): string {
   switch (status) {
     case 'awaiting':
-      return 'Sent — awaiting reply'
+      return opts?.notified
+        ? 'Notified — awaiting reply'
+        : 'Link ready — not notified'
     case 'yes':
       return 'Accepted (Yes)'
     case 'no':
@@ -66,10 +86,104 @@ export function offerRecipientStatusLabel(
   }
 }
 
-/** Dispatcher: Sent @ Zulu + browser-local, plus relative age. */
+export type OfferDestinationInfo = {
+  channel: QuoteLinkChannel
+  channel_label: string
+  email: string | null
+  sms: string | null
+  sms_is_mock: boolean
+  /** Destinations that would actually receive a notify. */
+  will_reach: string[]
+  /** Missing / unsafe destinations for the chosen channel. */
+  gaps: string[]
+  can_notify: boolean
+  /** One-line for cards. */
+  summary: string
+}
+
+/** Where this offer link would go if notified (email / SMS / both). */
+export function describeOfferDestination(
+  o: OfferDestinationLike,
+): OfferDestinationInfo {
+  const channel = normalizeQuoteLinkChannel(o.quote_link_channel)
+  const email = (o.contact_email ?? '').trim()
+  const smsRaw = (o.contact_cell ?? '').trim()
+  const sms_is_mock = Boolean(o.contact_cell_is_mock)
+  const emailOk = email.includes('@')
+  const smsOk = Boolean(smsRaw) && !sms_is_mock
+  const will_reach: string[] = []
+  const gaps: string[] = []
+
+  if (channelIncludesEmail(channel)) {
+    if (emailOk) will_reach.push(`Email ${email}`)
+    else gaps.push('No email on file')
+  }
+  if (channelIncludesSms(channel)) {
+    if (smsOk) will_reach.push(`SMS ${smsRaw}`)
+    else if (sms_is_mock && smsRaw) {
+      gaps.push(`SMS is mock (${smsRaw}) — not a real contact`)
+    } else gaps.push('No SMS number on file')
+  }
+
+  const summaryParts = [
+    quoteLinkChannelLabel(channel),
+    emailOk ? email : 'email —',
+    smsOk ? smsRaw : sms_is_mock && smsRaw ? `${smsRaw} (mock)` : 'SMS —',
+  ]
+
+  return {
+    channel,
+    channel_label: quoteLinkChannelLabel(channel),
+    email: emailOk ? email : null,
+    sms: smsRaw || null,
+    sms_is_mock,
+    will_reach,
+    gaps,
+    can_notify: will_reach.length > 0,
+    summary: summaryParts.join(' · '),
+  }
+}
+
+/** Confirm dialog body listing exact destinations before create or notify. */
+export function formatOfferDestinationConfirm(
+  rows: OfferDestinationLike[],
+  mode: 'create_links' | 'notify',
+): string {
+  const blocks = rows.map((o) => {
+    const name = o.operator_name?.trim() || 'Operator'
+    const d = describeOfferDestination(o)
+    const reach =
+      d.will_reach.length > 0
+        ? d.will_reach.join('\n  ')
+        : '(nowhere — fill email/SMS first)'
+    const gapBit = d.gaps.length ? `\n  ⚠ ${d.gaps.join('; ')}` : ''
+    return `${name}\n  Channel: ${d.channel_label}\n  ${reach}${gapBit}`
+  })
+  if (mode === 'create_links') {
+    return [
+      'Create shareable offer links only — no email/SMS will be sent yet.',
+      '',
+      'Contacts on file for these operators:',
+      '',
+      ...blocks,
+      '',
+      'Continue?',
+    ].join('\n')
+  }
+  return [
+    'Notify these operators now via the channel on each offer?',
+    '',
+    ...blocks,
+    '',
+    'Send notifications?',
+  ].join('\n')
+}
+
+/** Dispatcher: Link ready / Notified @ Zulu + browser-local, plus relative age. */
 export function formatOfferSentAt(
   utcIso: string | null | undefined,
   nowMs = Date.now(),
+  kind: 'link' | 'notified' = 'link',
 ): { zulu: string; local: string; ago: string; display: string } | null {
   if (!utcIso) return null
   const utc = DateTime.fromISO(utcIso, { zone: 'utc' })
@@ -78,11 +192,12 @@ export function formatOfferSentAt(
   const zulu = utc.toFormat("dd HHmm'Z'")
   const localStr = local.toFormat('dd MMM h:mm a ZZZZ')
   const ago = formatOfferAge(utcIso, nowMs)
+  const prefix = kind === 'notified' ? 'Notified @' : 'Link ready @'
   return {
     zulu,
     local: localStr,
     ago,
-    display: `Sent @ ${zulu} · ${localStr}${ago ? ` · ${ago}` : ''}`,
+    display: `${prefix} ${zulu} · ${localStr}${ago ? ` · ${ago}` : ''}`,
   }
 }
 

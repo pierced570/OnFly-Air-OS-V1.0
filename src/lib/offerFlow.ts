@@ -49,7 +49,11 @@ export function buildOffersFromCandidates(
     const ov = overrides?.[c.operator_id]
     if (!ov) return row
     if (ov.contact_email !== undefined) row.contact_email = ov.contact_email.trim()
-    if (ov.contact_cell !== undefined) row.contact_cell = ov.contact_cell.trim()
+    if (ov.contact_cell !== undefined) {
+      row.contact_cell = ov.contact_cell.trim()
+      // Desk/profile override replaces any invented mock cell.
+      row.contact_cell_is_mock = false
+    }
     if (ov.quote_link_channel !== undefined) {
       row.quote_link_channel = normalizeQuoteLinkChannel(ov.quote_link_channel)
     }
@@ -224,7 +228,11 @@ export async function sendAvailabilityPings(
       base,
     )
     const sent: { sms?: string; email?: string } = {}
-    if (channelIncludesSms(channel) && o.contact_cell.trim()) {
+    if (
+      channelIncludesSms(channel) &&
+      o.contact_cell.trim() &&
+      !o.contact_cell_is_mock
+    ) {
       await comms.send({ channel: 'sms', to: o.contact_cell, body })
       sent.sms = o.contact_cell
     }
@@ -237,9 +245,14 @@ export async function sendAvailabilityPings(
       })
       sent.email = o.contact_email.trim()
     }
+    if (!sent.sms && !sent.email) {
+      // Nothing deliverable — leave as link-ready, do not pretend we notified.
+      continue
+    }
     mutateTrip(tripId, (t) => {
       const offer = t.offers.find((x) => x.id === o.id)!
       offer.ping_sent_at = now
+      offer.notified_at = now
       offer.state = 'pinged'
       t.events.push({
         at: now,
@@ -253,7 +266,59 @@ export async function sendAvailabilityPings(
       })
     })
   }
+  await persistOffersTrip(tripId)
   return getTrip(tripId)!
+}
+
+/** Update destination contacts on an open offer before notify / share. */
+export async function updateOfferContacts(
+  tripId: string,
+  offerId: string,
+  patch: OfferContactOverride,
+): Promise<OfferRow> {
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
+  const now = new Date().toISOString()
+  mutateTrip(tripId, (t) => {
+    const offer = t.offers.find((x) => x.id === offerId)
+    if (!offer) throw new Error('offer not found')
+    const before = {
+      contact_email: offer.contact_email,
+      contact_cell: offer.contact_cell,
+      quote_link_channel: offer.quote_link_channel,
+    }
+    if (patch.contact_email !== undefined) {
+      offer.contact_email = patch.contact_email.trim()
+    }
+    if (patch.contact_cell !== undefined) {
+      offer.contact_cell = patch.contact_cell.trim()
+      offer.contact_cell_is_mock = false
+    }
+    if (patch.quote_link_channel !== undefined) {
+      offer.quote_link_channel = normalizeQuoteLinkChannel(
+        patch.quote_link_channel,
+      )
+    }
+    t.events.push({
+      at: now,
+      actor: 'dispatcher',
+      kind: 'offer_contacts_updated',
+      payload: {
+        offer_id: offerId,
+        before,
+        after: {
+          contact_email: offer.contact_email,
+          contact_cell: offer.contact_cell,
+          quote_link_channel: offer.quote_link_channel,
+        },
+      },
+    })
+  })
+  await persistOffersTrip(tripId)
+  const fresh = getTrip(tripId)!
+  const row = fresh.offers.find((o) => o.id === offerId)
+  if (!row) throw new Error('offer not found')
+  return row
 }
 
 export async function simulateOperatorReply(tripId: string, offerId: string, body: string) {

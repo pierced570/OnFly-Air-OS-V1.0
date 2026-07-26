@@ -191,13 +191,21 @@ function OfferTripList({
                         {r.status_label}
                       </span>
                     </div>
+                    <div className="mt-1 font-mono text-[11px] text-muted">
+                      {r.destination_summary}
+                    </div>
+                    {r.destination_gaps.length > 0 ? (
+                      <div className="mt-0.5 text-[11px] text-late">
+                        {r.destination_gaps.join(' · ')}
+                      </div>
+                    ) : null}
                     {r.sent_label ? (
                       <div className="mt-1 font-mono text-[11px] text-muted">
                         {r.sent_label}
                       </div>
                     ) : (
                       <div className="mt-1 text-[11px] text-muted">
-                        Link ready — not marked sent yet
+                        Link not created yet
                       </div>
                     )}
                     {r.quote_summary ? (

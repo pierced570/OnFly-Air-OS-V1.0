@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
+  describeOfferDestination,
+  formatOfferDestinationConfirm,
   formatOfferQuoteSummary,
   formatOfferSentAt,
   offerRecipientStatus,
   offerRecipientStatusLabel,
 } from '@/domain/offerRecipients'
+import type { QuoteLinkChannel } from '@/domain/quoteLinkChannel'
 import {
   appendOfferToTrip,
   selectOffersAndHardQuote,
   acceptHardQuote,
+  sendAvailabilityPings,
   simulateOperatorReply,
+  updateOfferContacts,
   updateTripOfferRequest,
   simulatorMessagesForTrip,
 } from '@/lib/offerFlow'
@@ -66,6 +71,17 @@ export default function OffersPage() {
   const [addFocus, setAddFocus] = useState(
     () => searchParams.get('add') === '1',
   )
+  const [contactDrafts, setContactDrafts] = useState<
+    Record<
+      string,
+      {
+        contact_email: string
+        contact_cell: string
+        quote_link_channel: QuoteLinkChannel
+      }
+    >
+  >({})
+  const [notifying, setNotifying] = useState(false)
 
   function refresh() {
     if (!id) return
@@ -82,6 +98,27 @@ export default function OffersPage() {
     setPayloadEdit(trip.payload_summary)
     setReadyEdit(trip.ready_label)
   }, [trip?.id, trip?.lane, trip?.payload_summary, trip?.ready_label])
+
+  useEffect(() => {
+    if (!trip) return
+    const next: typeof contactDrafts = {}
+    for (const o of trip.offers) {
+      next[o.id] = {
+        contact_email: o.contact_email,
+        contact_cell: o.contact_cell,
+        quote_link_channel: o.quote_link_channel,
+      }
+    }
+    setContactDrafts(next)
+  }, [
+    trip?.id,
+    trip?.offers
+      .map(
+        (o) =>
+          `${o.id}:${o.contact_email}:${o.contact_cell}:${o.quote_link_channel}:${o.notified_at ?? ''}`,
+      )
+      .join('|'),
+  ])
 
   useEffect(() => {
     if (!trip?.client_id) return
@@ -143,11 +180,22 @@ export default function OffersPage() {
   }
 
   function addOperator(hit: DeskOperatorHit) {
-    void appendOfferToTrip(
-      trip!.id,
-      candidateFromDeskHit(hit),
-      contactOverrideFromHit(hit),
+    const ov = contactOverrideFromHit(hit)
+    const ok = window.confirm(
+      formatOfferDestinationConfirm(
+        [
+          {
+            operator_name: hit.name,
+            contact_email: ov.contact_email,
+            contact_cell: ov.contact_cell,
+            quote_link_channel: ov.quote_link_channel,
+          },
+        ],
+        'create_links',
+      ),
     )
+    if (!ok) return
+    void appendOfferToTrip(trip!.id, candidateFromDeskHit(hit), ov)
       .then(() => {
         setOpQuery('')
         setOpHits([])
@@ -155,6 +203,49 @@ export default function OffersPage() {
         refresh()
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }
+
+  function saveContacts(offerId: string) {
+    const draft = contactDrafts[offerId]
+    if (!draft || !trip) return
+    void updateOfferContacts(trip.id, offerId, draft)
+      .then(() => {
+        setError(null)
+        refresh()
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }
+
+  function notifyOffers(offerIds?: string[]) {
+    if (!trip) return
+    const fresh = getTrip(trip.id) ?? trip
+    const targets = fresh.offers.filter((o) =>
+      offerIds ? offerIds.includes(o.id) : true,
+    )
+    if (!targets.length) return
+    const ok = window.confirm(
+      formatOfferDestinationConfirm(
+        targets.map((o) => ({
+          operator_name: o.operator_name,
+          contact_email: o.contact_email,
+          contact_cell: o.contact_cell,
+          contact_cell_is_mock: o.contact_cell_is_mock,
+          quote_link_channel: o.quote_link_channel,
+        })),
+        'notify',
+      ),
+    )
+    if (!ok) return
+    setNotifying(true)
+    void sendAvailabilityPings(fresh.id, {
+      offerIds: targets.map((o) => o.id),
+    })
+      .then(() => {
+        setError(null)
+        refresh()
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setNotifying(false))
   }
 
   return (
@@ -172,7 +263,8 @@ export default function OffersPage() {
             {trip.ready_label ? ` · ready ${trip.ready_label}` : ''}
           </p>
           <p className="mt-1 text-xs text-muted">
-            Share offer links — operators are not auto-pinged.
+            Links are shareable only until you explicitly notify — check email /
+            SMS on each recipient first.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -188,6 +280,14 @@ export default function OffersPage() {
             onClick={() => setShowUpdate((v) => !v)}
           >
             Update request
+          </button>
+          <button
+            type="button"
+            disabled={notifying || trip.offers.length === 0}
+            className="rounded-md bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
+            onClick={() => notifyOffers()}
+          >
+            {notifying ? 'Notifying…' : 'Notify all via email/SMS'}
           </button>
         </div>
       </header>
@@ -299,10 +399,23 @@ export default function OffersPage() {
           )}
           {trip.offers.map((o) => {
             const status = offerRecipientStatus(o.state)
-            const statusLabel = offerRecipientStatusLabel(status)
+            const notified = Boolean(o.notified_at)
+            const statusLabel = offerRecipientStatusLabel(status, { notified })
+            const dest = describeOfferDestination(o)
             const quoteSummary = formatOfferQuoteSummary(o)
             const priced =
               o.price_net != null ? clientTotalForOffer(o, trip) : null
+            const draft = contactDrafts[o.id] ?? {
+              contact_email: o.contact_email,
+              contact_cell: o.contact_cell,
+              quote_link_channel: o.quote_link_channel,
+            }
+            const atIso = notified ? o.notified_at : o.ping_sent_at
+            const sent = formatOfferSentAt(
+              atIso,
+              Date.now(),
+              notified ? 'notified' : 'link',
+            )
             const borderCls =
               status === 'yes'
                 ? 'border-onplan/60 bg-onplan/10'
@@ -343,18 +456,23 @@ export default function OffersPage() {
                     >
                       {statusLabel}
                     </div>
-                    {(() => {
-                      const sent = formatOfferSentAt(o.ping_sent_at)
-                      return sent ? (
-                        <div className="mt-1 font-mono text-[11px] text-muted">
-                          {sent.display}
-                        </div>
-                      ) : (
-                        <div className="mt-1 text-[11px] text-muted">
-                          Link ready — not marked sent yet
-                        </div>
-                      )
-                    })()}
+                    <div className="mt-1 font-mono text-[11px] text-cream/85">
+                      {dest.summary}
+                    </div>
+                    {dest.gaps.length > 0 ? (
+                      <div className="mt-0.5 text-[11px] text-late">
+                        {dest.gaps.join(' · ')}
+                      </div>
+                    ) : null}
+                    {sent ? (
+                      <div className="mt-1 font-mono text-[11px] text-muted">
+                        {sent.display}
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-[11px] text-muted">
+                        Link not created yet
+                      </div>
+                    )}
                     {quoteSummary && (
                       <div className="mt-1 font-mono text-xs text-cream/90">
                         {quoteSummary}
@@ -376,6 +494,108 @@ export default function OffersPage() {
                     >
                       Offer link →
                     </Link>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2 rounded border border-border/50 bg-ink/40 p-3">
+                  <div className="text-[11px] uppercase tracking-wider text-muted">
+                    Destination on file
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="block text-xs text-muted">
+                      Email
+                      <input
+                        type="email"
+                        className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 font-mono text-sm text-cream"
+                        value={draft.contact_email}
+                        placeholder="ops@operator.com"
+                        onChange={(e) =>
+                          setContactDrafts((m) => ({
+                            ...m,
+                            [o.id]: {
+                              ...draft,
+                              contact_email: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="block text-xs text-muted">
+                      SMS
+                      <input
+                        className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 font-mono text-sm text-cream"
+                        value={draft.contact_cell}
+                        placeholder="+1…"
+                        onChange={(e) =>
+                          setContactDrafts((m) => ({
+                            ...m,
+                            [o.id]: {
+                              ...draft,
+                              contact_cell: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div
+                    className="flex rounded-lg border border-border bg-surface p-0.5"
+                    role="group"
+                    aria-label="Notify channel"
+                  >
+                    {(
+                      [
+                        ['both', 'Both'],
+                        ['email', 'Email'],
+                        ['sms', 'SMS'],
+                      ] as const
+                    ).map(([val, lab]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        className={[
+                          'flex-1 rounded-md px-2 py-1.5 text-xs font-semibold',
+                          draft.quote_link_channel === val
+                            ? 'bg-gold text-ink'
+                            : 'text-muted hover:text-cream',
+                        ].join(' ')}
+                        onClick={() =>
+                          setContactDrafts((m) => ({
+                            ...m,
+                            [o.id]: {
+                              ...draft,
+                              quote_link_channel: val,
+                            },
+                          }))
+                        }
+                      >
+                        {lab}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded border border-border px-2 py-1 text-xs text-muted hover:text-cream"
+                      onClick={() => saveContacts(o.id)}
+                    >
+                      Save destination
+                    </button>
+                    <button
+                      type="button"
+                      disabled={notifying}
+                      className="rounded border border-gold/50 px-2 py-1 text-xs text-gold hover:bg-gold/10 disabled:opacity-40"
+                      onClick={() => {
+                        void updateOfferContacts(trip.id, o.id, draft)
+                          .then(() => notifyOffers([o.id]))
+                          .catch((e) =>
+                            setError(
+                              e instanceof Error ? e.message : String(e),
+                            ),
+                          )
+                      }}
+                    >
+                      Notify this operator
+                    </button>
                   </div>
                 </div>
                 {o.bookingGated && (

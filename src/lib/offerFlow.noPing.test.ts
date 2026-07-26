@@ -6,6 +6,7 @@ import {
   appendOfferToTrip,
   buildOffersFromCandidates,
   openTripOffers,
+  sendAvailabilityPings,
   updateTripOfferRequest,
 } from '@/lib/offerFlow'
 import {
@@ -61,12 +62,39 @@ describe('offerFlow — no auto-ping', () => {
     expect(opened.state).toBe('offers_out')
     expect(opened.offers[0]?.state).toBe('pinged')
     expect(opened.offers[0]?.ping_sent_at).toBeTruthy()
+    expect(opened.offers[0]?.notified_at).toBeNull()
     expect(getMockCommsLog().length).toBe(smsBefore)
     expect(getMockSentEmails().length).toBe(emailBefore)
     expect(
       opened.events.some((e) => e.kind === 'offer_request'),
     ).toBe(true)
     expect(opened.events.some((e) => e.kind === 'offer_ping')).toBe(false)
+  })
+
+  it('sendAvailabilityPings sets notified_at when email/SMS goes out', async () => {
+    const c = stubCandidate('Alpha Air', 'op-notify')
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KMDW',
+      payload_summary: '2 skids',
+      ready_label: 'ASAP',
+      candidates: [c],
+      payload_kind: 'cargo',
+    })
+    mutateTrip(trip.id, (t) => {
+      t.offers = buildOffersFromCandidates(trip.id, [c], {
+        [c.operator_id]: {
+          contact_email: 'ops@alpha.example',
+          contact_cell: '+15551212',
+          quote_link_channel: 'email',
+        },
+      })
+    })
+    await openTripOffers(trip.id)
+    const emailBefore = getMockSentEmails().length
+    const pinged = await sendAvailabilityPings(trip.id)
+    expect(pinged.offers[0]?.notified_at).toBeTruthy()
+    expect(getMockSentEmails().length).toBeGreaterThan(emailBefore)
+    expect(pinged.events.some((e) => e.kind === 'offer_ping')).toBe(true)
   })
 
   it('appendOfferToTrip adds a recipient without pinging', async () => {

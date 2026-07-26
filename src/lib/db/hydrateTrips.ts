@@ -33,6 +33,7 @@ function mapOfferDbRow(
     type_name: notes.type_name == null ? null : String(notes.type_name),
     state: (String(r.state) as OfferRow['state']) || 'pinged',
     ping_sent_at: r.ping_sent_at ? String(r.ping_sent_at) : null,
+    notified_at: notes.notified_at ? String(notes.notified_at) : null,
     replied_at: r.replied_at ? String(r.replied_at) : null,
     time_to_position_min:
       r.time_to_position_min == null ? null : Number(r.time_to_position_min),
@@ -52,6 +53,7 @@ function mapOfferDbRow(
       ? (notes.needsInfo as string[])
       : [],
     contact_cell: String(notes.contact_cell || ''),
+    contact_cell_is_mock: Boolean(notes.contact_cell_is_mock),
     contact_email: String(notes.contact_email || ''),
     quote_link_channel:
       notes.quote_link_channel === 'sms' ||
