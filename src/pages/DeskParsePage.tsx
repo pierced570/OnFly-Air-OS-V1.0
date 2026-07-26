@@ -34,8 +34,8 @@ const input =
 const label = 'block text-xs font-medium uppercase tracking-wider text-muted'
 const seg = (on: boolean) =>
   [
-    'flex-1 rounded-md px-3 py-2 text-sm font-medium',
-    on ? 'bg-gold text-ink' : 'bg-surface-2 text-muted',
+    'flex-1 rounded-md px-3 py-3 text-sm font-semibold',
+    on ? 'bg-gold text-ink' : 'bg-transparent text-muted hover:text-cream',
   ].join(' ')
 
 function withClientMatch(
@@ -464,27 +464,91 @@ export default function DeskParsePage() {
               )}
             </label>
 
-            <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
-              <button
-                type="button"
-                className={seg(draft.timing === 'asap')}
-                onClick={() => patch({ timing: 'asap', asap: true, ready_label: 'ASAP' })}
+            <div className="space-y-2">
+              <div className={label}>Timing *</div>
+              <div
+                className="flex rounded-lg border border-border bg-surface-2 p-0.5"
+                role="group"
+                aria-label="Trip timing"
               >
-                ASAP
-              </button>
-              <button
-                type="button"
-                className={seg(draft.timing === 'scheduled')}
-                onClick={() =>
-                  patch({
-                    timing: 'scheduled',
-                    asap: false,
-                    ready_label: draft.legs[0]?.date || 'scheduled',
-                  })
-                }
-              >
-                Scheduled
-              </button>
+                <button
+                  type="button"
+                  className={seg(draft.timing === 'asap')}
+                  onClick={() =>
+                    patch({ timing: 'asap', asap: true, ready_label: 'ASAP' })
+                  }
+                >
+                  ASAP
+                </button>
+                <button
+                  type="button"
+                  className={seg(draft.timing === 'scheduled')}
+                  onClick={() => {
+                    const date = draft.legs[0]?.date ?? ''
+                    const time =
+                      draft.ready_label.match(/\b\d{1,2}:\d{2}\b/)?.[0] ?? ''
+                    patch({
+                      timing: 'scheduled',
+                      asap: false,
+                      ready_label:
+                        [date, time].filter(Boolean).join(' ') || 'scheduled',
+                    })
+                  }}
+                >
+                  Scheduled
+                </button>
+              </div>
+              {draft.timing === 'asap' ? (
+                <p className="text-[11px] text-muted">
+                  Ready ASAP / AOG — operators see an ASAP availability ask.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={label}>
+                    Ready date
+                    <input
+                      type="date"
+                      className={input}
+                      value={draft.legs[0]?.date ?? ''}
+                      onChange={(e) => {
+                        const date = e.target.value
+                        const timePart =
+                          draft.ready_label.match(
+                            /\d{1,2}:\d{2}|\d{1,2}\s*(?:am|pm)/i,
+                          )?.[0] ?? ''
+                        patch({
+                          legs: draft.legs.map((l, i) =>
+                            i === 0 ? { ...l, date } : l,
+                          ),
+                          ready_label: [date, timePart].filter(Boolean).join(' '),
+                        })
+                      }}
+                      required
+                    />
+                  </label>
+                  <label className={label}>
+                    Ready time
+                    <input
+                      type="time"
+                      className={input}
+                      value={(() => {
+                        const m = draft.ready_label.match(
+                          /\b(\d{1,2}):(\d{2})\b/,
+                        )
+                        if (!m) return ''
+                        return `${m[1]!.padStart(2, '0')}:${m[2]}`
+                      })()}
+                      onChange={(e) => {
+                        const time = e.target.value
+                        const date = draft.legs[0]?.date ?? ''
+                        patch({
+                          ready_label: [date, time].filter(Boolean).join(' '),
+                        })
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-4 text-sm text-cream">
