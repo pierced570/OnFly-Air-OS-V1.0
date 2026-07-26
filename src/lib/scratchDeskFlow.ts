@@ -1,5 +1,6 @@
 /**
- * Desk flow: scratch notes → AI extract → candidates → trip offers → availability pings.
+ * Desk flow: scratch notes → AI extract → QD-like trip draft → candidates → offers.
+ * No live-leg / operator pricing on this path (operators quote via offer link).
  */
 
 import { createLlmAdapter, type ExtractedRequest } from '@/adapters/llm'
@@ -7,6 +8,11 @@ import { parseDims } from '@/domain/dimsParser'
 import { resolvePlaceToAirport } from '@/domain/resolvePlace'
 import { generateCandidates, type Candidate } from '@/domain/routing'
 import { createMapsAdapter } from '@/adapters/maps'
+import {
+  clientRuleChips,
+  clientRulesForRouting,
+  getClient,
+} from '@/lib/clientStore'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { fboFeesForAirport } from '@/lib/fboStore'
@@ -22,33 +28,124 @@ import {
   type TripStoreRow,
 } from '@/lib/tripStore'
 
-export type DeskDraft = {
-  client_name: string
-  origin_text: string
-  destination_text: string
-  pieces_text: string
-  asap: boolean
-  ready_label: string
-  hazmat: boolean
-  notes: string
-  payload_kind: 'cargo' | 'pax' | 'both'
-  pax_count: number
+export type DeskLeg = {
+  id: string
+  origin_icao: string
+  dest_icao: string
+  date: string
+  pax: number
+  /** Reposition time — not live leg (operators enter live on offer form). */
+  repo_time: string
 }
 
-export function deskDraftFromExtract(ex: ExtractedRequest): DeskDraft {
+export type DeskDraft = {
+  client_name: string
+  /** Matched / selected directory client (null until matched or created). */
+  client_id: string | null
+  po: string
+  timing: 'asap' | 'scheduled'
+  roundtrip: boolean
+  cargo_only: boolean
+  legs: DeskLeg[]
+  pieces_text: string
+  hazmat: boolean
+  notes: string
+  /** Original call-pad scratch — always keep visible on desk. */
+  raw_notes: string
+  payload_kind: 'cargo' | 'pax' | 'both'
+  pax_count: number
+  /** Synced from first leg for resolve/recommend. */
+  origin_text: string
+  destination_text: string
+  asap: boolean
+  ready_label: string
+}
+
+export function newDeskLeg(partial?: Partial<DeskLeg>): DeskLeg {
+  return {
+    id: crypto.randomUUID(),
+    origin_icao: '',
+    dest_icao: '',
+    date: '',
+    pax: 0,
+    repo_time: '',
+    ...partial,
+  }
+}
+
+function icaoFromPlace(text: string | undefined): string {
+  if (!text?.trim()) return ''
+  return resolvePlaceToAirport(text)?.icao ?? text.trim().toUpperCase()
+}
+
+export function deskDraftFromExtract(
+  ex: ExtractedRequest,
+  rawNotes?: string,
+): DeskDraft {
+  const origin = icaoFromPlace(ex.origin_text)
+  const dest = icaoFromPlace(ex.destination_text)
+  const asap = Boolean(ex.asap)
+  const pax = ex.pax_count ?? 0
+  const payload_kind = ex.payload_kind ?? (pax > 0 ? 'both' : 'cargo')
+  const cargo_only = payload_kind === 'cargo' && pax === 0
+  const raw_notes = (rawNotes ?? ex.raw ?? '').trim()
   return {
     client_name: ex.client_name?.trim() || '',
-    origin_text: ex.origin_text?.trim() || '',
-    destination_text: ex.destination_text?.trim() || '',
+    client_id: null,
+    po: '',
+    timing: asap ? 'asap' : 'scheduled',
+    roundtrip: false,
+    cargo_only,
+    legs: [
+      newDeskLeg({
+        origin_icao: origin,
+        dest_icao: dest,
+        pax: cargo_only ? 0 : pax,
+      }),
+    ],
     pieces_text: ex.pieces_text?.trim() || '',
-    asap: Boolean(ex.asap),
-    ready_label: ex.asap
-      ? 'ASAP'
-      : ex.ready_local?.trim() || '',
     hazmat: Boolean(ex.hazmat),
     notes: ex.notes?.trim() || '',
-    payload_kind: ex.payload_kind ?? 'cargo',
-    pax_count: ex.pax_count ?? 0,
+    raw_notes,
+    payload_kind,
+    pax_count: pax,
+    origin_text: origin || (ex.origin_text?.trim() || ''),
+    destination_text: dest || (ex.destination_text?.trim() || ''),
+    asap,
+    ready_label: asap ? 'ASAP' : ex.ready_local?.trim() || '',
+  }
+}
+
+/** Keep origin/dest/asap/payload in sync with QD-style controls. */
+export function syncDeskDraftDerived(draft: DeskDraft): DeskDraft {
+  const leg0 = draft.legs[0]
+  const origin = leg0?.origin_icao?.trim().toUpperCase() || draft.origin_text
+  const dest = leg0?.dest_icao?.trim().toUpperCase() || draft.destination_text
+  const pax = draft.cargo_only
+    ? 0
+    : Math.max(draft.pax_count, leg0?.pax ?? 0, ...draft.legs.map((l) => l.pax))
+  const payload_kind: DeskDraft['payload_kind'] = draft.cargo_only
+    ? 'cargo'
+    : pax > 0
+      ? draft.pieces_text.trim()
+        ? 'both'
+        : 'pax'
+      : draft.payload_kind === 'cargo'
+        ? 'cargo'
+        : 'both'
+  const asap = draft.timing === 'asap'
+  return {
+    ...draft,
+    origin_text: origin,
+    destination_text: dest,
+    pax_count: pax,
+    payload_kind,
+    asap,
+    ready_label: asap
+      ? 'ASAP'
+      : draft.ready_label && draft.ready_label !== 'ASAP'
+        ? draft.ready_label
+        : leg0?.date || 'scheduled',
   }
 }
 
@@ -58,12 +155,27 @@ export async function parseScratchToDeskDraft(): Promise<{
 }> {
   const body = getScratchPad().body
   const extract = await createLlmAdapter().extractTripRequest(body)
-  return { extract, draft: deskDraftFromExtract(extract) }
+  return { extract, draft: deskDraftFromExtract(extract, body) }
+}
+
+export type DeskRecommendResult = {
+  candidates: Candidate[]
+  error?: string
+  lane: string
+  /** True when a directory client’s rules were applied to filtering. */
+  client_rules_applied: boolean
+  rule_chips: string[]
 }
 
 export async function recommendForDeskDraft(
-  draft: DeskDraft,
-): Promise<{ candidates: Candidate[]; error?: string; lane: string }> {
+  draftIn: DeskDraft,
+): Promise<DeskRecommendResult> {
+  const draft = syncDeskDraftDerived(draftIn)
+  const client = draft.client_id ? getClient(draft.client_id) : undefined
+  const client_rules = clientRulesForRouting(client, draft.payload_kind)
+  const rule_chips = draft.client_id ? clientRuleChips(draft.client_id) : []
+  const client_rules_applied = Boolean(client)
+
   const origin = resolvePlaceToAirport(draft.origin_text)
   const destination = resolvePlaceToAirport(draft.destination_text)
   if (!origin || !destination) {
@@ -73,6 +185,8 @@ export async function recommendForDeskDraft(
       error: !origin
         ? `Could not resolve origin from “${draft.origin_text || '—'}”`
         : `Could not resolve destination from “${draft.destination_text || '—'}”`,
+      client_rules_applied,
+      rule_chips,
     }
   }
 
@@ -80,7 +194,6 @@ export async function recommendForDeskDraft(
     draft.payload_kind === 'pax'
       ? []
       : parseDims(draft.pieces_text || '').pieces
-  // Techs + parts / mission text often has no dims yet — soft default for scoring.
   if (
     draft.payload_kind !== 'pax' &&
     !pieces.length &&
@@ -92,7 +205,9 @@ export async function recommendForDeskDraft(
     return {
       candidates: [],
       lane: `${origin.icao}→${destination.icao}`,
-      error: 'Add cargo dims with weight (e.g. 1 skid 48x40x60 @ 800ea)',
+      error: 'Add cargo / mission (e.g. 2 techs + parts, or skid dims @ weight)',
+      client_rules_applied,
+      rule_chips,
     }
   }
 
@@ -102,6 +217,8 @@ export async function recommendForDeskDraft(
       candidates: [],
       lane: `${origin.icao}→${destination.icao}`,
       error: 'No fleet loaded',
+      client_rules_applied,
+      rule_chips,
     }
   }
 
@@ -116,9 +233,10 @@ export async function recommendForDeskDraft(
         mode: 'a2a',
         payload_kind: draft.payload_kind,
         pieces,
-        pax_count: draft.pax_count || 0,
+        pax_count: draft.cargo_only ? 0 : draft.pax_count || 0,
         hazmat: draft.hazmat,
         ready_at: new Date().toISOString(),
+        client_rules,
         origin: {
           kind: 'airport',
           text: draft.origin_text || origin.icao,
@@ -150,12 +268,16 @@ export async function recommendForDeskDraft(
     return {
       candidates: candidates.slice(0, 8),
       lane: `${origin.icao}→${destination.icao}`,
+      client_rules_applied,
+      rule_chips,
     }
   } catch (e) {
     return {
       candidates: [],
       lane: `${origin.icao}→${destination.icao}`,
       error: e instanceof Error ? e.message : String(e),
+      client_rules_applied,
+      rule_chips,
     }
   }
 }
@@ -166,27 +288,41 @@ export async function sendDeskTripOffers(opts: {
   candidates: Candidate[]
 }): Promise<TripStoreRow> {
   if (!opts.candidates.length) throw new Error('Select at least one operator')
-  const lane = `${opts.draft.origin_text || '?'}→${opts.draft.destination_text || '?'}`
+  const draft = syncDeskDraftDerived(opts.draft)
+  const lane =
+    draft.legs
+      .map(
+        (l) =>
+          `${l.origin_icao || draft.origin_text || '?'}→${l.dest_icao || draft.destination_text || '?'}`,
+      )
+      .join(' · ') || `${draft.origin_text || '?'}→${draft.destination_text || '?'}`
   const payload =
-    opts.draft.pieces_text.trim() ||
-    (opts.draft.payload_kind === 'pax' ? 'pax' : 'cargo')
+    draft.pieces_text.trim() ||
+    (draft.payload_kind === 'pax' ? 'pax' : 'cargo')
   const trip = createTripFromCandidates({
     lane,
     payload_summary: payload,
-    ready_label: opts.draft.ready_label || (opts.draft.asap ? 'ASAP' : 'scheduled'),
+    ready_label: draft.ready_label || (draft.asap ? 'ASAP' : 'scheduled'),
     candidates: opts.candidates,
-    payload_kind: opts.draft.payload_kind,
+    payload_kind: draft.payload_kind,
+    client_id: draft.client_id || undefined,
   })
-  // Replace default top-5 with exactly the selected set
   mutateTrip(trip.id, (t) => {
     t.offers = buildOffersFromCandidates(trip.id, opts.candidates)
+    if (draft.client_id) t.client_id = draft.client_id
     t.events.push({
       at: new Date().toISOString(),
       actor: 'dispatcher',
       kind: 'desk_scratch_spool',
       payload: {
-        client_name: opts.draft.client_name || null,
-        notes: opts.draft.notes || null,
+        client_id: draft.client_id || null,
+        client_name: draft.client_name || null,
+        po: draft.po || null,
+        roundtrip: draft.roundtrip,
+        cargo_only: draft.cargo_only,
+        legs: draft.legs,
+        notes: draft.notes || null,
+        raw_notes: draft.raw_notes || null,
       },
     })
   })
