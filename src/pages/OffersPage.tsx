@@ -128,34 +128,32 @@ export default function OffersPage() {
   const picked = quotedIds.filter((oid) => selected[oid])
 
   function saveUpdate() {
-    try {
-      updateTripOfferRequest(trip!.id, {
-        lane: laneEdit,
-        payload_summary: payloadEdit,
-        ready_label: readyEdit,
+    void updateTripOfferRequest(trip!.id, {
+      lane: laneEdit,
+      payload_summary: payloadEdit,
+      ready_label: readyEdit,
+    })
+      .then(() => {
+        setShowUpdate(false)
+        setError(null)
+        refresh()
       })
-      setShowUpdate(false)
-      setError(null)
-      refresh()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }
 
   function addOperator(hit: DeskOperatorHit) {
-    try {
-      appendOfferToTrip(
-        trip!.id,
-        candidateFromDeskHit(hit),
-        contactOverrideFromHit(hit),
-      )
-      setOpQuery('')
-      setOpHits([])
-      setError(null)
-      refresh()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
+    void appendOfferToTrip(
+      trip!.id,
+      candidateFromDeskHit(hit),
+      contactOverrideFromHit(hit),
+    )
+      .then(() => {
+        setOpQuery('')
+        setOpHits([])
+        setError(null)
+        refresh()
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }
 
   return (

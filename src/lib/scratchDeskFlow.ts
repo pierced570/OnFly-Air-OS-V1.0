@@ -348,6 +348,6 @@ export async function sendDeskTripOffers(opts: {
       },
     })
   })
-  openTripOffers(trip.id)
+  await openTripOffers(trip.id)
   return getTrip(trip.id)!
 }

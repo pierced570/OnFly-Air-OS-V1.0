@@ -135,19 +135,21 @@ export default function DeskParsePage() {
     setCandidates(rec.candidates)
     setRecError(rec.error ?? null)
     setRuleChips(rec.rule_chips)
-    setSelected((prev) => {
-      const recommendedIds = new Set(rec.candidates.map((c) => c.aircraft_id))
-      const nextSel = new Set(
-        rec.candidates.slice(0, 5).map((c) => c.aircraft_id),
-      )
-      // Keep search / manual picks that aren't in the recommend list.
-      for (const id of prev) {
-        if (!recommendedIds.has(id)) nextSel.add(id)
-      }
-      return nextSel
-    })
-    for (const c of rec.candidates.slice(0, 5)) seedOverrideForCandidate(c)
+    // Never auto-select recommended operators — dispatcher chooses.
     return rec
+  }
+
+  /** Profile contacts for display / send — blank until the profile has them. */
+  function profileContactsForOperator(
+    operatorId: string,
+  ): DeskContactOverride {
+    const op = listDeskOperators().find((o) => o.id === operatorId)
+    if (op) return contactOverrideFromHit(toDeskOperatorHit(op))
+    return {
+      contact_email: '',
+      contact_cell: '',
+      quote_link_channel: DEFAULT_QUOTE_LINK_CHANNEL,
+    }
   }
 
   useEffect(() => {
@@ -325,37 +327,6 @@ export default function DeskParsePage() {
     setNewContactEmail('')
   }
 
-  async function reparse() {
-    setBusy(true)
-    setError(null)
-    setRecError(null)
-    try {
-      const { draft: d } = await parseScratchToDeskDraft()
-      const matched = withClientMatch(d, listClients())
-      setDraft(matched)
-      if (!matched.client_id && matched.client_name) {
-        setNewName(matched.client_name)
-        setShowNewClient(true)
-      }
-      await applyRecommend(matched)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function refreshRecs() {
-    if (!draft) return
-    setBusy(true)
-    setRecError(null)
-    try {
-      await applyRecommend(draft)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function send() {
     if (!draft) return
     if (!draft.client_id) {
@@ -376,16 +347,19 @@ export default function DeskParsePage() {
     }
     const picks = allCandidates.filter((c) => selected.has(c.aircraft_id))
     if (!picks.length) {
-      setError('Select at least one operator / tail')
+      setError('Select at least one operator')
       return
     }
     setSending(true)
     setError(null)
     try {
+      const overridesForSend: Record<string, DeskContactOverride> = {}
       // Persist desk-edited contacts onto the operator profile when filled.
       for (const c of picks) {
-        const ov = contactOverrides[c.operator_id]
-        if (!ov) continue
+        const ov =
+          contactOverrides[c.operator_id] ??
+          profileContactsForOperator(c.operator_id)
+        overridesForSend[c.operator_id] = ov
         if (ov.contact_email.trim()) {
           updateSheetOperatorField(
             c.operator_id,
@@ -409,7 +383,7 @@ export default function DeskParsePage() {
       const trip = await sendDeskTripOffers({
         draft,
         candidates: picks,
-        contactOverrides,
+        contactOverrides: overridesForSend,
       })
       setSentTripId(trip.id)
     } catch (e) {
@@ -425,7 +399,8 @@ export default function DeskParsePage() {
         <h1 className="text-2xl font-semibold text-cream">Offers out</h1>
         <p className="text-sm text-muted">
           Offer links ready — operators are not auto-pinged. Share a link; they
-          answer Yes / No, then enter tail, TTP, live leg, and cost.
+          answer Yes / No, then enter their aircraft, times, and price on their
+          form.
         </p>
         <RawCallNotes notes={rawNotes || draft?.raw_notes || ''} />
         <div className="flex flex-wrap gap-2">
@@ -914,13 +889,11 @@ export default function DeskParsePage() {
                 {STANDARD_TOOLING.ui_label}
               </div>
               <p className="mt-1 text-[11px] text-muted">
-                Tools default to 12×12×12 @ 50 lb. Parts collection notes go
-                below as we grow the catalog.
+                Tools default to 12×12×12 @ 50 lb.
               </p>
             </div>
             <StandardCargoFields
               piecesText={draft.pieces_text}
-              notes={draft.notes}
               onDimsChange={(dims) => {
                 const pieces_text = composeStandardCargoDims(dims)
                 const next = syncDeskDraftDerived({ ...draft, pieces_text })
@@ -930,26 +903,7 @@ export default function DeskParsePage() {
                   void applyRecommend(next).finally(() => setBusy(false))
                 }
               }}
-              onNotesChange={(notes) => patch({ notes })}
             />
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void reparse()}
-                className="rounded-md border border-border px-3 py-2 text-sm text-cream hover:border-gold/40 disabled:opacity-50"
-              >
-                {busy ? 'Parsing…' : 'Re-parse notes'}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void refreshRecs()}
-                className="rounded-md border border-border px-3 py-2 text-sm text-cream hover:border-gold/40 disabled:opacity-50"
-              >
-                {busy ? 'Scoring…' : 'Re-score operators'}
-              </button>
-            </div>
           </section>
 
           <section className="space-y-3">
@@ -1037,13 +991,14 @@ export default function DeskParsePage() {
                   value={addOpName}
                   onChange={(e) => setAddOpName(e.target.value)}
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    className={input}
-                    placeholder="Base ICAO"
-                    value={addOpBase}
-                    onChange={(e) => setAddOpBase(e.target.value)}
-                  />
+                <AirportSelect
+                  label="Base"
+                  value={addOpBase}
+                  onChange={setAddOpBase}
+                  placeholder="Search ICAO, city, or state…"
+                />
+                <label className={label}>
+                  Quote links
                   <select
                     className={input}
                     value={addOpChannel}
@@ -1055,7 +1010,7 @@ export default function DeskParsePage() {
                     <option value="email">Email only</option>
                     <option value="sms">SMS only</option>
                   </select>
-                </div>
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     className={input}
@@ -1094,11 +1049,8 @@ export default function DeskParsePage() {
               </p>
               <ul className="space-y-3">
                 {selectedCandidates.map((c) => {
-                  const ov = contactOverrides[c.operator_id] ?? {
-                    contact_email: '',
-                    contact_cell: '',
-                    quote_link_channel: DEFAULT_QUOTE_LINK_CHANNEL,
-                  }
+                  const profile = profileContactsForOperator(c.operator_id)
+                  const ov = contactOverrides[c.operator_id] ?? profile
                   const loc =
                     listDeskOperators().find((o) => o.id === c.operator_id)
                       ?.base_icao ?? '—'
@@ -1110,13 +1062,11 @@ export default function DeskParsePage() {
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
                           <div className="font-medium text-cream">
-                            {c.operator_name}{' '}
-                            <span className="avionic text-gold">{c.tail}</span>
+                            {c.operator_name}
                           </div>
                           <div className="text-xs text-muted">
                             Location{' '}
                             <span className="avionic text-cream">{loc}</span>
-                            {c.type_name ? ` · ${c.type_name}` : ''}
                           </div>
                         </div>
                         <button
@@ -1250,11 +1200,12 @@ export default function DeskParsePage() {
                       />
                       <div>
                         <div className="font-medium text-cream">
-                          {c.operator_name}{' '}
-                          <span className="avionic text-gold">{c.tail}</span>
+                          {c.operator_name}
                         </div>
                         <div className="text-xs text-muted">
-                          {c.type_name} · {c.label ?? 'option'} · confidence{' '}
+                          {listDeskOperators().find((o) => o.id === c.operator_id)
+                            ?.base_icao ?? '—'}{' '}
+                          · {c.label ?? 'option'} · confidence{' '}
                           <span className="avionic">
                             {(c.confidence * 100).toFixed(0)}%
                           </span>
@@ -1297,14 +1248,10 @@ const dimBox =
 
 function StandardCargoFields({
   piecesText,
-  notes,
   onDimsChange,
-  onNotesChange,
 }: {
   piecesText: string
-  notes: string
   onDimsChange: (dims: StandardCargoDims) => void
-  onNotesChange: (notes: string) => void
 }) {
   const dims = parseStandardCargoDims(piecesText)
 
@@ -1313,72 +1260,61 @@ function StandardCargoFields({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <label className={label}>
-          Length (in)
-          <input
-            type="number"
-            min={0}
-            step="any"
-            inputMode="decimal"
-            className={dimBox}
-            value={dims.length}
-            placeholder={STANDARD_CARGO_DEFAULTS.length}
-            onChange={(e) => patchDim('length', e.target.value)}
-            aria-label="Standard cargo length inches"
-          />
-        </label>
-        <label className={label}>
-          Width (in)
-          <input
-            type="number"
-            min={0}
-            step="any"
-            inputMode="decimal"
-            className={dimBox}
-            value={dims.width}
-            placeholder={STANDARD_CARGO_DEFAULTS.width}
-            onChange={(e) => patchDim('width', e.target.value)}
-            aria-label="Standard cargo width inches"
-          />
-        </label>
-        <label className={label}>
-          Height (in)
-          <input
-            type="number"
-            min={0}
-            step="any"
-            inputMode="decimal"
-            className={dimBox}
-            value={dims.height}
-            placeholder={STANDARD_CARGO_DEFAULTS.height}
-            onChange={(e) => patchDim('height', e.target.value)}
-            aria-label="Standard cargo height inches"
-          />
-        </label>
-        <label className={label}>
-          Weight (lb)
-          <input
-            type="number"
-            min={0}
-            step="any"
-            inputMode="decimal"
-            className={dimBox}
-            value={dims.weight}
-            placeholder={STANDARD_CARGO_DEFAULTS.weight}
-            onChange={(e) => patchDim('weight', e.target.value)}
-            aria-label="Standard cargo weight pounds"
-          />
-        </label>
-      </div>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <label className={label}>
-        Notes
-        <textarea
-          className={`${input} min-h-[4.5rem] resize-y`}
-          value={notes}
-          onChange={(e) => onNotesChange(e.target.value)}
-          placeholder="Parts / tooling notes — grows with the parts collection"
+        Length (in)
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          className={dimBox}
+          value={dims.length}
+          placeholder={STANDARD_CARGO_DEFAULTS.length}
+          onChange={(e) => patchDim('length', e.target.value)}
+          aria-label="Standard cargo length inches"
+        />
+      </label>
+      <label className={label}>
+        Width (in)
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          className={dimBox}
+          value={dims.width}
+          placeholder={STANDARD_CARGO_DEFAULTS.width}
+          onChange={(e) => patchDim('width', e.target.value)}
+          aria-label="Standard cargo width inches"
+        />
+      </label>
+      <label className={label}>
+        Height (in)
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          className={dimBox}
+          value={dims.height}
+          placeholder={STANDARD_CARGO_DEFAULTS.height}
+          onChange={(e) => patchDim('height', e.target.value)}
+          aria-label="Standard cargo height inches"
+        />
+      </label>
+      <label className={label}>
+        Weight (lb)
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          className={dimBox}
+          value={dims.weight}
+          placeholder={STANDARD_CARGO_DEFAULTS.weight}
+          onChange={(e) => patchDim('weight', e.target.value)}
+          aria-label="Standard cargo weight pounds"
         />
       </label>
     </div>

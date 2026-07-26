@@ -43,7 +43,7 @@ describe('offerFlow — no auto-ping', () => {
     __resetTripsForTests()
   })
 
-  it('openTripOffers moves to offers_out without SMS/email', () => {
+  it('openTripOffers moves to offers_out without SMS/email', async () => {
     const c = stubCandidate('Alpha Air', 'op-a')
     const trip = createTripFromCandidates({
       lane: 'KCAK→KMDW',
@@ -57,7 +57,7 @@ describe('offerFlow — no auto-ping', () => {
     })
     const smsBefore = getMockCommsLog().length
     const emailBefore = getMockSentEmails().length
-    const opened = openTripOffers(trip.id)
+    const opened = await openTripOffers(trip.id)
     expect(opened.state).toBe('offers_out')
     expect(opened.offers[0]?.state).toBe('pinged')
     expect(opened.offers[0]?.ping_sent_at).toBeTruthy()
@@ -69,7 +69,7 @@ describe('offerFlow — no auto-ping', () => {
     expect(opened.events.some((e) => e.kind === 'offer_ping')).toBe(false)
   })
 
-  it('appendOfferToTrip adds a recipient without pinging', () => {
+  it('appendOfferToTrip adds a recipient without pinging', async () => {
     const a = stubCandidate('Alpha Air', 'op-a')
     const trip = createTripFromCandidates({
       lane: 'KCAK→KMDW',
@@ -81,16 +81,16 @@ describe('offerFlow — no auto-ping', () => {
     mutateTrip(trip.id, (t) => {
       t.offers = buildOffersFromCandidates(trip.id, [a])
     })
-    openTripOffers(trip.id)
+    await openTripOffers(trip.id)
     const smsBefore = getMockCommsLog().length
-    appendOfferToTrip(trip.id, stubCandidate('Bravo', 'op-b'))
+    await appendOfferToTrip(trip.id, stubCandidate('Bravo', 'op-b'))
     const fresh = getTrip(trip.id)!
     expect(fresh.offers).toHaveLength(2)
     expect(fresh.offers.some((o) => o.operator_name === 'Bravo')).toBe(true)
     expect(getMockCommsLog().length).toBe(smsBefore)
   })
 
-  it('updateTripOfferRequest rewrites mission fields', () => {
+  it('updateTripOfferRequest rewrites mission fields', async () => {
     const a = stubCandidate('Alpha Air', 'op-a')
     const trip = createTripFromCandidates({
       lane: 'KCAK→KMDW',
@@ -99,8 +99,8 @@ describe('offerFlow — no auto-ping', () => {
       candidates: [a],
       payload_kind: 'cargo',
     })
-    openTripOffers(trip.id)
-    const updated = updateTripOfferRequest(trip.id, {
+    await openTripOffers(trip.id)
+    const updated = await updateTripOfferRequest(trip.id, {
       lane: 'KCLE→KORD',
       payload_summary: '2 techs + tools',
       ready_label: 'tomorrow 0800',

@@ -6,11 +6,148 @@ import type { TripState } from '@/domain/stateMachine'
 import type { ChainLeg, EtaDefaults, EtaSource, ServicePattern } from '@/domain/etaChain'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import {
+  getTripByOfferToken,
   replaceTripsFromDb,
   type OfferRow,
   type TripLegRow,
   type TripStoreRow,
 } from '@/lib/tripStore'
+
+function mapOfferDbRow(
+  r: Record<string, unknown>,
+  tripId: string,
+): OfferRow {
+  let notes: Record<string, unknown> = {}
+  try {
+    notes = r.notes ? JSON.parse(String(r.notes)) : {}
+  } catch {
+    notes = {}
+  }
+  return {
+    id: String(r.id),
+    trip_id: tripId,
+    operator_id: String(r.operator_id || ''),
+    operator_name: String(notes.operator_name || 'Operator'),
+    aircraft_id: String(r.aircraft_id || ''),
+    tail: String(notes.tail || ''),
+    type_name: notes.type_name == null ? null : String(notes.type_name),
+    state: (String(r.state) as OfferRow['state']) || 'pinged',
+    ping_sent_at: r.ping_sent_at ? String(r.ping_sent_at) : null,
+    replied_at: r.replied_at ? String(r.replied_at) : null,
+    time_to_position_min:
+      r.time_to_position_min == null ? null : Number(r.time_to_position_min),
+    live_leg_min: r.live_leg_min == null ? null : Number(r.live_leg_min),
+    wait_ok: r.wait_ok == null ? null : Boolean(r.wait_ok),
+    max_wait_hrs: r.max_wait_hrs == null ? null : Number(r.max_wait_hrs),
+    price_net: r.price_net == null ? null : Number(r.price_net),
+    fee_scope:
+      notes.fee_scope === 'aircraft_only' ||
+      notes.fee_scope === 'aircraft_and_fees'
+        ? notes.fee_scope
+        : null,
+    notes: notes.offer_notes == null ? null : String(notes.offer_notes),
+    magic_token: String(r.magic_token || ''),
+    bookingGated: Boolean(notes.bookingGated),
+    needsInfo: Array.isArray(notes.needsInfo)
+      ? (notes.needsInfo as string[])
+      : [],
+    contact_cell: String(notes.contact_cell || ''),
+    contact_email: String(notes.contact_email || ''),
+    quote_link_channel:
+      notes.quote_link_channel === 'sms' ||
+      notes.quote_link_channel === 'email' ||
+      notes.quote_link_channel === 'both'
+        ? notes.quote_link_channel
+        : 'both',
+  }
+}
+
+/**
+ * Public offer board: resolve magic_token from session, else load that trip
+ * from Supabase so operators on another device can open the link.
+ */
+export async function resolveOfferByToken(token: string): Promise<{
+  trip: TripStoreRow
+  offer: OfferRow
+} | null> {
+  const trimmed = token.trim()
+  if (!trimmed) return null
+  const local = getTripByOfferToken(trimmed)
+  if (local) return local
+  if (!canPersist()) return null
+
+  const offerRows = await safeQuery('offers.by_token', () =>
+    db().from('offers').select('*').eq('magic_token', trimmed).limit(1),
+  )
+  const offerDb = Array.isArray(offerRows) ? offerRows[0] : null
+  if (!offerDb) return null
+  const tripId = String((offerDb as { trip_id: string }).trip_id)
+
+  const tripRows = await safeQuery('trips.by_offer_token', () =>
+    db()
+      .from('trips')
+      .select(
+        'id,ref,state,client_id,lane_label,payload_summary,ready_label,accept_token,session_meta,po_number,created_at,service_pattern,promised_delivery,eta_defaults_snapshot,thread_number,thread_disbanded_at',
+      )
+      .eq('id', tripId)
+      .limit(1),
+  )
+  const tripDb = Array.isArray(tripRows) ? tripRows[0] : null
+  if (!tripDb) return null
+
+  const allOffers = await safeQuery('offers.for_trip', () =>
+    db().from('offers').select('*').eq('trip_id', tripId),
+  )
+  const offers = (Array.isArray(allOffers) ? allOffers : [offerDb]).map((r) =>
+    mapOfferDbRow(r as Record<string, unknown>, tripId),
+  )
+
+  const r = tripDb as Record<string, unknown>
+  const meta = (r.session_meta as Record<string, unknown>) || {}
+  const hard = meta.hard_quote as TripStoreRow['hard_quote'] | undefined
+  const mapped: TripStoreRow = {
+    id: String(r.id),
+    ref: Number(r.ref ?? meta.ref ?? 0),
+    state: String(r.state) as TripState,
+    lane: String(r.lane_label || ''),
+    payload_summary: String(r.payload_summary || ''),
+    ready_label: String(r.ready_label || ''),
+    candidates: Array.isArray(meta.candidates)
+      ? (meta.candidates as TripStoreRow['candidates'])
+      : [],
+    offers,
+    events: [],
+    hard_quote: hard
+      ? { ...hard, accept_token: String(r.accept_token || hard.accept_token) }
+      : r.accept_token
+        ? {
+            total: 0,
+            accept_token: String(r.accept_token),
+            payload_kind: 'cargo' as const,
+          }
+        : undefined,
+    quick: (meta.quick as TripStoreRow['quick']) ?? undefined,
+    eta_chain: [],
+    service_pattern: (r.service_pattern as ServicePattern | null) ?? null,
+    promised_delivery: r.promised_delivery
+      ? String(r.promised_delivery)
+      : null,
+    eta_defaults_snapshot:
+      (r.eta_defaults_snapshot as EtaDefaults | null) ?? null,
+    thread_number: r.thread_number ? String(r.thread_number) : null,
+    thread_disbanded_at: r.thread_disbanded_at
+      ? String(r.thread_disbanded_at)
+      : null,
+    legs: [],
+    participants: [],
+    thread: [],
+    documents: [],
+    invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
+    client_id: r.client_id ? String(r.client_id) : undefined,
+  }
+  replaceTripsFromDb([mapped])
+  return getTripByOfferToken(trimmed)
+}
 
 export async function hydrateTrips(): Promise<number> {
   if (!canPersist()) return 0
@@ -145,49 +282,8 @@ export async function hydrateTrips(): Promise<number> {
   if (Array.isArray(offerRows)) {
     for (const r of offerRows as Record<string, unknown>[]) {
       const tripId = String(r.trip_id)
-      let notes: Record<string, unknown> = {}
-      try {
-        notes = r.notes ? JSON.parse(String(r.notes)) : {}
-      } catch {
-        notes = {}
-      }
       const list = offersByTrip.get(tripId) ?? []
-      list.push({
-        id: String(r.id),
-        trip_id: tripId,
-        operator_id: String(r.operator_id || ''),
-        operator_name: String(notes.operator_name || 'Operator'),
-        aircraft_id: String(r.aircraft_id || ''),
-        tail: String(notes.tail || ''),
-        type_name: notes.type_name == null ? null : String(notes.type_name),
-        state: (String(r.state) as OfferRow['state']) || 'pinged',
-        ping_sent_at: r.ping_sent_at ? String(r.ping_sent_at) : null,
-        replied_at: r.replied_at ? String(r.replied_at) : null,
-        time_to_position_min:
-          r.time_to_position_min == null ? null : Number(r.time_to_position_min),
-        live_leg_min: r.live_leg_min == null ? null : Number(r.live_leg_min),
-        wait_ok: r.wait_ok == null ? null : Boolean(r.wait_ok),
-        max_wait_hrs: r.max_wait_hrs == null ? null : Number(r.max_wait_hrs),
-        price_net: r.price_net == null ? null : Number(r.price_net),
-        fee_scope:
-          notes.fee_scope === 'aircraft_only' || notes.fee_scope === 'aircraft_and_fees'
-            ? notes.fee_scope
-            : null,
-        notes: notes.offer_notes == null ? null : String(notes.offer_notes),
-        magic_token: String(r.magic_token || ''),
-        bookingGated: Boolean(notes.bookingGated),
-        needsInfo: Array.isArray(notes.needsInfo)
-          ? (notes.needsInfo as string[])
-          : [],
-        contact_cell: String(notes.contact_cell || ''),
-        contact_email: String(notes.contact_email || ''),
-        quote_link_channel:
-          notes.quote_link_channel === 'sms' ||
-          notes.quote_link_channel === 'email' ||
-          notes.quote_link_channel === 'both'
-            ? notes.quote_link_channel
-            : 'both',
-      })
+      list.push(mapOfferDbRow(r, tripId))
       offersByTrip.set(tripId, list)
     }
   }

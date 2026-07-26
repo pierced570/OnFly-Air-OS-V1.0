@@ -19,6 +19,7 @@ import {
   standDownBody,
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
+import { appPublicUrl } from '@/lib/appUrl'
 import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
 import { clientTotalForOffer } from '@/lib/offerPricing'
 import {
@@ -56,16 +57,15 @@ export function buildOffersFromCandidates(
   })
 }
 
-function appBaseUrl(): string {
-  const env =
-    typeof import.meta !== 'undefined'
-      ? (import.meta.env?.VITE_APP_URL as string | undefined)
-      : undefined
-  if (env?.trim()) return env.replace(/\/$/, '')
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin
+async function persistOffersTrip(tripId: string): Promise<void> {
+  const fresh = getTrip(tripId)
+  if (!fresh) return
+  try {
+    const { persistTripSnapshot } = await import('@/lib/db/persistTrip')
+    await persistTripSnapshot(fresh)
+  } catch (e) {
+    console.warn('[offers] persist trip snapshot failed', e)
   }
-  return ''
 }
 
 /**
@@ -73,15 +73,13 @@ function appBaseUrl(): string {
  * Does NOT SMS/email (no pings). Use sendAvailabilityPings only if
  * dispatcher explicitly opts into notify.
  */
-export function openTripOffers(tripId: string): TripStoreRow {
+export async function openTripOffers(tripId: string): Promise<TripStoreRow> {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
   if (trip.state === 'quoted_estimated') {
     safeTransitionTrip(tripId, 'offers_out', 'dispatcher', {
       reason: 'Trip offers opened — share links (no auto-ping)',
     })
-  } else if (trip.state !== 'offers_out') {
-    // Already past offers_out — still stamp awaiting rows.
   }
   const now = new Date().toISOString()
   mutateTrip(tripId, (t) => {
@@ -104,15 +102,17 @@ export function openTripOffers(tripId: string): TripStoreRow {
       })
     }
   })
+  // Persist so /offer/:token resolves on other devices (public domain).
+  await persistOffersTrip(tripId)
   return getTrip(tripId)!
 }
 
 /** Append one operator to an existing trip offer list (no ping). */
-export function appendOfferToTrip(
+export async function appendOfferToTrip(
   tripId: string,
   candidate: Candidate,
   override?: OfferContactOverride,
-): OfferRow {
+): Promise<OfferRow> {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
   if (trip.offers.some((o) => o.operator_id === candidate.operator_id)) {
@@ -146,18 +146,19 @@ export function appendOfferToTrip(
       reason: 'Added operator to trip offer request',
     })
   }
+  await persistOffersTrip(tripId)
   return row
 }
 
 /** Update mission fields on an open trip offer request (no re-ping). */
-export function updateTripOfferRequest(
+export async function updateTripOfferRequest(
   tripId: string,
   patch: {
     lane?: string
     payload_summary?: string
     ready_label?: string
   },
-): TripStoreRow {
+): Promise<TripStoreRow> {
   const trip = getTrip(tripId)
   if (!trip) throw new Error('trip not found')
   const now = new Date().toISOString()
@@ -186,6 +187,7 @@ export function updateTripOfferRequest(
       },
     })
   })
+  await persistOffersTrip(tripId)
   return getTrip(tripId)!
 }
 
@@ -206,7 +208,9 @@ export async function sendAvailabilityPings(
   }
   const now = new Date().toISOString()
   const fresh = getTrip(tripId)!
-  const base = appBaseUrl()
+  // Persist before outbound links so /offer/:token resolves on other devices.
+  await persistOffersTrip(tripId)
+  const base = appPublicUrl()
   const filter = opts?.offerIds ? new Set(opts.offerIds) : null
   for (const o of fresh.offers) {
     if (filter && !filter.has(o.id)) continue
@@ -282,7 +286,7 @@ export async function simulateOperatorReply(tripId: string, offerId: string, bod
     await comms.send({
       channel: 'sms',
       to: offer.contact_cell,
-      body: quoteLinkBody(token),
+      body: quoteLinkBody(token, appPublicUrl()),
     })
   }
   return { ok: true as const, result: parsed }

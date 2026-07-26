@@ -205,6 +205,6 @@ export async function approveShortlistAndSpoolOffers(
     t.offers = offers
   })
 
-  openTripOffers(tripId)
+  await openTripOffers(tripId)
   return getTrip(tripId)
 }
