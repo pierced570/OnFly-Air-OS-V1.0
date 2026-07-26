@@ -10,6 +10,7 @@ import {
 } from '@/domain/offerRecipients'
 import type { QuoteLinkChannel } from '@/domain/quoteLinkChannel'
 import {
+  acknowledgeDeclinedOffer,
   appendOfferToTrip,
   selectOffersAndHardQuote,
   sendAvailabilityPings,
@@ -401,7 +402,11 @@ export default function OffersPage() {
           {trip.offers.map((o) => {
             const status = offerRecipientStatus(o.state)
             const notified = Boolean(o.notified_at)
-            const statusLabel = offerRecipientStatusLabel(status, { notified })
+            const declinedAcked =
+              status === 'no' && Boolean(o.declined_acked_at)
+            const statusLabel = declinedAcked
+              ? 'unavailable'
+              : offerRecipientStatusLabel(status, { notified })
             const dest = describeOfferDestination(o)
             const quoteSummary = formatOfferQuoteSummary(o)
             const priced =
@@ -417,6 +422,17 @@ export default function OffersPage() {
               Date.now(),
               notified ? 'notified' : 'link',
             )
+            if (declinedAcked) {
+              return (
+                <article
+                  key={o.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border/30 bg-ink/20 px-3 py-2"
+                >
+                  <span className="text-sm text-cream/80">{o.operator_name}</span>
+                  <span className="text-sm text-muted">unavailable</span>
+                </article>
+              )
+            }
             const borderCls =
               status === 'yes'
                 ? 'border-onplan/60 bg-onplan/10'
@@ -487,14 +503,32 @@ export default function OffersPage() {
                         {priced.fetExempt ? ' · FET exempt' : ''}
                       </div>
                     )}
-                    <Link
-                      className="mt-1 inline-block text-xs text-gold hover:text-gold-lt"
-                      to={`/offer/${o.magic_token}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Offer link →
-                    </Link>
+                    <div className="mt-1 flex flex-col items-end gap-1">
+                      {status === 'no' ? (
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-gold hover:text-gold-lt"
+                          onClick={() => {
+                            void acknowledgeDeclinedOffer(trip.id, o.id).catch(
+                              (e) =>
+                                setError(
+                                  e instanceof Error ? e.message : String(e),
+                                ),
+                            )
+                          }}
+                        >
+                          Acknowledge
+                        </button>
+                      ) : null}
+                      <Link
+                        className="inline-block text-xs text-gold hover:text-gold-lt"
+                        to={`/offer/${o.magic_token}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Offer link →
+                      </Link>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-3 space-y-2 rounded border border-border/50 bg-ink/40 p-3">

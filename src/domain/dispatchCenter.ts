@@ -60,6 +60,8 @@ export type DispatchRecipient = {
   destination_summary: string
   destination_gaps: string[]
   notified: boolean
+  /** Declined (No) collapsed after desk Acknowledge. */
+  declined_acked: boolean
   magic_token: string
   href: string
 }
@@ -142,6 +144,7 @@ export function buildDispatchDrawers(input: {
       state: string
       ping_sent_at?: string | null
       notified_at?: string | null
+      declined_acked_at?: string | null
       replied_at?: string | null
       magic_token?: string
       price_net?: number | null
@@ -193,6 +196,8 @@ export function buildDispatchDrawers(input: {
       const status = offerRecipientStatus(o.state)
       const token = o.magic_token ?? ''
       const notified = Boolean(o.notified_at)
+      const declined_acked =
+        status === 'no' && Boolean(o.declined_acked_at)
       const dest = describeOfferDestination(o)
       const atIso = notified ? o.notified_at : o.ping_sent_at
       const sent = formatOfferSentAt(atIso, Date.now(), notified ? 'notified' : 'link')
@@ -200,13 +205,16 @@ export function buildDispatchDrawers(input: {
         offer_id: o.id,
         name: o.operator_name,
         status,
-        status_label: offerRecipientStatusLabel(status, { notified }),
+        status_label: declined_acked
+          ? 'unavailable'
+          : offerRecipientStatusLabel(status, { notified }),
         quote_summary: formatOfferQuoteSummary(o),
         sent_at: atIso ?? null,
         sent_label: sent?.display ?? null,
         destination_summary: dest.summary,
         destination_gaps: dest.gaps,
         notified,
+        declined_acked,
         magic_token: token,
         href: token ? `/offer/${token}` : `/trips/${t.id}/offers`,
       }

@@ -139,6 +139,7 @@ describe('dispatchCenter', () => {
       .toMatchObject({
         status: 'no',
         status_label: 'Declined (No)',
+        declined_acked: false,
       })
     expect(buckets.submitted_quotes).toHaveLength(1)
     expect(buckets.submitted_quotes[0]?.title).toContain('Charlie Jets')
@@ -146,5 +147,36 @@ describe('dispatchCenter', () => {
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
     expect(buckets.tracking[0]?.href).toContain('/trips/')
+  })
+
+  it('collapses acknowledged declines to unavailable', () => {
+    const buckets = buildDispatchDrawers({
+      requests: [],
+      trips: [
+        {
+          id: 't-ack',
+          ref: 9,
+          lane: 'KCAK→KHPN',
+          state: 'offers_out',
+          legs: [],
+          offers: [
+            {
+              id: 'o-no',
+              operator_name: 'Tester',
+              state: 'unavailable',
+              notified_at: '2026-07-26T23:30:00.000Z',
+              declined_acked_at: '2026-07-26T23:35:00.000Z',
+              magic_token: 'tok-no',
+            },
+          ],
+        },
+      ],
+    })
+    expect(buckets.offers[0]?.recipients?.[0]).toMatchObject({
+      name: 'Tester',
+      status: 'no',
+      status_label: 'unavailable',
+      declined_acked: true,
+    })
   })
 })

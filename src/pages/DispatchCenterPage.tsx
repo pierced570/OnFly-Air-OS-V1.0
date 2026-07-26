@@ -32,6 +32,7 @@ import {
   subscribeScratchPad,
 } from '@/lib/scratchPadStore'
 import { getClient } from '@/lib/clientStore'
+import { acknowledgeDeclinedOffer } from '@/lib/offerFlow'
 import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
 import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
 
@@ -171,9 +172,11 @@ function recipientTone(status: string): string {
 function OfferTripList({
   cards,
   focusTripId,
+  onAcknowledgeDeclined,
 }: {
   cards: ReturnType<typeof buildDispatchDrawers>['offers']
   focusTripId?: string | null
+  onAcknowledgeDeclined: (tripId: string, offerId: string) => void
 }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
@@ -197,11 +200,21 @@ function OfferTripList({
             <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
             <p className="mt-1 text-xs text-muted">
               Quote-request links are emailed on send. Status updates when
-              they answer Yes / No or submit a quote.
+              they answer Yes / No or submit a quote. Acknowledge a No to
+              collapse it.
             </p>
             {c.recipients && c.recipients.length > 0 ? (
               <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">
-                {c.recipients.map((r) => (
+                {c.recipients.map((r) =>
+                  r.declined_acked ? (
+                    <li
+                      key={r.offer_id}
+                      className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
+                    >
+                      <span className="text-cream/80">{r.name}</span>
+                      <span className="text-muted">unavailable</span>
+                    </li>
+                  ) : (
                   <li
                     key={r.offer_id}
                     className="rounded-md border border-border/40 bg-surface/40 px-2.5 py-2"
@@ -237,6 +250,17 @@ function OfferTripList({
                       </div>
                     ) : null}
                     <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
+                      {r.status === 'no' && c.trip_id ? (
+                        <button
+                          type="button"
+                          className="font-medium text-gold hover:text-gold-lt"
+                          onClick={() =>
+                            onAcknowledgeDeclined(c.trip_id!, r.offer_id)
+                          }
+                        >
+                          Acknowledge
+                        </button>
+                      ) : null}
                       <Link
                         className="text-gold hover:text-gold-lt"
                         to={r.href}
@@ -257,7 +281,8 @@ function OfferTripList({
                       </button>
                     </div>
                   </li>
-                ))}
+                  ),
+                )}
               </ul>
             ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
@@ -347,7 +372,10 @@ export default function DispatchCenterPage() {
             client_name: fromQuick || fromDir || null,
             quick: t.quick,
             legs: t.legs,
-            offers: t.offers,
+            offers: t.offers.map((o) => ({
+              ...o,
+              declined_acked_at: o.declined_acked_at,
+            })),
           }
         }),
       }),
@@ -487,7 +515,15 @@ export default function DispatchCenterPage() {
           }
         >
           {d.id === 'offers' ? (
-            <OfferTripList cards={buckets.offers} focusTripId={focusTripId} />
+            <OfferTripList
+              cards={buckets.offers}
+              focusTripId={focusTripId}
+              onAcknowledgeDeclined={(tripId, offerId) => {
+                void acknowledgeDeclinedOffer(tripId, offerId).catch((e) =>
+                  console.warn('[dispatch] acknowledge declined', e),
+                )
+              }}
+            />
           ) : (
             <CardList
               cards={buckets[d.id]}

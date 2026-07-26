@@ -364,6 +364,45 @@ export async function updateOfferContacts(
   return row
 }
 
+/**
+ * Desk acknowledges a Declined (No) so the recipient collapses to a
+ * compact "Name · unavailable" line on Dispatch / Offers.
+ */
+export async function acknowledgeDeclinedOffer(
+  tripId: string,
+  offerId: string,
+): Promise<OfferRow> {
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
+  const offer = trip.offers.find((o) => o.id === offerId)
+  if (!offer) throw new Error('offer not found')
+  if (offer.state !== 'unavailable') {
+    throw new Error('Only declined (No) offers can be acknowledged')
+  }
+  const now = new Date().toISOString()
+  mutateTrip(tripId, (t) => {
+    const o = t.offers.find((x) => x.id === offerId)!
+    if (o.declined_acked_at) return
+    o.declined_acked_at = now
+    t.events.push({
+      at: now,
+      actor: 'dispatcher',
+      kind: 'offer_declined_acked',
+      payload: {
+        offer_id: offerId,
+        operator_id: o.operator_id,
+        operator_name: o.operator_name,
+      },
+    })
+  })
+  const { flushPersistTrip } = await import('@/lib/tripStore')
+  await flushPersistTrip(tripId)
+  const fresh = getTrip(tripId)!
+  const row = fresh.offers.find((o) => o.id === offerId)
+  if (!row) throw new Error('offer not found')
+  return row
+}
+
 export async function respondOfferAvailability(
   token: string,
   available: boolean,
