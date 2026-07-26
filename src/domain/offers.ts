@@ -12,18 +12,22 @@ export function offerLinkUrl(token: string, appBase = ''): string {
   return `${base}/offer/${token}`
 }
 
-/** Plain-text body for email / SMS — Yes/No is on the link, not a text reply. */
+/**
+ * Plain-text body for email / SMS.
+ * No route / payload / ready details here — those live on the offer page.
+ * Params kept for call-site compatibility.
+ */
 export function availabilityPingBody(
-  lane: string,
-  payload: string,
-  ready: string,
+  _lane: string,
+  _payload: string,
+  _ready: string,
 ): string {
   return [
-    'OnFly Air Charter Quote Request',
+    'Charter flight quote request',
     '',
-    'Click the link to see a request for a flight. On the page you’ll see the details and can tap Yes or No — even a No helps us (no need to reply to this email).',
-    '',
-    `${lane} · ${payload} · ready ${ready}`,
+    'Tap the link to open the request and answer Yes or No.',
+    'Takes under a minute — even a No helps us move on.',
+    'No need to reply to this email.',
   ].join('\n')
 }
 
@@ -39,28 +43,27 @@ export function availabilityPingWithLink(
   return `${availabilityPingBody(lane, payload, ready)}\n\n${url}`
 }
 
-/** Branded HTML for the quote-request email. */
+/** Branded HTML for the quote-request email — short, link-first. */
 export function availabilityPingHtml(
-  lane: string,
-  payload: string,
-  ready: string,
+  _lane: string,
+  _payload: string,
+  _ready: string,
   token: string,
   appBase = '',
 ): string {
   const url = offerLinkUrl(token, appBase)
   return [
     `<div style="font-family:system-ui,-apple-system,sans-serif;line-height:1.45;color:#0c0c0e">`,
-    `<p style="margin:0 0 12px"><strong>OnFly Air Charter Quote Request</strong></p>`,
-    `<p style="margin:0 0 16px">Click the link to see a <strong>request for a flight</strong>. On the page you’ll see the details and can tap <strong>Yes</strong> or <strong>No</strong> — even a No helps us move on quickly. No need to reply to this email.</p>`,
-    `<p style="margin:0 0 20px;color:#6b6560">${escapeHtml(lane)} · ${escapeHtml(payload)} · ready ${escapeHtml(ready)}</p>`,
-    `<p style="margin:0"><a href="${escapeAttr(url)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;font-weight:600;text-decoration:none;padding:12px 18px;border-radius:6px">View flight request →</a></p>`,
-    `<p style="margin:16px 0 0;font-size:12px;color:#8a8680">${escapeHtml(url)}</p>`,
+    `<p style="margin:0 0 12px;font-size:20px;font-weight:700">Charter flight quote request</p>`,
+    `<p style="margin:0 0 20px;font-size:15px">Tap below to open the request and answer <strong>Yes</strong> or <strong>No</strong>. Takes under a minute — even a No helps us move on. No need to reply to this email.</p>`,
+    `<p style="margin:0 0 8px"><a href="${escapeAttr(url)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;font-weight:700;font-size:16px;text-decoration:none;padding:16px 22px;border-radius:8px">Open request &amp; reply Yes or No →</a></p>`,
+    `<p style="margin:14px 0 0;font-size:13px"><a href="${escapeAttr(url)}" style="color:#0c0c0e;font-weight:600">${escapeHtml(url)}</a></p>`,
     `</div>`,
   ].join('')
 }
 
 export function availabilityEmailSubject(_lane: string): string {
-  return 'OnFly Air Charter Quote Request'
+  return 'Charter flight quote request'
 }
 
 export function quoteLinkBody(token: string, appBase = ''): string {
