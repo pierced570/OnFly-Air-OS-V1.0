@@ -1,16 +1,36 @@
 /**
  * OnFly “standard tooling” — default cargo when call notes mention tools/tooling.
- * Shown to operators on trip offers under this name.
+ * Desk UI labels this block “Standard cargo” (L/W/H + weight); operators still
+ * see “standard tooling” on trip offers until the parts collection ships.
  */
+
+import { composeDimsLine, parseDimsTriple } from '@/domain/dimsParser'
 
 export const STANDARD_TOOLING = {
   /** Operator-facing name */
   label: 'standard tooling',
+  /** Desk section label */
+  ui_label: 'Standard cargo',
   /** Dims for routing / fit (12×12×12 @ 50 lb) */
   dims_text: '1 piece 12x12x12 @ 50',
   /** Full phrase on offer / payload summary */
   summary: 'standard tooling (12×12×12 @ 50 lb)',
 } as const
+
+/** Desk L / W / H / weight boxes (inches + lb). */
+export type StandardCargoDims = {
+  length: string
+  width: string
+  height: string
+  weight: string
+}
+
+export const STANDARD_CARGO_DEFAULTS: StandardCargoDims = {
+  length: '12',
+  width: '12',
+  height: '12',
+  weight: '50',
+}
 
 /** Strip label so dimsParser can read the piece line. */
 export function toolingDimsForParse(piecesText: string): string {
@@ -19,6 +39,48 @@ export function toolingDimsForParse(piecesText: string): string {
     return STANDARD_TOOLING.dims_text
   }
   return t
+}
+
+export function parseStandardCargoDims(piecesText: string): StandardCargoDims {
+  const t = parseDimsTriple(toolingDimsForParse(piecesText))
+  return {
+    length: t.l,
+    width: t.w,
+    height: t.h,
+    weight: t.weight,
+  }
+}
+
+export function composeStandardCargoDims(d: StandardCargoDims): string {
+  const line = composeDimsLine({
+    count: 1,
+    l: d.length,
+    w: d.width,
+    h: d.height,
+    weightLbs: d.weight.trim() ? Number(d.weight) : null,
+  })
+  if (
+    d.length === STANDARD_CARGO_DEFAULTS.length &&
+    d.width === STANDARD_CARGO_DEFAULTS.width &&
+    d.height === STANDARD_CARGO_DEFAULTS.height &&
+    d.weight === STANDARD_CARGO_DEFAULTS.weight
+  ) {
+    return `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`
+  }
+  return line
+}
+
+export function isStandardToolingPieces(piecesText: string): boolean {
+  const t = piecesText.trim()
+  if (!t) return false
+  if (/standard tooling/i.test(t)) return true
+  const d = parseStandardCargoDims(t)
+  return (
+    d.length === STANDARD_CARGO_DEFAULTS.length &&
+    d.width === STANDARD_CARGO_DEFAULTS.width &&
+    d.height === STANDARD_CARGO_DEFAULTS.height &&
+    d.weight === STANDARD_CARGO_DEFAULTS.weight
+  )
 }
 
 export function mentionsTools(text: string): boolean {
@@ -69,10 +131,7 @@ export function operatorMissionSummary(opts: {
   }
   const pieces = opts.pieces_text.trim()
   if (pieces) {
-    if (
-      /standard tooling/i.test(pieces) ||
-      /^1 piece 12x12x12 @ 50$/i.test(pieces)
-    ) {
+    if (isStandardToolingPieces(pieces)) {
       parts.push(STANDARD_TOOLING.summary)
     } else {
       parts.push(pieces)
