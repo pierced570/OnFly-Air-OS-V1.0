@@ -11,7 +11,7 @@ export default function StaffLoginPage() {
   const [busy, setBusy] = useState(false)
   const [params] = useSearchParams()
   const nav = useNavigate()
-  const next = params.get('next') || '/board'
+  const next = params.get('next') || '/dispatch'
   const goingToDesk = next === '/desk' || next.startsWith('/desk?')
 
   function submit(e: FormEvent) {
@@ -25,7 +25,7 @@ export default function StaffLoginPage() {
       return
     }
     setBusy(false)
-    nav(next.startsWith('/') ? next : '/board')
+    nav(next.startsWith('/') ? next : '/dispatch')
   }
 
   return (

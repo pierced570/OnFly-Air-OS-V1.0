@@ -1280,10 +1280,10 @@ export default function DeskParsePage() {
             </button>
             <button
               type="button"
-              onClick={() => nav('/board')}
+              onClick={() => nav('/dispatch')}
               className="rounded-md border border-border px-4 py-2.5 text-sm text-muted"
             >
-              Board
+              Dispatch center
             </button>
           </div>
         </>

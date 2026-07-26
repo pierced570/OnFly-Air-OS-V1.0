@@ -3,7 +3,6 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DispatchShell } from '@/components/DispatchShell'
 import { StaffGate } from '@/components/StaffGate'
 
-const BoardPage = lazy(() => import('@/pages/BoardPage'))
 const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NetworkPage = lazy(() => import('@/pages/NetworkPage'))
 const TripPage = lazy(() => import('@/pages/TripPage'))
@@ -42,6 +41,7 @@ const ClientOnboardPage = lazy(() => import('@/pages/ClientOnboardPage'))
 const VendorPacketPage = lazy(() => import('@/pages/VendorPacketPage'))
 const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
 const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
+const DispatchCenterPage = lazy(() => import('@/pages/DispatchCenterPage'))
 const OfferPreviewPage = lazy(() => import('@/pages/OfferPreviewPage'))
 const StaffLoginPage = lazy(() => import('@/pages/StaffLoginPage'))
 
@@ -100,8 +100,10 @@ export function App() {
       <Routes>
         <Route path="/" element={<ScratchPadPage />} />
         <Route path="/login" element={<StaffLoginPage />} />
+        <Route path="/dispatch" element={<DispatchCenterPage />} />
         <Route path="/desk" element={<DeskParsePage />} />
-        <Route path="/board" element={<BoardPage />} />
+        {/* Legacy Board → Dispatch center */}
+        <Route path="/board" element={<Navigate to="/dispatch" replace />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:tripId" element={<ChatPage />} />
         <Route path="/trips/new" element={<NewTripPage />} />
