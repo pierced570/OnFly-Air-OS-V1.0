@@ -9,6 +9,7 @@ import {
   parseNetworkHubTab,
   type NetworkHubTabId,
 } from '@/domain/networkHub'
+import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
 import { GroundCouriersPanel } from '@/pages/network/GroundCouriersPanel'
 import { RecommendationMatrixPanel } from '@/pages/network/RecommendationMatrixPanel'
 
@@ -18,6 +19,8 @@ const FbosPage = lazy(() => import('@/pages/FbosPage'))
 
 function TabBody({ tab }: { tab: NetworkHubTabId }) {
   switch (tab) {
+    case 'invite':
+      return <OperatorInvitePanel />
     case 'operators':
       return <NetworkPage embedded />
     case 'matrix':
@@ -37,7 +40,7 @@ export default function NetworkHubPage() {
 
   useEffect(() => {
     if (!params.get('tab')) {
-      setParams({ tab: 'operators' }, { replace: true })
+      setParams({ tab: 'invite' }, { replace: true })
     }
   }, [params, setParams])
 

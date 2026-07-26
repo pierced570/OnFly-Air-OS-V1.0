@@ -5,9 +5,14 @@
 
 export const NETWORK_HUB_TABS = [
   {
+    id: 'invite',
+    label: 'Add operator',
+    blurb: 'Short email → docs, tails, banking',
+  },
+  {
     id: 'operators',
     label: 'Operators',
-    blurb: 'Search, board, sheet, and operator info',
+    blurb: 'Search, board, sheet, and docs',
   },
   {
     id: 'matrix',
@@ -40,5 +45,5 @@ export function parseNetworkHubTab(
   if (NETWORK_HUB_TABS.some((t) => t.id === id)) {
     return id as NetworkHubTabId
   }
-  return 'operators'
+  return 'invite'
 }
