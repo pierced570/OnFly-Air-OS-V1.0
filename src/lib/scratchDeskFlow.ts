@@ -24,6 +24,8 @@ import {
 
 export type DeskDraft = {
   client_name: string
+  /** Matched / selected directory client (null until matched or created). */
+  client_id: string | null
   origin_text: string
   destination_text: string
   pieces_text: string
@@ -38,6 +40,7 @@ export type DeskDraft = {
 export function deskDraftFromExtract(ex: ExtractedRequest): DeskDraft {
   return {
     client_name: ex.client_name?.trim() || '',
+    client_id: null,
     origin_text: ex.origin_text?.trim() || '',
     destination_text: ex.destination_text?.trim() || '',
     pieces_text: ex.pieces_text?.trim() || '',
@@ -176,15 +179,18 @@ export async function sendDeskTripOffers(opts: {
     ready_label: opts.draft.ready_label || (opts.draft.asap ? 'ASAP' : 'scheduled'),
     candidates: opts.candidates,
     payload_kind: opts.draft.payload_kind,
+    client_id: opts.draft.client_id || undefined,
   })
   // Replace default top-5 with exactly the selected set
   mutateTrip(trip.id, (t) => {
     t.offers = buildOffersFromCandidates(trip.id, opts.candidates)
+    if (opts.draft.client_id) t.client_id = opts.draft.client_id
     t.events.push({
       at: new Date().toISOString(),
       actor: 'dispatcher',
       kind: 'desk_scratch_spool',
       payload: {
+        client_id: opts.draft.client_id || null,
         client_name: opts.draft.client_name || null,
         notes: opts.draft.notes || null,
       },

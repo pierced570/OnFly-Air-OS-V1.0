@@ -3,9 +3,17 @@
  * Approve — don't auto-enter.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { bestClientMatch, matchClients } from '@/domain/matchClient'
 import type { Candidate } from '@/domain/routing'
+import {
+  addClient,
+  addClientContact,
+  getClient,
+  listClients,
+  subscribeClients,
+} from '@/lib/clientStore'
 import {
   parseScratchToDeskDraft,
   recommendForDeskDraft,
@@ -19,8 +27,16 @@ const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
 const label = 'block text-xs text-muted'
 
+function withClientMatch(d: DeskDraft, directory: { id: string; name: string }[]): DeskDraft {
+  if (d.client_id && getClient(d.client_id)) return d
+  const best = bestClientMatch(d.client_name, directory)
+  if (!best) return { ...d, client_id: null }
+  return { ...d, client_id: best.id, client_name: best.name }
+}
+
 export default function DeskParsePage() {
   const nav = useNavigate()
+  const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
   const [draft, setDraft] = useState<DeskDraft | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -29,6 +45,11 @@ export default function DeskParsePage() {
   const [sending, setSending] = useState(false)
   const [sentTripId, setSentTripId] = useState<string | null>(null)
   const [recError, setRecError] = useState<string | null>(null)
+  const [showNewClient, setShowNewClient] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newInvoice, setNewInvoice] = useState('')
+  const [newContactName, setNewContactName] = useState('')
+  const [newContactEmail, setNewContactEmail] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -36,8 +57,13 @@ export default function DeskParsePage() {
     void parseScratchToDeskDraft()
       .then(async ({ draft: d }) => {
         if (cancelled) return
-        setDraft(d)
-        const rec = await recommendForDeskDraft(d)
+        const matched = withClientMatch(d, listClients())
+        setDraft(matched)
+        if (!matched.client_id && matched.client_name) {
+          setNewName(matched.client_name)
+          setShowNewClient(true)
+        }
+        const rec = await recommendForDeskDraft(matched)
         if (cancelled) return
         setCandidates(rec.candidates)
         setRecError(rec.error ?? null)
@@ -56,8 +82,59 @@ export default function DeskParsePage() {
 
   const scratchPreview = useMemo(() => getScratchPad().body.trim(), [])
 
+  const clientHits = useMemo(() => {
+    if (!draft?.client_name.trim()) return []
+    return matchClients(draft.client_name, clients, 8)
+  }, [draft?.client_name, clients])
+
+  const matchedClient = draft?.client_id ? getClient(draft.client_id) : undefined
+
   function patch(p: Partial<DeskDraft>) {
     setDraft((d) => (d ? { ...d, ...p } : d))
+  }
+
+  function selectClient(id: string) {
+    const c = getClient(id)
+    if (!c) return
+    patch({ client_id: c.id, client_name: c.name })
+    setShowNewClient(false)
+  }
+
+  function onClientNameChange(value: string) {
+    const best = bestClientMatch(value, clients)
+    patch({
+      client_name: value,
+      client_id: best?.id ?? null,
+    })
+    if (best) setShowNewClient(false)
+  }
+
+  function saveNewClient() {
+    const name = newName.trim() || draft?.client_name.trim()
+    if (!name) return
+    const c = addClient({
+      name,
+      email: newInvoice,
+      invoice_email: newInvoice,
+    })
+    const contactEmail = newContactEmail.trim()
+    const invEmail = newInvoice.trim()
+    if (contactEmail) {
+      addClientContact(
+        c.id,
+        newContactName || contactEmail.split('@')[0] || 'Contact',
+        contactEmail,
+        'requester',
+      )
+    }
+    if (invEmail && invEmail.toLowerCase() !== contactEmail.toLowerCase()) {
+      addClientContact(c.id, invEmail.split('@')[0] || 'AP', invEmail, 'ap')
+    }
+    selectClient(c.id)
+    setNewName('')
+    setNewInvoice('')
+    setNewContactName('')
+    setNewContactEmail('')
   }
 
   async function reparse() {
@@ -66,8 +143,13 @@ export default function DeskParsePage() {
     setRecError(null)
     try {
       const { draft: d } = await parseScratchToDeskDraft()
-      setDraft(d)
-      const rec = await recommendForDeskDraft(d)
+      const matched = withClientMatch(d, listClients())
+      setDraft(matched)
+      if (!matched.client_id && matched.client_name) {
+        setNewName(matched.client_name)
+        setShowNewClient(true)
+      }
+      const rec = await recommendForDeskDraft(matched)
       setCandidates(rec.candidates)
       setRecError(rec.error ?? null)
       setSelected(new Set(rec.candidates.slice(0, 5).map((c) => c.aircraft_id)))
@@ -94,6 +176,12 @@ export default function DeskParsePage() {
 
   async function send() {
     if (!draft) return
+    if (!draft.client_id) {
+      setError('Match an existing client or add a new client first')
+      setShowNewClient(true)
+      if (!newName.trim() && draft.client_name) setNewName(draft.client_name)
+      return
+    }
     const picks = candidates.filter((c) => selected.has(c.aircraft_id))
     if (!picks.length) {
       setError('Select at least one operator / tail')
@@ -175,14 +263,142 @@ export default function DeskParsePage() {
       {draft && (
         <>
           <section className="grid gap-3 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2">
-            <label className={`${label} sm:col-span-2`}>
-              Client name
-              <input
-                className={input}
-                value={draft.client_name}
-                onChange={(e) => patch({ client_name: e.target.value })}
-              />
-            </label>
+            <div className="space-y-2 sm:col-span-2">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className={`${label} min-w-[12rem] flex-1`}>
+                  Client
+                  <input
+                    className={input}
+                    value={draft.client_name}
+                    onChange={(e) => onClientNameChange(e.target.value)}
+                    placeholder="Type to match directory…"
+                    list="desk-client-directory"
+                  />
+                  <datalist id="desk-client-directory">
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.name} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className={`${label} min-w-[12rem] flex-1`}>
+                  Or pick existing
+                  <select
+                    className={input}
+                    value={draft.client_id ?? ''}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        patch({ client_id: null })
+                        return
+                      }
+                      selectClient(e.target.value)
+                    }}
+                  >
+                    <option value="">Select client…</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewClient((v) => !v)
+                    if (!newName.trim() && draft.client_name) setNewName(draft.client_name)
+                  }}
+                  className="rounded-md border border-border px-3 py-2.5 text-sm text-gold hover:border-gold/40"
+                >
+                  + Add new client
+                </button>
+              </div>
+
+              {matchedClient ? (
+                <p className="text-xs text-onplan">
+                  Matched directory client:{' '}
+                  <span className="font-medium text-cream">{matchedClient.name}</span>
+                  {matchedClient.invoice_email
+                    ? ` · ${matchedClient.invoice_email}`
+                    : ''}
+                </p>
+              ) : draft.client_name.trim() ? (
+                <p className="text-xs text-late">
+                  No exact directory match — pick a suggestion or add a new client.
+                </p>
+              ) : (
+                <p className="text-xs text-muted">
+                  Match an existing client or add a new one before sending offers.
+                </p>
+              )}
+
+              {!matchedClient && clientHits.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {clientHits.map((h) => (
+                    <li key={h.id}>
+                      <button
+                        type="button"
+                        onClick={() => selectClient(h.id)}
+                        className="rounded-md border border-gold/40 bg-gold/10 px-2.5 py-1 text-xs text-gold hover:bg-gold/20"
+                      >
+                        {h.name}
+                        <span className="ml-1 text-muted">({h.kind})</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {showNewClient && (
+                <div className="space-y-2 rounded-lg border border-border bg-ink/40 p-3">
+                  <div className="text-xs uppercase tracking-wider text-gold">
+                    Add new client
+                  </div>
+                  <input
+                    className={input}
+                    placeholder="Client name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                  />
+                  <input
+                    className={input}
+                    type="email"
+                    placeholder="Invoice email"
+                    value={newInvoice}
+                    onChange={(e) => setNewInvoice(e.target.value)}
+                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input
+                      className={input}
+                      placeholder="Contact name (optional)"
+                      value={newContactName}
+                      onChange={(e) => setNewContactName(e.target.value)}
+                    />
+                    <input
+                      className={input}
+                      type="email"
+                      placeholder="Contact email"
+                      value={newContactEmail}
+                      onChange={(e) => setNewContactEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={saveNewClient}
+                      className="rounded-md bg-gold px-3 py-2 text-sm font-medium text-ink"
+                    >
+                      Save client
+                    </button>
+                    <Link
+                      to="/clients"
+                      className="rounded-md border border-border px-3 py-2 text-sm text-muted hover:text-cream"
+                    >
+                      Open clients directory
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
             <label className={label}>
               Origin
               <input
