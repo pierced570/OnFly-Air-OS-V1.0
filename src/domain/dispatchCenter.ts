@@ -132,7 +132,9 @@ export function buildDispatchDrawers(input: {
     ref: number
     lane: string
     state: TripState
-    quick?: { po?: string } | null
+    /** Who this trip is for — preferred in card titles over T-####. */
+    client_name?: string | null
+    quick?: { po?: string; client_name?: string } | null
     legs: Array<{ status: string }>
     offers?: Array<{
       id: string
@@ -179,6 +181,14 @@ export function buildDispatchDrawers(input: {
     const legsDone = t.legs.filter((l) => l.status === 'done').length
     const legBit = t.legs.length ? ` · ${legsDone}/${t.legs.length} legs` : ''
     const po = t.quick?.po ? ` · PO ${t.quick.po}` : ''
+    const client = (
+      t.client_name ||
+      t.quick?.client_name ||
+      ''
+    ).trim()
+    const tripTitle = client
+      ? `${client} · ${t.lane}${po}`
+      : `T-${t.ref} · ${t.lane}${po}`
     const recipients: DispatchRecipient[] = (t.offers ?? []).map((o) => {
       const status = offerRecipientStatus(o.state)
       const token = o.magic_token ?? ''
@@ -213,8 +223,10 @@ export function buildDispatchDrawers(input: {
     out[drawer].push({
       kind: 'trip',
       id: t.id,
-      title: `T-${t.ref} · ${t.lane}${po}`,
-      subtitle: `${tripStateLabel(t.state)}${t.quick ? ' · quick' : ''}${legBit}${offerBit}`,
+      title: tripTitle,
+      subtitle: `${tripStateLabel(t.state)} · T-${t.ref}${
+        t.quick ? ' · quick' : ''
+      }${legBit}${offerBit}`,
       href:
         t.state === 'offers_out'
           ? `/trips/${t.id}/offers`
@@ -230,11 +242,12 @@ export function buildDispatchDrawers(input: {
       for (const o of t.offers ?? []) {
         if (o.state !== 'quoted' && o.state !== 'selected') continue
         const summary = formatOfferQuoteSummary(o)
+        const who = client || `T-${t.ref}`
         out.submitted_quotes.push({
           kind: 'offer_quote',
           id: o.id,
           title: `${o.operator_name} · Quote submitted`,
-          subtitle: `T-${t.ref} · ${t.lane}${summary ? ` · ${summary}` : ''}`,
+          subtitle: `${who} · ${t.lane}${summary ? ` · ${summary}` : ''}`,
           href: `/trips/${t.id}/offers`,
           ref: t.ref,
           trip_id: t.id,

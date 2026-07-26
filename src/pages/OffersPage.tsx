@@ -24,7 +24,11 @@ import {
   searchDeskOperators,
   type DeskOperatorHit,
 } from '@/lib/deskOperatorSearch'
-import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
+import {
+  getClient,
+  listInvoiceEmails,
+  listRequestAlertEmails,
+} from '@/lib/clientStore'
 import {
   getTrip,
   listTripsStable,
@@ -150,6 +154,10 @@ export default function OffersPage() {
   }
 
   const picked = quotedIds.filter((oid) => selected[oid])
+  const clientName =
+    trip.quick?.client_name?.trim() ||
+    (trip.client_id ? getClient(trip.client_id)?.name?.trim() : '') ||
+    ''
 
   function saveUpdate() {
     void updateTripOfferRequest(trip!.id, {
@@ -238,9 +246,14 @@ export default function OffersPage() {
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-gold">
             Trip offers
+            {trip.ref ? (
+              <span className="ml-2 font-normal text-muted">
+                T-<span className="avionic">{trip.ref}</span>
+              </span>
+            ) : null}
           </div>
           <h1 className="mt-1 text-2xl font-semibold text-cream">
-            T-<span className="avionic">{trip.ref}</span> · {trip.lane}
+            {clientName ? `${clientName} · ${trip.lane}` : trip.lane}
           </h1>
           <p className="mt-1 text-sm text-muted">
             {trip.payload_summary}

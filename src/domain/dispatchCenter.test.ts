@@ -48,6 +48,7 @@ describe('dispatchCenter', () => {
           ref: 1,
           lane: 'KCAK→KMDW',
           state: 'offers_out',
+          client_name: 'PSA Airlines',
           legs: [],
           offers: [
             {
@@ -110,6 +111,8 @@ describe('dispatchCenter', () => {
     })
     expect(buckets.requests).toHaveLength(1)
     expect(buckets.offers[0]?.href).toContain('/offers')
+    expect(buckets.offers[0]?.title).toBe('PSA Airlines · KCAK→KMDW')
+    expect(buckets.offers[0]?.subtitle).toMatch(/T-1/)
     expect(buckets.offers[0]?.recipients).toHaveLength(4)
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air'))
       .toMatchObject({
