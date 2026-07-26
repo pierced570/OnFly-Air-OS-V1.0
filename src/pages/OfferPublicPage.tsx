@@ -105,8 +105,8 @@ export default function OfferPublicPage() {
         <div className="space-y-4">
           <p className="text-base text-cream">
             {asap
-              ? 'Can you do this trip ASAP?'
-              : `Can you do this trip at ${ready}?`}
+              ? 'Availability check — can you cover this trip ASAP?'
+              : `Availability check — can you cover this trip at ${ready}?`}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <button

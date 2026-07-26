@@ -12,6 +12,9 @@ export type EmailMessage = {
   html?: string
   text?: string
   reply_to?: string
+  /** Optional carbon copies (Resend / mock). */
+  cc?: string[]
+  bcc?: string[]
 }
 
 export interface EmailAdapter {
@@ -44,6 +47,13 @@ export class ResendEmailAdapter implements EmailAdapter {
     if (!msg.subject?.trim()) throw new Error('Subject required')
     if (!msg.html && !msg.text) throw new Error('html or text required')
 
+    const cc = (msg.cc ?? [])
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes('@') && e !== to)
+    const bcc = (msg.bcc ?? [])
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes('@') && e !== to && !cc.includes(e))
+
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
         to,
@@ -51,6 +61,8 @@ export class ResendEmailAdapter implements EmailAdapter {
         html: msg.html,
         text: msg.text,
         reply_to: msg.reply_to,
+        cc: cc.length ? cc : undefined,
+        bcc: bcc.length ? bcc : undefined,
       },
     })
 

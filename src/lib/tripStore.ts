@@ -346,8 +346,8 @@ export type TripStoreRow = {
     declined_at?: string
     payload_kind: 'cargo' | 'pax' | 'both'
     /**
-     * Multi-option cards. Client surfaces use `label` only (no carrier).
-     * Desk may show operator_name / type_name / tail.
+     * Multi-option cards. Client surfaces: label, aircraft type, timing, price.
+     * Never show operator_name / cost / margin on client accept / portal.
      */
     options?: Array<{
       offer_id: string
@@ -355,9 +355,13 @@ export type TripStoreRow = {
       client_total: number
       eta_end: string | null
       fee_scope: FeeScope | null
+      /** Client-safe aircraft type (not carrier name). */
+      type_name?: string | null
+      time_to_position_min?: number | null
+      quick_turn_min?: number | null
+      live_leg_min?: number | null
       /** Desk-only — never render on client accept / portal. */
       operator_name?: string
-      type_name?: string | null
       tail?: string | null
     }>
   }

@@ -61,30 +61,24 @@ function OptionCard({
           Client sees
         </div>
         <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm text-cream">
-          <dt className="text-muted">TTP</dt>
+          <dt className="text-muted">Time to be in from Go</dt>
           <dd className="avionic text-right">
             {formatMinutes(preview.ttp_min)}
           </dd>
-          <dt className="text-muted">Turn around + loading</dt>
+          <dt className="text-muted">Loading and turn around</dt>
           <dd className="avionic text-right">
             {formatMinutes(preview.turn_load_min)}
           </dd>
-          <dt className="text-muted">Live leg</dt>
+          <dt className="text-muted">Live leg time</dt>
           <dd className="avionic text-right">
             {formatMinutes(preview.live_leg_min)}
           </dd>
-          <dt className="font-medium text-cream">Total price</dt>
+          <dt className="font-medium text-cream">Price</dt>
           <dd className="avionic text-right font-semibold text-gold">
             {money(clientTotal)}
           </dd>
         </dl>
-        {preview.fee_scope === 'aircraft_and_fees' ? (
-          <p className="text-[11px] text-muted">Price includes other fees</p>
-        ) : preview.fee_scope === 'aircraft_only' ? (
-          <p className="text-[11px] text-muted">
-            Price does not include other fees
-          </p>
-        ) : null}
+        <p className="text-[11px] text-muted">All taxes and fees included</p>
       </div>
 
       <div className="space-y-1.5 rounded-md border border-border/60 bg-surface/40 px-3 py-2.5">

@@ -151,37 +151,37 @@ export function OfferQuoteForm({
       </label>
 
       <HrsMinsInput
-        label="Time to position"
+        label={`Time to be in (${timing.originIcao || 'departure'}) from Go`}
         totalMinutes={ttp}
         onChange={setTtp}
         required
       />
       <TimeChip
-        title="Implied ETA"
+        title="In position"
         place={timing.originIcao || 'departure'}
         times={timing.positionAtOrigin}
       />
 
       <HrsMinsInput
-        label="Quick turn time"
+        label="Estimated loading and turn around time"
         totalMinutes={quickTurn}
         onChange={setQuickTurn}
         required
       />
       <TimeChip
-        title="Implied departure ETD"
+        title="Departure ETD"
         place={timing.originIcao || 'departure'}
         times={timing.etd}
       />
 
       <HrsMinsInput
-        label="Live leg"
+        label={`Live leg time (${timing.originIcao || 'departure'} → ${timing.destIcao || 'destination'})`}
         totalMinutes={live}
         onChange={setLive}
         required
       />
       <TimeChip
-        title="Implied ETA"
+        title="Arrival ETA"
         place={timing.destIcao || 'destination'}
         times={timing.destEta}
       />

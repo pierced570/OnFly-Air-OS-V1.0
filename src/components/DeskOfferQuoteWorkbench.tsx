@@ -5,6 +5,12 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  ClientEmailRecipientsBubble,
+  defaultClientEmailSelection,
+  emptyClientEmailSelection,
+  type ClientEmailSelection,
+} from '@/components/ClientEmailRecipientsBubble'
 import { ClientQuoteLayoutPanel } from '@/components/ClientQuoteLayoutPanel'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
 import {
@@ -15,11 +21,7 @@ import {
   formatOfferQuoteSummary,
   offerRecipientStatus,
 } from '@/domain/offerRecipients'
-import {
-  getClient,
-  listInvoiceEmails,
-  listRequestAlertEmails,
-} from '@/lib/clientStore'
+import { rememberEmailsOnClient } from '@/lib/clientStore'
 import {
   selectOffersAndHardQuote,
   submitDeskManualQuote,
@@ -42,7 +44,9 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [clientEdits, setClientEdits] = useState<Record<string, number>>({})
-  const [toList, setToList] = useState('')
+  const [emailSel, setEmailSel] = useState<ClientEmailSelection>(
+    emptyClientEmailSelection,
+  )
   const [composeAnotherQuote, setComposeAnotherQuote] = useState(false)
   const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
     null,
@@ -50,13 +54,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const [manualQuoteBusy, setManualQuoteBusy] = useState(false)
 
   useEffect(() => {
-    if (!trip?.client_id) return
-    const emails = [
-      ...listRequestAlertEmails(trip.client_id),
-      ...listInvoiceEmails(trip.client_id),
-      getClient(trip.client_id)?.email ?? '',
-    ].filter((e) => e.includes('@'))
-    setToList([...new Set(emails)].join(', '))
+    setEmailSel(defaultClientEmailSelection(trip?.client_id))
   }, [trip?.client_id])
 
   const quoteableIds = useMemo(
@@ -270,18 +268,14 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               </button>
             ) : null}
           </div>
-          <label className="block text-xs text-muted">
-            To (requesters / AP)
-            <input
-              value={toList}
-              onChange={(e) => setToList(e.target.value)}
-              className="mt-1 w-full rounded border border-border bg-ink px-2 py-1.5 text-sm text-cream"
-              placeholder="email@client.com"
-            />
-          </label>
+          <ClientEmailRecipientsBubble
+            clientId={trip.client_id}
+            value={emailSel}
+            onChange={setEmailSel}
+          />
           <button
             type="button"
-            disabled={picked.length === 0}
+            disabled={picked.length === 0 || emailSel.to.length === 0}
             className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
             onClick={() => {
               const totals: Record<string, number> = {}
@@ -290,11 +284,23 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                 const p = clientTotalForOffer(o, trip)
                 totals[oid] = clientEdits[oid] ?? p.client
               }
-              const emails = toList
-                .split(/[,;\s]+/)
-                .map((e) => e.trim())
-                .filter((e) => e.includes('@'))
-              void selectOffersAndHardQuote(trip.id, picked, totals, emails)
+              if (trip.client_id) {
+                rememberEmailsOnClient(
+                  trip.client_id,
+                  emailSel.to[0] ?? '',
+                  [...emailSel.cc, ...emailSel.bcc],
+                )
+              }
+              void selectOffersAndHardQuote(
+                trip.id,
+                picked,
+                totals,
+                emailSel.to,
+                {
+                  ccEmails: emailSel.cc,
+                  bccEmails: emailSel.bcc,
+                },
+              )
                 .then(() => {
                   setComposeAnotherQuote(false)
                   setError(null)

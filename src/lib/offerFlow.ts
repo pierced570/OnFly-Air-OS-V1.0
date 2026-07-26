@@ -552,7 +552,11 @@ export async function selectOffersAndHardQuote(
   offerIds: string[],
   clientTotalsByOffer?: Record<string, number>,
   toEmails?: string[],
-  opts?: { notifyClient?: boolean },
+  opts?: {
+    notifyClient?: boolean
+    ccEmails?: string[]
+    bccEmails?: string[]
+  },
 ) {
   const trip = getTrip(tripId)!
   if (!offerIds.length) throw new Error('select at least one offer')
@@ -584,9 +588,13 @@ export async function selectOffersAndHardQuote(
       client_total: client,
       eta_end: cand?.eta_end ?? trip.promised_delivery,
       fee_scope: o.fee_scope,
+      /** Client-safe aircraft type (not carrier). */
+      type_name: o.type_name ?? cand?.type_name ?? null,
+      time_to_position_min: o.time_to_position_min,
+      quick_turn_min: o.quick_turn_min,
+      live_leg_min: o.live_leg_min,
       // Desk display — never shown on client accept / portal.
       operator_name: o.operator_name,
-      type_name: o.type_name ?? cand?.type_name ?? null,
       tail: o.tail || null,
     }
   })
@@ -647,43 +655,49 @@ export async function selectOffersAndHardQuote(
   })
 
   const recipients = resolveHardQuoteRecipients(trip, toEmails)
+  const ccEmails = [
+    ...new Set(
+      (opts?.ccEmails ?? [])
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@') && !recipients.includes(e)),
+    ),
+  ]
+  const bccEmails = [
+    ...new Set(
+      (opts?.bccEmails ?? [])
+        .map((e) => e.trim().toLowerCase())
+        .filter(
+          (e) =>
+            e.includes('@') && !recipients.includes(e) && !ccEmails.includes(e),
+        ),
+    ),
+  ]
 
   if (notifyClient) {
     const comms = createCommsAdapter()
     const email = createEmailAdapter()
+    const { logisticsQuoteTitle } = await import('@/domain/clientLogisticsQuote')
+    const { formatMinutes } = await import('@/domain/offerQuotePreview')
+    const title = logisticsQuoteTitle(trip.lane)
     const optionLines = options
-      .map(
-        (o) =>
-          `${o.label}: $${o.client_total.toFixed(0)}${o.eta_end ? ` · ETA ${o.eta_end.slice(0, 16)}Z` : ''}`,
-      )
-      .join('\n')
+      .map((o) => {
+        const type = o.type_name?.trim() || 'Aircraft'
+        return [
+          `${o.label}: ${type}`,
+          `Time to position from Go: ${formatMinutes(o.time_to_position_min ?? null)}`,
+          `Loading + turn around: ${formatMinutes(o.quick_turn_min ?? null)}`,
+          `Live leg: ${formatMinutes(o.live_leg_min ?? null)}`,
+          `Price: $${o.client_total.toFixed(0)} (all taxes and fees included)`,
+        ].join('\n')
+      })
+      .join('\n\n')
 
     for (const cell of recipientCells(trip)) {
       await comms.send({
         channel: 'sms',
         to: cell,
-        body: `OnFly hard quote ${trip.lane}:\n${optionLines}\nAccept: /accept/${accept_token}`,
+        body: `OnFly ${title}\n\n${optionLines}\n\nAccept: /accept/${accept_token}`,
       })
-    }
-
-    if (recipients.length) {
-      for (const to of recipients) {
-        await email.send({
-          to,
-          subject: `OnFly quote · ${trip.lane}`,
-          text: [
-            `Hard quote for ${trip.lane}.`,
-            `A vetted Part 135 carrier — options below (carrier unnamed until acceptance).`,
-            '',
-            optionLines,
-            '',
-            `Accept: /accept/${accept_token}`,
-            trip.po_number ? `PO: ${trip.po_number}` : '',
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        })
-      }
     }
 
     const primaryOffer = selectedOffers[0]!
@@ -691,13 +705,15 @@ export async function selectOffersAndHardQuote(
       trip.candidates.find((c) => c.aircraft_id === primaryOffer.aircraft_id) ??
       trip.candidates.find((c) => c.tail === primaryOffer.tail) ??
       trip.candidates[0]
-    if (selectedCand?.chain?.length) {
+    let brandedSent = false
+    if (selectedCand?.chain?.length && recipients.length) {
       try {
         const { sendEstimatedQuote } = await import('@/lib/sendEstimatedQuote')
-        const [originLabel, destLabel] = trip.lane.split(/\s*→\s*/)
+        const { laneEndpoints } = await import('@/domain/clientLogisticsQuote')
+        const ends = laneEndpoints(trip.lane)
         await sendEstimatedQuote({
-          originLabel: originLabel?.trim() || trip.lane,
-          destLabel: destLabel?.trim() || '',
+          originLabel: ends.originLabel,
+          destLabel: ends.destLabel,
           readyLabel: trip.ready_label,
           payloadKind: kind,
           candidates: trip.candidates,
@@ -709,15 +725,70 @@ export async function selectOffersAndHardQuote(
           kind: 'hard',
           acceptUrl: `/accept/${accept_token}`,
           tripId,
-          to: recipients.length ? recipients : undefined,
+          to: recipients,
+          cc: ccEmails,
+          bcc: bccEmails,
         })
+        brandedSent = true
       } catch (e) {
-        console.warn('[hard quote] email with ETA skipped', e)
+        console.warn('[hard quote] branded email skipped', e)
       }
+    }
+
+    if (recipients.length && !brandedSent) {
+      const [primary, ...restTo] = recipients
+      await email.send({
+        to: primary!,
+        cc: [...restTo, ...ccEmails],
+        bcc: bccEmails,
+        subject: `OnFly Air — ${title}`,
+        text: [
+          title,
+          'Operated by a vetted Part 135 carrier',
+          '',
+          optionLines,
+          '',
+          `Review & respond: /accept/${accept_token}`,
+          trip.po_number ? `PO: ${trip.po_number}` : '',
+          '',
+          'Questions? Reply or call 858-529-7860.',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      })
     }
   }
 
   return getTrip(tripId)!
+}
+
+/** Client accepts one option from the public accept page. */
+export async function acceptHardQuoteOption(token: string, offerId: string) {
+  const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
+  if (!trip) throw new Error('invalid accept token')
+  if (trip.state === 'booked' || trip.state === 'in_progress' || trip.state === 'delivered') {
+    return getTrip(trip.id)!
+  }
+  if (trip.state !== 'quoted_hard') {
+    throw new Error(`cannot accept from state ${trip.state}`)
+  }
+  const opt = trip.hard_quote?.options?.find((o) => o.offer_id === offerId)
+  const offer = trip.offers.find((o) => o.id === offerId)
+  if (!offer && !opt) throw new Error('option not found')
+  mutateTrip(trip.id, (t) => {
+    for (const o of t.offers) {
+      if (o.id === offerId) o.state = 'selected'
+      else if (o.state === 'selected' || o.state === 'quoted') o.state = 'stood_down'
+    }
+    if (t.hard_quote?.options?.length) {
+      const kept = t.hard_quote.options.find((o) => o.offer_id === offerId)
+      if (kept) {
+        t.hard_quote.total = kept.client_total
+        t.hard_quote.options = [kept]
+      }
+    }
+  })
+  return acceptHardQuote(token)
 }
 
 /**

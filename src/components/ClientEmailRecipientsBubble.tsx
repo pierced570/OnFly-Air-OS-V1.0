@@ -1,0 +1,205 @@
+/**
+ * Desk bubble to pick who is looped into a client quote / ETA thread.
+ * Saved contacts toggle To / CC / BCC.
+ */
+
+import { useMemo, useSyncExternalStore } from 'react'
+import {
+  getClient,
+  listClients,
+  listInvoiceEmails,
+  listRequestAlertEmails,
+  listTrackerEmails,
+  subscribeClients,
+  type ClientContact,
+} from '@/lib/clientStore'
+
+export type EmailBucket = 'to' | 'cc' | 'bcc' | 'off'
+
+export type ClientEmailSelection = {
+  to: string[]
+  cc: string[]
+  bcc: string[]
+}
+
+type Props = {
+  clientId?: string | null
+  value: ClientEmailSelection
+  onChange: (next: ClientEmailSelection) => void
+  /** Optional title override. */
+  title?: string
+}
+
+function normalize(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+function uniq(emails: string[]): string[] {
+  return [...new Set(emails.map(normalize).filter((e) => e.includes('@')))]
+}
+
+export function emptyClientEmailSelection(): ClientEmailSelection {
+  return { to: [], cc: [], bcc: [] }
+}
+
+/** Prefill To from request-alert + primary; CC from tracker/invoice extras. */
+export function defaultClientEmailSelection(
+  clientId?: string | null,
+): ClientEmailSelection {
+  if (!clientId) return emptyClientEmailSelection()
+  const client = getClient(clientId)
+  const to = uniq([
+    ...listRequestAlertEmails(clientId),
+    client?.email ?? '',
+  ])
+  const cc = uniq([
+    ...listTrackerEmails(clientId),
+    ...listInvoiceEmails(clientId),
+  ]).filter((e) => !to.includes(e))
+  return { to, cc, bcc: [] }
+}
+
+function bucketOf(email: string, sel: ClientEmailSelection): EmailBucket {
+  const e = normalize(email)
+  if (sel.to.includes(e)) return 'to'
+  if (sel.cc.includes(e)) return 'cc'
+  if (sel.bcc.includes(e)) return 'bcc'
+  return 'off'
+}
+
+function setBucket(
+  sel: ClientEmailSelection,
+  email: string,
+  bucket: EmailBucket,
+): ClientEmailSelection {
+  const e = normalize(email)
+  const strip = (list: string[]) => list.filter((x) => x !== e)
+  const next: ClientEmailSelection = {
+    to: strip(sel.to),
+    cc: strip(sel.cc),
+    bcc: strip(sel.bcc),
+  }
+  if (bucket === 'to') next.to = uniq([...next.to, e])
+  if (bucket === 'cc') next.cc = uniq([...next.cc, e])
+  if (bucket === 'bcc') next.bcc = uniq([...next.bcc, e])
+  return next
+}
+
+function cycleBucket(cur: EmailBucket): EmailBucket {
+  if (cur === 'off') return 'to'
+  if (cur === 'to') return 'cc'
+  if (cur === 'cc') return 'bcc'
+  return 'off'
+}
+
+function contactLabel(c: ClientContact): string {
+  const name = c.name?.trim()
+  return name ? `${name} · ${c.email}` : c.email
+}
+
+export function ClientEmailRecipientsBubble({
+  clientId,
+  value,
+  onChange,
+  title = 'Client emails — quote & ETA loop',
+}: Props) {
+  useSyncExternalStore(subscribeClients, listClients, listClients)
+  const client = clientId ? getClient(clientId) : undefined
+
+  const contacts = useMemo(() => {
+    const fromProfile = client?.contacts ?? []
+    const extras: Array<{ id: string; name: string; email: string }> = []
+    const seen = new Set(fromProfile.map((c) => normalize(c.email)))
+    for (const email of [
+      client?.email,
+      client?.invoice_email,
+      ...value.to,
+      ...value.cc,
+      ...value.bcc,
+    ]) {
+      const e = normalize(email ?? '')
+      if (!e.includes('@') || seen.has(e)) continue
+      seen.add(e)
+      extras.push({ id: `extra-${e}`, name: e.split('@')[0] || e, email: e })
+    }
+    return [
+      ...fromProfile.map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        role: c.role,
+      })),
+      ...extras,
+    ]
+  }, [client, value])
+
+  return (
+    <div className="rounded-xl border border-gold/35 bg-gold/5 p-3">
+      <div className="text-[11px] font-medium uppercase tracking-wider text-gold">
+        {title}
+      </div>
+      <p className="mt-1 text-[11px] text-muted">
+        Tap a contact to cycle <span className="text-cream">To → CC → BCC → off</span>.
+        These people stay on the quote and ETA thread.
+      </p>
+
+      {contacts.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {contacts.map((c) => {
+            const email = normalize(c.email)
+            const bucket = bucketOf(email, value)
+            const on = bucket !== 'off'
+            return (
+              <button
+                key={c.id}
+                type="button"
+                title="Click to cycle To / CC / BCC"
+                onClick={() =>
+                  onChange(setBucket(value, email, cycleBucket(bucket)))
+                }
+                className={[
+                  'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
+                  on
+                    ? 'border-gold bg-gold/25 text-cream'
+                    : 'border-border bg-ink/40 text-muted hover:text-cream',
+                ].join(' ')}
+              >
+                <span className="font-medium">
+                  {bucket === 'off' ? '·' : bucket.toUpperCase()}
+                </span>{' '}
+                {contactLabel(c as ClientContact)}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted">
+          No saved contacts on this client yet — add emails below.
+        </p>
+      )}
+
+      <div className="mt-3 grid gap-2">
+        {(
+          [
+            ['to', 'To'],
+            ['cc', 'CC'],
+            ['bcc', 'BCC'],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="block text-[11px] text-muted">
+            {label}
+            <input
+              className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 font-mono text-xs text-cream"
+              value={value[key].join(', ')}
+              placeholder="name@client.com"
+              onChange={(e) => {
+                const emails = uniq(e.target.value.split(/[,;\s]+/))
+                onChange({ ...value, [key]: emails })
+              }}
+            />
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}

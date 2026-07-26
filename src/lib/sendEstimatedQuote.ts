@@ -41,6 +41,8 @@ export type SendEstimatedQuoteOpts = {
   acceptUrl?: string | null
   /** Reuse existing trip instead of creating one */
   tripId?: string | null
+  cc?: string[]
+  bcc?: string[]
 }
 
 export type SendEstimatedQuoteResult = {
@@ -149,10 +151,22 @@ export async function sendEstimatedQuote(
 
   const email = createEmailAdapter()
   const emailIds: string[] = []
-  for (const recipient of to) {
-    const r = await email.send({ to: recipient, subject, html, text })
-    emailIds.push(r.id)
-  }
+  const [primary, ...restTo] = to
+  const cc = uniqEmails([...(opts.cc ?? []), ...restTo]).filter(
+    (e) => e !== primary,
+  )
+  const bcc = uniqEmails(opts.bcc ?? []).filter(
+    (e) => e !== primary && !cc.includes(e),
+  )
+  const r = await email.send({
+    to: primary!,
+    cc: cc.length ? cc : undefined,
+    bcc: bcc.length ? bcc : undefined,
+    subject,
+    html,
+    text,
+  })
+  emailIds.push(r.id)
 
   let trip: TripStoreRow
   if (opts.tripId) {
