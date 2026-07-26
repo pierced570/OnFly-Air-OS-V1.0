@@ -101,7 +101,7 @@ export default function TripPage() {
           </Link>
           .
         </p>
-        <Link to="/" className="mt-4 inline-block text-sm text-gold">
+        <Link to="/board" className="mt-4 inline-block text-sm text-gold">
           ← Board
         </Link>
       </div>
@@ -434,7 +434,7 @@ export default function TripPage() {
       </section>
 
       <div className="flex flex-wrap gap-3 text-sm">
-        <Link to="/" className="text-gold hover:text-gold-lt">
+        <Link to="/board" className="text-gold hover:text-gold-lt">
           ← Board
         </Link>
         {!q && trip.offers.length > 0 && (

@@ -15,7 +15,9 @@ const nav: {
   section: StaffSectionId
   end?: boolean
 }[] = [
-  { to: '/', label: 'Board', section: 'board', end: true },
+  { to: '/board', label: 'Board', section: 'board', end: true },
+  { to: '/', label: 'Call pad', section: 'intake' },
+  { to: '/desk', label: 'Parse', section: 'intake' },
   { to: '/chat', label: 'Chat', section: 'chat' },
   { to: '/quick-dispatch', label: 'Quick Dispatch', section: 'quick_dispatch' },
   { to: '/intake', label: 'Intake', section: 'intake' },

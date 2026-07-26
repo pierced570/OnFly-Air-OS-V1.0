@@ -4,6 +4,7 @@
  */
 
 import { adapterMode } from '@/adapters/types'
+import { extractFromScratchNotes } from '@/domain/scratchParse'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 export type ExtractedRequest = {
@@ -15,6 +16,10 @@ export type ExtractedRequest = {
   hazmat?: boolean
   pax_count?: number
   payload_kind?: 'cargo' | 'pax' | 'both'
+  /** Soft-parsed client / company name from scratch notes */
+  client_name?: string
+  /** Call sounded ASAP / AOG */
+  asap?: boolean
   notes?: string
   raw: string
 }
@@ -34,25 +39,45 @@ export interface LlmAdapter {
 
 export class MockLlmAdapter implements LlmAdapter {
   async extractTripRequest(rawText: string): Promise<ExtractedRequest> {
-    const fromTo =
-      rawText.match(
-        /\bfrom\s+([^.\n]+?)\s+to\s+([^.\n]+?)(?:\s+ready|\s*$|[.])/i,
-      ) ??
-      rawText.match(/\b([A-Z]{3,4})\s*(?:→|->|to)\s*([A-Z]{3,4})\b/i)
-    const origin_text = fromTo?.[1]?.trim() || 'Akron, OH'
-    const destination_text = fromTo?.[2]?.trim() || 'Chicago, IL'
-    const pieces =
-      rawText.match(
-        /(\d+\s*(?:skids?|crates?|pieces?)[^.\n]{0,40})/i,
-      )?.[1] ?? '3 skids 48x40x60 @ 800ea'
+    if (!rawText.trim()) {
+      return {
+        client_name: 'Demo MRO',
+        pieces_text: '1 skid 48x40x60 @ 800ea',
+        origin_text: 'KCAK',
+        destination_text: 'KMDW',
+        asap: true,
+        payload_kind: 'cargo',
+        hazmat: false,
+        notes: 'empty scratch — demo seed',
+        raw: rawText,
+      }
+    }
+    const parsed = extractFromScratchNotes(rawText)
+    // Fall back to older mock heuristics if scratch parse is thin
+    if (!parsed.origin_text || !parsed.destination_text) {
+      const fromTo =
+        rawText.match(
+          /\bfrom\s+([^.\n]+?)\s+to\s+([^.\n]+?)(?:\s+ready|\s*$|[.])/i,
+        ) ??
+        rawText.match(/\b([A-Z]{3,4})\s*(?:→|->|to)\s*([A-Z]{3,4})\b/i)
+      if (fromTo) {
+        parsed.origin_text = parsed.origin_text || fromTo[1]?.trim()
+        parsed.destination_text =
+          parsed.destination_text || fromTo[2]?.trim()
+      }
+    }
+    if (!parsed.pieces_text) {
+      const pieces =
+        rawText.match(
+          /(\d+\s*(?:skids?|crates?|pieces?)[^.\n]{0,40})/i,
+        )?.[1]
+      if (pieces) parsed.pieces_text = pieces.trim()
+    }
     return {
-      pieces_text: pieces.trim(),
-      origin_text,
-      destination_text,
-      ready_local: '2026-07-15T09:00',
-      payload_kind: 'cargo',
-      hazmat: /hazmat/i.test(rawText),
-      notes: 'mock extraction',
+      ...parsed,
+      payload_kind: parsed.payload_kind ?? 'cargo',
+      hazmat: parsed.hazmat ?? /hazmat/i.test(rawText),
+      notes: parsed.notes || 'mock extraction',
       raw: rawText,
     }
   }

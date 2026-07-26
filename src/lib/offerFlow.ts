@@ -95,6 +95,33 @@ export async function simulateOperatorReply(tripId: string, offerId: string, bod
   return { ok: true as const, result: parsed }
 }
 
+export async function respondOfferAvailability(
+  token: string,
+  available: boolean,
+): Promise<{ ok: true; available: boolean } | { ok: false; reason: string }> {
+  const { getTripByOfferToken } = await import('@/lib/tripStore')
+  const found = getTripByOfferToken(token)
+  if (!found) return { ok: false, reason: 'invalid offer token' }
+  const { trip, offer } = found
+  const now = new Date().toISOString()
+  mutateTrip(trip.id, (t) => {
+    const o = t.offers.find((x) => x.id === offer.id)!
+    o.replied_at = now
+    o.state = available ? 'available' : 'unavailable'
+    t.events.push({
+      at: now,
+      actor: offer.operator_name,
+      kind: 'offer_reply',
+      payload: {
+        offer_id: offer.id,
+        result: available ? 'available' : 'unavailable',
+        channel: 'magic_link',
+      },
+    })
+  })
+  return { ok: true, available }
+}
+
 export async function submitOperatorQuote(
   token: string,
   input: {

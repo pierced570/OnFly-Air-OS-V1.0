@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import PhoneInput from '@/components/PhoneInput'
 import { loginStaff } from '@/lib/staffStore'
 import { BrandLockup } from '@/components/BrandLockup'
@@ -8,14 +9,22 @@ export default function StaffLoginPage() {
   const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [params] = useSearchParams()
+  const nav = useNavigate()
+  const next = params.get('next') || '/desk'
 
   function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
     const result = loginStaff(name, phone)
-    if (!result.ok) setError(result.error)
+    if (!result.ok) {
+      setError(result.error)
+      setBusy(false)
+      return
+    }
     setBusy(false)
+    nav(next.startsWith('/') ? next : '/desk')
   }
 
   return (
@@ -36,8 +45,9 @@ export default function StaffLoginPage() {
           </div>
         </div>
         <p className="mt-2 text-sm text-muted">
-          Enter your name and phone to open the desk. Access is limited to the
-          sections your admin assigned.
+          {next === '/desk'
+            ? 'Sign in to parse your call pad and shortlist operators.'
+            : 'Enter your name and phone to open the desk.'}
         </p>
 
         <form onSubmit={submit} className="mt-8 space-y-4">
@@ -67,13 +77,15 @@ export default function StaffLoginPage() {
             disabled={busy || !name.trim() || phone.length < 10}
             className="w-full rounded-md bg-gold py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
           >
-            {busy ? 'Checking…' : 'Enter'}
+            {busy ? 'Checking…' : next === '/desk' ? 'Login & parse' : 'Enter'}
           </button>
         </form>
 
-        <p className="mt-6 text-[11px] leading-relaxed text-muted">
-          Owner: Pierce Demetriades · (610) 509-2031. After you sign in, use
-          Staff access to set phones and choose what each person can see.
+        <p className="mt-6 text-center text-[11px] text-muted">
+          <a href="/" className="text-gold hover:text-gold-lt">
+            ← Back to call pad
+          </a>
+          {' · '}no login needed until you parse
         </p>
       </div>
     </div>

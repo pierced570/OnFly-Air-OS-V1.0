@@ -14,22 +14,27 @@ export function StaffGate({ children }: { children: ReactNode }) {
   const loc = useLocation()
 
   if (!session) {
-    return (
-      <Suspense
-        fallback={
-          <div className="flex min-h-screen items-center justify-center bg-ink text-muted">
-            Loading…
-          </div>
-        }
-      >
-        <StaffLoginPage />
-      </Suspense>
-    )
+    // Preserve destination so Login & parse / deep links return correctly
+    if (loc.pathname === '/login') {
+      return (
+        <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center bg-ink text-muted">
+              Loading…
+            </div>
+          }
+        >
+          <StaffLoginPage />
+        </Suspense>
+      )
+    }
+    const next = `${loc.pathname}${loc.search}`
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />
   }
 
   const section = sectionForPath(loc.pathname)
   if (section && !sessionCan(section)) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/board" replace />
   }
 
   return children

@@ -40,7 +40,7 @@ export default function ManifestPage() {
     return (
       <div className="p-8 text-cream">
         <p className="text-muted">Trip not found.</p>
-        <Link to="/" className="text-gold">
+        <Link to="/board" className="text-gold">
           Board
         </Link>
       </div>
