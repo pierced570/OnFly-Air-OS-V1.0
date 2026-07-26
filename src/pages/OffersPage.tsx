@@ -531,10 +531,15 @@ export default function OffersPage() {
                     </div>
                   </div>
                 </div>
+                {status === 'awaiting' || status === 'yes' ? (
                 <div className="mt-3 space-y-2 rounded border border-border/50 bg-ink/40 p-3">
                   <div className="text-[11px] uppercase tracking-wider text-muted">
-                    Destination on file
+                    Email / SMS for the offer link
                   </div>
+                  <p className="text-[11px] text-muted">
+                    Edit where we send this operator&apos;s quote-request link,
+                    then save or send.
+                  </p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="block text-xs text-muted">
                       Email
@@ -613,7 +618,7 @@ export default function OffersPage() {
                       className="rounded border border-border px-2 py-1 text-xs text-muted hover:text-cream"
                       onClick={() => saveContacts(o.id)}
                     >
-                      Save destination
+                      Save email / SMS
                     </button>
                     <button
                       type="button"
@@ -629,10 +634,11 @@ export default function OffersPage() {
                           )
                       }}
                     >
-                      Notify this operator
+                      Send offer link
                     </button>
                   </div>
                 </div>
+                ) : null}
                 {o.bookingGated && (
                   <div className="mt-2 text-xs text-late">
                     Booking gated — insurance/compliance
