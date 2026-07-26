@@ -50,6 +50,8 @@ function mapOfferDbRow(
     replied_at: r.replied_at ? String(r.replied_at) : null,
     time_to_position_min:
       r.time_to_position_min == null ? null : Number(r.time_to_position_min),
+    quick_turn_min:
+      notes.quick_turn_min == null ? null : Number(notes.quick_turn_min),
     live_leg_min: r.live_leg_min == null ? null : Number(r.live_leg_min),
     wait_ok: r.wait_ok == null ? null : Boolean(r.wait_ok),
     max_wait_hrs: r.max_wait_hrs == null ? null : Number(r.max_wait_hrs),

@@ -18,6 +18,7 @@ import {
   updateTripOfferRequest,
 } from '@/lib/offerFlow'
 import { clientTotalForOffer } from '@/lib/offerPricing'
+import { ClientQuoteLayoutPanel } from '@/components/ClientQuoteLayoutPanel'
 import {
   candidateFromDeskHit,
   contactOverrideFromHit,
@@ -728,19 +729,11 @@ export default function OffersPage() {
           )}
         </section>
 
-        <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">
-            Event log
-          </h2>
-          <ul className="mt-2 max-h-[20rem] space-y-1 overflow-auto text-xs text-muted">
-            {trip.events.map((e, i) => (
-              <li key={i}>
-                <span className="avionic">{e.at.slice(11, 19)}Z</span> · {e.kind}{' '}
-                · {e.actor}
-              </li>
-            ))}
-          </ul>
-        </section>
+        <ClientQuoteLayoutPanel
+          trip={trip}
+          clientEdits={clientEdits}
+          onAccepted={() => setError(null)}
+        />
       </div>
     </div>
   )

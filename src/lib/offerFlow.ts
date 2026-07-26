@@ -462,6 +462,7 @@ export async function submitOperatorQuote(
     const o = t.offers.find((x) => x.id === offer.id)!
     if (tail) o.tail = tail
     o.time_to_position_min = input.time_to_position_min
+    o.quick_turn_min = quickTurn
     o.live_leg_min = input.live_leg_min
     o.price_net = input.price_net
     o.wait_ok = input.wait_ok
@@ -507,9 +508,11 @@ export async function selectOffersAndHardQuote(
   offerIds: string[],
   clientTotalsByOffer?: Record<string, number>,
   toEmails?: string[],
+  opts?: { notifyClient?: boolean },
 ) {
   const trip = getTrip(tripId)!
   if (!offerIds.length) throw new Error('select at least one offer')
+  const notifyClient = opts?.notifyClient !== false
   const selectedOffers = offerIds.map((id) => {
     const o = trip.offers.find((x) => x.id === id)
     if (!o) throw new Error(`offer not found: ${id}`)
@@ -543,6 +546,7 @@ export async function selectOffersAndHardQuote(
   mutateTrip(tripId, (t) => {
     for (const o of t.offers) {
       if (offerIds.includes(o.id)) o.state = 'selected'
+      else if (o.state === 'selected') o.state = 'stood_down'
     }
   })
 
@@ -564,74 +568,97 @@ export async function selectOffersAndHardQuote(
   })
 
   const recipients = resolveHardQuoteRecipients(trip, toEmails)
-  const comms = createCommsAdapter()
-  const email = createEmailAdapter()
-  const optionLines = options
-    .map(
-      (o) =>
-        `${o.label}: $${o.client_total.toFixed(0)}${o.eta_end ? ` · ETA ${o.eta_end.slice(0, 16)}Z` : ''}`,
-    )
-    .join('\n')
 
-  for (const cell of recipientCells(trip)) {
-    await comms.send({
-      channel: 'sms',
-      to: cell,
-      body: `OnFly hard quote ${trip.lane}:\n${optionLines}\nAccept: /accept/${accept_token}`,
-    })
-  }
+  if (notifyClient) {
+    const comms = createCommsAdapter()
+    const email = createEmailAdapter()
+    const optionLines = options
+      .map(
+        (o) =>
+          `${o.label}: $${o.client_total.toFixed(0)}${o.eta_end ? ` · ETA ${o.eta_end.slice(0, 16)}Z` : ''}`,
+      )
+      .join('\n')
 
-  if (recipients.length) {
-    for (const to of recipients) {
-      await email.send({
-        to,
-        subject: `OnFly quote · ${trip.lane}`,
-        text: [
-          `Hard quote for ${trip.lane}.`,
-          `A vetted Part 135 carrier — options below (carrier unnamed until acceptance).`,
-          '',
-          optionLines,
-          '',
-          `Accept: /accept/${accept_token}`,
-          trip.po_number ? `PO: ${trip.po_number}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
+    for (const cell of recipientCells(trip)) {
+      await comms.send({
+        channel: 'sms',
+        to: cell,
+        body: `OnFly hard quote ${trip.lane}:\n${optionLines}\nAccept: /accept/${accept_token}`,
       })
     }
-  }
 
-  const primaryOffer = selectedOffers[0]!
-  const selectedCand =
-    trip.candidates.find((c) => c.aircraft_id === primaryOffer.aircraft_id) ??
-    trip.candidates.find((c) => c.tail === primaryOffer.tail) ??
-    trip.candidates[0]
-  if (selectedCand?.chain?.length) {
-    try {
-      const { sendEstimatedQuote } = await import('@/lib/sendEstimatedQuote')
-      const [originLabel, destLabel] = trip.lane.split(/\s*→\s*/)
-      await sendEstimatedQuote({
-        originLabel: originLabel?.trim() || trip.lane,
-        destLabel: destLabel?.trim() || '',
-        readyLabel: trip.ready_label,
-        payloadKind: kind,
-        candidates: trip.candidates,
-        selected: selectedCand,
-        airSubtotal: primaryTotal,
-        total: primaryTotal,
-        taxLines: [],
-        clientId: trip.client_id,
-        kind: 'hard',
-        acceptUrl: `/accept/${accept_token}`,
-        tripId,
-        to: recipients.length ? recipients : undefined,
-      })
-    } catch (e) {
-      console.warn('[hard quote] email with ETA skipped', e)
+    if (recipients.length) {
+      for (const to of recipients) {
+        await email.send({
+          to,
+          subject: `OnFly quote · ${trip.lane}`,
+          text: [
+            `Hard quote for ${trip.lane}.`,
+            `A vetted Part 135 carrier — options below (carrier unnamed until acceptance).`,
+            '',
+            optionLines,
+            '',
+            `Accept: /accept/${accept_token}`,
+            trip.po_number ? `PO: ${trip.po_number}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        })
+      }
+    }
+
+    const primaryOffer = selectedOffers[0]!
+    const selectedCand =
+      trip.candidates.find((c) => c.aircraft_id === primaryOffer.aircraft_id) ??
+      trip.candidates.find((c) => c.tail === primaryOffer.tail) ??
+      trip.candidates[0]
+    if (selectedCand?.chain?.length) {
+      try {
+        const { sendEstimatedQuote } = await import('@/lib/sendEstimatedQuote')
+        const [originLabel, destLabel] = trip.lane.split(/\s*→\s*/)
+        await sendEstimatedQuote({
+          originLabel: originLabel?.trim() || trip.lane,
+          destLabel: destLabel?.trim() || '',
+          readyLabel: trip.ready_label,
+          payloadKind: kind,
+          candidates: trip.candidates,
+          selected: selectedCand,
+          airSubtotal: primaryTotal,
+          total: primaryTotal,
+          taxLines: [],
+          clientId: trip.client_id,
+          kind: 'hard',
+          acceptUrl: `/accept/${accept_token}`,
+          tripId,
+          to: recipients.length ? recipients : undefined,
+        })
+      } catch (e) {
+        console.warn('[hard quote] email with ETA skipped', e)
+      }
     }
   }
 
   return getTrip(tripId)!
+}
+
+/**
+ * Desk accepts one quoted option on the client's behalf (no client email blast).
+ * Marks that offer selected, stands other selected offers down, books the trip.
+ */
+export async function deskAcceptOfferOption(
+  tripId: string,
+  offerId: string,
+  clientTotal?: number,
+): Promise<TripStoreRow> {
+  const totals =
+    clientTotal != null ? { [offerId]: clientTotal } : undefined
+  await selectOffersAndHardQuote(tripId, [offerId], totals, [], {
+    notifyClient: false,
+  })
+  const trip = getTrip(tripId)
+  const token = trip?.hard_quote?.accept_token
+  if (!token) throw new Error('hard quote missing after select')
+  return acceptHardQuote(token)
 }
 
 function resolveHardQuoteRecipients(
