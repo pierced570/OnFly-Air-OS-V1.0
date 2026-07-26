@@ -33,6 +33,7 @@ import { getEtaDefaults } from '@/lib/etaDefaultsStore'
 import { getReferral } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
 import { roleOnOpsThread } from '@/domain/tripThread'
+import { appPublicUrl } from '@/lib/appUrl'
 import { getCachedNetwork } from '@/lib/networkData'
 import { listOnboardSubmissions } from '@/lib/operatorOnboardStore'
 import { listOperatorDrafts } from '@/lib/operatorDraftStore'
@@ -1520,10 +1521,7 @@ export function addTripDocument(
 }
 
 function originBase(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin
-  }
-  return 'https://app.onflyair.com'
+  return appPublicUrl() || 'https://app.onflyair.com'
 }
 
 /** Assign a pool DID and open the trip SMS thread (idempotent). */

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   OfferBoardChrome,
@@ -6,7 +6,8 @@ import {
   offerBtnYes,
 } from '@/components/OfferBoardChrome'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
-import { getTripByOfferToken } from '@/lib/tripStore'
+import { resolveOfferByToken } from '@/lib/db/hydrateTrips'
+import type { OfferRow, TripStoreRow } from '@/lib/tripStore'
 import {
   respondOfferAvailability,
   submitOperatorQuote,
@@ -18,20 +19,47 @@ import {
  */
 export default function OfferPublicPage() {
   const { token } = useParams()
-  const found = useMemo(
-    () => (token ? getTripByOfferToken(token) : null),
-    [token],
-  )
-  const [step, setStep] = useState<'avail' | 'quote' | 'no' | 'done'>(() => {
-    if (!found) return 'avail'
-    if (found.offer.state === 'quoted') return 'done'
-    if (found.offer.state === 'unavailable') return 'no'
-    if (found.offer.state === 'available' || found.offer.state === 'pinged')
-      return found.offer.state === 'available' ? 'quote' : 'avail'
-    return 'avail'
-  })
+  const [found, setFound] = useState<{
+    trip: TripStoreRow
+    offer: OfferRow
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [step, setStep] = useState<'avail' | 'quote' | 'no' | 'done'>('avail')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    void resolveOfferByToken(token ?? '')
+      .then((hit) => {
+        if (cancelled) return
+        setFound(hit)
+        if (!hit) {
+          setStep('avail')
+          return
+        }
+        const st = hit.offer.state
+        if (st === 'quoted') setStep('done')
+        else if (st === 'unavailable') setStep('no')
+        else if (st === 'available') setStep('quote')
+        else setStep('avail')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token])
+
+  if (loading) {
+    return (
+      <div className="min-h-dvh bg-ink px-4 py-6 text-base text-cream">
+        Loading trip offer…
+      </div>
+    )
+  }
 
   if (!found) {
     return (
