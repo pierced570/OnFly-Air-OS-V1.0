@@ -368,7 +368,9 @@ export async function respondOfferAvailability(
   token: string,
   available: boolean,
 ): Promise<{ ok: true; available: boolean } | { ok: false; reason: string }> {
-  const { getTripByOfferToken } = await import('@/lib/tripStore')
+  const { flushPersistTrip, getTripByOfferToken } = await import(
+    '@/lib/tripStore'
+  )
   const found = getTripByOfferToken(token)
   if (!found) return { ok: false, reason: 'invalid offer token' }
   const { trip, offer } = found
@@ -388,6 +390,8 @@ export async function respondOfferAvailability(
       },
     })
   })
+  // Await DB write so Dispatch center poll/hydrate sees Yes/No immediately.
+  await flushPersistTrip(trip.id)
   return { ok: true, available }
 }
 
@@ -438,8 +442,11 @@ export async function submitOperatorQuote(
       },
     })
   })
-  const { applyOfferTtpToTrip } = await import('@/lib/tripStore')
+  const { applyOfferTtpToTrip, flushPersistTrip } = await import(
+    '@/lib/tripStore'
+  )
   applyOfferTtpToTrip(trip.id, offer.id, input.time_to_position_min)
+  await flushPersistTrip(trip.id)
   return getTrip(trip.id)!
 }
 

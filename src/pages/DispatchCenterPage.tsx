@@ -21,6 +21,7 @@ import {
 } from '@/domain/dispatchCenter'
 import { absoluteAppUrl } from '@/lib/appUrl'
 import {
+  deleteRequest,
   listRequests,
   pushScratchPadToTripRequest,
   subscribeRequests,
@@ -31,6 +32,7 @@ import {
   subscribeScratchPad,
 } from '@/lib/scratchPadStore'
 import { getClient } from '@/lib/clientStore'
+import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
 import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
 
 const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
@@ -115,21 +117,41 @@ function Drawer({
   )
 }
 
-function CardList({ cards }: { cards: DispatchCard[] }) {
+function CardList({
+  cards,
+  onDeleteRequest,
+}: {
+  cards: DispatchCard[]
+  onDeleteRequest?: (id: string, title: string) => void
+}) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
   return (
     <ul className="space-y-2">
       {cards.map((c) => (
-        <li key={`${c.kind}-${c.id}`}>
+        <li
+          key={`${c.kind}-${c.id}`}
+          className="flex items-stretch gap-2 rounded-md border border-border/70 bg-ink"
+        >
           <Link
             to={c.href}
-            className="block rounded-md border border-border/70 bg-ink px-3 py-3 hover:border-gold/40"
+            className="min-w-0 flex-1 px-3 py-3 hover:bg-surface-2/40"
           >
             <div className="font-medium text-cream">{c.title}</div>
             <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
           </Link>
+          {c.kind === 'request' && onDeleteRequest ? (
+            <button
+              type="button"
+              aria-label={`Delete ${c.title}`}
+              title="Delete request"
+              onClick={() => onDeleteRequest(c.id, c.title)}
+              className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
+            >
+              Delete
+            </button>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -295,11 +317,19 @@ export default function DispatchCenterPage() {
     setOpenDrawer(drawerParam as DispatchDrawerId)
   }, [drawerParam])
 
+  // Pull operator Yes/No / quotes into this browser without a manual refresh.
+  useEffect(() => startLiveTripRefresh(4000), [])
+
   useEffect(() => {
     if (!focusTripId || openDrawer !== 'offers') return
     const el = document.getElementById(`offer-trip-${focusTripId}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [focusTripId, openDrawer, trips])
+
+  function removeTripRequest(id: string, title: string) {
+    if (!window.confirm(`Delete trip request?\n\n${title}`)) return
+    deleteRequest(id)
+  }
 
   const buckets = useMemo(
     () =>
@@ -459,7 +489,12 @@ export default function DispatchCenterPage() {
           {d.id === 'offers' ? (
             <OfferTripList cards={buckets.offers} focusTripId={focusTripId} />
           ) : (
-            <CardList cards={buckets[d.id]} />
+            <CardList
+              cards={buckets[d.id]}
+              onDeleteRequest={
+                d.id === 'requests' ? removeTripRequest : undefined
+              }
+            />
           )}
         </Drawer>
       ))}

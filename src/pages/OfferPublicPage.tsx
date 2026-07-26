@@ -95,7 +95,8 @@ export default function OfferPublicPage() {
   return (
     <OfferBoardChrome
       lane={trip.lane}
-      missionLine={`${trip.payload_summary} · ready ${ready}`}
+      payloadSummary={trip.payload_summary}
+      readyLabel={ready}
     >
       {error && <p className="text-base text-late">{error}</p>}
 

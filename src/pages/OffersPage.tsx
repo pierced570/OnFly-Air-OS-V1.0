@@ -29,6 +29,7 @@ import {
   listInvoiceEmails,
   listRequestAlertEmails,
 } from '@/lib/clientStore'
+import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
 import {
   getTrip,
   listTripsStable,
@@ -88,6 +89,9 @@ export default function OffersPage() {
     setPayloadEdit(trip.payload_summary)
     setReadyEdit(trip.ready_label)
   }, [trip?.id, trip?.lane, trip?.payload_summary, trip?.ready_label])
+
+  // Yes/No / quotes from the public offer page land here without a full reload.
+  useEffect(() => startLiveTripRefresh(4000), [])
 
   useEffect(() => {
     if (!trip) return
