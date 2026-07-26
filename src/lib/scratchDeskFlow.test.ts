@@ -5,8 +5,10 @@ import { addClient } from '@/lib/clientStore'
 import { setScratchPadBody } from '@/lib/scratchPadStore'
 import {
   deskDraftFromExtract,
+  newDeskLeg,
   parseScratchToDeskDraft,
   recommendForDeskDraft,
+  syncDeskDraftDerived,
 } from '@/lib/scratchDeskFlow'
 
 describe('scratch desk parse', () => {
@@ -53,6 +55,23 @@ Ready ASAP`),
     expect(merged.client_name).toBe('PSA')
     expect(merged.origin_text).toBe('CVG')
     expect(merged.asap).toBe(true)
+  })
+
+  it('supports multiple legs when needed', () => {
+    const draft = deskDraftFromExtract(
+      extractFromScratchNotes('PSA\nCVG – HPN\nReady ASAP'),
+    )
+    draft.legs = [
+      draft.legs[0]!,
+      newDeskLeg({ origin_icao: 'KHPN', dest_icao: 'KCVG' }),
+    ]
+    const synced = syncDeskDraftDerived(draft)
+    expect(synced.legs).toHaveLength(2)
+    expect(synced.legs[0]?.origin_icao).toBe('KCVG')
+    expect(synced.legs[1]?.dest_icao).toBe('KCVG')
+    // Recommend still keys off outbound (first) lane
+    expect(synced.origin_text).toBe('KCVG')
+    expect(synced.destination_text).toBe('KHPN')
   })
 
   it('filters operators using previous client parameters', async () => {

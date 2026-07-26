@@ -556,7 +556,38 @@ export default function DeskParsePage() {
                 <input
                   type="checkbox"
                   checked={draft.roundtrip}
-                  onChange={(e) => patch({ roundtrip: e.target.checked })}
+                  onChange={(e) => {
+                    const roundtrip = e.target.checked
+                    const leg0 = draft.legs[0]
+                    if (roundtrip && leg0) {
+                      // Auto slot return leg (can still + Add Leg for more).
+                      const rest = draft.legs.slice(1).filter((l) => {
+                        // Drop prior auto-return if origin/dest are swapped of leg0
+                        return !(
+                          l.origin_icao === leg0.dest_icao &&
+                          l.dest_icao === leg0.origin_icao
+                        )
+                      })
+                      patch({
+                        roundtrip: true,
+                        legs: [
+                          leg0,
+                          newDeskLeg({
+                            origin_icao: leg0.dest_icao,
+                            dest_icao: leg0.origin_icao,
+                            pax: leg0.pax,
+                            date: leg0.date,
+                          }),
+                          ...rest,
+                        ],
+                      })
+                    } else {
+                      patch({
+                        roundtrip: false,
+                        legs: draft.legs.length > 1 ? [draft.legs[0]!] : draft.legs,
+                      })
+                    }
+                  }}
                 />
                 Roundtrip
               </label>
@@ -604,6 +635,14 @@ export default function DeskParsePage() {
           </section>
 
           <section className="space-y-3">
+            <div className="flex items-end justify-between gap-2">
+              <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                Legs ({draft.legs.length})
+              </div>
+              <p className="text-[11px] text-muted">
+                Add legs if needed — roundtrip adds the return for you
+              </p>
+            </div>
             {draft.legs.map((leg, idx) => (
               <div
                 key={leg.id}
@@ -612,16 +651,26 @@ export default function DeskParsePage() {
                 <div className="mb-2 flex items-center justify-between">
                   <div className="text-sm font-semibold text-cream">
                     Leg {idx + 1}
+                    {draft.roundtrip &&
+                    idx === 1 &&
+                    draft.legs[0] &&
+                    leg.origin_icao === draft.legs[0].dest_icao &&
+                    leg.dest_icao === draft.legs[0].origin_icao
+                      ? ' · return'
+                      : ''}
                   </div>
                   {draft.legs.length > 1 && (
                     <button
                       type="button"
                       className="text-xs text-muted hover:text-late"
-                      onClick={() =>
+                      onClick={() => {
+                        const nextLegs = draft.legs.filter((l) => l.id !== leg.id)
                         patch({
-                          legs: draft.legs.filter((l) => l.id !== leg.id),
+                          legs: nextLegs,
+                          roundtrip:
+                            nextLegs.length >= 2 ? draft.roundtrip : false,
                         })
-                      }
+                      }}
                     >
                       Remove
                     </button>
@@ -633,13 +682,24 @@ export default function DeskParsePage() {
                     value={leg.origin_icao}
                     required
                     onChange={(icao) => {
-                      patchLeg(leg.id, { origin_icao: icao })
-                      const next = syncDeskDraftDerived({
-                        ...draft,
-                        legs: draft.legs.map((l) =>
-                          l.id === leg.id ? { ...l, origin_icao: icao } : l,
-                        ),
-                      })
+                      let legs = draft.legs.map((l) =>
+                        l.id === leg.id ? { ...l, origin_icao: icao } : l,
+                      )
+                      // Keep roundtrip return leg mirrored from outbound.
+                      if (draft.roundtrip && idx === 0 && legs[1]) {
+                        legs = legs.map((l, i) =>
+                          i === 1
+                            ? {
+                                ...l,
+                                dest_icao: icao,
+                                origin_icao:
+                                  legs[0]?.dest_icao || l.origin_icao,
+                              }
+                            : l,
+                        )
+                      }
+                      const next = syncDeskDraftDerived({ ...draft, legs })
+                      setDraft(next)
                       setBusy(true)
                       void applyRecommend(next).finally(() => setBusy(false))
                     }}
@@ -649,13 +709,22 @@ export default function DeskParsePage() {
                     value={leg.dest_icao}
                     required
                     onChange={(icao) => {
-                      patchLeg(leg.id, { dest_icao: icao })
-                      const next = syncDeskDraftDerived({
-                        ...draft,
-                        legs: draft.legs.map((l) =>
-                          l.id === leg.id ? { ...l, dest_icao: icao } : l,
-                        ),
-                      })
+                      let legs = draft.legs.map((l) =>
+                        l.id === leg.id ? { ...l, dest_icao: icao } : l,
+                      )
+                      if (draft.roundtrip && idx === 0 && legs[1]) {
+                        legs = legs.map((l, i) =>
+                          i === 1
+                            ? {
+                                ...l,
+                                origin_icao: icao,
+                                dest_icao: legs[0]?.origin_icao || l.dest_icao,
+                              }
+                            : l,
+                        )
+                      }
+                      const next = syncDeskDraftDerived({ ...draft, legs })
+                      setDraft(next)
                       setBusy(true)
                       void applyRecommend(next).finally(() => setBusy(false))
                     }}
@@ -705,20 +774,21 @@ export default function DeskParsePage() {
             ))}
             <button
               type="button"
-              className="text-sm font-medium text-gold"
-              onClick={() =>
+              className="w-full rounded-md border border-dashed border-gold/40 px-3 py-2.5 text-sm font-medium text-gold hover:bg-gold/5"
+              onClick={() => {
+                const last = draft.legs[draft.legs.length - 1]
                 patch({
                   legs: [
                     ...draft.legs,
                     newDeskLeg({
-                      origin_icao:
-                        draft.legs[draft.legs.length - 1]?.dest_icao ?? '',
+                      origin_icao: last?.dest_icao ?? '',
+                      pax: draft.cargo_only ? 0 : last?.pax ?? 0,
                     }),
                   ],
                 })
-              }
+              }}
             >
-              + Add Leg
+              + Add leg
             </button>
           </section>
 
