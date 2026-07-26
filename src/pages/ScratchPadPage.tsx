@@ -85,7 +85,7 @@ Contact: ops@acme…`}
           className="text-[#9a948a] hover:text-[#c9a227]"
           onClick={() => setScratchPadBody('')}
         >
-          Clear pad
+          Clear Scratchpad
         </button>
       </div>
     </>
