@@ -11,7 +11,7 @@ describe('dispatchCenter', () => {
     expect(drawerForTripState('closed')).toBeNull()
   })
 
-  it('labels Scratchpad requests distinctly', () => {
+  it('labels Scratchpad requests distinctly and shows client name', () => {
     const buckets = buildDispatchDrawers({
       requests: [
         {
@@ -21,10 +21,12 @@ describe('dispatchCenter', () => {
           summary: '2 pax · ASAP',
           source: 'scratchpad',
           status: 'submitted',
+          client_name: 'Acme Turbines',
         },
       ],
       trips: [],
     })
+    expect(buckets.requests[0]?.title).toBe('R-99 · Acme Turbines · KCKB→KDFW')
     expect(buckets.requests[0]?.subtitle).toMatch(/^Scratchpad ·/)
   })
 

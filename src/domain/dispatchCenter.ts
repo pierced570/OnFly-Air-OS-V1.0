@@ -124,6 +124,7 @@ export function buildDispatchDrawers(input: {
     source: string
     status: string
     email?: string
+    client_name?: string | null
     hard_quote_requested_at?: string | null
   }>
   trips: Array<{
@@ -157,10 +158,13 @@ export function buildDispatchDrawers(input: {
 
   for (const r of input.requests) {
     if (r.status !== 'submitted' && r.status !== 'in_review') continue
+    const client = (r.client_name ?? '').trim()
     out.requests.push({
       kind: 'request',
       id: r.id,
-      title: `R-${r.ref} · ${r.lane}`,
+      title: client
+        ? `R-${r.ref} · ${client} · ${r.lane}`
+        : `R-${r.ref} · ${r.lane}`,
       subtitle: `${requestSourceLabel(r.source)} · ${r.summary}${
         r.hard_quote_requested_at ? ' · HARD QUOTE' : ''
       }${r.email ? ` · ${r.email}` : ''}`,
