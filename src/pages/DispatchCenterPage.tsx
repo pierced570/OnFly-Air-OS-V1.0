@@ -257,16 +257,6 @@ export default function DispatchCenterPage() {
   const [searchParams] = useSearchParams()
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
-  const exceptions = useSyncExternalStore(
-    subscribeExceptions,
-    listExceptions,
-    listExceptions,
-  )
-  const upcoming = useSyncExternalStore(
-    subscribeCheckpoints,
-    listUpcomingCheckpoints,
-    listUpcomingCheckpoints,
-  )
   const scratch = useSyncExternalStore(
     subscribeScratchPad,
     getScratchPad,
@@ -275,18 +265,13 @@ export default function DispatchCenterPage() {
 
   const focusTripId = searchParams.get('focus')
   const drawerParam = searchParams.get('drawer')
-  const [openDrawer, setOpenDrawer] = useState<
-    DispatchDrawerId | 'tools' | 'exceptions' | null
-  >(() =>
-    drawerParam && DRAWER_IDS.has(drawerParam)
-      ? (drawerParam as DispatchDrawerId)
-      : 'requests',
+  const [openDrawer, setOpenDrawer] = useState<DispatchDrawerId | 'tools' | null>(
+    () =>
+      drawerParam && DRAWER_IDS.has(drawerParam)
+        ? (drawerParam as DispatchDrawerId)
+        : 'requests',
   )
   const [tool, setTool] = useState<ToolId | null>(null)
-
-  useEffect(() => {
-    syncExceptionsFromTrips(trips)
-  }, [trips])
 
   // Deep link from desk send / share: /dispatch?drawer=offers&focus=<tripId>
   useEffect(() => {
@@ -318,11 +303,9 @@ export default function DispatchCenterPage() {
     [requests, trips],
   )
 
-  const openExceptions = exceptions
-  const nextChecks = upcoming.slice(0, 6)
   const scratchPreview = scratch.body.trim()
 
-  function toggle(id: DispatchDrawerId | 'tools' | 'exceptions') {
+  function toggle(id: DispatchDrawerId | 'tools') {
     setOpenDrawer((cur) => (cur === id ? null : id))
     if (id !== 'tools') setTool(null)
   }
@@ -403,61 +386,6 @@ export default function DispatchCenterPage() {
           </pre>
         </div>
       ) : null}
-
-      <Drawer
-        id="exceptions"
-        title="Exceptions & check-ins"
-        blurb="Touch these first"
-        count={openExceptions.length + nextChecks.length}
-        open={openDrawer === 'exceptions'}
-        onToggle={() => toggle('exceptions')}
-        attention={openExceptions.length > 0}
-      >
-        {openExceptions.length === 0 && nextChecks.length === 0 ? (
-          <p className="px-1 py-3 text-sm text-muted">All clear.</p>
-        ) : (
-          <ul className="space-y-2">
-            {openExceptions.map((e) => (
-              <li
-                key={e.id}
-                className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-late/40 bg-late/10 px-3 py-2.5"
-              >
-                <div>
-                  <div className="text-sm font-medium text-cream">{e.title}</div>
-                  <div className="text-xs text-muted">{e.detail}</div>
-                </div>
-                <button
-                  type="button"
-                  className="text-xs text-gold"
-                  onClick={() => acknowledgeException(e.id)}
-                >
-                  Ack
-                </button>
-              </li>
-            ))}
-            {nextChecks.map((c) => (
-              <li
-                key={c.id}
-                className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-border bg-ink px-3 py-2.5"
-              >
-                <div>
-                  <div className="text-sm text-cream">{c.title}</div>
-                  <div className="text-xs text-muted">
-                    T-{c.trip_ref} · {c.leg_label}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="text-xs text-gold"
-                  onClick={() => acknowledgeCheckpoint(c.id)}
-                >
-                  Done
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Drawer>
 
       {DISPATCH_DRAWERS.map((d) => (
         <Drawer
