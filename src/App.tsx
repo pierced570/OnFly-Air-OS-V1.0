@@ -25,7 +25,6 @@ const PortalTripTrackPage = lazy(() =>
     default: m.PortalTripTrackPage,
   })),
 )
-const BriefingPage = lazy(() => import('@/pages/BriefingPage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
 const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
@@ -125,7 +124,10 @@ export function App() {
           path="/radar"
           element={<Navigate to="/network?tab=radar" replace />}
         />
-        <Route path="/briefing" element={<BriefingPage />} />
+        <Route
+          path="/briefing"
+          element={<Navigate to="/dispatch" replace />}
+        />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/tasks" element={<AdminTasksPage />} />
         <Route path="/admin/staff" element={<StaffAccessPage />} />
