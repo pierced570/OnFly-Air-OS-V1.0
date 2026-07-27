@@ -195,6 +195,11 @@ export async function persistFbo(fbo: FboRow): Promise<void> {
   }
 }
 
+export async function deleteFboFromDb(id: string): Promise<void> {
+  if (!canPersist()) return
+  await safeQuery('fbos.delete', () => db().from('fbos').delete().eq('id', id))
+}
+
 export async function persistShiftStart(shift: ShiftRow): Promise<void> {
   if (!canPersist()) return
   // Multi-dispatcher: do not deactivate other active shifts
