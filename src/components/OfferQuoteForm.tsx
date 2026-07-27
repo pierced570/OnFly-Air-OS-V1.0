@@ -9,6 +9,7 @@ import {
   offerLabel,
 } from '@/components/OfferBoardChrome'
 import { HrsMinsInput } from '@/components/HrsMinsInput'
+import { isRoundTripLane } from '@/domain/offerMissionDisplay'
 import {
   DEFAULT_QUICK_TURN_MIN,
   computeOfferQuoteTiming,
@@ -29,8 +30,18 @@ export type OfferQuoteFormValues = {
 
 type Props = {
   lane: string
+  /** When omitted, inferred from multi-leg lane (outbound · return). */
+  roundTrip?: boolean
   busy?: boolean
   submitLabel?: string
+  /** Override the default operator intro; pass empty string to hide. */
+  intro?: string
+  /** Prefill when editing / desk entry from a known tail. */
+  initialTail?: string
+  initialPriceNet?: number
+  initialTtpMin?: number
+  initialQuickTurnMin?: number
+  initialLiveLegMin?: number
   onSubmit: (values: OfferQuoteFormValues) => void
 }
 
@@ -64,15 +75,25 @@ function TimeChip({
 
 export function OfferQuoteForm({
   lane,
+  roundTrip,
   busy = false,
   submitLabel = 'Submit quote',
+  intro = "You're available — enter your aircraft and quote:",
+  initialTail = '',
+  initialPriceNet,
+  initialTtpMin,
+  initialQuickTurnMin,
+  initialLiveLegMin,
   onSubmit,
 }: Props) {
-  const [tail, setTail] = useState('')
-  const [ttp, setTtp] = useState(90)
-  const [quickTurn, setQuickTurn] = useState(DEFAULT_QUICK_TURN_MIN)
-  const [live, setLive] = useState(75)
-  const [price, setPrice] = useState(4500)
+  const showWait = roundTrip ?? isRoundTripLane(lane)
+  const [tail, setTail] = useState(initialTail)
+  const [ttp, setTtp] = useState(initialTtpMin ?? 90)
+  const [quickTurn, setQuickTurn] = useState(
+    initialQuickTurnMin ?? DEFAULT_QUICK_TURN_MIN,
+  )
+  const [live, setLive] = useState(initialLiveLegMin ?? 75)
+  const [price, setPrice] = useState(initialPriceNet ?? 4500)
   const [waitOk, setWaitOk] = useState(true)
   const [maxWait, setMaxWait] = useState(2)
   /** Prefill: price includes all other fees. */
@@ -107,15 +128,13 @@ export function OfferQuoteForm({
           quick_turn_min: quickTurn,
           live_leg_min: live,
           price_net: price,
-          wait_ok: waitOk,
-          max_wait_hrs: waitOk ? maxWait : null,
+          wait_ok: showWait ? waitOk : false,
+          max_wait_hrs: showWait && waitOk ? maxWait : null,
           fee_scope: feesIncluded ? 'aircraft_and_fees' : 'aircraft_only',
         })
       }}
     >
-      <p className="text-base text-onplan">
-        You&apos;re available — enter your aircraft and quote:
-      </p>
+      {intro ? <p className="text-base text-onplan">{intro}</p> : null}
       {localError && <p className="text-base text-late">{localError}</p>}
 
       <label className={offerLabel}>
@@ -132,62 +151,66 @@ export function OfferQuoteForm({
       </label>
 
       <HrsMinsInput
-        label="Time to position"
+        label={`Time to be in (${timing.originIcao || 'departure'}) from Go`}
         totalMinutes={ttp}
         onChange={setTtp}
         required
       />
       <TimeChip
-        title="Implied ETA"
+        title="In position"
         place={timing.originIcao || 'departure'}
         times={timing.positionAtOrigin}
       />
 
       <HrsMinsInput
-        label="Quick turn time"
+        label="Estimated loading and turn around time"
         totalMinutes={quickTurn}
         onChange={setQuickTurn}
         required
       />
       <TimeChip
-        title="Implied departure ETD"
+        title="Departure ETD"
         place={timing.originIcao || 'departure'}
         times={timing.etd}
       />
 
       <HrsMinsInput
-        label="Live leg"
+        label={`Live leg time (${timing.originIcao || 'departure'} → ${timing.destIcao || 'destination'})`}
         totalMinutes={live}
         onChange={setLive}
         required
       />
       <TimeChip
-        title="Implied ETA"
+        title="Arrival ETA"
         place={timing.destIcao || 'destination'}
         times={timing.destEta}
       />
 
-      <label className="flex min-h-12 items-center gap-3 text-base">
-        <input
-          type="checkbox"
-          className="h-5 w-5"
-          checked={waitOk}
-          onChange={(e) => setWaitOk(e.target.checked)}
-        />
-        Can do the wait time
-      </label>
-      {waitOk && (
-        <label className={offerLabel}>
-          Max wait (hrs)
-          <input
-            type="number"
-            inputMode="numeric"
-            value={maxWait}
-            onChange={(e) => setMaxWait(Number(e.target.value))}
-            className={offerInput}
-          />
-        </label>
-      )}
+      {showWait ? (
+        <>
+          <label className="flex min-h-12 items-center gap-3 text-base">
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={waitOk}
+              onChange={(e) => setWaitOk(e.target.checked)}
+            />
+            Can do the wait time
+          </label>
+          {waitOk ? (
+            <label className={offerLabel}>
+              Max wait (hrs)
+              <input
+                type="number"
+                inputMode="numeric"
+                value={maxWait}
+                onChange={(e) => setMaxWait(Number(e.target.value))}
+                className={offerInput}
+              />
+            </label>
+          ) : null}
+        </>
+      ) : null}
 
       <label className={offerLabel}>
         Price for Aircraft NET NET

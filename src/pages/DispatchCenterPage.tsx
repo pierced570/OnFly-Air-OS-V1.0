@@ -13,14 +13,19 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { AirportSelect } from '@/components/AirportSelect'
+import { DeskOfferQuoteWorkbench } from '@/components/DeskOfferQuoteWorkbench'
+import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
 import {
   DISPATCH_DRAWERS,
   buildDispatchDrawers,
   type DispatchCard,
   type DispatchDrawerId,
 } from '@/domain/dispatchCenter'
+import { parseLaneAirports } from '@/domain/offerMissionDisplay'
 import { absoluteAppUrl } from '@/lib/appUrl'
 import {
+  deleteRequest,
   listRequests,
   pushScratchPadToTripRequest,
   subscribeRequests,
@@ -31,7 +36,16 @@ import {
   subscribeScratchPad,
 } from '@/lib/scratchPadStore'
 import { getClient } from '@/lib/clientStore'
-import { listTripsStable, subscribeTrips } from '@/lib/tripStore'
+import {
+  acknowledgeDeclinedOffer,
+  updateTripOfferRequest,
+} from '@/lib/offerFlow'
+import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
+import {
+  getTrip,
+  listTripsStable,
+  subscribeTrips,
+} from '@/lib/tripStore'
 
 const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
 const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
@@ -115,21 +129,41 @@ function Drawer({
   )
 }
 
-function CardList({ cards }: { cards: DispatchCard[] }) {
+function CardList({
+  cards,
+  onDeleteRequest,
+}: {
+  cards: DispatchCard[]
+  onDeleteRequest?: (id: string, title: string) => void
+}) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
   return (
     <ul className="space-y-2">
       {cards.map((c) => (
-        <li key={`${c.kind}-${c.id}`}>
+        <li
+          key={`${c.kind}-${c.id}`}
+          className="flex items-stretch gap-2 rounded-md border border-border/70 bg-ink"
+        >
           <Link
             to={c.href}
-            className="block rounded-md border border-border/70 bg-ink px-3 py-3 hover:border-gold/40"
+            className="min-w-0 flex-1 px-3 py-3 hover:bg-surface-2/40"
           >
             <div className="font-medium text-cream">{c.title}</div>
             <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
           </Link>
+          {c.kind === 'request' && onDeleteRequest ? (
+            <button
+              type="button"
+              aria-label={`Delete ${c.title}`}
+              title="Delete request"
+              onClick={() => onDeleteRequest(c.id, c.title)}
+              className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
+            >
+              Delete
+            </button>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -146,13 +180,147 @@ function recipientTone(status: string): string {
   return 'text-gold'
 }
 
+const updateField =
+  'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold'
+
+function OfferUpdateForm({
+  tripId,
+  onClose,
+  onError,
+}: {
+  tripId: string
+  onClose: () => void
+  onError: (msg: string) => void
+}) {
+  const trip = getTrip(tripId)
+  const parsed = parseLaneAirports(trip?.lane ?? '')
+  const [origin, setOrigin] = useState(parsed?.origin ?? '')
+  const [dest, setDest] = useState(parsed?.dest ?? '')
+  const [payload, setPayload] = useState(trip?.payload_summary ?? '')
+  const [ready, setReady] = useState(trip?.ready_label ?? '')
+  const [saving, setSaving] = useState(false)
+
+  if (!trip) {
+    return (
+      <p className="mt-3 text-sm text-late">Trip not found in this session.</p>
+    )
+  }
+
+  function save() {
+    const o = origin.trim().toUpperCase()
+    const d = dest.trim().toUpperCase()
+    if (!o || !d) {
+      onError('Pick departure and arrival airports')
+      return
+    }
+    const rest = parsed?.rest
+    const lane = rest ? `${o}→${d} · ${rest}` : `${o}→${d}`
+    setSaving(true)
+    void updateTripOfferRequest(tripId, {
+      lane,
+      payload_summary: payload,
+      ready_label: ready,
+    })
+      .then(() => {
+        onError('')
+        onClose()
+      })
+      .catch((e) => onError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <div className="mt-3 space-y-3 rounded-md border border-gold/40 bg-gold/5 px-3 py-3">
+      <div className="text-sm font-semibold text-cream">Update request</div>
+      <p className="text-xs text-muted">
+        Same mission fields as Parse & shortlist. Changes show on existing offer
+        links — no re-ping.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <AirportSelect
+          label="Departure"
+          value={origin}
+          onChange={setOrigin}
+          allowUnknown
+          inputClassName={updateField}
+        />
+        <AirportSelect
+          label="Arrival"
+          value={dest}
+          onChange={setDest}
+          allowUnknown
+          inputClassName={updateField}
+        />
+      </div>
+      <label className="block text-xs font-medium uppercase tracking-wider text-muted">
+        Mission / payload
+        <input
+          value={payload}
+          onChange={(e) => setPayload(e.target.value)}
+          className={updateField}
+          placeholder="2 pax + standard tooling…"
+        />
+      </label>
+      <label className="block text-xs font-medium uppercase tracking-wider text-muted">
+        Ready
+        <input
+          value={ready}
+          onChange={(e) => setReady(e.target.value)}
+          className={updateField}
+          placeholder="ASAP"
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={save}
+          className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save update'}
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onClose}
+          className="rounded-md border border-border px-3 py-2 text-xs text-muted hover:text-cream"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function OfferTripList({
   cards,
   focusTripId,
+  onAcknowledgeDeclined,
 }: {
-  cards: ReturnType<typeof buildDispatchDrawers>['offers']
+  cards: DispatchCard[]
   focusTripId?: string | null
+  onAcknowledgeDeclined: (tripId: string, offerId: string) => void
 }) {
+  const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
+  const [addingTripId, setAddingTripId] = useState<string | null>(null)
+  const [searchParams] = useSearchParams()
+  const [quotingTripId, setQuotingTripId] = useState<string | null>(
+    () => focusTripId ?? null,
+  )
+  const [updateError, setUpdateError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!focusTripId) return
+    setQuotingTripId(focusTripId)
+    if (searchParams.get('update') === '1') {
+      setUpdatingTripId(focusTripId)
+      setAddingTripId(null)
+    } else if (searchParams.get('add') === '1') {
+      setAddingTripId(focusTripId)
+      setUpdatingTripId(null)
+    }
+  }, [focusTripId, searchParams])
+
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
@@ -160,26 +328,41 @@ function OfferTripList({
     <ul className="space-y-3">
       {cards.map((c) => {
         const focused = Boolean(focusTripId && c.trip_id === focusTripId)
+        const editing = Boolean(c.trip_id && updatingTripId === c.trip_id)
+        const adding = Boolean(c.trip_id && addingTripId === c.trip_id)
+        const quoting = Boolean(c.trip_id && quotingTripId === c.trip_id)
         return (
           <li
             key={`${c.kind}-${c.id}`}
             id={c.trip_id ? `offer-trip-${c.trip_id}` : undefined}
             className={[
               'rounded-md border bg-ink px-3 py-3',
-              focused
+              focused || editing || adding || quoting
                 ? 'border-gold/60 ring-1 ring-gold/30'
                 : 'border-border/70',
             ].join(' ')}
           >
             <div className="font-medium text-cream">{c.title}</div>
             <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-            <p className="mt-1 text-xs text-muted">
-              Quote-request links are emailed on send. Status updates when
-              they answer Yes / No or submit a quote.
-            </p>
+            {c.recipients && c.recipients.length > 0 ? (
+              <p className="mt-1 text-xs text-muted">
+                Quote-request links are emailed on send. Status updates when
+                they answer Yes / No or submit a quote. Use Quotes & pricing
+                for manual quotes and client hard quotes.
+              </p>
+            ) : null}
             {c.recipients && c.recipients.length > 0 ? (
               <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">
-                {c.recipients.map((r) => (
+                {c.recipients.map((r) =>
+                  r.declined_acked ? (
+                    <li
+                      key={r.offer_id}
+                      className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
+                    >
+                      <span className="text-cream/80">{r.name}</span>
+                      <span className="text-muted">unavailable</span>
+                    </li>
+                  ) : (
                   <li
                     key={r.offer_id}
                     className="rounded-md border border-border/40 bg-surface/40 px-2.5 py-2"
@@ -215,6 +398,17 @@ function OfferTripList({
                       </div>
                     ) : null}
                     <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
+                      {r.status === 'no' && c.trip_id ? (
+                        <button
+                          type="button"
+                          className="font-medium text-gold hover:text-gold-lt"
+                          onClick={() =>
+                            onAcknowledgeDeclined(c.trip_id!, r.offer_id)
+                          }
+                        >
+                          Acknowledge
+                        </button>
+                      ) : null}
                       <Link
                         className="text-gold hover:text-gold-lt"
                         to={r.href}
@@ -235,28 +429,98 @@ function OfferTripList({
                       </button>
                     </div>
                   </li>
-                ))}
+                  ),
+                )}
               </ul>
             ) : null}
+            {editing && c.trip_id ? (
+              <>
+                {updateError ? (
+                  <p className="mt-2 text-xs text-late">{updateError}</p>
+                ) : null}
+                <OfferUpdateForm
+                  key={`update-${c.trip_id}`}
+                  tripId={c.trip_id}
+                  onClose={() => {
+                    setUpdatingTripId(null)
+                    setUpdateError(null)
+                  }}
+                  onError={(msg) => setUpdateError(msg || null)}
+                />
+              </>
+            ) : null}
+            {adding && c.trip_id ? (
+              <OfferAddOperatorPanel
+                key={`add-${c.trip_id}`}
+                tripId={c.trip_id}
+                onClose={() => setAddingTripId(null)}
+              />
+            ) : null}
+            {quoting && c.trip_id ? (
+              <DeskOfferQuoteWorkbench
+                key={`quote-${c.trip_id}`}
+                tripId={c.trip_id}
+                onClose={() => setQuotingTripId(null)}
+              />
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                to={c.href}
-                className="rounded-md bg-gold/15 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/25"
-              >
-                Manage trip offers
-              </Link>
-              <Link
-                to={`${c.href}?add=1`}
-                className="rounded-md border border-border px-2.5 py-1.5 text-xs text-cream hover:border-gold/40"
-              >
-                Send to new operator
-              </Link>
-              <Link
-                to={`${c.href}?update=1`}
-                className="rounded-md border border-border px-2.5 py-1.5 text-xs text-cream hover:border-gold/40"
-              >
-                Update request
-              </Link>
+              {c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md px-2.5 py-1.5 text-xs font-medium',
+                    quoting
+                      ? 'bg-gold text-ink'
+                      : 'bg-gold/15 text-gold hover:bg-gold/25',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setAddingTripId(null)
+                    setUpdateError(null)
+                    setQuotingTripId(quoting ? null : c.trip_id!)
+                  }}
+                >
+                  {quoting ? 'Close quotes' : 'Quotes & pricing'}
+                </button>
+              ) : null}
+              {c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md border px-2.5 py-1.5 text-xs',
+                    adding
+                      ? 'border-gold/50 bg-gold/10 text-gold'
+                      : 'border-border text-cream hover:border-gold/40',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setQuotingTripId(null)
+                    setUpdateError(null)
+                    setAddingTripId(adding ? null : c.trip_id!)
+                  }}
+                >
+                  {adding ? 'Close send' : 'Send to new operator'}
+                </button>
+              ) : null}
+              {c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md border px-2.5 py-1.5 text-xs',
+                    editing
+                      ? 'border-gold/50 bg-gold/10 text-gold'
+                      : 'border-border text-cream hover:border-gold/40',
+                  ].join(' ')}
+                  onClick={() => {
+                    setAddingTripId(null)
+                    setQuotingTripId(null)
+                    setUpdateError(null)
+                    setUpdatingTripId(editing ? null : c.trip_id!)
+                  }}
+                >
+                  {editing ? 'Close update' : 'Update request'}
+                </button>
+              ) : null}
             </div>
           </li>
         )
@@ -295,11 +559,26 @@ export default function DispatchCenterPage() {
     setOpenDrawer(drawerParam as DispatchDrawerId)
   }, [drawerParam])
 
+  // Pull operator Yes/No / quotes into this browser without a manual refresh.
+  useEffect(() => startLiveTripRefresh(4000), [])
+
   useEffect(() => {
-    if (!focusTripId || openDrawer !== 'offers') return
+    if (
+      !focusTripId ||
+      (openDrawer !== 'offers' &&
+        openDrawer !== 'quotes' &&
+        openDrawer !== 'submitted_quotes')
+    ) {
+      return
+    }
     const el = document.getElementById(`offer-trip-${focusTripId}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [focusTripId, openDrawer, trips])
+
+  function removeTripRequest(id: string, title: string) {
+    if (!window.confirm(`Delete trip request?\n\n${title}`)) return
+    deleteRequest(id)
+  }
 
   const buckets = useMemo(
     () =>
@@ -317,7 +596,10 @@ export default function DispatchCenterPage() {
             client_name: fromQuick || fromDir || null,
             quick: t.quick,
             legs: t.legs,
-            offers: t.offers,
+            offers: t.offers.map((o) => ({
+              ...o,
+              declined_acked_at: o.declined_acked_at,
+            })),
           }
         }),
       }),
@@ -456,10 +738,23 @@ export default function DispatchCenterPage() {
             (d.id === 'requests' || d.id === 'submitted_quotes')
           }
         >
-          {d.id === 'offers' ? (
-            <OfferTripList cards={buckets.offers} focusTripId={focusTripId} />
+          {d.id === 'offers' || d.id === 'quotes' ? (
+            <OfferTripList
+              cards={buckets[d.id]}
+              focusTripId={focusTripId}
+              onAcknowledgeDeclined={(tripId, offerId) => {
+                void acknowledgeDeclinedOffer(tripId, offerId).catch((e) =>
+                  console.warn('[dispatch] acknowledge declined', e),
+                )
+              }}
+            />
           ) : (
-            <CardList cards={buckets[d.id]} />
+            <CardList
+              cards={buckets[d.id]}
+              onDeleteRequest={
+                d.id === 'requests' ? removeTripRequest : undefined
+              }
+            />
           )}
         </Drawer>
       ))}

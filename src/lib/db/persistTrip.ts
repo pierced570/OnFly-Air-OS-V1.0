@@ -238,6 +238,8 @@ function offerNotesJson(o: OfferRow): string {
     contact_email: o.contact_email,
     quote_link_channel: o.quote_link_channel,
     notified_at: o.notified_at,
+    declined_acked_at: o.declined_acked_at,
+    quick_turn_min: o.quick_turn_min,
     bookingGated: o.bookingGated,
     needsInfo: o.needsInfo,
     fee_scope: o.fee_scope,

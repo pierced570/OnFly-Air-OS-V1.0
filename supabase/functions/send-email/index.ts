@@ -21,6 +21,15 @@ type Body = {
   html?: string
   text?: string
   reply_to?: string
+  cc?: string | string[]
+  bcc?: string | string[]
+}
+
+function normalizeEmails(raw: string | string[] | undefined): string[] {
+  if (!raw) return []
+  return (Array.isArray(raw) ? raw : [raw])
+    .map((t) => String(t ?? '').trim().toLowerCase())
+    .filter((t) => t.includes('@'))
 }
 
 Deno.serve(async (req) => {
@@ -46,15 +55,18 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json()) as Body
-    const to = (Array.isArray(body.to) ? body.to : [body.to])
-      .map((t) => String(t ?? '').trim().toLowerCase())
-      .filter(Boolean)
-    if (!to.length || !to[0].includes('@') || !body.subject?.trim()) {
+    const to = normalizeEmails(body.to)
+    if (!to.length || !body.subject?.trim()) {
       return json({ error: 'to and subject required' }, 400)
     }
     if (!body.html && !body.text) {
       return json({ error: 'html or text required' }, 400)
     }
+    const toSet = new Set(to)
+    const cc = normalizeEmails(body.cc).filter((e) => !toSet.has(e))
+    const bcc = normalizeEmails(body.bcc).filter(
+      (e) => !toSet.has(e) && !cc.includes(e),
+    )
 
     const payload: Record<string, unknown> = {
       from,
@@ -64,6 +76,8 @@ Deno.serve(async (req) => {
     if (body.html) payload.html = body.html
     if (body.text) payload.text = body.text
     if (body.reply_to) payload.reply_to = body.reply_to
+    if (cc.length) payload.cc = cc
+    if (bcc.length) payload.bcc = bcc
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',

@@ -1,0 +1,123 @@
+/**
+ * Client quote layout + OnFly internal breakdown for desk preview.
+ * Never expose operator name / vendor / margin on client-facing surfaces.
+ */
+
+import { priceFromMargin } from '@/domain/quote'
+import { computeTax, type TaxLine, type TaxRateRow } from '@/domain/tax'
+import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
+
+/** Default margin used when building client totals from operator NET NET. */
+export const DEFAULT_OFFER_MARGIN_PCT = 15
+
+export type OfferQuotePreviewInput = {
+  offer_id: string
+  operator_name: string
+  tail: string | null
+  price_net: number | null
+  time_to_position_min: number | null
+  quick_turn_min: number | null
+  live_leg_min: number | null
+  fee_scope: string | null
+  mtow_lbs: number | null
+  payload_kind: 'cargo' | 'pax' | 'both'
+  /** Override client total (desk edit). */
+  client_total_override?: number | null
+  segment_count?: number
+  pax_count?: number
+}
+
+export type OfferQuotePreview = {
+  offer_id: string
+  /** Client-safe label e.g. Option A — no carrier name. */
+  label: string
+  /** Internal only. */
+  operator_name: string
+  tail: string | null
+  /** Client-facing mission chain. */
+  ttp_min: number | null
+  turn_load_min: number
+  live_leg_min: number | null
+  /** Vendor NET NET. */
+  vendor_price: number
+  /** Air after margin, before tax. */
+  client_air: number
+  margin_pct: number
+  /** Markup dollars (client_air − vendor). */
+  margin_dollars: number
+  tax_total: number
+  tax_lines: TaxLine[]
+  segment_fee_total: number
+  fet_total: number
+  fet_exempt: boolean
+  payload_kind: 'cargo' | 'pax' | 'both'
+  /** Final client total (override or computed). */
+  client_total: number
+  fee_scope: string | null
+}
+
+export function buildOfferQuotePreview(
+  input: OfferQuotePreviewInput,
+  rates: TaxRateRow[],
+  optionIndex: number,
+): OfferQuotePreview {
+  const vendor = Math.max(0, Math.round(input.price_net ?? 0))
+  const margin_pct = DEFAULT_OFFER_MARGIN_PCT
+  const client_air = priceFromMargin(vendor, margin_pct)
+  const segments = Math.max(1, input.segment_count ?? 1)
+  const paxCount = Math.max(1, input.pax_count ?? 1)
+  const tax = computeTax({
+    payloadKind: input.payload_kind,
+    legs: [{ international: false, segments, paxCount }],
+    aircraftMtowLbs: input.mtow_lbs,
+    airSubtotal: client_air,
+    rates,
+  })
+  const segment_fee_total = tax.lines
+    .filter((l) => l.code === 'SEG_FEE_DOM')
+    .reduce((s, l) => s + l.amount, 0)
+  const fet_total = tax.lines
+    .filter((l) => l.code === 'FET_CARGO' || l.code === 'FET_PAX')
+    .reduce((s, l) => s + l.amount, 0)
+  const computed = Math.round(client_air + tax.total)
+  const client_total =
+    input.client_total_override != null &&
+    Number.isFinite(input.client_total_override)
+      ? Math.round(input.client_total_override)
+      : computed
+
+  return {
+    offer_id: input.offer_id,
+    label: `Option ${String.fromCharCode(65 + optionIndex)}`,
+    operator_name: input.operator_name,
+    tail: input.tail?.trim() || null,
+    ttp_min: input.time_to_position_min,
+    turn_load_min:
+      input.quick_turn_min != null && Number.isFinite(input.quick_turn_min)
+        ? Math.max(0, Math.floor(input.quick_turn_min))
+        : DEFAULT_QUICK_TURN_MIN,
+    live_leg_min: input.live_leg_min,
+    vendor_price: vendor,
+    client_air: Math.round(client_air),
+    margin_pct,
+    margin_dollars: Math.round(client_air - vendor),
+    tax_total: tax.total,
+    tax_lines: tax.lines,
+    segment_fee_total,
+    fet_total,
+    fet_exempt: tax.fetExempt,
+    payload_kind: input.payload_kind,
+    client_total,
+    fee_scope: input.fee_scope,
+  }
+}
+
+export function formatMinutes(min: number | null): string {
+  if (min == null || !Number.isFinite(min)) return '—'
+  const t = Math.max(0, Math.floor(min))
+  const h = Math.floor(t / 60)
+  const m = t % 60
+  if (h <= 0) return `${m}m`
+  if (m <= 0) return `${h}h`
+  return `${h}h ${m}m`
+}

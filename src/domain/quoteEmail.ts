@@ -57,20 +57,25 @@ export function etaRowsFromChain(chain: ChainLeg[]): QuoteEmailEtaRow[] {
 }
 
 export function quoteEmailSubject(input: QuoteEmailInput): string {
-  const kind = input.kind === 'hard' ? 'Hard quote' : 'Estimated quote'
   const lane = `${input.originLabel} → ${input.destLabel}`
   const ref = input.refLabel?.trim() ? ` · ${input.refLabel.trim()}` : ''
-  return `OnFly Air — ${kind}${ref} · ${lane}`
+  if (input.kind === 'hard') {
+    return `OnFly Air — Logistics Quote Request (${lane})${ref}`
+  }
+  return `OnFly Air — Estimated quote${ref} · ${lane}`
 }
 
 export function renderQuoteEmailText(input: QuoteEmailInput): string {
   const rows = etaRowsFromChain(input.chain)
-  const kind = input.kind === 'hard' ? 'Hard quote' : 'Estimated quote'
+  const title =
+    input.kind === 'hard'
+      ? `Logistics Quote Request (${input.originLabel} → ${input.destLabel})`
+      : `Estimated quote · ${input.originLabel} → ${input.destLabel}`
   const lines = [
-    `OnFly Air — ${kind}`,
-    `${input.originLabel} → ${input.destLabel}`,
+    `OnFly Air — ${title}`,
     'Operated by a vetted Part 135 carrier',
-    `Total: $${input.total.toFixed(2)}`,
+    `Price: $${input.total.toFixed(2)}`,
+    'All taxes and fees included',
     '',
     'Estimated timeline:',
     ...rows.map(
@@ -79,7 +84,7 @@ export function renderQuoteEmailText(input: QuoteEmailInput): string {
     ),
   ]
   if (input.acceptUrl) {
-    lines.push('', `Accept / next step: ${input.acceptUrl}`)
+    lines.push('', `Accept / Deny / Change request: ${input.acceptUrl}`)
   }
   lines.push('', 'Questions? Reply to this email or call dispatch 858-529-7860.')
   return lines.join('\n')
@@ -88,7 +93,10 @@ export function renderQuoteEmailText(input: QuoteEmailInput): string {
 /** Branded HTML: cream/client family, ETA table, no carrier name. */
 export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
   const rows = etaRowsFromChain(input.chain)
-  const kind = input.kind === 'hard' ? 'Hard quote' : 'Estimated quote'
+  const kind =
+    input.kind === 'hard'
+      ? `Logistics Quote Request (${input.originLabel} → ${input.destLabel})`
+      : 'Estimated quote'
   const taxRows = input.taxLines
     .filter((t) => t.amount > 0)
     .map(
@@ -118,7 +126,7 @@ export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
     ? `<p style="margin:20px 0 0 0">
         <a href="${escapeAttr(input.acceptUrl)}"
            style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;font-size:14px">
-          Review &amp; accept
+          Review — Accept / Deny / Change request
         </a>
       </p>
       <p style="margin:8px 0 0 0;font-size:12px;color:#6b6560">${escapeHtml(input.acceptUrl)}</p>`
@@ -137,14 +145,21 @@ export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
       </div>
       <div style="padding:24px">
         <h1 style="margin:0 0 6px;font-size:22px">${escapeHtml(kind)}</h1>
-        <p style="margin:0 0 4px;font-size:15px">
+        ${
+          input.kind === 'hard'
+            ? ''
+            : `<p style="margin:0 0 4px;font-size:15px">
           ${escapeHtml(input.originLabel)} → ${escapeHtml(input.destLabel)}
-        </p>
+        </p>`
+        }
         <p style="margin:0 0 16px;font-size:13px;color:#6b6560">
           Operated by a vetted Part 135 carrier
         </p>
-        <p style="margin:0 0 20px;font-family:ui-monospace,monospace;font-size:28px;font-weight:600">
+        <p style="margin:0 0 4px;font-family:ui-monospace,monospace;font-size:28px;font-weight:600">
           $${input.total.toFixed(2)}
+        </p>
+        <p style="margin:0 0 20px;font-size:12px;color:#6b6560">
+          All taxes and fees included
         </p>
         <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
           <tr>

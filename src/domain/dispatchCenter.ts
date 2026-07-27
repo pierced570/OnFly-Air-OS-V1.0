@@ -60,6 +60,8 @@ export type DispatchRecipient = {
   destination_summary: string
   destination_gaps: string[]
   notified: boolean
+  /** Declined (No) collapsed after desk Acknowledge. */
+  declined_acked: boolean
   magic_token: string
   href: string
 }
@@ -142,6 +144,7 @@ export function buildDispatchDrawers(input: {
       state: string
       ping_sent_at?: string | null
       notified_at?: string | null
+      declined_acked_at?: string | null
       replied_at?: string | null
       magic_token?: string
       price_net?: number | null
@@ -193,6 +196,8 @@ export function buildDispatchDrawers(input: {
       const status = offerRecipientStatus(o.state)
       const token = o.magic_token ?? ''
       const notified = Boolean(o.notified_at)
+      const declined_acked =
+        status === 'no' && Boolean(o.declined_acked_at)
       const dest = describeOfferDestination(o)
       const atIso = notified ? o.notified_at : o.ping_sent_at
       const sent = formatOfferSentAt(atIso, Date.now(), notified ? 'notified' : 'link')
@@ -200,15 +205,20 @@ export function buildDispatchDrawers(input: {
         offer_id: o.id,
         name: o.operator_name,
         status,
-        status_label: offerRecipientStatusLabel(status, { notified }),
+        status_label: declined_acked
+          ? 'unavailable'
+          : offerRecipientStatusLabel(status, { notified }),
         quote_summary: formatOfferQuoteSummary(o),
         sent_at: atIso ?? null,
         sent_label: sent?.display ?? null,
         destination_summary: dest.summary,
         destination_gaps: dest.gaps,
         notified,
+        declined_acked,
         magic_token: token,
-        href: token ? `/offer/${token}` : `/trips/${t.id}/offers`,
+        href: token
+          ? `/offer/${token}`
+          : `/dispatch?drawer=${drawer ?? 'offers'}&focus=${t.id}`,
       }
     })
     const yes = recipients.filter((r) => r.status === 'yes').length
@@ -217,9 +227,12 @@ export function buildDispatchDrawers(input: {
     const awaiting = recipients.filter((r) => r.status === 'awaiting').length
     const notifiedN = recipients.filter((r) => r.notified).length
     const offerBit =
-      t.state === 'offers_out' && recipients.length
+      (t.state === 'offers_out' || t.state === 'quoted_hard') &&
+      recipients.length
         ? ` · ${recipients.length} recipients · ${notifiedN} notified · ${yes} yes · ${no} no · ${quoted} quoted · ${awaiting} awaiting`
         : ''
+    const stayOnDispatch =
+      t.state === 'offers_out' || t.state === 'quoted_hard'
     out[drawer].push({
       kind: 'trip',
       id: t.id,
@@ -227,18 +240,22 @@ export function buildDispatchDrawers(input: {
       subtitle: `${tripStateLabel(t.state)} · T-${t.ref}${
         t.quick ? ' · quick' : ''
       }${legBit}${offerBit}`,
-      href:
-        t.state === 'offers_out'
-          ? `/trips/${t.id}/offers`
-          : `/trips/${t.id}`,
+      href: stayOnDispatch
+        ? `/dispatch?drawer=${drawer}&focus=${t.id}`
+        : `/trips/${t.id}`,
       ref: t.ref,
       state: t.state,
-      recipients: t.state === 'offers_out' ? recipients : undefined,
+      recipients:
+        t.state === 'offers_out' || t.state === 'quoted_hard'
+          ? recipients
+          : undefined,
       trip_id: t.id,
     })
 
     // Submitted quotes waterfall — each quoted operator as its own card.
     if (t.state === 'offers_out' || t.state === 'quoted_hard') {
+      const focusDrawer =
+        t.state === 'quoted_hard' ? 'quotes' : 'offers'
       for (const o of t.offers ?? []) {
         if (o.state !== 'quoted' && o.state !== 'selected') continue
         const summary = formatOfferQuoteSummary(o)
@@ -248,7 +265,7 @@ export function buildDispatchDrawers(input: {
           id: o.id,
           title: `${o.operator_name} · Quote submitted`,
           subtitle: `${who} · ${t.lane}${summary ? ` · ${summary}` : ''}`,
-          href: `/trips/${t.id}/offers`,
+          href: `/dispatch?drawer=${focusDrawer}&focus=${t.id}`,
           ref: t.ref,
           trip_id: t.id,
         })

@@ -30,7 +30,7 @@ describe('trip state machine', () => {
       ['routed', 'offers_out'],
       ['quoted_estimated', 'booked'],
       ['closed', 'draft'],
-      ['lost', 'quoted_hard'],
+      ['lost', 'booked'],
       ['cancelled', 'in_progress'],
       ['booked', 'lost'],
       ['in_progress', 'closed'],

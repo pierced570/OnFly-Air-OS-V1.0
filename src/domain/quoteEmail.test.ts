@@ -66,7 +66,7 @@ describe('quoteEmail', () => {
     expect(html).toContain('Estimated timeline')
     expect(html).toContain('KCAK')
     expect(html).toContain('$12500.00')
-    expect(html).toContain('Review &amp; accept')
+    expect(html).toContain('Review — Accept / Deny / Change request')
     expect(html).not.toMatch(/Sonrise|operator_name|vendor cost|target margin/i)
     expect(quoteEmailSubject({
       originLabel: 'KCAK',

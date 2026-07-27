@@ -205,8 +205,15 @@ export type OfferRow = {
   ping_sent_at: string | null
   /** Set only when email/SMS notify actually ran (offer_ping). */
   notified_at: string | null
+  /**
+   * Dispatcher acknowledged a Declined (No) — collapse the recipient row
+   * so the board stays compact while still showing they were contacted.
+   */
+  declined_acked_at: string | null
   replied_at: string | null
   time_to_position_min: number | null
+  /** Ground time at origin after position (quick turn / load). */
+  quick_turn_min: number | null
   live_leg_min: number | null
   wait_ok: boolean | null
   max_wait_hrs: number | null
@@ -331,14 +338,31 @@ export type TripStoreRow = {
     accept_token: string
     disclosure_text?: string
     disclosure_at?: string
+    /** When the hard quote was sent / locked for the client. */
+    sent_at?: string
+    /** Client accept/decline stamp (desk also derives from trip state). */
+    client_decision?: 'accepted' | 'declined'
+    accepted_at?: string
+    declined_at?: string
     payload_kind: 'cargo' | 'pax' | 'both'
-    /** Client-safe multi-option cards (no operator cost / name / margin). */
+    /**
+     * Multi-option cards. Client surfaces: label, aircraft type, timing, price.
+     * Never show operator_name / cost / margin on client accept / portal.
+     */
     options?: Array<{
       offer_id: string
       label: string
       client_total: number
       eta_end: string | null
       fee_scope: FeeScope | null
+      /** Client-safe aircraft type (not carrier name). */
+      type_name?: string | null
+      time_to_position_min?: number | null
+      quick_turn_min?: number | null
+      live_leg_min?: number | null
+      /** Desk-only — never render on client accept / portal. */
+      operator_name?: string
+      tail?: string | null
     }>
   }
   lost_reason?: string
@@ -431,6 +455,9 @@ function loadLocal(): void {
         ...o,
         fee_scope: o.fee_scope ?? null,
         notes: o.notes ?? null,
+        declined_acked_at: o.declined_acked_at ?? null,
+        notified_at: o.notified_at ?? null,
+        quick_turn_min: o.quick_turn_min ?? null,
       }))
       if (row.shortlist === undefined) row.shortlist = null
       if (row.request_id === undefined) row.request_id = undefined
@@ -573,8 +600,10 @@ export function buildOfferRow(
     state: 'pinged',
     ping_sent_at: null,
     notified_at: null,
+    declined_acked_at: null,
     replied_at: null,
     time_to_position_min: null,
+    quick_turn_min: null,
     live_leg_min: null,
     wait_ok: null,
     max_wait_hrs: null,

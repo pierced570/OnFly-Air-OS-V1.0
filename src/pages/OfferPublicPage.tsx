@@ -6,6 +6,7 @@ import {
   offerBtnYes,
 } from '@/components/OfferBoardChrome'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
+import { isRoundTripLane } from '@/domain/offerMissionDisplay'
 import { resolveOfferByToken } from '@/lib/db/hydrateTrips'
 import type { OfferRow, TripStoreRow } from '@/lib/tripStore'
 import {
@@ -95,7 +96,8 @@ export default function OfferPublicPage() {
   return (
     <OfferBoardChrome
       lane={trip.lane}
-      missionLine={`${trip.payload_summary} · ready ${ready}`}
+      payloadSummary={trip.payload_summary}
+      readyLabel={ready}
     >
       {error && <p className="text-base text-late">{error}</p>}
 
@@ -103,8 +105,8 @@ export default function OfferPublicPage() {
         <div className="space-y-4">
           <p className="text-base text-cream">
             {asap
-              ? 'Can you do this trip ASAP?'
-              : `Can you do this trip at ${ready}?`}
+              ? 'Availability check — can you cover this trip ASAP?'
+              : `Availability check — can you cover this trip at ${ready}?`}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -147,6 +149,7 @@ export default function OfferPublicPage() {
       {step === 'quote' && (
         <OfferQuoteForm
           lane={trip.lane}
+          roundTrip={isRoundTripLane(trip.lane)}
           busy={busy}
           onSubmit={(values) => {
             setBusy(true)
