@@ -8,6 +8,11 @@ import { initAppearance } from '@/lib/appearanceStore'
 
 initAppearance()
 
+/** Staff roster must load before login — do not defer behind idle hydrate. */
+void import('@/lib/staffStore').then((m) => {
+  void m.ensureStaffHydrated()
+})
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppErrorBoundary>
