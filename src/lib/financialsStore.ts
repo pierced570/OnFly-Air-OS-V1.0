@@ -13,6 +13,7 @@ import {
   type FinancialRecord,
   type FinancialVendorLine,
 } from '@/domain/financials'
+import { referralFlightMonthKey } from '@/domain/referrals'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 
 const OVERRIDES_KEY = 'onfly.financials.overrides.v1'
@@ -440,3 +441,29 @@ export function clearFinancialOverrides(): void {
 export function financialOverrideCount(): number {
   return overrides.size
 }
+
+/**
+ * Mark every financial row for a referral partner in a calendar month as paid out.
+ * Entire months are remitted together (e.g. August → paid in September).
+ */
+export function markReferralMonthPaidOut(opts: {
+  referralName: string
+  monthKey: string
+  paid?: boolean
+}): number {
+  const needle = opts.referralName.trim().toLowerCase()
+  if (!needle || !opts.monthKey) return 0
+  const paid = opts.paid !== false
+  let n = 0
+  for (const row of records.values()) {
+    if ((row.referral_name ?? '').trim().toLowerCase() !== needle) continue
+    if (referralFlightMonthKey(row.date_of_flight) !== opts.monthKey) continue
+    if (row.referral_paid_out === paid) continue
+    row.referral_paid_out = paid
+    applyOverride(row.id, { referral_paid_out: paid })
+    n += 1
+  }
+  if (n) bump()
+  return n
+}
+

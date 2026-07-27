@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { Link } from 'react-router-dom'
 import {
   addFinancialVendorLine,
   listFinancials,
@@ -17,6 +18,12 @@ import {
   type ComputedFinancial,
   type VendorLineKind,
 } from '@/domain/financials'
+import {
+  referralFlightMonthKey,
+  referralMonthLabel,
+  shareTermsLabel,
+} from '@/domain/referrals'
+import { getReferralByName } from '@/lib/referralStore'
 import { sendFinancialInvoice } from '@/lib/invoiceFlow'
 import { useQuickBooksDashboard } from '@/lib/useQuickBooksDashboard'
 import { isRealQbEnabled } from '@/adapters/accounting'
@@ -823,6 +830,9 @@ function FragmentRow({
                 {usd(r.referral_share_amount || 0)}
                 {r.referral_paid_out ? ' ✓' : ''}
               </div>
+              <div className="text-[10px] text-muted">
+                {referralMonthLabel(referralFlightMonthKey(r.date_of_flight))}
+              </div>
             </div>
           ) : (
             <span className="text-muted">—</span>
@@ -1049,6 +1059,25 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
             }
             placeholder="Partner name"
           />
+          {r.referral_name ? (
+            <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">
+              {(() => {
+                const partner = getReferralByName(r.referral_name)
+                const month = referralFlightMonthKey(r.date_of_flight)
+                return (
+                  <>
+                    {partner
+                      ? `Terms: ${shareTermsLabel(partner.share_mode, partner.share_value)} · `
+                      : null}
+                    Tab: {referralMonthLabel(month)} ·{' '}
+                    <Link to="/referrals" className="text-gold">
+                      Open Referrals →
+                    </Link>
+                  </>
+                )
+              })()}
+            </span>
+          ) : null}
         </label>
         <label className="text-xs text-muted">
           Referral share ($)
