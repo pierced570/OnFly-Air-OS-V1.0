@@ -60,11 +60,11 @@ const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
 
 type ToolId = 'scratchpad' | 'parse' | 'quick' | 'chat' | 'newtrip'
 
-/** Work tools drawer — Quick Dispatch is a top-of-page button, not here. */
+/** Work tools drawer — Quick Dispatch + Start new request are top-of-page. */
 const TOOLS: { id: Exclude<ToolId, 'quick'>; label: string; hint: string }[] = [
   { id: 'scratchpad', label: 'Scratchpad', hint: 'Live phone notes' },
   { id: 'parse', label: 'Parse & shortlist', hint: 'Notes → operators' },
-  { id: 'newtrip', label: 'New trip', hint: 'Full request form' },
+  { id: 'newtrip', label: 'Start new request', hint: 'Full trip request form' },
   { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
 ]
 
@@ -857,13 +857,25 @@ export default function DispatchCenterPage() {
             → live tracking. Open a drawer to work it.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setTool('quick')}
-          className="shrink-0 rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt"
-        >
-          Quick Dispatch
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setTool('newtrip')
+              setOpenDrawer('requests')
+            }}
+            className="rounded-md border border-gold/50 bg-gold/10 px-4 py-2.5 text-sm font-semibold text-gold hover:bg-gold/20"
+          >
+            Start new request
+          </button>
+          <button
+            type="button"
+            onClick={() => setTool('quick')}
+            className="rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt"
+          >
+            Quick Dispatch
+          </button>
+        </div>
       </header>
 
       {scratchPreview ? (
@@ -939,6 +951,27 @@ export default function DispatchCenterPage() {
               onApproveOffer={approveOfferRow}
               approvingId={approvingId}
             />
+          ) : d.id === 'requests' ? (
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setTool('newtrip')}
+                className="w-full rounded-md border border-gold/40 bg-gold/10 px-3 py-2.5 text-left hover:bg-gold/15"
+              >
+                <div className="text-sm font-semibold text-gold">
+                  Start new request
+                </div>
+                <div className="mt-0.5 text-xs text-muted">
+                  Same form as the client portal — save into Trip requests, then quote
+                </div>
+              </button>
+              <CardList
+                cards={buckets[d.id]}
+                onDeleteCard={removeWaterfallCard}
+                onApproveCard={approveWaterfallCard}
+                approvingId={approvingId}
+              />
+            </div>
           ) : (
             <CardList
               cards={buckets[d.id]}
@@ -954,7 +987,7 @@ export default function DispatchCenterPage() {
       <Drawer
         id="tools"
         title="Work tools"
-        blurb="Scratchpad, parse, chat, new trip"
+        blurb="Scratchpad, parse, chat, start new request"
         count={TOOLS.length}
         open={openDrawer === 'tools'}
         onToggle={() => toggle('tools')}
