@@ -29,9 +29,16 @@ type Ac = {
   seen_pos?: number
 }
 
+type FaAirportRef = {
+  code?: string | null
+  code_icao?: string | null
+  timezone?: string | null
+}
+
 type FaFlight = {
   ident?: string
   registration?: string
+  fa_flight_id?: string
   actual_off?: string | null
   actual_on?: string | null
   estimated_off?: string | null
@@ -44,6 +51,8 @@ type FaFlight = {
     timestamp?: string
   } | null
   status?: string
+  origin?: FaAirportRef | null
+  destination?: FaAirportRef | null
 }
 
 Deno.serve(async (req) => {
@@ -108,7 +117,7 @@ function faKey(): string | null {
   return Deno.env.get('FLIGHTAWARE_AEROAPI_KEY')?.trim() || null
 }
 
-async function seedOrPositionsFa(tails: string[], _seed: boolean) {
+async function seedOrPositionsFa(tails: string[], seed: boolean) {
   const key = faKey()
   if (!key) {
     return tails.map((t) => ({
@@ -118,15 +127,20 @@ async function seedOrPositionsFa(tails: string[], _seed: boolean) {
   }
   const out = []
   for (const tail of tails) {
-    out.push(await fetchFaTail(key, tail))
+    out.push(await fetchFaTail(key, tail, seed))
   }
   return out
 }
 
-async function fetchFaTail(key: string, tail: string) {
-  const url =
-    `${FA_BASE}/flights/${encodeURIComponent(tail)}` +
-    `?max_pages=1&ident_type=registration`
+function isUsRegistration(tail: string): boolean {
+  return /^N[0-9A-Z]+$/i.test(tail)
+}
+
+async function fetchFaTail(key: string, tail: string, seed: boolean) {
+  const q = isUsRegistration(tail)
+    ? '?max_pages=1&ident_type=registration'
+    : '?max_pages=1'
+  const url = `${FA_BASE}/flights/${encodeURIComponent(tail)}${q}`
   const res = await fetch(url, {
     headers: { 'x-apikey': key, Accept: 'application/json' },
   })
@@ -140,14 +154,61 @@ async function fetchFaTail(key: string, tail: string) {
   const data = (await res.json().catch(() => ({}))) as {
     flights?: FaFlight[]
   }
-  const flight = data.flights?.[0]
+  let flight = data.flights?.[0]
+
+  // Seed fallback: last known historical flight when no recent board entry.
+  if (!flight && seed && isUsRegistration(tail)) {
+    flight = await fetchFaLastFlight(key, tail)
+  }
   if (!flight) return noData(tail)
 
-  const lp = flight.last_position
-  const lat = lp?.latitude
-  const lon = lp?.longitude
+  const status = String(flight.status ?? '').toLowerCase()
+  const airborneHint =
+    status.includes('en route') ||
+    status.includes('airborne') ||
+    (!flight.actual_on && Boolean(flight.actual_off))
+
+  let lat = flight.last_position?.latitude
+  let lon = flight.last_position?.longitude
+  let alt = Number(flight.last_position?.altitude ?? 0) || 0
+  let gs = Number(flight.last_position?.groundspeed ?? 0) || 0
+  let seenAt = flight.last_position?.timestamp
+    ? new Date(flight.last_position.timestamp).toISOString()
+    : null
+
+  // En route often omits last_position on the flights list — fetch live point.
+  if ((lat == null || lon == null) && airborneHint && flight.fa_flight_id) {
+    const live = await fetchFaFlightPosition(key, flight.fa_flight_id)
+    if (live) {
+      lat = live.lat
+      lon = live.lon
+      alt = live.alt
+      gs = live.gs
+      seenAt = live.seenAt
+    }
+  }
+
+  // Parked / arrived: use destination (or origin) airport coords as last-known.
+  if ((lat == null || lon == null) && seed) {
+    const icao =
+      airportCode(flight.destination) || airportCode(flight.origin)
+    if (icao) {
+      const ap = await fetchFaAirport(key, icao)
+      if (ap) {
+        lat = ap.lat
+        lon = ap.lon
+        alt = 0
+        gs = 0
+        seenAt =
+          flight.actual_on ||
+          flight.actual_off ||
+          flight.estimated_on ||
+          new Date().toISOString()
+      }
+    }
+  }
+
   if (lat == null || lon == null) {
-    // Still capture actuals if present
     return {
       ...noData(tail),
       lastTakeoffAt: flight.actual_off ?? null,
@@ -155,29 +216,114 @@ async function fetchFaTail(key: string, tail: string) {
       laddBlocked: true,
     }
   }
-  const alt = Number(lp.altitude ?? 0) || 0
-  const gs = Number(lp.groundspeed ?? 0) || 0
-  const seenAt = lp.timestamp
-    ? new Date(lp.timestamp).toISOString()
-    : new Date().toISOString()
-  const status = String(flight.status ?? '').toLowerCase()
+
   const airborne =
-    status.includes('en route') ||
-    status.includes('airborne') ||
-    alt > 500 ||
-    gs > 50
+    airborneHint || alt > 500 || gs > 50
   return {
     tail,
     lat,
     lon,
     alt,
     gs,
-    seenAt,
+    seenAt: seenAt ?? new Date().toISOString(),
     laddBlocked: false,
     lastTakeoffAt: flight.actual_off ?? flight.estimated_off ?? null,
     lastLandingAt: flight.actual_on ?? flight.estimated_on ?? null,
     phase: airborne ? ('airborne' as const) : ('on_ground' as const),
   }
+}
+
+function airportCode(ap?: FaAirportRef | null): string | null {
+  const code = (ap?.code_icao || ap?.code || '').toUpperCase()
+  return code || null
+}
+
+async function fetchFaLastFlight(
+  key: string,
+  tail: string,
+): Promise<FaFlight | null> {
+  const res = await fetch(
+    `${FA_BASE}/history/aircraft/${encodeURIComponent(tail)}/last_flight`,
+    { headers: { 'x-apikey': key, Accept: 'application/json' } },
+  )
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => ({}))) as { flights?: FaFlight[] }
+  return data.flights?.[0] ?? null
+}
+
+async function fetchFaFlightPosition(
+  key: string,
+  faFlightId: string,
+): Promise<{
+  lat: number
+  lon: number
+  alt: number
+  gs: number
+  seenAt: string
+} | null> {
+  const res = await fetch(
+    `${FA_BASE}/flights/${encodeURIComponent(faFlightId)}/position`,
+    { headers: { 'x-apikey': key, Accept: 'application/json' } },
+  )
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => ({}))) as {
+    latitude?: number
+    longitude?: number
+    altitude?: number | null
+    groundspeed?: number | null
+    timestamp?: string
+    last_position?: {
+      latitude?: number
+      longitude?: number
+      altitude?: number | null
+      groundspeed?: number | null
+      timestamp?: string
+    } | null
+    waypoints?: number[]
+  }
+  const lp = data.last_position
+  let lat = lp?.latitude ?? data.latitude
+  let lon = lp?.longitude ?? data.longitude
+  // Position payload sometimes only has waypoint polyline [lat,lon,...]
+  if ((lat == null || lon == null) && Array.isArray(data.waypoints)) {
+    const w = data.waypoints
+    if (w.length >= 2) {
+      // Prefer last pair
+      const i = w.length - (w.length % 2 === 0 ? 2 : 3)
+      const a = w[Math.max(0, i)]
+      const b = w[Math.max(0, i) + 1]
+      if (typeof a === 'number' && typeof b === 'number') {
+        lat = a
+        lon = b
+      }
+    }
+  }
+  if (lat == null || lon == null) return null
+  return {
+    lat,
+    lon,
+    alt: Number(lp?.altitude ?? data.altitude ?? 0) || 0,
+    gs: Number(lp?.groundspeed ?? data.groundspeed ?? 0) || 0,
+    seenAt: (lp?.timestamp || data.timestamp)
+      ? new Date(String(lp?.timestamp || data.timestamp)).toISOString()
+      : new Date().toISOString(),
+  }
+}
+
+async function fetchFaAirport(
+  key: string,
+  icao: string,
+): Promise<{ lat: number; lon: number } | null> {
+  const res = await fetch(`${FA_BASE}/airports/${encodeURIComponent(icao)}`, {
+    headers: { 'x-apikey': key, Accept: 'application/json' },
+  })
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => ({}))) as {
+    latitude?: number
+    longitude?: number
+  }
+  if (data.latitude == null || data.longitude == null) return null
+  return { lat: data.latitude, lon: data.longitude }
 }
 
 async function handleAlert(tail: string, enable: boolean) {
