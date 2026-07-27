@@ -67,7 +67,7 @@ export default function StaffLoginPage() {
             : 'Enter your name and phone for general ops (Board, network, trips).'}
         </p>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <form onSubmit={(e) => void submit(e)} className="mt-8 space-y-4">
           <label className="block text-xs text-muted">
             Name
             <input
