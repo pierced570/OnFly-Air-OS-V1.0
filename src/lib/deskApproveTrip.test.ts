@@ -4,9 +4,9 @@ import {
   __resetTripsForTests,
   createTripFromCandidates,
   mutateTrip,
+  safeTransitionTrip,
   type Candidate,
 } from '@/lib/tripStore'
-import { safeTransitionTrip } from '@/lib/tripStore'
 
 function cand(tail: string): Candidate {
   return {
@@ -16,12 +16,17 @@ function cand(tail: string): Candidate {
     tail,
     type_name: 'King Air 200',
     mtow_lbs: 12500,
-    score: 1,
-    eta_end: null,
+    cost: 4000,
+    price: 4600,
     chain: [],
-    reasoning: [],
+    confidence: 0.8,
     needsInfo: [],
     bookingGated: false,
+    reasoning: [],
+    eta_end: new Date().toISOString(),
+    circuit_nm: 300,
+    rate_per_nm: 8,
+    rate_source: 'assumption',
   }
 }
 

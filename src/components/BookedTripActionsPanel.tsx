@@ -78,10 +78,6 @@ export function BookedTripActionsPanel({ tripId }: Props) {
 
       <div className="space-y-2 rounded-md border border-border/50 bg-ink/40 p-2.5">
         <div className="text-sm font-medium text-cream">1. QuickBooks invoice</div>
-        <p className="text-[11px] text-muted">
-          PO is last for this client + 1. AP on To, invoice DL on CC, BCC
-          info@onflyair.com. Tap contacts to adjust.
-        </p>
         <ClientEmailRecipientsBubble
           clientId={trip.client_id}
           value={invoiceSel}
@@ -116,9 +112,6 @@ export function BookedTripActionsPanel({ tripId }: Props) {
 
       <div className="space-y-2 rounded-md border border-border/50 bg-ink/40 p-2.5">
         <div className="text-sm font-medium text-cream">2. ETA sheet + tracking</div>
-        <p className="text-[11px] text-muted">
-          Tail, ETAs, tracking portal link — no payment info.
-        </p>
         {sheet ? (
           <div className="font-mono text-[11px] text-cream/80 space-y-0.5">
             <div>

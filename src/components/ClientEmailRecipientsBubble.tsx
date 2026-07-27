@@ -176,8 +176,7 @@ export function ClientEmailRecipientsBubble({
         {title}
       </div>
       <p className="mt-1 text-[11px] text-muted">
-        Tap a contact to cycle <span className="text-cream">To → CC → BCC → off</span>.
-        These people stay on the quote and ETA thread.
+        Tap to cycle <span className="text-cream">To → CC → BCC → off</span>
       </p>
 
       {contacts.length ? (
