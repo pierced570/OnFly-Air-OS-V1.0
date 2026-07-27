@@ -42,6 +42,7 @@ import {
 } from '@/lib/offerFlow'
 import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
 import {
+  deleteTrip,
   getTrip,
   listTripsStable,
   subscribeTrips,
@@ -132,40 +133,56 @@ function Drawer({
 function CardList({
   cards,
   onDeleteRequest,
+  onDeleteTrip,
 }: {
   cards: DispatchCard[]
   onDeleteRequest?: (id: string, title: string) => void
+  onDeleteTrip?: (tripId: string, title: string) => void
 }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
   return (
     <ul className="space-y-2">
-      {cards.map((c) => (
-        <li
-          key={`${c.kind}-${c.id}`}
-          className="flex items-stretch gap-2 rounded-md border border-border/70 bg-ink"
-        >
-          <Link
-            to={c.href}
-            className="min-w-0 flex-1 px-3 py-3 hover:bg-surface-2/40"
+      {cards.map((c) => {
+        const tripId = c.trip_id ?? (c.kind === 'trip' ? c.id : undefined)
+        return (
+          <li
+            key={`${c.kind}-${c.id}`}
+            className="flex items-stretch gap-2 rounded-md border border-border/70 bg-ink"
           >
-            <div className="font-medium text-cream">{c.title}</div>
-            <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-          </Link>
-          {c.kind === 'request' && onDeleteRequest ? (
-            <button
-              type="button"
-              aria-label={`Delete ${c.title}`}
-              title="Delete request"
-              onClick={() => onDeleteRequest(c.id, c.title)}
-              className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
+            <Link
+              to={c.href}
+              className="min-w-0 flex-1 px-3 py-3 hover:bg-surface-2/40"
             >
-              Delete
-            </button>
-          ) : null}
-        </li>
-      ))}
+              <div className="font-medium text-cream">{c.title}</div>
+              <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+            </Link>
+            {c.kind === 'request' && onDeleteRequest ? (
+              <button
+                type="button"
+                aria-label={`Delete ${c.title}`}
+                title="Delete request"
+                onClick={() => onDeleteRequest(c.id, c.title)}
+                className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
+              >
+                Delete
+              </button>
+            ) : null}
+            {tripId && onDeleteTrip && c.kind !== 'request' ? (
+              <button
+                type="button"
+                aria-label={`Delete trip ${c.title}`}
+                title="Delete trip"
+                onClick={() => onDeleteTrip(tripId, c.title)}
+                className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
+              >
+                Delete
+              </button>
+            ) : null}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -296,10 +313,12 @@ function OfferTripList({
   cards,
   focusTripId,
   onAcknowledgeDeclined,
+  onDeleteTrip,
 }: {
   cards: DispatchCard[]
   focusTripId?: string | null
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
+  onDeleteTrip?: (tripId: string, title: string) => void
 }) {
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
   const [addingTripId, setAddingTripId] = useState<string | null>(null)
@@ -521,6 +540,15 @@ function OfferTripList({
                   {editing ? 'Close update' : 'Update request'}
                 </button>
               ) : null}
+              {c.trip_id && onDeleteTrip ? (
+                <button
+                  type="button"
+                  className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted hover:border-late/50 hover:text-late"
+                  onClick={() => onDeleteTrip(c.trip_id!, c.title)}
+                >
+                  Delete trip
+                </button>
+              ) : null}
             </div>
           </li>
         )
@@ -578,6 +606,17 @@ export default function DispatchCenterPage() {
   function removeTripRequest(id: string, title: string) {
     if (!window.confirm(`Delete trip request?\n\n${title}`)) return
     deleteRequest(id)
+  }
+
+  function removeTripFromQueue(tripId: string, title: string) {
+    if (
+      !window.confirm(
+        `Delete this trip from the queue?\n\n${title}\n\nThis removes the trip and its offers. Cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    deleteTrip(tripId)
   }
 
   const buckets = useMemo(
@@ -747,12 +786,16 @@ export default function DispatchCenterPage() {
                   console.warn('[dispatch] acknowledge declined', e),
                 )
               }}
+              onDeleteTrip={removeTripFromQueue}
             />
           ) : (
             <CardList
               cards={buckets[d.id]}
               onDeleteRequest={
                 d.id === 'requests' ? removeTripRequest : undefined
+              }
+              onDeleteTrip={
+                d.id === 'requests' ? undefined : removeTripFromQueue
               }
             />
           )}

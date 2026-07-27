@@ -885,6 +885,20 @@ export function getTrip(id: string) {
   return trips.get(id) ?? null
 }
 
+/**
+ * Remove a trip from the desk queue (local + best-effort Supabase delete).
+ * Cascades child rows in DB via FK. Does not change trip state.
+ */
+export function deleteTrip(id: string): boolean {
+  if (!trips.has(id)) return false
+  trips.delete(id)
+  bump()
+  void import('@/lib/db/persistTrip')
+    .then((m) => m.deleteTripFromDb(id))
+    .catch((e) => console.warn('[trips] delete from db failed', id, e))
+  return true
+}
+
 /** Merge DB rows into session (does not wipe local-only trips still syncing). */
 export function replaceTripsFromDb(rows: TripStoreRow[]): void {
   if (!rows.length) return

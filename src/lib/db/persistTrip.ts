@@ -479,3 +479,11 @@ export async function persistPortalTrackToken(opts: {
     }),
   )
 }
+
+/** Hard-delete a trip row (children cascade). No-op when offline / unconfigured. */
+export async function deleteTripFromDb(tripId: string): Promise<void> {
+  if (!canPersist() || !isUuid(tripId)) return
+  await safeQuery('trips.delete', () =>
+    db().from('trips').delete().eq('id', tripId),
+  )
+}
