@@ -23,11 +23,14 @@ export type VendorPacketSubmission = {
 const rows = new Map<string, VendorPacketSubmission>()
 const listeners = new Set<() => void>()
 let snapshot: VendorPacketSubmission[] = []
+/** Stable filtered view for useSyncExternalStore (React #185) */
+let pendingSnapshot: VendorPacketSubmission[] = []
 
 function rebuild() {
   snapshot = [...rows.values()].sort((a, b) =>
     b.created_at.localeCompare(a.created_at),
   )
+  pendingSnapshot = snapshot.filter((r) => r.status === 'pending_review')
 }
 
 function bump() {
@@ -49,7 +52,7 @@ export function listVendorPackets(): VendorPacketSubmission[] {
 }
 
 export function listPendingVendorPackets(): VendorPacketSubmission[] {
-  return snapshot.filter((r) => r.status === 'pending_review')
+  return pendingSnapshot
 }
 
 export function submitVendorPacket(
