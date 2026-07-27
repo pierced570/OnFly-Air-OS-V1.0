@@ -23,6 +23,7 @@ import {
   formatOfferQuoteSummary,
   offerRecipientStatus,
 } from '@/domain/offerRecipients'
+import { formatTaxLineDesk } from '@/domain/tax'
 import { rememberEmailsOnClient } from '@/lib/clientStore'
 import {
   selectOffersAndHardQuote,
@@ -282,10 +283,8 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                         {preview.margin_dollars.toFixed(0)})
                       </div>
                       {preview.tax_lines.map((line) => (
-                        <div key={line.code}>
-                          {line.code}
-                          {line.note ? ` (${line.note})` : ''}: $
-                          {line.amount.toFixed(0)}
+                        <div key={`${line.code}-${line.note}`}>
+                          {formatTaxLineDesk(line)}
                         </div>
                       ))}
                       <div>Tax total ${preview.tax_total.toFixed(0)}</div>

@@ -42,7 +42,34 @@ describe('computeTax', () => {
     const fet = r.lines.find((l) => l.code === 'FET_PAX')
     const seg = r.lines.find((l) => l.code === 'SEG_FEE_DOM')
     expect(fet?.amount).toBe(18)
+    expect(fet?.note).toMatch(/7\.5%/)
     expect(seg?.amount).toBe(21.2)
     expect(r.total).toBe(39.2)
+  })
+
+  it('cargo FET note includes the rate percent', () => {
+    const r = computeTax({
+      payloadKind: 'cargo',
+      legs: [{ international: false, segments: 1, paxCount: 0 }],
+      aircraftMtowLbs: 12500,
+      airSubtotal: 10000,
+      rates: TEST_TAX_RATES_2026,
+    })
+    expect(r.lines.find((l) => l.code === 'FET_CARGO')?.note).toMatch(/6\.25%/)
+  })
+
+  it('both (pax on board) uses higher pax FET + segment fees, not cargo FET', () => {
+    const r = computeTax({
+      payloadKind: 'both',
+      legs: [{ international: false, segments: 1, paxCount: 2 }],
+      aircraftMtowLbs: 12500,
+      airSubtotal: 10000,
+      rates: TEST_TAX_RATES_2026,
+    })
+    expect(r.lines.find((l) => l.code === 'FET_CARGO')).toBeUndefined()
+    const fet = r.lines.find((l) => l.code === 'FET_PAX')
+    expect(fet?.amount).toBe(750)
+    expect(fet?.note).toMatch(/7\.5%/)
+    expect(r.lines.find((l) => l.code === 'SEG_FEE_DOM')?.amount).toBe(10.6)
   })
 })

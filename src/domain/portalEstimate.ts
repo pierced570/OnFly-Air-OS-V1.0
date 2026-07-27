@@ -110,10 +110,12 @@ function sumDuration(legs: ChainLeg[]): number {
 }
 
 function taxLineLabel(code: string, note: string): string {
-  if (code === 'FET_CARGO') return 'Federal excise tax (cargo)'
-  if (code === 'FET_PAX') return 'Federal excise tax'
-  if (code === 'SEG_FEE_DOM') return 'Segment fees'
-  if (code === 'INTL_HEAD') return 'International head tax'
+  // Prefer engine note so FET % (cargo ~6.25% / pax ~7.5%) stays visible.
+  if (code === 'FET_CARGO' || code === 'FET_PAX') {
+    return note || 'Federal excise tax'
+  }
+  if (code === 'SEG_FEE_DOM') return note || 'Segment fees'
+  if (code === 'INTL_HEAD') return note || 'International head tax'
   if (code === 'FET_EXEMPT_MTOW') return 'FET exemption (MTOW)'
   return note || code
 }
