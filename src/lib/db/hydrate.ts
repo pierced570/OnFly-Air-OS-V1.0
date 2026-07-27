@@ -18,6 +18,7 @@ import { replaceIntakeFromDb, type IntakeDraft } from '@/lib/intakeStore'
 import { replaceLeadsFromDb } from '@/lib/leadStore'
 import { replaceNeedsInfoFromDb, type NeedsInfoTask } from '@/lib/needsInfoStore'
 import { loadPricingPriors } from '@/lib/pricingPriorsStore'
+import { hydrateRecommendMatrixFromDb } from '@/lib/recommendMatrixStore'
 import { hydrateShiftsFromDb } from '@/lib/shiftStore'
 import { hydratePresenceFromDb } from '@/lib/presenceStore'
 import { loadTaxRates } from '@/lib/taxRatesStore'
@@ -42,7 +43,11 @@ export async function hydrateOperatingData(): Promise<{
     }
   }
 
-  await Promise.all([loadTaxRates(), loadPricingPriors()])
+  await Promise.all([
+    loadTaxRates(),
+    loadPricingPriors(),
+    hydrateRecommendMatrixFromDb(),
+  ])
 
   const clientRows = await safeQuery('clients', () =>
     db()

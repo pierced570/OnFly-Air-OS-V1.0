@@ -16,6 +16,7 @@ import { generateCandidates, type Candidate } from '@/domain/routing'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { getTaxRates } from '@/lib/taxRatesStore'
 import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
+import { getRecommendMatrix } from '@/lib/recommendMatrixStore'
 import { buildQuoteTotals } from '@/domain/quote'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
 import { FlightChip } from '@/components/FlightChip'
@@ -230,6 +231,7 @@ export default function NewTripPage() {
             dest: destFees.fee,
             notes: [...originFees.reasoning, ...destFees.reasoning],
           },
+          matrix: getRecommendMatrix(),
           priorRatePerNm: (typeName, operatorId) =>
             priorRatePerNm(typeName, operatorId, priors),
         },

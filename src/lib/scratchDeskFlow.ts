@@ -23,6 +23,11 @@ import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { fboFeesForAirport } from '@/lib/fboStore'
 import {
+  loadPricingPriors,
+  priorRatePerNm,
+} from '@/lib/pricingPriorsStore'
+import { getRecommendMatrix } from '@/lib/recommendMatrixStore'
+import {
   buildOffersFromCandidates,
   openTripOffers,
   sendAvailabilityPings,
@@ -295,6 +300,8 @@ export async function recommendForDeskDraft(
   const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
   const originFees = fboFeesForAirport(origin.icao)
   const destFees = fboFeesForAirport(destination.icao)
+  const [priors] = await Promise.all([loadPricingPriors()])
+  const matrix = getRecommendMatrix()
 
   try {
     const candidates = await generateCandidates(
@@ -326,16 +333,19 @@ export async function recommendForDeskDraft(
       fleet,
       maps,
       {
+        matrix,
         fleetStatusByTail: radar,
         fboFees: {
           origin: originFees.fee,
           dest: destFees.fee,
           notes: [...originFees.reasoning, ...destFees.reasoning],
         },
+        priorRatePerNm: (typeName, operatorId) =>
+          priorRatePerNm(typeName, operatorId, priors),
       },
     )
     return {
-      candidates: candidates.slice(0, 3),
+      candidates: candidates.slice(0, matrix.recommend_limit),
       lane: `${origin.icao}→${destination.icao}`,
       client_rules_applied,
       rule_chips,

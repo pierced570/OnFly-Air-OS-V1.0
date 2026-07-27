@@ -28,10 +28,8 @@ import {
   deskDraftFromTrip,
   recommendForDeskDraft,
 } from '@/lib/scratchDeskFlow'
+import { getRecommendMatrix } from '@/lib/recommendMatrixStore'
 import { getTrip } from '@/lib/tripStore'
-
-/** Top N from recommend — cheapest / fastest / best (or next best). */
-const RECOMMEND_LIMIT = 3
 
 const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold placeholder:text-muted'
@@ -82,12 +80,14 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
     [opQuery, already, overrides],
   )
 
+  const recommendLimit = getRecommendMatrix().recommend_limit
+
   const recommended = useMemo(
     () =>
       candidates
         .filter((c) => !already.has(c.operator_id))
-        .slice(0, RECOMMEND_LIMIT),
-    [candidates, already],
+        .slice(0, recommendLimit),
+    [candidates, already, recommendLimit],
   )
 
   const allCandidates = useMemo(() => {
@@ -163,7 +163,9 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
         const draft = deskDraftFromTrip(t)
         const rec = await recommendForDeskDraft(draft)
         if (cancelled) return
-        setCandidates(rec.candidates.slice(0, RECOMMEND_LIMIT))
+        setCandidates(
+          rec.candidates.slice(0, getRecommendMatrix().recommend_limit),
+        )
         setRecError(rec.error ?? null)
       })
       .catch((e) => {
@@ -317,8 +319,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
             Send to new operator
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            Top 3 recommend, search, or add new. We email the quote-request
-            link on send (SMS not connected yet).
+            Top {recommendLimit} recommend, search, or add new. We email the
+            quote-request link on send (SMS not connected yet).
           </p>
         </div>
         <button
@@ -554,8 +556,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
           Recommended operators
         </h3>
         <p className="text-xs text-muted">
-          Top 3 (cheapest / fastest / best). Already on this request are
-          hidden.
+          Top {recommendLimit} (cheapest / fastest / best). Already on this
+          request are hidden. Scoring comes from Network → Recommend matrix.
         </p>
         {recError ? <p className="text-sm text-late">{recError}</p> : null}
         {!busy && !recommended.length && !recError ? (
