@@ -335,7 +335,7 @@ export async function recommendForDeskDraft(
       },
     )
     return {
-      candidates: candidates.slice(0, 8),
+      candidates: candidates.slice(0, 3),
       lane: `${origin.icao}→${destination.icao}`,
       client_rules_applied,
       rule_chips,

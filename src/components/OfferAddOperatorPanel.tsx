@@ -1,9 +1,10 @@
 /**
- * Inline "Send to new operator" on Dispatch center — recommend + search +
- * email/SMS destinations, same shape as Parse & shortlist.
+ * Inline "Send to new operator" on Dispatch center — recommend (top 3) +
+ * search + quick-add, same shape as Parse & shortlist.
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { AirportSelect } from '@/components/AirportSelect'
 import { describeOfferDestination } from '@/domain/offerRecipients'
 import {
   DEFAULT_QUOTE_LINK_CHANNEL,
@@ -11,6 +12,7 @@ import {
 } from '@/domain/quoteLinkChannel'
 import type { Candidate } from '@/domain/routing'
 import {
+  addDeskOperator,
   candidateFromDeskHit,
   contactOverrideFromHit,
   ensureDeskOperatorsLoaded,
@@ -27,6 +29,9 @@ import {
   recommendForDeskDraft,
 } from '@/lib/scratchDeskFlow'
 import { getTrip } from '@/lib/tripStore'
+
+/** Top N from recommend — cheapest / fastest / best (or next best). */
+const RECOMMEND_LIMIT = 3
 
 const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold placeholder:text-muted'
@@ -46,7 +51,8 @@ type Props = {
 export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
   const trip = getTrip(tripId)
   const already = useMemo(
-    () => new Set((trip?.offers ?? []).map((o) => o.operator_id).filter(Boolean)),
+    () =>
+      new Set((trip?.offers ?? []).map((o) => o.operator_id).filter(Boolean)),
     [trip?.offers],
   )
 
@@ -57,6 +63,14 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
     Record<string, DeskContactOverride>
   >({})
   const [opQuery, setOpQuery] = useState('')
+  const [showAddOp, setShowAddOp] = useState(false)
+  const [addOpName, setAddOpName] = useState('')
+  const [addOpBase, setAddOpBase] = useState('')
+  const [addOpEmail, setAddOpEmail] = useState('')
+  const [addOpCell, setAddOpCell] = useState('')
+  const [addOpChannel, setAddOpChannel] = useState<QuoteLinkChannel>(
+    DEFAULT_QUOTE_LINK_CHANNEL,
+  )
   const [recError, setRecError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
@@ -68,17 +82,25 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
     [opQuery, already, overrides],
   )
 
+  const recommended = useMemo(
+    () =>
+      candidates
+        .filter((c) => !already.has(c.operator_id))
+        .slice(0, RECOMMEND_LIMIT),
+    [candidates, already],
+  )
+
   const allCandidates = useMemo(() => {
     const seen = new Set<string>()
     const out: Candidate[] = []
-    for (const c of [...candidates, ...extra]) {
+    for (const c of [...recommended, ...extra]) {
       if (already.has(c.operator_id)) continue
       if (seen.has(c.operator_id)) continue
       seen.add(c.operator_id)
       out.push(c)
     }
     return out
-  }, [candidates, extra, already])
+  }, [recommended, extra, already])
 
   const selectedCandidates = useMemo(
     () => allCandidates.filter((c) => selected.has(c.aircraft_id)),
@@ -141,7 +163,7 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
         const draft = deskDraftFromTrip(t)
         const rec = await recommendForDeskDraft(draft)
         if (cancelled) return
-        setCandidates(rec.candidates)
+        setCandidates(rec.candidates.slice(0, RECOMMEND_LIMIT))
         setRecError(rec.error ?? null)
       })
       .catch((e) => {
@@ -192,6 +214,27 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
     seedOverride(hit)
     setOpQuery('')
     setError(null)
+  }
+
+  function saveNewOperator() {
+    try {
+      const hit = addDeskOperator({
+        name: addOpName,
+        base_icao: addOpBase,
+        contact_email: addOpEmail,
+        contact_cell: addOpCell,
+        quote_link_channel: addOpChannel,
+      })
+      addHit(hit)
+      setShowAddOp(false)
+      setAddOpName('')
+      setAddOpBase('')
+      setAddOpEmail('')
+      setAddOpCell('')
+      setAddOpChannel(DEFAULT_QUOTE_LINK_CHANNEL)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   async function send() {
@@ -274,8 +317,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
             Send to new operator
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            Same recommend + search as Parse & shortlist. We email the
-            quote-request link on send (SMS not connected yet).
+            Top 3 recommend, search, or add new. We email the quote-request
+            link on send (SMS not connected yet).
           </p>
         </div>
         <button
@@ -293,9 +336,18 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
       ) : null}
 
       <section className="space-y-2">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-          Search operators
-        </h3>
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
+            Search operators
+          </h3>
+          <button
+            type="button"
+            className="text-xs text-gold hover:text-gold-lt"
+            onClick={() => setShowAddOp((v) => !v)}
+          >
+            {showAddOp ? 'Cancel' : '+ Add new operator'}
+          </button>
+        </div>
         <input
           value={opQuery}
           onChange={(e) => setOpQuery(e.target.value)}
@@ -325,6 +377,61 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
             ))}
           </ul>
         ) : null}
+        {showAddOp ? (
+          <div className="space-y-2 rounded-lg border border-gold/30 bg-gold/5 p-3">
+            <div className="text-xs font-medium uppercase tracking-wider text-gold">
+              New operator
+            </div>
+            <input
+              className={input}
+              placeholder="Operator name *"
+              value={addOpName}
+              onChange={(e) => setAddOpName(e.target.value)}
+            />
+            <AirportSelect
+              label="Base"
+              value={addOpBase}
+              onChange={setAddOpBase}
+              placeholder="Search ICAO, city, or state…"
+            />
+            <label className={label}>
+              Quote links
+              <select
+                className={input}
+                value={addOpChannel}
+                onChange={(e) =>
+                  setAddOpChannel(e.target.value as QuoteLinkChannel)
+                }
+              >
+                <option value="both">Email + SMS</option>
+                <option value="email">Email only</option>
+                <option value="sms">SMS only</option>
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className={input}
+                type="email"
+                placeholder="Email"
+                value={addOpEmail}
+                onChange={(e) => setAddOpEmail(e.target.value)}
+              />
+              <input
+                className={input}
+                placeholder="Text / SMS number"
+                value={addOpCell}
+                onChange={(e) => setAddOpCell(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="w-full rounded-md bg-gold py-2 text-sm font-medium text-ink"
+              onClick={saveNewOperator}
+            >
+              Save & add to send
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {selectedCandidates.length > 0 ? (
@@ -334,7 +441,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
           </h3>
           <ul className="space-y-3">
             {selectedCandidates.map((c) => {
-              const ov = overrides[c.operator_id] ?? profileContacts(c.operator_id)
+              const ov =
+                overrides[c.operator_id] ?? profileContacts(c.operator_id)
               const loc =
                 listDeskOperators().find((o) => o.id === c.operator_id)
                   ?.base_icao ?? '—'
@@ -446,17 +554,17 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
           Recommended operators
         </h3>
         <p className="text-xs text-muted">
-          One row per operator (best-fit tail). Already on this request are
+          Top 3 (cheapest / fastest / best). Already on this request are
           hidden.
         </p>
         {recError ? <p className="text-sm text-late">{recError}</p> : null}
-        {!busy && !allCandidates.length && !recError ? (
+        {!busy && !recommended.length && !recError ? (
           <p className="text-sm text-muted">
-            No recommendations — search above to add an operator.
+            No recommendations — search or add a new operator above.
           </p>
         ) : null}
         <ul className="space-y-2">
-          {allCandidates.map((c) => {
+          {recommended.map((c) => {
             const id = c.aircraft_id
             const on = selected.has(id)
             const base =

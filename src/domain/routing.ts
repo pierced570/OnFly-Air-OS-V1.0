@@ -567,8 +567,10 @@ export async function generateCandidates(
   add(byPrice[0], 'cheapest')
   add(byTime[0], 'fastest')
   add(byBest[0], 'best')
+  // Cap at 3 unique operators (cheapest / fastest / best). Extra options
+  // come from desk search or "+ Add new operator", not a long recommend list.
   for (const c of byBest) {
-    if (picked.length >= 5) break
+    if (picked.length >= 3) break
     add(c, undefined)
   }
 
