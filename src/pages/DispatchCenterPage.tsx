@@ -14,6 +14,7 @@ import {
 } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
+import { BookedTripActionsPanel } from '@/components/BookedTripActionsPanel'
 import { DeskOfferQuoteWorkbench } from '@/components/DeskOfferQuoteWorkbench'
 import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
 import {
@@ -35,15 +36,19 @@ import {
   getScratchPad,
   subscribeScratchPad,
 } from '@/lib/scratchPadStore'
-import { getClient } from '@/lib/clientStore'
+import { getClient, listClients, subscribeClients } from '@/lib/clientStore'
 import {
   acknowledgeDeclinedOffer,
+  deskApproveTrip,
   updateTripOfferRequest,
 } from '@/lib/offerFlow'
 import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
+import { resolveTripClientName } from '@/lib/resolveTripClientName'
 import {
+  deleteTrip,
   getTrip,
   listTripsStable,
+  removeOfferFromTrip,
   subscribeTrips,
 } from '@/lib/tripStore'
 
@@ -131,41 +136,70 @@ function Drawer({
 
 function CardList({
   cards,
-  onDeleteRequest,
+  onDeleteCard,
+  onApproveCard,
+  approvingId,
+  showBookedActions,
 }: {
   cards: DispatchCard[]
-  onDeleteRequest?: (id: string, title: string) => void
+  onDeleteCard: (card: DispatchCard) => void
+  onApproveCard: (card: DispatchCard) => void
+  approvingId?: string | null
+  /** Approved drawer — invoice + ETA sheet actions. */
+  showBookedActions?: boolean
 }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
   return (
     <ul className="space-y-2">
-      {cards.map((c) => (
+      {cards.map((c) => {
+        const tripId = c.trip_id ?? (c.kind === 'trip' ? c.id : undefined)
+        return (
         <li
           key={`${c.kind}-${c.id}`}
-          className="flex items-stretch gap-2 rounded-md border border-border/70 bg-ink"
+          className="rounded-md border border-border/70 bg-ink px-3 py-3"
         >
-          <Link
-            to={c.href}
-            className="min-w-0 flex-1 px-3 py-3 hover:bg-surface-2/40"
-          >
-            <div className="font-medium text-cream">{c.title}</div>
-            <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-          </Link>
-          {c.kind === 'request' && onDeleteRequest ? (
-            <button
-              type="button"
-              aria-label={`Delete ${c.title}`}
-              title="Delete request"
-              onClick={() => onDeleteRequest(c.id, c.title)}
-              className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
+          <div className="flex items-stretch gap-2">
+            <Link
+              to={c.href}
+              className="min-w-0 flex-1 hover:opacity-90"
             >
-              Delete
-            </button>
+              <div className="font-medium text-cream">{c.title}</div>
+              <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+            </Link>
+            <div className="flex shrink-0 flex-col justify-center gap-1">
+              {c.approvable ? (
+                <button
+                  type="button"
+                  aria-label={`Approve trip ${c.title}`}
+                  title="Approve trip"
+                  disabled={approvingId === c.id}
+                  onClick={() => onApproveCard(c)}
+                  className="rounded-md bg-gold/20 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/30 disabled:opacity-40"
+                >
+                  {approvingId === c.id ? 'Approving…' : 'Approve trip'}
+                </button>
+              ) : null}
+              {c.deletable ? (
+                <button
+                  type="button"
+                  aria-label={`Delete ${c.title}`}
+                  title="Delete"
+                  onClick={() => onDeleteCard(c)}
+                  className="px-2.5 py-1 text-xs text-muted hover:text-late"
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {showBookedActions && tripId ? (
+            <BookedTripActionsPanel tripId={tripId} />
           ) : null}
         </li>
-      ))}
+        )
+      })}
     </ul>
   )
 }
@@ -296,10 +330,20 @@ function OfferTripList({
   cards,
   focusTripId,
   onAcknowledgeDeclined,
+  onDeleteCard,
+  onDeleteOffer,
+  onApproveCard,
+  onApproveOffer,
+  approvingId,
 }: {
   cards: DispatchCard[]
   focusTripId?: string | null
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
+  onDeleteCard: (card: DispatchCard) => void
+  onDeleteOffer: (tripId: string, offerId: string, name: string) => void
+  onApproveCard: (card: DispatchCard) => void
+  onApproveOffer: (tripId: string, offerId: string, name: string) => void
+  approvingId?: string | null
 }) {
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
   const [addingTripId, setAddingTripId] = useState<string | null>(null)
@@ -342,15 +386,35 @@ function OfferTripList({
                 : 'border-border/70',
             ].join(' ')}
           >
-            <div className="font-medium text-cream">{c.title}</div>
-            <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-            {c.recipients && c.recipients.length > 0 ? (
-              <p className="mt-1 text-xs text-muted">
-                Quote-request links are emailed on send. Status updates when
-                they answer Yes / No or submit a quote. Use Quotes & pricing
-                for manual quotes and client hard quotes.
-              </p>
-            ) : null}
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-medium text-cream">{c.title}</div>
+                <div className="mt-0.5 font-mono text-sm text-gold/90">
+                  {c.subtitle}
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {c.approvable ? (
+                  <button
+                    type="button"
+                    disabled={approvingId === c.id}
+                    className="rounded-md bg-gold px-2.5 py-1 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
+                    onClick={() => onApproveCard(c)}
+                  >
+                    {approvingId === c.id ? 'Approving…' : 'Approve trip'}
+                  </button>
+                ) : null}
+                {c.deletable ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted hover:text-late"
+                    onClick={() => onDeleteCard(c)}
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
+            </div>
             {c.recipients && c.recipients.length > 0 ? (
               <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">
                 {c.recipients.map((r) =>
@@ -360,7 +424,20 @@ function OfferTripList({
                       className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
                     >
                       <span className="text-cream/80">{r.name}</span>
-                      <span className="text-muted">unavailable</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted">unavailable</span>
+                        {c.trip_id ? (
+                          <button
+                            type="button"
+                            className="text-xs text-muted hover:text-late"
+                            onClick={() =>
+                              onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                            }
+                          >
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
                     </li>
                   ) : (
                   <li
@@ -375,14 +452,6 @@ function OfferTripList({
                         {r.status_label}
                       </span>
                     </div>
-                    <div className="mt-1 font-mono text-[11px] text-muted">
-                      {r.destination_summary}
-                    </div>
-                    {r.destination_gaps.length > 0 ? (
-                      <div className="mt-0.5 text-[11px] text-late">
-                        {r.destination_gaps.join(' · ')}
-                      </div>
-                    ) : null}
                     {r.sent_label ? (
                       <div className="mt-1 font-mono text-[11px] text-muted">
                         {r.sent_label}
@@ -409,6 +478,23 @@ function OfferTripList({
                           Acknowledge
                         </button>
                       ) : null}
+                      {(r.status === 'quote_submitted' ||
+                        r.status === 'selected') &&
+                      r.quote_summary &&
+                      c.trip_id ? (
+                        <button
+                          type="button"
+                          disabled={approvingId === r.offer_id}
+                          className="font-medium text-gold hover:text-gold-lt disabled:opacity-40"
+                          onClick={() =>
+                            onApproveOffer(c.trip_id!, r.offer_id, r.name)
+                          }
+                        >
+                          {approvingId === r.offer_id
+                            ? 'Approving…'
+                            : 'Approve trip'}
+                        </button>
+                      ) : null}
                       <Link
                         className="text-gold hover:text-gold-lt"
                         to={r.href}
@@ -427,6 +513,17 @@ function OfferTripList({
                       >
                         Copy link
                       </button>
+                      {c.trip_id ? (
+                        <button
+                          type="button"
+                          className="text-muted hover:text-late"
+                          onClick={() =>
+                            onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                          }
+                        >
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                   </li>
                   ),
@@ -535,6 +632,7 @@ export default function DispatchCenterPage() {
   const [searchParams] = useSearchParams()
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
+  const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
   const scratch = useSyncExternalStore(
     subscribeScratchPad,
     getScratchPad,
@@ -575,9 +673,89 @@ export default function DispatchCenterPage() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [focusTripId, openDrawer, trips])
 
-  function removeTripRequest(id: string, title: string) {
-    if (!window.confirm(`Delete trip request?\n\n${title}`)) return
-    deleteRequest(id)
+  function removeWaterfallCard(card: DispatchCard) {
+    if (!card.deletable) return
+    if (card.kind === 'request') {
+      if (!window.confirm(`Delete trip request?\n\n${card.title}`)) return
+      deleteRequest(card.id)
+      return
+    }
+    if (card.kind === 'offer_quote' && card.trip_id) {
+      if (
+        !window.confirm(
+          `Remove this submitted quote from the queue?\n\n${card.title}`,
+        )
+      ) {
+        return
+      }
+      removeOfferFromTrip(card.trip_id, card.id)
+      return
+    }
+    const tripId = card.trip_id ?? card.id
+    if (
+      !window.confirm(
+        `Delete this trip from the queue?\n\n${card.title}\n\nThis removes the trip and its offers. Cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    deleteTrip(tripId)
+  }
+
+  function removeOfferRow(tripId: string, offerId: string, name: string) {
+    if (
+      !window.confirm(
+        `Remove ${name} from this trip?\n\nTheir offer link will stop working.`,
+      )
+    ) {
+      return
+    }
+    removeOfferFromTrip(tripId, offerId)
+  }
+
+  const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [approveError, setApproveError] = useState<string | null>(null)
+
+  function approveWaterfallCard(card: DispatchCard) {
+    const tripId = card.trip_id ?? (card.kind === 'trip' ? card.id : null)
+    if (!tripId || !card.approvable) return
+    if (
+      !window.confirm(
+        `Approve trip?\n\n${card.title}\n\nBooks the trip with the selected / quoted operator and moves it to Approved.`,
+      )
+    ) {
+      return
+    }
+    setApproveError(null)
+    setApprovingId(card.id)
+    void deskApproveTrip(tripId, card.approve_offer_id)
+      .then(() => {
+        setOpenDrawer('approved')
+      })
+      .catch((e) =>
+        setApproveError(e instanceof Error ? e.message : String(e)),
+      )
+      .finally(() => setApprovingId(null))
+  }
+
+  function approveOfferRow(tripId: string, offerId: string, name: string) {
+    if (
+      !window.confirm(
+        `Approve trip with ${name}?\n\nBooks the trip and stands other operators down.`,
+      )
+    ) {
+      return
+    }
+    setApproveError(null)
+    setApprovingId(offerId)
+    void deskApproveTrip(tripId, offerId)
+      .then(() => {
+        setOpenDrawer('approved')
+      })
+      .catch((e) =>
+        setApproveError(e instanceof Error ? e.message : String(e)),
+      )
+      .finally(() => setApprovingId(null))
   }
 
   const buckets = useMemo(
@@ -585,15 +763,17 @@ export default function DispatchCenterPage() {
       buildDispatchDrawers({
         requests,
         trips: trips.map((t) => {
-          const fromQuick = t.quick?.client_name?.trim() || ''
           const fromDir =
             t.client_id ? getClient(t.client_id)?.name?.trim() || '' : ''
+          const client_name =
+            resolveTripClientName(t, fromDir) || null
           return {
             id: t.id,
             ref: t.ref,
+            code: t.code,
             lane: t.lane,
             state: t.state,
-            client_name: fromQuick || fromDir || null,
+            client_name,
             quick: t.quick,
             legs: t.legs,
             offers: t.offers.map((o) => ({
@@ -603,7 +783,7 @@ export default function DispatchCenterPage() {
           }
         }),
       }),
-    [requests, trips],
+    [requests, trips, clients],
   )
 
   const scratchPreview = scratch.body.trim()
@@ -724,6 +904,12 @@ export default function DispatchCenterPage() {
         </div>
       ) : null}
 
+      {approveError ? (
+        <p className="rounded-md border border-late/40 bg-late/10 px-3 py-2 text-sm text-late">
+          {approveError}
+        </p>
+      ) : null}
+
       {DISPATCH_DRAWERS.map((d) => (
         <Drawer
           key={d.id}
@@ -747,13 +933,19 @@ export default function DispatchCenterPage() {
                   console.warn('[dispatch] acknowledge declined', e),
                 )
               }}
+              onDeleteCard={removeWaterfallCard}
+              onDeleteOffer={removeOfferRow}
+              onApproveCard={approveWaterfallCard}
+              onApproveOffer={approveOfferRow}
+              approvingId={approvingId}
             />
           ) : (
             <CardList
               cards={buckets[d.id]}
-              onDeleteRequest={
-                d.id === 'requests' ? removeTripRequest : undefined
-              }
+              onDeleteCard={removeWaterfallCard}
+              onApproveCard={approveWaterfallCard}
+              approvingId={approvingId}
+              showBookedActions={d.id === 'approved'}
             />
           )}
         </Drawer>

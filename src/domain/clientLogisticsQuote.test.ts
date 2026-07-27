@@ -28,6 +28,11 @@ describe('clientLogisticsQuote', () => {
     expect(opt.aircraft_type).toBe('Citation CJ3')
     expect(opt.price).toBe(5625)
     expect(opt.taxes_fees_note).toBe(CLIENT_QUOTE_TAXES_NOTE)
+    expect(opt).not.toHaveProperty('tail')
+    expect(opt.position_eta.duration).toBe('1h 30m')
+    expect(opt.position_eta.clock).toMatch(/Z/)
+    expect(opt.etd.clock).toMatch(/Z/)
+    expect(opt.arrival_eta.clock).toMatch(/Z/)
     expect(formatTtpFromGo(opt.ttp_min, opt.departure_label)).toContain(
       'from Go',
     )

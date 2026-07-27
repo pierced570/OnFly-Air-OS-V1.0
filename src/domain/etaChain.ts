@@ -295,8 +295,28 @@ export async function buildTripChain(
   }
 
   // ── AIRCRAFT position branch ───────────────────────────────
-  const ttpMin = routing.acftTtpMin ?? defaults.acft_ttp
-  const ttpSource: EtaSource = routing.acftTtpSource ?? (routing.acftTtpMin != null ? 'quoted' : 'assumed')
+  // Blueprint: position = base → origin flight time (NM ÷ cruise + taxi).
+  // Flat defaults.acft_ttp is only the callout assumption when already at
+  // origin, or when an operator quote overrides via acftTtpMin.
+  const posFlight = flightMinutes(
+    routing.aircraftBase,
+    origin,
+    routing.cruiseKts,
+    defaults.taxi_pad,
+  )
+  let ttpMin: number
+  let ttpSource: EtaSource
+  if (routing.acftTtpMin != null) {
+    ttpMin = routing.acftTtpMin
+    ttpSource = routing.acftTtpSource ?? 'quoted'
+  } else if (posFlight.nm < 5) {
+    // Based at / next to origin — use dispatcher callout default, not taxi-only.
+    ttpMin = defaults.acft_ttp
+    ttpSource = routing.acftTtpSource ?? 'assumed'
+  } else {
+    ttpMin = posFlight.min
+    ttpSource = routing.acftTtpSource ?? 'assumed'
+  }
   const inPosition = addMin(ready, ttpMin)
   pushLeg(legs, {
     type: 'position',
@@ -310,6 +330,7 @@ export async function buildTripChain(
     duration_min: ttpMin,
     duration_key: 'acft_ttp',
     source: ttpSource,
+    distance_nm: posFlight.nm,
   })
 
   const airReady = addMin(inPosition, defaults.acft_turn)

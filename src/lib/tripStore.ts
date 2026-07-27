@@ -19,6 +19,11 @@ import {
 } from '@/domain/etaChain'
 import type { TripState } from '@/domain/stateMachine'
 import { transition } from '@/domain/stateMachine'
+import {
+  generateTripCode,
+  isValidTripCode,
+  normalizeTripCode,
+} from '@/domain/tripCode'
 import { parseThreadActual } from '@/domain/threadParse'
 import {
   applyChainToLegs,
@@ -326,6 +331,11 @@ export type TripInvoice = {
 export type TripStoreRow = {
   id: string
   ref: number
+  /**
+   * Internal unique trip code — 2 letters + 3 digits (e.g. AB123).
+   * Shown on Dispatch cards; distinct from numeric `ref`.
+   */
+  code: string
   state: TripState
   lane: string
   payload_summary: string
@@ -333,6 +343,11 @@ export type TripStoreRow = {
   candidates: Candidate[]
   offers: OfferRow[]
   events: Array<{ at: string; actor: string; kind: string; payload: Record<string, unknown> }>
+  /**
+   * Desk default margin % when building client totals from operator NET.
+   * Null/undefined → DEFAULT_OFFER_MARGIN_PCT.
+   */
+  offer_margin_pct?: number | null
   hard_quote?: {
     total: number
     accept_token: string
@@ -381,6 +396,8 @@ export type TripStoreRow = {
   documents: TripDocument[]
   invoice: TripInvoice | null
   client_id?: string
+  /** Denormalized client display name for Dispatch cards / docs. */
+  client_name?: string | null
   /** Portal / dispatch request that spawned this trip. */
   request_id?: string
   /** Closest piston / turboprop / jet shortlist (Phase A). */
@@ -416,6 +433,37 @@ function rebuild() {
   snapshot = [...trips.values()].sort((a, b) => b.ref - a.ref)
 }
 
+function usedTripCodes(exceptId?: string): Set<string> {
+  const used = new Set<string>()
+  for (const t of trips.values()) {
+    if (exceptId && t.id === exceptId) continue
+    if (t.code && isValidTripCode(t.code)) used.add(normalizeTripCode(t.code))
+  }
+  return used
+}
+
+function allocateTripCode(exceptId?: string): string {
+  return generateTripCode(usedTripCodes(exceptId))
+}
+
+/** Backfill missing/invalid codes on hydrated or legacy local trips. */
+export function ensureTripCodes(): void {
+  let changed = false
+  const used = usedTripCodes()
+  for (const t of trips.values()) {
+    if (t.code && isValidTripCode(t.code)) {
+      t.code = normalizeTripCode(t.code)
+      used.add(t.code)
+      continue
+    }
+    t.code = generateTripCode(used)
+    used.add(t.code)
+    changed = true
+    schedulePersist(t.id)
+  }
+  if (changed) bump()
+}
+
 function persistLocal(): void {
   if (typeof localStorage === 'undefined') return
   try {
@@ -443,6 +491,11 @@ function loadLocal(): void {
       if (row.thread_disbanded_at === undefined) row.thread_disbanded_at = null
       if (!Array.isArray(row.legs)) row.legs = []
       if (!Array.isArray(row.participants)) row.participants = []
+      if (!row.code || !isValidTripCode(String(row.code))) {
+        row.code = ''
+      } else {
+        row.code = normalizeTripCode(String(row.code))
+      }
       row.participants = row.participants.map((p) => ({
         ...p,
         company: p.company ?? '',
@@ -476,6 +529,7 @@ function bump() {
 }
 
 loadLocal()
+ensureTripCodes()
 rebuild()
 
 export function subscribeTrips(fn: () => void): () => void {
@@ -627,6 +681,7 @@ export function buildOfferRow(
 export function createRoutedTripWithShortlist(opts: {
   request_id?: string
   client_id?: string
+  client_name?: string | null
   lane: string
   payload_summary: string
   ready_label: string
@@ -648,6 +703,7 @@ export function createRoutedTripWithShortlist(opts: {
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
+    code: allocateTripCode(),
     state: 'draft',
     lane: opts.lane,
     payload_summary: opts.payload_summary,
@@ -655,6 +711,7 @@ export function createRoutedTripWithShortlist(opts: {
     candidates: opts.candidates,
     offers: [],
     client_id: opts.client_id,
+    client_name: opts.client_name?.trim() || null,
     request_id: opts.request_id,
     shortlist: opts.shortlist,
     po_number: opts.po_number ?? null,
@@ -723,6 +780,7 @@ export function createTripFromCandidates(opts: {
   candidates: Candidate[]
   payload_kind: 'cargo' | 'pax' | 'both'
   client_id?: string
+  client_name?: string | null
   /** Prefer this chain when materializing legs (selected option). */
   selectedChain?: ChainLeg[]
   service_pattern?: ServicePattern | null
@@ -738,6 +796,7 @@ export function createTripFromCandidates(opts: {
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
+    code: allocateTripCode(),
     state: 'quoted_estimated',
     lane: opts.lane,
     payload_summary: opts.payload_summary,
@@ -747,6 +806,7 @@ export function createTripFromCandidates(opts: {
       buildOfferRow(id, c, i),
     ),
     client_id: opts.client_id,
+    client_name: opts.client_name?.trim() || null,
     shortlist: null,
     eta_chain: chain,
     service_pattern: opts.service_pattern ?? null,
@@ -803,6 +863,7 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
+    code: allocateTripCode(),
     state: 'booked',
     lane,
     payload_summary: meta.cargo_only
@@ -813,6 +874,7 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
     offers: [],
     quick: structuredClone(meta),
     client_id: meta.client_id,
+    client_name: meta.client_name?.trim() || null,
     eta_chain: [],
     service_pattern: 'A2A',
     promised_delivery: null,
@@ -885,6 +947,56 @@ export function getTrip(id: string) {
   return trips.get(id) ?? null
 }
 
+/**
+ * Remove a trip from the desk queue (local + best-effort Supabase delete).
+ * Cascades child rows in DB via FK. Does not change trip state.
+ */
+export function deleteTrip(id: string): boolean {
+  if (!trips.has(id)) return false
+  trips.delete(id)
+  bump()
+  void import('@/lib/db/persistTrip')
+    .then((m) => m.deleteTripFromDb(id))
+    .catch((e) => console.warn('[trips] delete from db failed', id, e))
+  return true
+}
+
+/**
+ * Remove one operator offer from a trip (waterfall cleanup).
+ * Does not change trip state. Persists offer orphan deletes to DB.
+ */
+export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
+  const trip = trips.get(tripId)
+  if (!trip) return false
+  const before = trip.offers.length
+  const removed = trip.offers.find((o) => o.id === offerId)
+  if (!removed) return false
+  mutateTrip(tripId, (t) => {
+    t.offers = t.offers.filter((o) => o.id !== offerId)
+    if (t.hard_quote?.options?.length) {
+      t.hard_quote.options = t.hard_quote.options.filter(
+        (o) => o.offer_id !== offerId,
+      )
+      if (t.hard_quote.options.length) {
+        t.hard_quote.total = Math.min(
+          ...t.hard_quote.options.map((o) => o.client_total),
+        )
+      }
+    }
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'offer_removed',
+      payload: {
+        offer_id: offerId,
+        operator_name: removed.operator_name,
+        previous_count: before,
+      },
+    })
+  })
+  return true
+}
+
 /** Merge DB rows into session (does not wipe local-only trips still syncing). */
 export function replaceTripsFromDb(rows: TripStoreRow[]): void {
   if (!rows.length) return
@@ -905,6 +1017,11 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
         r.service_pattern = r.service_pattern ?? existing.service_pattern
         r.promised_delivery = r.promised_delivery ?? existing.promised_delivery
       }
+    }
+    if (!r.code || !isValidTripCode(r.code)) {
+      r.code = allocateTripCode(r.id)
+    } else {
+      r.code = normalizeTripCode(r.code)
     }
     trips.set(r.id, r)
     if (r.ref >= refSeq) refSeq = r.ref + 1
@@ -1415,7 +1532,18 @@ export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvo
   return createInvoiceForTrip(tripId)
 }
 
-export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
+export async function createInvoiceForTrip(
+  tripId: string,
+  opts?: {
+    /** Skip Resend — desk sends later from Approved actions. */
+    skipEmail?: boolean
+    to?: string[]
+    cc?: string[]
+    bcc?: string[]
+    /** Force a PO; otherwise allocate last+1 for the client. */
+    poNumber?: string
+  },
+): Promise<TripInvoice | null> {
   const t = trips.get(tripId)
   if (!t) return null
   if (t.invoice) return t.invoice
@@ -1425,14 +1553,28 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   const total = t.quick?.client_price ?? t.hard_quote?.total ?? 0
   if (!(total > 0)) return null
   const { createAccountingAdapter } = await import('@/adapters/accounting')
+  const { getClient, listInvoiceEmails } = await import('@/lib/clientStore')
+  const { allocateNextPoForClient } = await import('@/lib/allocateNextPo')
+  const { ONFLY_INFO_BCC } = await import('@/domain/onflyEmails')
   const acct = createAccountingAdapter()
+  const client = t.client_id ? getClient(t.client_id) : undefined
   const clientName =
-    t.quick?.client_name ??
-    (t.client_id
-      ? (await import('@/lib/clientStore')).getClient(t.client_id)?.name
-      : undefined) ??
-    'Client'
-  const po = t.quick?.po?.trim() || `T-${t.ref}`
+    t.quick?.client_name ?? client?.name ?? 'Client'
+  let po =
+    opts?.poNumber?.trim() ||
+    t.po_number?.trim() ||
+    t.quick?.po?.trim() ||
+    ''
+  if (!po) {
+    po = await allocateNextPoForClient({
+      clientId: t.client_id,
+      clientName,
+    })
+  }
+  mutateTrip(tripId, (row) => {
+    row.po_number = po
+    if (row.quick) row.quick.po = po
+  })
   const txnDate = new Date().toISOString().slice(0, 10)
   const lines = tripInvoiceLines({
     tripRef: t.ref,
@@ -1442,30 +1584,54 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   })
   const created = await acct.createInvoice({
     customerName: clientName,
+    customerId: client?.qb_customer_id ?? undefined,
     poNumber: po,
     txnDate,
-    payTerms: t.quick?.pay_terms ?? 'Net 30',
+    payTerms: t.quick?.pay_terms ?? client?.pay_terms ?? 'Net 30',
     tripRef: t.ref,
     lines,
     notes: t.quick?.notes ?? null,
   })
 
   // Branded Resend delivery (never QBO /invoice/{id}/send)
-  const apTo = [
+  const defaultTo = [
+    ...(opts?.to ?? []),
     t.quick?.invoice_email,
+    client?.invoice_email,
+    ...(t.client_id ? listInvoiceEmails(t.client_id) : []),
     ...t.participants
       .filter((p) => p.role === 'client_ap' && p.email)
       .map((p) => p.email),
   ]
     .filter((e): e is string => Boolean(e?.includes('@')))
     .map((e) => e.toLowerCase())
-  const uniqueTo = [...new Set(apTo)]
-  if (uniqueTo.length && (t.quick?.send_invoice ?? true)) {
+  const uniqueTo = [...new Set(opts?.to?.length ? opts.to.map((e) => e.toLowerCase()) : defaultTo)]
+  const uniqueCc = [
+    ...new Set(
+      (opts?.cc ?? [])
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@') && !uniqueTo.includes(e)),
+    ),
+  ]
+  const uniqueBcc = [
+    ...new Set(
+      [...(opts?.bcc ?? []), ONFLY_INFO_BCC]
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@')),
+    ),
+  ]
+  const shouldEmail =
+    !opts?.skipEmail &&
+    uniqueTo.length > 0 &&
+    (t.quick?.send_invoice ?? true)
+  if (shouldEmail) {
     try {
       const pdf = await acct.getInvoicePdfBase64(created.qbInvoiceId)
       if (pdf) {
         await acct.sendInvoiceEmail({
           to: uniqueTo,
+          cc: uniqueCc,
+          bcc: uniqueBcc,
           poNumber: created.qbInvoiceNumber || po,
           pdfBase64: pdf,
           clientName,
@@ -1480,13 +1646,14 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
     id: crypto.randomUUID(),
     qb_invoice_id: created.qbInvoiceId,
     total,
-    status: 'sent',
+    status: shouldEmail ? 'sent' : 'draft',
     url: created.url,
     created_at: new Date().toISOString(),
   }
   const wasDelivered = t.state === 'delivered'
   mutateTrip(tripId, (row) => {
     row.invoice = inv
+    row.po_number = created.qbInvoiceNumber || po
     row.documents.push({
       id: crypto.randomUUID(),
       kind: 'other',
@@ -1503,6 +1670,10 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
         doc_number: created.qbInvoiceNumber,
         total,
         auto: wasDelivered,
+        emailed: shouldEmail,
+        to: uniqueTo,
+        cc: uniqueCc,
+        bcc: uniqueBcc,
       },
     })
   })
@@ -1520,6 +1691,77 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   } finally {
     invoiceInFlight.delete(tripId)
   }
+}
+
+/**
+ * Send (or re-send) the QuickBooks invoice PDF via branded email.
+ * Creates the QB invoice first when missing.
+ */
+export async function sendTripInvoiceEmail(
+  tripId: string,
+  opts: { to: string[]; cc?: string[]; bcc?: string[] },
+): Promise<{ poNumber: string; emailed: boolean }> {
+  let trip = trips.get(tripId)
+  if (!trip) throw new Error('trip not found')
+  if (!trip.invoice) {
+    await createInvoiceForTrip(tripId, {
+      skipEmail: true,
+      to: opts.to,
+      cc: opts.cc,
+      bcc: opts.bcc,
+    })
+    trip = trips.get(tripId)
+  }
+  if (!trip?.invoice) {
+    throw new Error('Could not create invoice — client total missing?')
+  }
+  const { createAccountingAdapter } = await import('@/adapters/accounting')
+  const { getClient } = await import('@/lib/clientStore')
+  const { ONFLY_INFO_BCC } = await import('@/domain/onflyEmails')
+  const acct = createAccountingAdapter()
+  const client = trip.client_id ? getClient(trip.client_id) : undefined
+  const clientName =
+    trip.quick?.client_name ?? client?.name ?? 'Client'
+  const po =
+    trip.po_number?.trim() ||
+    trip.quick?.po?.trim() ||
+    trip.invoice.qb_invoice_id
+  const to = [...new Set(opts.to.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')))]
+  if (!to.length) throw new Error('Add at least one To email for the invoice')
+  const cc = [
+    ...new Set(
+      (opts.cc ?? [])
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@') && !to.includes(e)),
+    ),
+  ]
+  const bcc = [
+    ...new Set(
+      [...(opts.bcc ?? []), ONFLY_INFO_BCC]
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@')),
+    ),
+  ]
+  const pdf = await acct.getInvoicePdfBase64(trip.invoice.qb_invoice_id)
+  if (!pdf) throw new Error('Could not load invoice PDF from QuickBooks')
+  await acct.sendInvoiceEmail({
+    to,
+    cc,
+    bcc,
+    poNumber: po,
+    pdfBase64: pdf,
+    clientName,
+  })
+  mutateTrip(tripId, (row) => {
+    if (row.invoice) row.invoice.status = 'sent'
+    row.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'invoice_emailed',
+      payload: { to, cc, bcc, po_number: po },
+    })
+  })
+  return { poNumber: po, emailed: true }
 }
 
 export function addTripDocument(

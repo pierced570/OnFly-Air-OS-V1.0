@@ -32,6 +32,7 @@ export function offerQuotePreviewFor(
   trip: TripStoreRow,
   optionIndex: number,
   clientTotalOverride?: number | null,
+  marginPctOverride?: number | null,
 ): OfferQuotePreview {
   const cand =
     trip.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
@@ -45,6 +46,10 @@ export function offerQuotePreviewFor(
     1,
     trip.lane.split(/\s*·\s*/).filter(Boolean).length,
   )
+  const margin_pct =
+    marginPctOverride != null && Number.isFinite(marginPctOverride)
+      ? marginPctOverride
+      : trip.offer_margin_pct ?? DEFAULT_OFFER_MARGIN_PCT
   return buildOfferQuotePreview(
     {
       offer_id: offer.id,
@@ -57,6 +62,7 @@ export function offerQuotePreviewFor(
       fee_scope: offer.fee_scope,
       mtow_lbs: cand?.mtow_lbs ?? null,
       payload_kind: kind,
+      margin_pct,
       client_total_override: clientTotalOverride,
       segment_count,
       pax_count: Math.max(1, pax_count || 1),

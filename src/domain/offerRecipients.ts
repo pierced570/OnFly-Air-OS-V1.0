@@ -222,10 +222,13 @@ export function formatOfferQuoteSummary(o: {
   time_to_position_min?: number | null
   live_leg_min?: number | null
   fee_scope?: string | null
+  type_name?: string | null
   tail?: string | null
 }): string | null {
   if (o.price_net == null) return null
-  const bits = [`NET $${Math.round(o.price_net)}`]
+  const bits: string[] = []
+  if (o.type_name?.trim()) bits.push(o.type_name.trim())
+  bits.push(`NET $${Math.round(o.price_net)}`)
   if (o.time_to_position_min != null) bits.push(`TTP ${o.time_to_position_min}m`)
   if (o.live_leg_min != null) bits.push(`live ${o.live_leg_min}m`)
   if (o.fee_scope === 'aircraft_only') bits.push('aircraft only')

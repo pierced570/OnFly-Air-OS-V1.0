@@ -48,8 +48,8 @@ function round2(n: number): number {
 
 /**
  * Compute tax lines for a quote.
- * - Cargo domestic: FET_CARGO % of airSubtotal
- * - Pax domestic: FET_PAX % + SEG_FEE_DOM × pax × segments
+ * - Cargo-only domestic: FET_CARGO % of airSubtotal (~6.25%)
+ * - Pax on board (pax or both): FET_PAX % (~7.5%) + SEG_FEE_DOM × pax × segments
  * - Any international leg → INTL_HEAD per pax on that leg; no domestic FET stacking on that leg
  * - §4281: MTOW ≤ FET_EXEMPT_MTOW → zero FET
  */
@@ -67,6 +67,8 @@ export function computeTax(input: TaxInput): TaxResult {
 
   const isCargo = payloadKind === 'cargo' || payloadKind === 'both'
   const isPax = payloadKind === 'pax' || payloadKind === 'both'
+  /** Pax on board → higher FET + segment fees; cargo-only → lower cargo FET. */
+  const paxOnBoard = payloadKind === 'pax' || payloadKind === 'both'
 
   // Domestic FET / segment — only if there is a domestic air subtotal portion.
   // Keep simple: if any international leg exists and all legs are intl, use intl regime only.
@@ -74,7 +76,31 @@ export function computeTax(input: TaxInput): TaxResult {
   const applyDomestic = domesticLegs.length > 0 || !hasIntl
 
   if (applyDomestic && !fetExempt) {
-    if (payloadKind === 'cargo' || payloadKind === 'both') {
+    if (paxOnBoard) {
+      const fet = rateByCode(rates, 'FET_PAX')
+      const pct = fet?.rate_pct ?? 0
+      const fetAmt = round2(airSubtotal * (pct / 100))
+      lines.push({
+        code: 'FET_PAX',
+        base: airSubtotal,
+        amount: fetAmt,
+        note: `FET ${pct}% (passenger)`,
+      })
+
+      const seg = rateByCode(rates, 'SEG_FEE_DOM')
+      const flat = seg?.flat_amount ?? 0
+      const segCount = domesticLegs.reduce(
+        (n, l) => n + l.segments * Math.max(0, l.paxCount),
+        0,
+      )
+      const segAmt = round2(flat * segCount)
+      lines.push({
+        code: 'SEG_FEE_DOM',
+        base: segCount,
+        amount: segAmt,
+        note: `Segment fee $${flat} × ${segCount} (pax × segments)`,
+      })
+    } else if (isCargo) {
       const fet = rateByCode(rates, 'FET_CARGO')
       const pct = fet?.rate_pct ?? 0
       const amount = round2(airSubtotal * (pct / 100))
@@ -83,30 +109,9 @@ export function computeTax(input: TaxInput): TaxResult {
           code: 'FET_CARGO',
           base: airSubtotal,
           amount,
-          note: `Cargo FET ${pct}%`,
+          note: `FET ${pct}% (cargo)`,
         })
       }
-    } else if (payloadKind === 'pax') {
-      const fet = rateByCode(rates, 'FET_PAX')
-      const pct = fet?.rate_pct ?? 0
-      const fetAmt = round2(airSubtotal * (pct / 100))
-      lines.push({
-        code: 'FET_PAX',
-        base: airSubtotal,
-        amount: fetAmt,
-        note: `Passenger FET ${pct}%`,
-      })
-
-      const seg = rateByCode(rates, 'SEG_FEE_DOM')
-      const flat = seg?.flat_amount ?? 0
-      const segCount = domesticLegs.reduce((n, l) => n + l.segments * l.paxCount, 0)
-      const segAmt = round2(flat * segCount)
-      lines.push({
-        code: 'SEG_FEE_DOM',
-        base: segCount,
-        amount: segAmt,
-        note: `Segment fee $${flat} × ${segCount} (pax×segments)`,
-      })
     }
   }
 
@@ -145,3 +150,21 @@ export const TEST_TAX_RATES_2026: TaxRateRow[] = [
   { code: 'INTL_HEAD', rate_pct: null, flat_amount: 23.4, applies_to: 'pax_intl' },
   { code: 'FET_EXEMPT_MTOW', rate_pct: null, flat_amount: 6000, applies_to: 'rule' },
 ]
+
+/** Desk-readable tax line, e.g. "FET 6.25% (cargo): $625". */
+export function formatTaxLineDesk(line: TaxLine): string {
+  const amt =
+    Number.isInteger(line.amount) || Math.abs(line.amount % 1) < 1e-9
+      ? `$${line.amount.toFixed(0)}`
+      : `$${line.amount.toFixed(2)}`
+  if (line.code === 'FET_CARGO' || line.code === 'FET_PAX') {
+    return `${line.note}: ${amt}`
+  }
+  if (line.code === 'SEG_FEE_DOM' || line.code === 'INTL_HEAD') {
+    return `${line.note}: ${amt}`
+  }
+  if (line.code === 'FET_EXEMPT_MTOW') {
+    return line.note
+  }
+  return line.note ? `${line.note}: ${amt}` : `${line.code}: ${amt}`
+}

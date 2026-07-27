@@ -4,6 +4,7 @@
  */
 
 import { useMemo, useSyncExternalStore } from 'react'
+import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import {
   getClient,
   listClients,
@@ -13,6 +14,8 @@ import {
   subscribeClients,
   type ClientContact,
 } from '@/lib/clientStore'
+
+export { ONFLY_INFO_BCC }
 
 export type EmailBucket = 'to' | 'cc' | 'bcc' | 'off'
 
@@ -57,6 +60,40 @@ export function defaultClientEmailSelection(
     ...listInvoiceEmails(clientId),
   ]).filter((e) => !to.includes(e))
   return { to, cc, bcc: [] }
+}
+
+/**
+ * Invoice send defaults:
+ * - To: AP invoice_email (or invoice DL)
+ * - CC: remaining invoice-flagged contacts (DL)
+ * - BCC: info@onflyair.com
+ */
+export function defaultInvoiceEmailSelection(
+  clientId?: string | null,
+): ClientEmailSelection {
+  if (!clientId) {
+    return { to: [], cc: [], bcc: [ONFLY_INFO_BCC] }
+  }
+  const client = getClient(clientId)
+  const ap = normalize(client?.invoice_email ?? '')
+  const invoiceDl = uniq(listInvoiceEmails(clientId))
+  const to = ap.includes('@')
+    ? [ap]
+    : invoiceDl.slice(0, 1)
+  const cc = invoiceDl.filter((e) => !to.includes(e))
+  return { to, cc, bcc: [ONFLY_INFO_BCC] }
+}
+
+/** ETA / tracking sheet — To from tracker / supply-chain flags. */
+export function defaultTrackerEmailSelection(
+  clientId?: string | null,
+): ClientEmailSelection {
+  if (!clientId) return emptyClientEmailSelection()
+  return {
+    to: uniq(listTrackerEmails(clientId)),
+    cc: [],
+    bcc: [],
+  }
 }
 
 function bucketOf(email: string, sel: ClientEmailSelection): EmailBucket {
@@ -139,8 +176,7 @@ export function ClientEmailRecipientsBubble({
         {title}
       </div>
       <p className="mt-1 text-[11px] text-muted">
-        Tap a contact to cycle <span className="text-cream">To → CC → BCC → off</span>.
-        These people stay on the quote and ETA thread.
+        Tap to cycle <span className="text-cream">To → CC → BCC → off</span>
       </p>
 
       {contacts.length ? (

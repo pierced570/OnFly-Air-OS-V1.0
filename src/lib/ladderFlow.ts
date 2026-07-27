@@ -18,6 +18,7 @@ import { fboFeesForAirport } from '@/lib/fboStore'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
 import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
+import { getRecommendMatrix } from '@/lib/recommendMatrixStore'
 import { loadTaxRates } from '@/lib/taxRatesStore'
 import { generateCandidates } from '@/domain/routing'
 import {
@@ -131,6 +132,7 @@ export async function createRoutedTripFromRequest(
         dest: destFees.fee,
         notes: [...originFees.reasoning, ...destFees.reasoning],
       },
+      matrix: getRecommendMatrix(),
       pickMode: 'all',
       priorRatePerNm: (typeName, operatorId) =>
         priorRatePerNm(typeName, operatorId, priors),
@@ -159,6 +161,7 @@ export async function createRoutedTripFromRequest(
   const trip = createRoutedTripWithShortlist({
     request_id: row.id,
     client_id: row.client_id || undefined,
+    client_name: row.client_name || undefined,
     lane: row.lane,
     payload_summary: row.summary,
     ready_label: row.timing === 'asap' ? 'ASAP' : row.ready_at.slice(0, 16),

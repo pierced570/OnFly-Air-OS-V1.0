@@ -435,7 +435,9 @@ export async function respondOfferAvailability(
 }
 
 export type OperatorQuoteInput = {
-  /** Operator-chosen tail — never pre-recommended on the offer board. */
+  /** Aircraft type — client-safe (shown on logistics quote). */
+  type_name?: string
+  /** Operator-chosen tail — desk/ops only; never on client quote. */
   tail?: string
   time_to_position_min: number
   /** Ground time at origin after position ETA (default 40). */
@@ -465,6 +467,9 @@ async function applyOfferQuote(
     throw new Error(`cannot quote from trip state ${trip.state}`)
   }
   const tail = input.tail?.trim().toUpperCase()
+  const typeName = input.type_name?.trim() || ''
+  if (!typeName) throw new Error('aircraft type is required')
+  if (!tail) throw new Error('tail number is required')
   const quickTurn =
     input.quick_turn_min != null && Number.isFinite(input.quick_turn_min)
       ? Math.max(0, Math.floor(input.quick_turn_min))
@@ -474,7 +479,8 @@ async function applyOfferQuote(
   const at = new Date().toISOString()
   mutateTrip(tripId, (t) => {
     const o = t.offers.find((x) => x.id === offerId)!
-    if (tail) o.tail = tail
+    o.type_name = typeName
+    o.tail = tail
     o.time_to_position_min = input.time_to_position_min
     o.quick_turn_min = quickTurn
     o.live_leg_min = input.live_leg_min
@@ -485,15 +491,24 @@ async function applyOfferQuote(
     o.notes = input.notes?.trim() || null
     if (o.state !== 'selected') o.state = 'quoted'
     if (!o.replied_at) o.replied_at = at
+    // Keep candidate label in sync for desk shortlist views.
+    const cand =
+      t.candidates.find((c) => c.aircraft_id === o.aircraft_id) ??
+      t.candidates.find((c) => c.tail === o.tail)
+    if (cand) {
+      cand.type_name = typeName
+      cand.tail = tail
+    }
     t.events.push({
       at,
       actor: meta.actor,
       kind: meta.kind,
       payload: {
         ...input,
+        type_name: typeName,
         price_net: price,
         quick_turn_min: quickTurn,
-        tail: tail || o.tail,
+        tail,
         offer_id: o.id,
         source: meta.source,
       },
@@ -556,13 +571,21 @@ export async function selectOffersAndHardQuote(
     notifyClient?: boolean
     ccEmails?: string[]
     bccEmails?: string[]
+    /** Desk margin % applied when totals are not overridden. */
+    marginPct?: number | null
   },
 ) {
   const trip = getTrip(tripId)!
   if (!offerIds.length) throw new Error('select at least one offer')
   const notifyClient = opts?.notifyClient !== false
+  if (opts?.marginPct != null && Number.isFinite(opts.marginPct)) {
+    mutateTrip(tripId, (t) => {
+      t.offer_margin_pct = Math.max(0, opts.marginPct!)
+    })
+  }
+  const pricedTrip = getTrip(tripId)!
   const selectedOffers = offerIds.map((id) => {
-    const o = trip.offers.find((x) => x.id === id)
+    const o = pricedTrip.offers.find((x) => x.id === id)
     if (!o) throw new Error(`offer not found: ${id}`)
     if (o.bookingGated) throw new Error('booking gated — insurance/compliance')
     if (o.state !== 'quoted' && o.state !== 'selected') {
@@ -571,22 +594,22 @@ export async function selectOffersAndHardQuote(
     return o
   })
 
-  const kind = payloadKindOf(trip)
+  const kind = payloadKindOf(pricedTrip)
   const accept_token = crypto.randomUUID().replace(/-/g, '').slice(0, 20)
 
   const sentAt = new Date().toISOString()
   const options = selectedOffers.map((o, i) => {
-    const priced = clientTotalForOffer(o, trip)
+    const priced = clientTotalForOffer(o, pricedTrip)
     const client =
       clientTotalsByOffer?.[o.id] != null
         ? Math.round(clientTotalsByOffer[o.id]!)
         : priced.client
-    const cand = trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)
+    const cand = pricedTrip.candidates.find((c) => c.aircraft_id === o.aircraft_id)
     return {
       offer_id: o.id,
       label: `Option ${String.fromCharCode(65 + i)}`,
       client_total: client,
-      eta_end: cand?.eta_end ?? trip.promised_delivery,
+      eta_end: cand?.eta_end ?? pricedTrip.promised_delivery,
       fee_scope: o.fee_scope,
       /** Client-safe aircraft type (not carrier). */
       type_name: o.type_name ?? cand?.type_name ?? null,
@@ -763,6 +786,49 @@ export async function selectOffersAndHardQuote(
 }
 
 /** Client accepts one option from the public accept page. */
+/**
+ * Update client-facing totals / margin on an already-sent hard quote
+ * without re-notifying the client (desk edit).
+ */
+export function updateHardQuoteClientPricing(
+  tripId: string,
+  input: {
+    margin_pct: number
+    options: Array<{ offer_id: string; client_total: number }>
+  },
+): TripStoreRow {
+  const trip = getTrip(tripId)
+  if (!trip?.hard_quote?.options?.length) {
+    throw new Error('no hard quote to update')
+  }
+  const margin = Math.max(0, input.margin_pct)
+  const byId = new Map(
+    input.options.map((o) => [o.offer_id, Math.round(o.client_total)]),
+  )
+  mutateTrip(tripId, (t) => {
+    t.offer_margin_pct = margin
+    if (!t.hard_quote?.options) return
+    for (const opt of t.hard_quote.options) {
+      const next = byId.get(opt.offer_id)
+      if (next != null) opt.client_total = next
+    }
+    t.hard_quote.total = Math.min(
+      ...t.hard_quote.options.map((o) => o.client_total),
+    )
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'hard_quote_pricing_updated',
+      payload: {
+        margin_pct: margin,
+        totals: Object.fromEntries(byId),
+        accept_token: t.hard_quote.accept_token,
+      },
+    })
+  })
+  return getTrip(tripId)!
+}
+
 export async function acceptHardQuoteOption(token: string, offerId: string) {
   const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
   if (!trip) throw new Error('invalid accept token')
@@ -808,7 +874,73 @@ export async function deskAcceptOfferOption(
   const trip = getTrip(tripId)
   const token = trip?.hard_quote?.accept_token
   if (!token) throw new Error('hard quote missing after select')
-  return acceptHardQuote(token)
+  return acceptHardQuote(token, { actor: 'dispatcher' })
+}
+
+/**
+ * Desk "Approve trip" from Dispatch waterfall — pick a quoted operator
+ * (or use offerId), lock hard quote without client email, book the trip.
+ */
+export async function deskApproveTrip(
+  tripId: string,
+  offerId?: string,
+): Promise<TripStoreRow> {
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
+  if (
+    ['booked', 'in_progress', 'delivered', 'invoiced', 'closed'].includes(
+      trip.state,
+    )
+  ) {
+    return trip
+  }
+
+  const quoteable = trip.offers.filter(
+    (o) =>
+      (o.state === 'quoted' || o.state === 'selected') &&
+      o.price_net != null &&
+      !o.bookingGated,
+  )
+  const picked =
+    (offerId
+      ? quoteable.find((o) => o.id === offerId) ??
+        trip.offers.find((o) => o.id === offerId)
+      : null) ??
+    quoteable.find((o) => o.state === 'selected') ??
+    [...quoteable].sort(
+      (a, b) => (a.price_net ?? Infinity) - (b.price_net ?? Infinity),
+    )[0]
+
+  if (!picked) {
+    throw new Error('Enter an operator quote before approving the trip')
+  }
+  if (picked.bookingGated) {
+    throw new Error('booking gated — insurance/compliance')
+  }
+  if (picked.price_net == null) {
+    throw new Error('Enter an operator quote before approving the trip')
+  }
+  if (picked.state !== 'quoted' && picked.state !== 'selected') {
+    throw new Error('Operator must have submitted a quote before approve')
+  }
+
+  // Estimated quotes sit before offers_out — step through for legal transitions.
+  if (trip.state === 'quoted_estimated') {
+    safeTransitionTrip(tripId, 'offers_out', 'dispatcher', {
+      reason: 'desk_approve_trip',
+    })
+  }
+
+  mutateTrip(tripId, (t) => {
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'desk_approve_trip',
+      payload: { offer_id: picked.id, operator_name: picked.operator_name },
+    })
+  })
+
+  return deskAcceptOfferOption(tripId, picked.id)
 }
 
 function resolveHardQuoteRecipients(
@@ -857,7 +989,10 @@ function canSms(cell: string | null | undefined, isMock?: boolean): boolean {
   return Boolean(cell?.trim()) && !isMock
 }
 
-export async function acceptHardQuote(token: string) {
+export async function acceptHardQuote(
+  token: string,
+  opts?: { actor?: string },
+) {
   const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
   if (!trip) throw new Error('invalid accept token')
   if (trip.state === 'booked' || trip.state === 'in_progress' || trip.state === 'delivered') {
@@ -866,6 +1001,7 @@ export async function acceptHardQuote(token: string) {
   if (trip.state !== 'quoted_hard') {
     throw new Error(`cannot accept from state ${trip.state}`)
   }
+  const actor = opts?.actor?.trim() || 'client'
   const kind = payloadKindOf(trip)
   const acceptedAt = new Date().toISOString()
   mutateTrip(trip.id, (t) => {
@@ -878,12 +1014,15 @@ export async function acceptHardQuote(token: string) {
     }
     t.events.push({
       at: acceptedAt,
-      actor: 'client',
+      actor,
       kind: 'hard_quote_accepted',
-      payload: { accept_token: token },
+      payload: {
+        accept_token: token,
+        desk_approved: actor === 'dispatcher',
+      },
     })
   })
-  safeTransitionTrip(trip.id, 'booked', 'client', { accept_token: token })
+  safeTransitionTrip(trip.id, 'booked', actor, { accept_token: token })
   {
     const { materializeTripLegsFromChain, getTrip: gt, applyOfferTtpToTrip } =
       await import('@/lib/tripStore')
@@ -903,7 +1042,8 @@ export async function acceptHardQuote(token: string) {
   const email = createEmailAdapter()
   const fresh = getTrip(trip.id)!
   const selected = fresh.offers.find((o) => o.state === 'selected')
-  const trackPath = `/portal/track/${fresh.id}`
+  const { portalTrackingUrlForTrip } = await import('@/lib/etaSheetSender')
+  const trackPath = portalTrackingUrlForTrip(fresh.id)
 
   for (const cell of recipientCells(fresh)) {
     await comms.send({
@@ -1002,14 +1142,33 @@ export async function acceptHardQuote(token: string) {
   }
 
   try {
+    const { allocateNextPoForClient } = await import('@/lib/allocateNextPo')
+    const { getClient } = await import('@/lib/clientStore')
+    const booked = getTrip(trip.id)!
+    const clientName =
+      booked.quick?.client_name ??
+      (booked.client_id ? getClient(booked.client_id)?.name : undefined) ??
+      'Client'
+    if (!booked.po_number?.trim() && !booked.quick?.po?.trim()) {
+      const po = await allocateNextPoForClient({
+        clientId: booked.client_id,
+        clientName,
+      })
+      mutateTrip(trip.id, (t) => {
+        t.po_number = po
+        if (t.quick) t.quick.po = po
+      })
+    }
+    // Create QB invoice (draft) — desk sends from Approved actions with bubble.
     const { createInvoiceForTrip } = await import('@/lib/tripStore')
-    await createInvoiceForTrip(trip.id)
+    await createInvoiceForTrip(trip.id, { skipEmail: true })
   } catch (e) {
-    console.warn('[accept] invoice failed', e)
+    console.warn('[accept] invoice / PO allocate failed', e)
   }
 
   const { runOnBookedAutomations } = await import('@/lib/onBooked')
-  await runOnBookedAutomations(trip.id)
+  // ETA sheet is a desk action on Approved (bubble + send) — not auto-blast.
+  await runOnBookedAutomations(trip.id, { skipEtaEmail: true })
 
   return getTrip(trip.id)!
 }

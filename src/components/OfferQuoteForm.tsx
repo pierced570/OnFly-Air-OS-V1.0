@@ -18,6 +18,9 @@ import {
 import type { FeeScope } from '@/lib/tripStore'
 
 export type OfferQuoteFormValues = {
+  /** Aircraft type (e.g. Citation CJ3) — client-safe. */
+  type_name: string
+  /** Tail — desk / ops only; never shown on client quote. */
   tail: string
   time_to_position_min: number
   quick_turn_min: number
@@ -36,7 +39,8 @@ type Props = {
   submitLabel?: string
   /** Override the default operator intro; pass empty string to hide. */
   intro?: string
-  /** Prefill when editing / desk entry from a known tail. */
+  /** Prefill when editing / desk entry. */
+  initialTypeName?: string
   initialTail?: string
   initialPriceNet?: number
   initialTtpMin?: number
@@ -79,6 +83,7 @@ export function OfferQuoteForm({
   busy = false,
   submitLabel = 'Submit quote',
   intro = "You're available — enter your aircraft and quote:",
+  initialTypeName = '',
   initialTail = '',
   initialPriceNet,
   initialTtpMin,
@@ -87,6 +92,7 @@ export function OfferQuoteForm({
   onSubmit,
 }: Props) {
   const showWait = roundTrip ?? isRoundTripLane(lane)
+  const [typeName, setTypeName] = useState(initialTypeName)
   const [tail, setTail] = useState(initialTail)
   const [ttp, setTtp] = useState(initialTtpMin ?? 90)
   const [quickTurn, setQuickTurn] = useState(
@@ -116,13 +122,19 @@ export function OfferQuoteForm({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
+        const type = typeName.trim()
         const t = tail.trim().toUpperCase()
+        if (!type) {
+          setLocalError('Enter the aircraft type')
+          return
+        }
         if (!t) {
           setLocalError('Enter the tail you will fly')
           return
         }
         setLocalError(null)
         onSubmit({
+          type_name: type,
           tail: t,
           time_to_position_min: ttp,
           quick_turn_min: quickTurn,
@@ -138,7 +150,19 @@ export function OfferQuoteForm({
       {localError && <p className="text-base text-late">{localError}</p>}
 
       <label className={offerLabel}>
-        Tail
+        Aircraft type
+        <input
+          className={offerInput}
+          value={typeName}
+          onChange={(e) => setTypeName(e.target.value)}
+          placeholder="Citation CJ3"
+          required
+          autoComplete="off"
+        />
+      </label>
+
+      <label className={offerLabel}>
+        Tail number
         <input
           className={offerInput}
           value={tail}

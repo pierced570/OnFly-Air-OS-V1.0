@@ -31,13 +31,19 @@ Deno.serve(async (req) => {
 
     const body = (await req.json()) as {
       to?: string | string[]
+      cc?: string | string[]
+      bcc?: string | string[]
       po_number?: string
       pdf_base64?: string
       client_name?: string
     }
-    const to = (Array.isArray(body.to) ? body.to : [body.to])
-      .map((t) => String(t ?? '').trim().toLowerCase())
-      .filter((t) => t.includes('@'))
+    const asList = (v?: string | string[]) =>
+      (Array.isArray(v) ? v : [v])
+        .map((t) => String(t ?? '').trim().toLowerCase())
+        .filter((t) => t.includes('@'))
+    const to = asList(body.to)
+    const cc = asList(body.cc)
+    const bcc = [...new Set([...asList(body.bcc), 'info@onflyair.com'])]
     const po = String(body.po_number ?? '').trim() || 'Invoice'
     const pdf = String(body.pdf_base64 ?? '').trim()
     if (!to.length) return json({ error: 'to required' }, 400)
@@ -73,7 +79,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from,
         to,
-        bcc: ['info@onflyair.com'],
+        ...(cc.length ? { cc } : {}),
+        bcc,
         subject,
         html,
         attachments: [

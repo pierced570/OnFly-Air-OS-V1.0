@@ -25,7 +25,6 @@ const nav: {
   { to: '/leads', label: 'Leads', section: 'leads' },
   // FBOs + Radar + recommend matrix + couriers live under Network hub tabs.
   { to: '/network', label: 'Network', section: 'network' },
-  { to: '/briefing', label: 'Briefing', section: 'briefing' },
   { to: '/admin', label: 'Admin', section: 'admin' },
   { to: '/admin/tasks', label: 'Tasks', section: 'tasks' },
   { to: '/admin/staff', label: 'Staff access', section: 'staff_access' },

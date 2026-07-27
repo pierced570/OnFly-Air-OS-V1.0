@@ -92,9 +92,12 @@ describe('offerRecipients', () => {
         time_to_position_min: 90,
         live_leg_min: 75,
         fee_scope: 'aircraft_and_fees',
+        type_name: 'Citation CJ3',
         tail: 'N123AB',
       }),
-    ).toBe('NET $4200 · TTP 90m · live 75m · fees included · N123AB')
+    ).toBe(
+      'Citation CJ3 · NET $4200 · TTP 90m · live 75m · fees included · N123AB',
+    )
     expect(formatOfferQuoteSummary({ price_net: null })).toBeNull()
   })
 })

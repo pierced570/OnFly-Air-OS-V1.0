@@ -74,6 +74,9 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
       po_number: trip.quick?.po || null,
       session_meta: {
         ref: trip.ref,
+        code: trip.code,
+        offer_margin_pct: trip.offer_margin_pct ?? null,
+        client_name: trip.client_name ?? null,
         quick: trip.quick ?? null,
         hard_quote: trip.hard_quote ?? null,
         candidates: trip.candidates.slice(0, 8),
@@ -103,6 +106,9 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
         po_number: trip.quick?.po || null,
         session_meta: {
           ref: trip.ref,
+          code: trip.code,
+          offer_margin_pct: trip.offer_margin_pct ?? null,
+          client_name: trip.client_name ?? null,
           quick: trip.quick ?? null,
           hard_quote: trip.hard_quote ?? null,
           candidates: trip.candidates.slice(0, 8),
@@ -284,7 +290,22 @@ async function upsertOfferRow(
 }
 
 async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> {
-  if (!canPersist() || !offers.length) return
+  if (!canPersist() || !isUuid(tripId)) return
+  const keepIds = offers.map((o) => o.id).filter(isUuid)
+  // Drop offers removed from the desk waterfall (orphan cleanup).
+  if (keepIds.length) {
+    await safeQuery('offers.delete_orphans', () =>
+      db()
+        .from('offers')
+        .delete()
+        .eq('trip_id', tripId)
+        .not('id', 'in', `(${keepIds.join(',')})`),
+    )
+  } else {
+    await safeQuery('offers.delete_all', () =>
+      db().from('offers').delete().eq('trip_id', tripId),
+    )
+  }
   for (const o of offers) {
     if (!isUuid(o.id) || !o.magic_token?.trim()) {
       console.warn('[db] offer missing uuid/token — skip', o.operator_name)
@@ -440,7 +461,12 @@ export async function syncTripTransition(opts: {
         payload_summary: trip.payload_summary,
         ready_label: trip.ready_label,
         accept_token: trip.hard_quote?.accept_token ?? null,
-        session_meta: { ref: trip.ref },
+        session_meta: {
+          ref: trip.ref,
+          code: trip.code,
+          offer_margin_pct: trip.offer_margin_pct ?? null,
+          client_name: trip.client_name ?? null,
+        },
       }),
     )
   } else if (String((existing as { state: string }).state) === toState) {
@@ -477,5 +503,13 @@ export async function persistPortalTrackToken(opts: {
       trip_id: opts.tripId,
       email: opts.email.trim().toLowerCase(),
     }),
+  )
+}
+
+/** Hard-delete a trip row (children cascade). No-op when offline / unconfigured. */
+export async function deleteTripFromDb(tripId: string): Promise<void> {
+  if (!canPersist() || !isUuid(tripId)) return
+  await safeQuery('trips.delete', () =>
+    db().from('trips').delete().eq('id', tripId),
   )
 }

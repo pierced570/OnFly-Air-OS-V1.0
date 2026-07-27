@@ -14,11 +14,69 @@ import {
 import type { MapsAdapter } from '@/adapters/maps'
 import { haversineNm } from '@/domain/geo'
 import type { LatLon } from '@/adapters/maps'
+import { lookupAirport } from '@/domain/airports'
+import {
+  BUILTIN_RECOMMEND_MATRIX,
+  matrixCompositeRank,
+  matrixTargetMargin,
+  sanitizeRecommendMatrix,
+  type RecommendMatrixConfig,
+} from '@/domain/recommendMatrix'
 import {
   radarRankPenalty,
   type FleetStatus,
   type FlightPhase,
 } from '@/domain/fleetStatus'
+
+/** Resolve aircraft home base coords — never pretend a distant ICAO is at origin. */
+function resolveAircraftBase(
+  ac: AircraftCandidateSource,
+  origin: LatLon & { icao?: string; tz?: string },
+): {
+  base: LatLon & { icao?: string; tz?: string }
+  unresolvedIcao: boolean
+} {
+  if (ac.base && Number.isFinite(ac.base.lat) && Number.isFinite(ac.base.lon)) {
+    return {
+      base: {
+        lat: ac.base.lat,
+        lon: ac.base.lon,
+        icao: ac.base.icao ?? ac.base_icao ?? undefined,
+        tz: ac.base.tz,
+      },
+      unresolvedIcao: false,
+    }
+  }
+  if (ac.base_icao) {
+    const ap = lookupAirport(ac.base_icao)
+    if (ap) {
+      return {
+        base: { lat: ap.lat, lon: ap.lon, icao: ap.icao, tz: ap.tz },
+        unresolvedIcao: false,
+      }
+    }
+    // Keep the ICAO label but do not fall back to origin lat/lon — that
+    // zeroed reposition and crowned distant jets as "fastest".
+    return {
+      base: {
+        lat: origin.lat,
+        lon: origin.lon,
+        icao: ac.base_icao,
+        tz: origin.tz,
+      },
+      unresolvedIcao: true,
+    }
+  }
+  return {
+    base: {
+      lat: origin.lat,
+      lon: origin.lon,
+      icao: origin.icao,
+      tz: origin.tz,
+    },
+    unresolvedIcao: false,
+  }
+}
 
 export type ClientRules = {
   dual_pilot_required?: boolean
@@ -99,12 +157,13 @@ export type Candidate = {
   laddBlocked?: boolean
 }
 
+/** @deprecated Prefer RecommendMatrixConfig — kept for older callers/tests. */
 export const PRICING_CONSTANTS = {
-  truckPerMile: 3.5,
-  truckMin: 150,
-  targetMargin: 0.15,
-  payloadFactor: 0.85,
-  reserveNmEquiv: 45, // ~45 min reserve as NM at typical cruise — applied as +45 NM
+  truckPerMile: BUILTIN_RECOMMEND_MATRIX.truck_per_mile,
+  truckMin: BUILTIN_RECOMMEND_MATRIX.truck_min,
+  targetMargin: matrixTargetMargin(BUILTIN_RECOMMEND_MATRIX),
+  payloadFactor: BUILTIN_RECOMMEND_MATRIX.payload_factor,
+  reserveNmEquiv: BUILTIN_RECOMMEND_MATRIX.reserve_nm,
   nearestAirports: 3,
   airportRadiusMi: 60,
 }
@@ -113,18 +172,19 @@ function doorFits(
   doorW: number | null,
   doorH: number | null,
   piece: { l_in: number; w_in: number; h_in: number },
+  diagonalFactor = BUILTIN_RECOMMEND_MATRIX.door_diagonal_factor,
 ): boolean | null {
   if (doorW == null || doorH == null) return null
   const dims = [piece.l_in, piece.w_in, piece.h_in].sort((a, b) => a - b)
-  // Try face fits (two smallest through door) + diagonal allowance 1.05
+  // Try face fits (two smallest through door) + diagonal allowance
   const faces: Array<[number, number]> = [
     [dims[0]!, dims[1]!],
     [dims[0]!, dims[2]!],
     [dims[1]!, dims[2]!],
   ]
   for (const [a, b] of faces) {
-    if (a <= doorW * 1.05 && b <= doorH * 1.05) return true
-    if (a <= doorH * 1.05 && b <= doorW * 1.05) return true
+    if (a <= doorW * diagonalFactor && b <= doorH * diagonalFactor) return true
+    if (a <= doorH * diagonalFactor && b <= doorW * diagonalFactor) return true
   }
   return false
 }
@@ -166,12 +226,17 @@ export async function generateCandidates(
   maps: MapsAdapter,
   opts?: {
     targetMargin?: number
+    /**
+     * Recommendation matrix knobs (Network → Recommend). When omitted,
+     * builtins apply — same spine Dispatch / Parse use after loading the store.
+     */
+    matrix?: RecommendMatrixConfig
     /** Optional radar statuses keyed by tail — boosts on-ground near base */
     fleetStatusByTail?: Map<string, FleetStatus>
     /** Origin/dest FBO handling (+ callout) from directory */
     fboFees?: { origin: number; dest: number; notes: string[] }
     /**
-     * `labeled` (default): cheapest / fastest / best + fill to 5.
+     * `labeled` (default): cheapest / fastest / best + fill to matrix.recommend_limit.
      * `all`: every aircraft that cleared hard filters (portal category guestimate).
      */
     pickMode?: 'labeled' | 'all'
@@ -185,7 +250,9 @@ export async function generateCandidates(
     ) => number | null
   },
 ): Promise<Candidate[]> {
-  const margin = opts?.targetMargin ?? PRICING_CONSTANTS.targetMargin
+  const matrix = sanitizeRecommendMatrix(opts?.matrix)
+  const margin =
+    opts?.targetMargin ?? matrixTargetMargin(matrix)
   const pieces = trip.pieces
   const weight = totalWeightLbs(pieces)
   const maxDims = maxPieceDims(pieces)
@@ -266,7 +333,12 @@ export async function generateCandidates(
 
     // door
     if (trip.payload_kind !== 'pax' && pieces.length) {
-      const fit = doorFits(ac.door_w_in, ac.door_h_in, maxDims)
+      const fit = doorFits(
+        ac.door_w_in,
+        ac.door_h_in,
+        maxDims,
+        matrix.door_diagonal_factor,
+      )
       if (fit === false) hardFail = true
       if (fit === null) {
         needsInfo.push('door dims')
@@ -277,7 +349,7 @@ export async function generateCandidates(
     // payload
     const avail =
       ac.max_payload_lbs != null
-        ? ac.max_payload_lbs * PRICING_CONSTANTS.payloadFactor
+        ? ac.max_payload_lbs * matrix.payload_factor
         : null
     if (avail != null && weight > avail) hardFail = true
     if (avail == null && weight > 0) {
@@ -291,17 +363,23 @@ export async function generateCandidates(
       confidence -= 0.25
     }
 
-    const base: LatLon & { icao?: string; tz?: string } = ac.base ?? {
-      lat: origin.lat,
-      lon: origin.lon,
-      icao: ac.base_icao ?? undefined,
-      tz: origin.tz,
+    const { base, unresolvedIcao } = resolveAircraftBase(ac, origin)
+    if (unresolvedIcao) {
+      needsInfo.push('base coords')
+      confidence -= 0.35
+      reasoning.push(
+        `base ${ac.base_icao} not in catalog — reposition unknown (not assumed at origin)`,
+      )
     }
 
     const legNm = haversineNm(origin.lat, origin.lon, dest.lat, dest.lon)
-    const posNm = haversineNm(base.lat, base.lon, origin.lat, origin.lon)
+    // Unresolved ICAO: treat reposition as unknown long-haul so they cannot
+    // win "fastest" / cheap circuit on a fake zero-mile repo.
+    const posNm = unresolvedIcao
+      ? matrix.unresolved_base_nm
+      : haversineNm(base.lat, base.lon, origin.lat, origin.lon)
     const circuitNm = posNm + legNm + legNm * 0.05 // small repo fudge
-    if (ac.range_nm != null && circuitNm + PRICING_CONSTANTS.reserveNmEquiv > ac.range_nm) {
+    if (ac.range_nm != null && circuitNm + matrix.reserve_nm > ac.range_nm) {
       hardFail = true
     }
     if (ac.range_nm == null) {
@@ -366,8 +444,8 @@ export async function generateCandidates(
       const m1 = await maps.driveMiles(trip.shipper, origin)
       const m2 = await maps.driveMiles(dest, trip.consignee)
       truckCost =
-        Math.max(PRICING_CONSTANTS.truckMin, m1 * PRICING_CONSTANTS.truckPerMile) +
-        Math.max(PRICING_CONSTANTS.truckMin, m2 * PRICING_CONSTANTS.truckPerMile)
+        Math.max(matrix.truck_min, m1 * matrix.truck_per_mile) +
+        Math.max(matrix.truck_min, m2 * matrix.truck_per_mile)
     }
     if (fboFeeTotal > 0) {
       reasoning.push(...(opts?.fboFees?.notes ?? [`FBO fees $${fboFeeTotal}`]))
@@ -378,9 +456,10 @@ export async function generateCandidates(
     const price = Math.round((cost / (1 - margin)) * 100) / 100
 
     if (ac.base_icao) {
-      const nmFromOrigin = haversineNm(base.lat, base.lon, origin.lat, origin.lon)
       reasoning.push(
-        `closest capable: based ${ac.base_icao} ${Math.round(nmFromOrigin)} NM from origin`,
+        unresolvedIcao
+          ? `closest capable: based ${ac.base_icao} (coords unknown) — treated as distant`
+          : `closest capable: based ${ac.base_icao} ${Math.round(posNm)} NM from origin`,
       )
     }
 
@@ -413,6 +492,17 @@ export async function generateCandidates(
       consignee: trip.consignee,
       readyAtUtc: trip.ready_at,
       mode: trip.mode,
+      // Unresolved base coords must not inherit origin TTP (nm≈0 → callout default).
+      ...(unresolvedIcao
+        ? {
+            acftTtpMin: Math.round(
+              (matrix.unresolved_base_nm /
+                (ac.cruise_kts && ac.cruise_kts > 0 ? ac.cruise_kts : 250)) *
+                60,
+            ) + 12,
+            acftTtpSource: 'assumed' as const,
+          }
+        : {}),
     }
     const chain = await buildChain(routing, maps, DEFAULT_LEG_DEFAULTS)
 
@@ -469,10 +559,11 @@ export async function generateCandidates(
   const compositeRank = (c: Candidate) => {
     const st = radar?.get(c.tail)
     const radarPen = radarRankPenalty(st)
-    return (
-      0.45 * (priceRank.get(c.aircraft_id) ?? 9999) +
-      0.3 * (timeRank.get(c.aircraft_id) ?? 9999) +
-      0.25 * radarPen
+    return matrixCompositeRank(
+      matrix,
+      priceRank.get(c.aircraft_id) ?? 9999,
+      timeRank.get(c.aircraft_id) ?? 9999,
+      radarPen,
     )
   }
   const perOperator = bestCandidatePerOperator(results, compositeRank)
@@ -499,8 +590,9 @@ export async function generateCandidates(
   add(byPrice[0], 'cheapest')
   add(byTime[0], 'fastest')
   add(byBest[0], 'best')
+  // Cap from recommendation matrix (Network → Recommend settings).
   for (const c of byBest) {
-    if (picked.length >= 5) break
+    if (picked.length >= matrix.recommend_limit) break
     add(c, undefined)
   }
 
