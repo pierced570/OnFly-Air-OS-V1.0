@@ -11,7 +11,6 @@ import {
   emptyClientEmailSelection,
   type ClientEmailSelection,
 } from '@/components/ClientEmailRecipientsBubble'
-import { ClientQuoteLayoutPanel } from '@/components/ClientQuoteLayoutPanel'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
 import {
   hardQuoteClientStatus,
@@ -461,12 +460,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
             )
           })()
         : null}
-
-      <ClientQuoteLayoutPanel
-        trip={trip}
-        clientEdits={clientEdits}
-        onAccepted={() => setError(null)}
-      />
     </div>
   )
 }
