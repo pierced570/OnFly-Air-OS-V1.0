@@ -1,6 +1,7 @@
 /**
  * Staff directory + session (name + phone gate).
- * Persists to localStorage until a staff table lands in Supabase.
+ * Source of truth: Supabase `staff_directory` (survives deploys).
+ * localStorage is a cache / offline rescue until hydrate completes.
  *
  * Sole owner: Pierce (`OWNER_STAFF_ID`) — full access + grants sections to others.
  */
@@ -16,6 +17,11 @@ import {
   type StaffMember,
   type StaffSectionId,
 } from '@/domain/staffAccess'
+import {
+  localHasPhoneRescue,
+  mergeStaffFromDbAndLocal,
+  staffMemberFromDbRow,
+} from '@/domain/staffDirectorySync'
 
 /** Pierce's cell — login seed (not the 858 dispatch line). */
 const PIERCE_PHONE = '6105092031'
@@ -42,7 +48,7 @@ function seedStaff(): StaffMember[] {
       name: 'Paige Miller',
       phone: '',
       is_admin: false,
-      sections: [...DISPATCH_DEFAULT_SECTIONS, 'financials'],
+      sections: [...DISPATCH_DEFAULT_SECTIONS],
       active: true,
     }),
     enforceOwnerRules({
@@ -50,7 +56,7 @@ function seedStaff(): StaffMember[] {
       name: 'Ben Miller',
       phone: '',
       is_admin: false,
-      sections: [...DISPATCH_DEFAULT_SECTIONS, 'financials'],
+      sections: [...DISPATCH_DEFAULT_SECTIONS],
       active: true,
     }),
     enforceOwnerRules({
@@ -83,10 +89,7 @@ function migrateStaff(list: StaffMember[]): StaffMember[] {
       row = { ...s, phone: PIERCE_PHONE }
     }
     // Grant Chat alongside Trips for existing dispatch seats
-    if (
-      row.sections.includes('trips') &&
-      !row.sections.includes('chat')
-    ) {
+    if (row.sections.includes('trips') && !row.sections.includes('chat')) {
       row = { ...row, sections: [...row.sections, 'chat'] }
     }
     return enforceOwnerRules(row)
@@ -94,7 +97,7 @@ function migrateStaff(list: StaffMember[]): StaffMember[] {
 
   // Ensure owner row always exists
   if (!next.some((s) => s.id === OWNER_STAFF_ID)) {
-    next.unshift(seedStaff()[0])
+    next.unshift(seedStaff()[0]!)
   }
 
   const changed = JSON.stringify(list) !== JSON.stringify(next)
@@ -150,7 +153,6 @@ function loadSession(): StaffMember | null {
     if (!raw) return null
     const id = JSON.parse(raw) as { id?: string }
     if (!id?.id) return null
-    // Directory already ran enforceOwnerRules in migrate/seed.
     return staff.find((s) => s.id === id.id && s.active) ?? null
   } catch {
     return null
@@ -165,7 +167,7 @@ function bump() {
   for (const l of listeners) l()
 }
 
-function persistStaff() {
+function persistStaffLocal() {
   if (!storageAvailable()) return
   try {
     localStorage.setItem(STAFF_KEY, JSON.stringify(staff))
@@ -182,6 +184,110 @@ function persistSession() {
   } catch {
     /* ignore */
   }
+}
+
+function rowPayload(s: StaffMember) {
+  return {
+    id: s.id,
+    name: s.name,
+    phone: s.phone,
+    is_admin: s.is_admin,
+    sections: s.sections,
+    active: s.active,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+async function flushStaffRowToDb(member: StaffMember): Promise<void> {
+  try {
+    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase')
+    if (!isSupabaseConfigured || !supabase) return
+    const { error } = await supabase
+      .from('staff_directory')
+      .upsert(rowPayload(member), { onConflict: 'id' })
+    if (error) console.warn('[staff_directory] upsert failed', error.message)
+  } catch (e) {
+    console.warn('[staff_directory] upsert failed', e)
+  }
+}
+
+async function flushAllStaffToDb(): Promise<void> {
+  try {
+    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase')
+    if (!isSupabaseConfigured || !supabase) return
+    const rows = staff.map(rowPayload)
+    const { error } = await supabase
+      .from('staff_directory')
+      .upsert(rows, { onConflict: 'id' })
+    if (error) console.warn('[staff_directory] bulk upsert failed', error.message)
+  } catch (e) {
+    console.warn('[staff_directory] bulk upsert failed', e)
+  }
+}
+
+async function deleteStaffFromDb(id: string): Promise<void> {
+  try {
+    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase')
+    if (!isSupabaseConfigured || !supabase) return
+    const { error } = await supabase.from('staff_directory').delete().eq('id', id)
+    if (error) console.warn('[staff_directory] delete failed', error.message)
+  } catch (e) {
+    console.warn('[staff_directory] delete failed', e)
+  }
+}
+
+let hydratePromise: Promise<number> | null = null
+
+/**
+ * Pull roster from Supabase. Rescues phones still sitting in this browser's
+ * localStorage when DB rows are empty (one-time after this feature ships).
+ */
+export async function hydrateStaffFromDb(): Promise<number> {
+  try {
+    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase')
+    if (!isSupabaseConfigured || !supabase) return 0
+    const { data, error } = await supabase
+      .from('staff_directory')
+      .select('id,name,phone,is_admin,sections,active')
+      .order('name')
+    if (error) {
+      console.warn('[staff_directory] hydrate failed', error.message)
+      return 0
+    }
+    const fromDb = (data ?? []).map((r) =>
+      staffMemberFromDbRow(r as Parameters<typeof staffMemberFromDbRow>[0]),
+    )
+    const local = staff
+    const merged = migrateStaff(mergeStaffFromDbAndLocal(fromDb, local))
+    staff = merged
+    if (session) {
+      session =
+        staff.find((s) => s.id === session!.id && s.active) ?? null
+      persistSession()
+    }
+    persistStaffLocal()
+    bump()
+
+    if (!fromDb.length || localHasPhoneRescue(fromDb, local)) {
+      await flushAllStaffToDb()
+    }
+    return staff.length
+  } catch (e) {
+    console.warn('[staff_directory] hydrate failed', e)
+    return 0
+  }
+}
+
+/** Single-flight hydrate — call at boot and before login. */
+export function ensureStaffHydrated(): Promise<number> {
+  if (!hydratePromise) {
+    hydratePromise = hydrateStaffFromDb().catch((err) => {
+      console.warn('[staff_directory] ensure hydrate failed', err)
+      hydratePromise = null
+      return 0
+    })
+  }
+  return hydratePromise
 }
 
 export function subscribeStaff(fn: () => void): () => void {
@@ -273,7 +379,6 @@ export function upsertStaff(input: {
   if (!name) throw new Error('Name required')
   const id = input.id ?? crypto.randomUUID()
 
-  // Nobody else can become admin; owner always stays owner.
   const next = enforceOwnerRules({
     id,
     name,
@@ -289,7 +394,8 @@ export function upsertStaff(input: {
   const idx = staff.findIndex((s) => s.id === id)
   if (idx >= 0) staff[idx] = next
   else staff.push(next)
-  persistStaff()
+  persistStaffLocal()
+  void flushStaffRowToDb(next)
   if (session?.id === id) {
     session = next
     persistSession()
@@ -310,10 +416,11 @@ export function setStaffSections(id: string, sections: StaffSectionId[]): void {
   } else {
     s.is_admin = false
     s.sections = [
-      ...new Set(sections.filter((id) => id !== 'staff_access')),
+      ...new Set(sections.filter((sid) => sid !== 'staff_access')),
     ]
   }
-  persistStaff()
+  persistStaffLocal()
+  void flushStaffRowToDb({ ...s, sections: [...s.sections] })
   if (session?.id === id) {
     session = { ...s, sections: [...s.sections] }
     persistSession()
@@ -330,7 +437,8 @@ export function removeStaff(id: string): void {
   }
   if (staff.length <= 1) throw new Error('Keep at least one staff member')
   staff = staff.filter((s) => s.id !== id)
-  persistStaff()
+  persistStaffLocal()
+  void deleteStaffFromDb(id)
   if (session?.id === id) {
     session = null
     persistSession()

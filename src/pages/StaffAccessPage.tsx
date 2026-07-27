@@ -41,7 +41,8 @@ export default function StaffAccessPage() {
         <p className="mt-1 text-sm text-muted">
           You&apos;re the only owner with full access. Set each person&apos;s
           phone so they can log in, then toggle exactly which sections they can
-          see. Nobody else can open this page or change grants.
+          see. Phones and grants sync to Supabase so they survive deploys.
+          Nobody else can open this page or change grants.
         </p>
       </header>
 

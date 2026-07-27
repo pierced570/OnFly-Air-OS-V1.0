@@ -1,24 +1,36 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import PhoneInput from '@/components/PhoneInput'
 import { BrandLockup } from '@/components/BrandLockup'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { loginStaff } from '@/lib/staffStore'
+import { ensureStaffHydrated, loginStaff } from '@/lib/staffStore'
 
 export default function StaffLoginPage() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [rosterReady, setRosterReady] = useState(false)
   const [params] = useSearchParams()
   const nav = useNavigate()
   const next = params.get('next') || '/dispatch'
   const goingToDesk = next === '/desk' || next.startsWith('/desk?')
 
-  function submit(e: FormEvent) {
+  useEffect(() => {
+    let cancelled = false
+    void ensureStaffHydrated().finally(() => {
+      if (!cancelled) setRosterReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
+    await ensureStaffHydrated()
     const result = loginStaff(name, phone)
     if (!result.ok) {
       setError(result.error)
@@ -55,7 +67,7 @@ export default function StaffLoginPage() {
             : 'Enter your name and phone for general ops (Board, network, trips).'}
         </p>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <form onSubmit={(e) => void submit(e)} className="mt-8 space-y-4">
           <label className="block text-xs text-muted">
             Name
             <input
@@ -79,10 +91,18 @@ export default function StaffLoginPage() {
           {error && <p className="text-sm text-late">{error}</p>}
           <button
             type="submit"
-            disabled={busy || !name.trim() || phone.length < 10}
+            disabled={
+              busy || !rosterReady || !name.trim() || phone.length < 10
+            }
             className="w-full rounded-md bg-gold py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
           >
-            {busy ? 'Checking…' : goingToDesk ? 'Login & parse' : 'Enter desk'}
+            {!rosterReady
+              ? 'Loading roster…'
+              : busy
+                ? 'Checking…'
+                : goingToDesk
+                  ? 'Login & parse'
+                  : 'Enter desk'}
           </button>
         </form>
 

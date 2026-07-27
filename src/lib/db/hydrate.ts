@@ -21,6 +21,7 @@ import { loadPricingPriors } from '@/lib/pricingPriorsStore'
 import { hydrateRecommendMatrixFromDb } from '@/lib/recommendMatrixStore'
 import { hydrateShiftsFromDb } from '@/lib/shiftStore'
 import { hydratePresenceFromDb } from '@/lib/presenceStore'
+import { ensureStaffHydrated } from '@/lib/staffStore'
 import { loadTaxRates } from '@/lib/taxRatesStore'
 
 export async function hydrateOperatingData(): Promise<{
@@ -42,6 +43,9 @@ export async function hydrateOperatingData(): Promise<{
       trips: 0,
     }
   }
+
+  // Staff phones/ACL first — login must not race empty localStorage seed.
+  await ensureStaffHydrated()
 
   await Promise.all([
     loadTaxRates(),
