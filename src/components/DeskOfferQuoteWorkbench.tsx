@@ -4,7 +4,6 @@
  */
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { Link } from 'react-router-dom'
 import {
   ClientEmailRecipientsBubble,
   defaultClientEmailSelection,
@@ -567,18 +566,8 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                     )
                   })}
                 </ul>
-                <div className="mt-2 flex flex-wrap gap-3">
-                  {clientStatus === 'pending' ? (
-                    <Link
-                      className="text-xs text-gold"
-                      to={`/accept/${hq.accept_token}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Preview client accept page →
-                    </Link>
-                  ) : null}
-                  {canSendAnotherQuote && !showQuoteComposer ? (
+                {canSendAnotherQuote && !showQuoteComposer ? (
+                  <div className="mt-2">
                     <button
                       type="button"
                       className="rounded border border-gold/50 bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold"
@@ -600,8 +589,8 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                     >
                       Send another quote
                     </button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </div>
             )
           })()
