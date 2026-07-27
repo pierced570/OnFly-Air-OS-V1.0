@@ -86,6 +86,8 @@ export type DispatchCard = {
   approvable: boolean
   /** Preferred offer when approving a submitted-quote card. */
   approve_offer_id?: string
+  /** Mission / ops chips (D2D, forklift required, ground courier). */
+  chips?: string[]
 }
 
 function requestSourceLabel(source: string): string {
@@ -147,6 +149,9 @@ export function buildDispatchDrawers(input: {
     state: TripState
     /** Who this trip is for — preferred in card titles over T-####. */
     client_name?: string | null
+    service_pattern?: string | null
+    forklift_required?: boolean
+    forklift_recommended?: boolean
     quick?: { po?: string; client_name?: string } | null
     legs: Array<{ status: string }>
     offers?: Array<{
@@ -256,6 +261,17 @@ export function buildDispatchDrawers(input: {
         t.state === 'quoted_hard' ||
         t.state === 'quoted_estimated' ||
         t.state === 'lost')
+    const chips: string[] = []
+    if (t.service_pattern) chips.push(t.service_pattern)
+    if (t.forklift_required) chips.push('forklift required')
+    else if (t.forklift_recommended) chips.push('forklift recommended')
+    if (
+      t.service_pattern === 'D2D' ||
+      t.service_pattern === 'D2A' ||
+      t.service_pattern === 'A2D'
+    ) {
+      chips.push('ground courier')
+    }
     out[drawer].push({
       kind: 'trip',
       id: t.id,
@@ -274,6 +290,7 @@ export function buildDispatchDrawers(input: {
       deletable: true,
       approvable: tripApprovable,
       approve_offer_id: quoteableOffers.find((o) => o.state === 'selected')?.id,
+      chips: chips.length ? chips : undefined,
     })
 
     // Submitted quotes waterfall — each quoted operator as its own card.
@@ -295,6 +312,7 @@ export function buildDispatchDrawers(input: {
           deletable: true,
           approvable: o.price_net != null,
           approve_offer_id: o.id,
+          chips: chips.length ? chips : undefined,
         })
       }
     }

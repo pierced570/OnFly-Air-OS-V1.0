@@ -167,6 +167,25 @@ function CardList({
             >
               <div className="font-medium text-cream">{c.title}</div>
               <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+              {c.chips?.length ? (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {c.chips.map((chip) => (
+                    <span
+                      key={chip}
+                      className={[
+                        'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                        chip.includes('forklift required')
+                          ? 'bg-late/20 text-late'
+                          : chip.includes('courier') || chip.includes('forklift')
+                            ? 'bg-gold/15 text-gold'
+                            : 'bg-surface-2 text-cream',
+                      ].join(' ')}
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </Link>
             <div className="flex shrink-0 flex-col justify-center gap-1">
               {c.approvable ? (
@@ -392,6 +411,26 @@ function OfferTripList({
                 <div className="mt-0.5 font-mono text-sm text-gold/90">
                   {c.subtitle}
                 </div>
+                {c.chips?.length ? (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {c.chips.map((chip) => (
+                      <span
+                        key={chip}
+                        className={[
+                          'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                          chip.includes('forklift required')
+                            ? 'bg-late/20 text-late'
+                            : chip.includes('courier') ||
+                                chip.includes('forklift')
+                              ? 'bg-gold/15 text-gold'
+                              : 'bg-surface-2 text-cream',
+                        ].join(' ')}
+                      >
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {c.approvable ? (
@@ -774,6 +813,9 @@ export default function DispatchCenterPage() {
             lane: t.lane,
             state: t.state,
             client_name,
+            service_pattern: t.service_pattern,
+            forklift_required: t.forklift_required,
+            forklift_recommended: t.forklift_recommended,
             quick: t.quick,
             legs: t.legs,
             offers: t.offers.map((o) => ({

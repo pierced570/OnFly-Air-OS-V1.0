@@ -20,6 +20,7 @@ import {
   subscribeRecommendMatrix,
 } from '@/lib/recommendMatrixStore'
 import {
+  emptyDeskDraft,
   newDeskLeg,
   recommendForDeskDraft,
   syncDeskDraftDerived,
@@ -27,25 +28,7 @@ import {
 } from '@/lib/scratchDeskFlow'
 
 function emptyDraft(): DeskDraft {
-  return syncDeskDraftDerived({
-    client_name: '',
-    client_id: null,
-    po: '',
-    timing: 'asap',
-    roundtrip: false,
-    cargo_only: true,
-    legs: [newDeskLeg()],
-    pieces_text: '',
-    hazmat: false,
-    notes: '',
-    raw_notes: '',
-    payload_kind: 'cargo',
-    pax_count: 0,
-    origin_text: '',
-    destination_text: '',
-    asap: true,
-    ready_label: 'ASAP',
-  })
+  return emptyDeskDraft()
 }
 
 function labelBadge(c: Candidate): string | null {
