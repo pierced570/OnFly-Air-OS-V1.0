@@ -699,82 +699,45 @@ export async function selectOffersAndHardQuote(
   if (notifyClient) {
     const comms = createCommsAdapter()
     const email = createEmailAdapter()
-    const { logisticsQuoteTitle } = await import('@/domain/clientLogisticsQuote')
-    const { formatMinutes } = await import('@/domain/offerQuotePreview')
-    const title = logisticsQuoteTitle(trip.lane)
-    const optionLines = options
-      .map((o) => {
-        const type = o.type_name?.trim() || 'Aircraft'
-        return [
-          `${o.label}: ${type}`,
-          `Time to position from Go: ${formatMinutes(o.time_to_position_min ?? null)}`,
-          `Loading + turn around: ${formatMinutes(o.quick_turn_min ?? null)}`,
-          `Live leg: ${formatMinutes(o.live_leg_min ?? null)}`,
-          `Price: $${o.client_total.toFixed(0)} (all taxes and fees included)`,
-        ].join('\n')
-      })
-      .join('\n\n')
+    const {
+      buildHardQuoteEmailPayload,
+      renderHardQuoteEmail,
+    } = await import('@/lib/hardQuoteEmail')
+    const payload = buildHardQuoteEmailPayload({
+      trip: getTrip(tripId)!,
+      options: options.map((o) => ({
+        offer_id: o.offer_id,
+        label: o.label,
+        type_name: o.type_name,
+        time_to_position_min: o.time_to_position_min,
+        quick_turn_min: o.quick_turn_min,
+        live_leg_min: o.live_leg_min,
+        client_total: o.client_total,
+      })),
+      acceptUrl: `/accept/${accept_token}`,
+      goAtIso: sentAt,
+    })
+    const rendered = renderHardQuoteEmail(payload)
 
     for (const cell of recipientCells(trip)) {
       await comms.send({
         channel: 'sms',
         to: cell,
-        body: `OnFly ${title}\n\n${optionLines}\n\nAccept: /accept/${accept_token}`,
+        body: `${rendered.subject}\n\n${rendered.text.slice(0, 320)}\n\nAccept: /accept/${accept_token}`,
       })
     }
 
-    const primaryOffer = selectedOffers[0]!
-    const selectedCand =
-      trip.candidates.find((c) => c.aircraft_id === primaryOffer.aircraft_id) ??
-      trip.candidates.find((c) => c.tail === primaryOffer.tail) ??
-      trip.candidates[0]
-    let brandedSent = false
-    if (selectedCand?.chain?.length && recipients.length) {
-      try {
-        const { sendEstimatedQuote } = await import('@/lib/sendEstimatedQuote')
-        const { laneEndpoints } = await import('@/domain/clientLogisticsQuote')
-        const ends = laneEndpoints(trip.lane)
-        await sendEstimatedQuote({
-          originLabel: ends.originLabel,
-          destLabel: ends.destLabel,
-          readyLabel: trip.ready_label,
-          payloadKind: kind,
-          candidates: trip.candidates,
-          selected: selectedCand,
-          airSubtotal: primaryTotal,
-          total: primaryTotal,
-          taxLines: [],
-          clientId: trip.client_id,
-          kind: 'hard',
-          acceptUrl: `/accept/${accept_token}`,
-          tripId,
-          to: recipients,
-          cc: ccEmails,
-          bcc: bccEmails,
-        })
-        brandedSent = true
-      } catch (e) {
-        console.warn('[hard quote] branded email skipped', e)
-      }
-    }
-
-    if (recipients.length && !brandedSent) {
+    if (recipients.length) {
       const [primary, ...restTo] = recipients
       await email.send({
         to: primary!,
         cc: [...restTo, ...ccEmails],
         bcc: bccEmails,
-        subject: `OnFly Air — ${title}`,
+        subject: rendered.subject,
+        html: rendered.html,
         text: [
-          title,
-          'Operated by a vetted Part 135 carrier',
-          '',
-          optionLines,
-          '',
-          `Review & respond: /accept/${accept_token}`,
+          rendered.text,
           trip.po_number ? `PO: ${trip.po_number}` : '',
-          '',
-          'Questions? Reply or call 858-529-7860.',
         ]
           .filter(Boolean)
           .join('\n'),
