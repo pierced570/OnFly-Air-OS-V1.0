@@ -7,7 +7,9 @@ import {
   sendVendorPacketInvite,
 } from '@/lib/vendorPacketEmail'
 import {
+  acceptVendorPacket,
   listPendingVendorPackets,
+  listVendorPackets,
   submitVendorPacket,
 } from '@/lib/vendorPacketStore'
 import { listOpenNeedsInfo } from '@/lib/needsInfoStore'
@@ -35,6 +37,22 @@ function validDraft() {
 }
 
 describe('vendorPacketStore + email', () => {
+  it('listPendingVendorPackets returns a stable snapshot when unchanged', () => {
+    expect(listPendingVendorPackets()).toBe(listPendingVendorPackets())
+    expect(listVendorPackets()).toBe(listVendorPackets())
+  })
+
+  it('acceptVendorPacket replaces the pending snapshot reference', () => {
+    const row = submitVendorPacket(validDraft())
+    const pendingBefore = listPendingVendorPackets()
+    expect(pendingBefore.some((r) => r.id === row.id)).toBe(true)
+    acceptVendorPacket(row.id)
+    const pendingAfter = listPendingVendorPackets()
+    expect(pendingAfter).not.toBe(pendingBefore)
+    expect(pendingAfter.some((r) => r.id === row.id)).toBe(false)
+    expect(listPendingVendorPackets()).toBe(pendingAfter)
+  })
+
   it('submits packet and opens NEEDS-INFO review task', () => {
     const before = listPendingVendorPackets().length
     const row = submitVendorPacket(validDraft())
