@@ -21,7 +21,7 @@ import {
 } from '@/lib/clientStore'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
-import { fboFeesForAirport } from '@/lib/fboStore'
+import { resolveOriginDestFboFees } from '@/lib/fboOpsFees'
 import {
   loadPricingPriors,
   priorRatePerNm,
@@ -298,8 +298,14 @@ export async function recommendForDeskDraft(
 
   const maps = createMapsAdapter()
   const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
-  const originFees = fboFeesForAirport(origin.icao)
-  const destFees = fboFeesForAirport(destination.icao)
+  const fboFees = resolveOriginDestFboFees({
+    originIcao: origin.icao,
+    destIcao: destination.icao,
+    originAtIso: new Date().toISOString(),
+    destAtIso: new Date().toISOString(),
+    originTz: origin.tz,
+    destTz: destination.tz,
+  })
   const [priors] = await Promise.all([loadPricingPriors()])
   const matrix = getRecommendMatrix()
 
@@ -336,9 +342,9 @@ export async function recommendForDeskDraft(
         matrix,
         fleetStatusByTail: radar,
         fboFees: {
-          origin: originFees.fee,
-          dest: destFees.fee,
-          notes: [...originFees.reasoning, ...destFees.reasoning],
+          origin: fboFees.origin,
+          dest: fboFees.dest,
+          notes: fboFees.notes,
         },
         priorRatePerNm: (typeName, operatorId) =>
           priorRatePerNm(typeName, operatorId, priors),

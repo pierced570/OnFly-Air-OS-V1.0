@@ -1079,6 +1079,8 @@ export function materializeTripLegsFromChain(
       payload: { count: copied.length, pattern: t.service_pattern },
     })
   })
+  // After-hours / forklift process flags from the new spine.
+  void import('@/lib/applyTripOpsFlags').then((m) => m.applyTripOpsFlags(tripId))
 }
 
 /** Apply operator-quoted TTP onto trip chain + matching candidate → recompute. */

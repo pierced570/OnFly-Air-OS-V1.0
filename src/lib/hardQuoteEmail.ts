@@ -65,6 +65,7 @@ export function buildHardQuoteEmailPayload(input: {
   acceptUrl?: string | null
   goAtIso?: string | null
   logoUrl?: string | null
+  opsNotes?: string[]
 }): HardQuoteEmailInput {
   return {
     title: logisticsQuoteTitle(input.trip.lane),
@@ -75,6 +76,7 @@ export function buildHardQuoteEmailPayload(input: {
     ),
     acceptUrl: acceptAbsoluteUrl(input.acceptUrl),
     logoUrl: input.logoUrl ?? resolveBrandLogoUrl(),
+    opsNotes: input.opsNotes?.length ? input.opsNotes : undefined,
   }
 }
 

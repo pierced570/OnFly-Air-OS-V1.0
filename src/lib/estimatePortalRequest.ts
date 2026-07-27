@@ -17,7 +17,6 @@ import { getRecommendMatrix } from '@/lib/recommendMatrixStore'
 import { getTaxRates, loadTaxRates } from '@/lib/taxRatesStore'
 import type { TripRequestRecord } from '@/domain/tripRequest'
 import { clientRulesForRouting, getClient } from '@/lib/clientStore'
-import { fboFeesForAirport } from '@/lib/fboStore'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { loadFleetForRouting } from '@/lib/fleetRouting'
 
@@ -83,8 +82,15 @@ export async function estimatePortalRequest(
   const maps = createMapsAdapter()
   const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
   const client = row.client_id ? getClient(row.client_id) : undefined
-  const originFees = fboFeesForAirport(originAp.icao)
-  const destFees = fboFeesForAirport(destAp.icao)
+  const { resolveOriginDestFboFees } = await import('@/lib/fboOpsFees')
+  const fboFees = resolveOriginDestFboFees({
+    originIcao: originAp.icao,
+    destIcao: destAp.icao,
+    originAtIso: row.ready_at,
+    destAtIso: row.hard_deadline_at || row.ready_at,
+    originTz: originAp.tz,
+    destTz: destAp.tz,
+  })
 
   try {
     const [priors] = await Promise.all([loadPricingPriors(), loadTaxRates()])
@@ -141,9 +147,9 @@ export async function estimatePortalRequest(
       {
         fleetStatusByTail: radar,
         fboFees: {
-          origin: originFees.fee,
-          dest: destFees.fee,
-          notes: [...originFees.reasoning, ...destFees.reasoning],
+          origin: fboFees.origin,
+          dest: fboFees.dest,
+          notes: fboFees.notes,
         },
         matrix: getRecommendMatrix(),
         pickMode: 'all',

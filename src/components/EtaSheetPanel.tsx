@@ -2,7 +2,7 @@
  * Dispatcher ETA sheet — one chain, editable assumptions, Zulu + local.
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ChainLeg, EtaSource, ServicePattern } from '@/domain/etaChain'
 import {
   deliveryDeltaMin,
@@ -10,6 +10,10 @@ import {
   projectedDeliveryUtc,
 } from '@/domain/etaChain'
 import { formatDurationMin, formatZuluLocal, parseDurationInput } from '@/domain/timeFmt'
+import {
+  evaluateTripOpsFlags,
+  tripOpsSheetNotes,
+} from '@/lib/applyTripOpsFlags'
 import {
   editTripEtaDuration,
   resetTripEtaDuration,
@@ -149,6 +153,11 @@ export function EtaSheetPanel({ trip }: { trip: TripStoreRow }) {
     trip.offers.find((o) => o.state === 'selected') ??
     trip.offers.find((o) => o.state === 'quoted')
   const pattern: ServicePattern | null = trip.service_pattern
+  const opsFlags = useMemo(() => evaluateTripOpsFlags(trip), [trip])
+  const opsNotes = useMemo(
+    () => tripOpsSheetNotes(trip, opsFlags),
+    [trip, opsFlags],
+  )
 
   return (
     <section className="rounded-lg border border-border bg-surface p-4">
@@ -261,6 +270,33 @@ export function EtaSheetPanel({ trip }: { trip: TripStoreRow }) {
           <span>Elapsed {formatDurationMin(miles.total_elapsed_min)}</span>
         </div>
       </div>
+
+      {opsNotes.length > 0 ? (
+        <div className="mt-4 border-t border-border/50 pt-3">
+          <h3 className="text-[11px] uppercase tracking-wider text-gold">
+            Ground · forklift · after-hours · wx
+          </h3>
+          <ul className="mt-2 space-y-1.5 text-xs text-cream/90">
+            {opsNotes.map((n) => (
+              <li
+                key={n.slice(0, 48)}
+                className={
+                  /IFR|LIFR|After-hours|Forklift required|capacity/i.test(n)
+                    ? 'text-late'
+                    : 'text-muted'
+                }
+              >
+                {n}
+              </li>
+            ))}
+          </ul>
+          {opsFlags.length > 0 ? (
+            <p className="mt-2 text-[11px] text-muted">
+              Flagged for Board / NEEDS-INFO — confirm before booking.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   )
 }
