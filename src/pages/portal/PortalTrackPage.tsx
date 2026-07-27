@@ -437,6 +437,7 @@ export default function PortalTrackPage() {
         setRemoteTrip({
           id: String(tripRow.id),
           ref: Number(tripRow.ref ?? 0),
+          code: '',
           state: tripRow.state as TripStoreRow['state'],
           lane: String(tripRow.lane_label || ''),
           payload_summary: String(tripRow.payload_summary || ''),
@@ -579,6 +580,7 @@ export function PortalTripTrackPage() {
       setRemoteTrip({
         id: String(tripRow.id),
         ref: Number(tripRow.ref ?? 0),
+        code: '',
         state: tripRow.state as TripStoreRow['state'],
         lane: String(tripRow.lane_label || ''),
         payload_summary: String(tripRow.payload_summary || ''),

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { Candidate } from '@/domain/routing'
 import { deskApproveTrip } from '@/lib/offerFlow'
 import {
   __resetTripsForTests,
   createTripFromCandidates,
   mutateTrip,
   safeTransitionTrip,
-  type Candidate,
 } from '@/lib/tripStore'
 
 function cand(tail: string): Candidate {
