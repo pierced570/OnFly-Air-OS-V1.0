@@ -6,7 +6,6 @@ import {
   buildLogisticsQuoteOption,
   logisticsQuoteTitle,
 } from '@/domain/clientLogisticsQuote'
-import { formatMinutes } from '@/domain/offerQuotePreview'
 import {
   hardQuoteClientStatus,
   hardQuoteClientStatusLabel,
@@ -86,6 +85,7 @@ export default function AcceptPage() {
       live_leg_min: opt.live_leg_min ?? offer?.live_leg_min,
       client_total: opt.client_total,
       lane: trip.lane,
+      goAtIso: hq.sent_at ?? offer?.replied_at ?? null,
     })
   })
 
@@ -109,21 +109,35 @@ export default function AcceptPage() {
               <div className="text-lg font-semibold">
                 {opt.label}: {opt.aircraft_type}
               </div>
-              <dl className="mt-3 space-y-2 text-sm">
+              <dl className="mt-3 space-y-3 text-sm">
                 <div>
                   <dt className="text-muted">
                     Time to be in ({opt.departure_label}) from Go
                   </dt>
-                  <dd className="avionic mt-0.5 text-base font-medium">
-                    {formatMinutes(opt.ttp_min)}
+                  <dd className="mt-0.5">
+                    <div className="avionic text-base font-medium">
+                      {opt.position_eta.duration}
+                    </div>
+                    {opt.position_eta.clock ? (
+                      <div className="avionic mt-0.5 text-sm text-muted">
+                        ETA {opt.position_eta.clock}
+                      </div>
+                    ) : null}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted">
                     Estimated loading and turn around time
                   </dt>
-                  <dd className="avionic mt-0.5 text-base font-medium">
-                    {formatMinutes(opt.turn_load_min)}
+                  <dd className="mt-0.5">
+                    <div className="avionic text-base font-medium">
+                      {opt.etd.duration}
+                    </div>
+                    {opt.etd.clock ? (
+                      <div className="avionic mt-0.5 text-sm text-muted">
+                        ETD {opt.etd.clock}
+                      </div>
+                    ) : null}
                   </dd>
                 </div>
                 <div>
@@ -131,8 +145,20 @@ export default function AcceptPage() {
                     Live leg time ({opt.departure_label} to{' '}
                     {opt.destination_label})
                   </dt>
-                  <dd className="avionic mt-0.5 text-base font-medium">
-                    {formatMinutes(opt.live_leg_min)}
+                  <dd className="mt-0.5">
+                    <div className="avionic text-base font-medium">
+                      {opt.arrival_eta.duration}
+                    </div>
+                    {opt.etd.clock ? (
+                      <div className="avionic mt-0.5 text-sm text-muted">
+                        ETD {opt.etd.clock}
+                      </div>
+                    ) : null}
+                    {opt.arrival_eta.clock ? (
+                      <div className="avionic mt-0.5 text-sm text-muted">
+                        ETA {opt.arrival_eta.clock}
+                      </div>
+                    ) : null}
                   </dd>
                 </div>
                 <div className="border-t border-border/70 pt-3">
