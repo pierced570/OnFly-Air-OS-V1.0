@@ -52,7 +52,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [clientEdits, setClientEdits] = useState<Record<string, number>>({})
-  const [marginPct, setMarginPct] = useState(DEFAULT_OFFER_MARGIN_PCT)
   const [pricingOfferId, setPricingOfferId] = useState<string | null>(null)
   const [emailSel, setEmailSel] = useState<ClientEmailSelection>(
     emptyClientEmailSelection,
@@ -68,12 +67,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   useEffect(() => {
     setEmailSel(defaultClientEmailSelection(trip?.client_id))
   }, [trip?.client_id])
-
-  useEffect(() => {
-    if (trip?.offer_margin_pct != null && Number.isFinite(trip.offer_margin_pct)) {
-      setMarginPct(trip.offer_margin_pct)
-    }
-  }, [trip?.id, trip?.offer_margin_pct])
 
   const quoteableIds = useMemo(
     () =>
@@ -118,6 +111,12 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   }
 
   const picked = quoteableIds.filter((oid) => selected[oid])
+  // Margin is applied later when building client totals — not edited on this
+  // early waterfall stage (operator quotes → hard quote).
+  const marginPct =
+    trip.offer_margin_pct != null && Number.isFinite(trip.offer_margin_pct)
+      ? trip.offer_margin_pct
+      : DEFAULT_OFFER_MARGIN_PCT
 
   return (
     <div className="mt-3 space-y-3 rounded-md border border-gold/40 bg-ink/50 p-3">
@@ -138,22 +137,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
 
       {error ? <p className="text-sm text-late">{error}</p> : null}
 
-      <label className="block text-xs text-muted">
-        Desk margin %
-        <input
-          type="number"
-          min={0}
-          step={0.5}
-          className="mt-1 block w-24 rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
-          value={marginPct}
-          onChange={(e) => {
-            const n = Number(e.target.value)
-            setMarginPct(Number.isFinite(n) ? n : DEFAULT_OFFER_MARGIN_PCT)
-            setClientEdits({})
-          }}
-        />
-      </label>
-
       <ul className="space-y-2">
         {trip.offers.map((o) => {
           const status = offerRecipientStatus(o.state)
@@ -171,7 +154,12 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                 )
               : null
           const priced =
-            o.price_net != null ? clientTotalForOffer(o, { ...trip, offer_margin_pct: marginPct }) : null
+            o.price_net != null
+              ? clientTotalForOffer(o, {
+                  ...trip,
+                  offer_margin_pct: marginPct,
+                })
+              : null
           const canManual =
             status !== 'no' && hardQuoteStatus !== 'accepted'
           const showPricing =
