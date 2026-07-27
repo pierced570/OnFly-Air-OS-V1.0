@@ -9,7 +9,7 @@ import {
   sendAvailabilityPings,
   updateTripOfferRequest,
 } from '@/lib/offerFlow'
-import { sendDeskTripOffers, type DeskDraft } from '@/lib/scratchDeskFlow'
+import { sendDeskTripOffers, emptyDeskDraft, type DeskDraft } from '@/lib/scratchDeskFlow'
 import {
   createTripFromCandidates,
   getTrip,
@@ -41,33 +41,29 @@ function stubCandidate(name: string, id: string): Candidate {
 }
 
 function stubDeskDraft(): DeskDraft {
-  return {
+  return emptyDeskDraft({
     client_name: 'Test Client',
-    client_id: null,
-    po: '',
-    timing: 'asap',
-    roundtrip: false,
     cargo_only: true,
     legs: [
       {
         id: 'leg1',
         origin_icao: 'KCAK',
         dest_icao: 'KMDW',
+        origin_kind: 'airport',
+        dest_kind: 'airport',
+        origin_text: 'KCAK',
+        dest_text: 'KMDW',
         date: '2026-07-26',
         pax: 0,
+        origin_courier_id: null,
+        dest_courier_id: null,
       },
     ],
     pieces_text: '2 skids',
-    hazmat: false,
-    notes: '',
-    raw_notes: '2 skids KCAK to KMDW ASAP',
-    payload_kind: 'cargo',
-    pax_count: 0,
     origin_text: 'KCAK',
     destination_text: 'KMDW',
-    asap: true,
-    ready_label: 'ASAP',
-  }
+    raw_notes: '2 skids KCAK to KMDW ASAP',
+  })
 }
 
 describe('offerFlow — open vs notify', () => {

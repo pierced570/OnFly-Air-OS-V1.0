@@ -784,6 +784,8 @@ export function createTripFromCandidates(opts: {
   /** Prefer this chain when materializing legs (selected option). */
   selectedChain?: ChainLeg[]
   service_pattern?: ServicePattern | null
+  forklift_required?: boolean
+  forklift_recommended?: boolean
 }): TripStoreRow {
   const id = crypto.randomUUID()
   const chain = copyChainToTrip(
@@ -810,6 +812,8 @@ export function createTripFromCandidates(opts: {
     shortlist: null,
     eta_chain: chain,
     service_pattern: opts.service_pattern ?? null,
+    forklift_required: opts.forklift_required ?? false,
+    forklift_recommended: opts.forklift_recommended ?? false,
     promised_delivery: projectedDeliveryUtc(chain),
     eta_defaults_snapshot: { ...defaults },
     thread_number: null,

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
+import type { EndpointKind } from '@/domain/missionMode'
 import { describeOfferDestination } from '@/domain/offerRecipients'
 import {
   DEFAULT_QUOTE_LINK_CHANNEL,
@@ -38,6 +39,10 @@ import {
   type DeskContactOverride,
   type DeskOperatorHit,
 } from '@/lib/deskOperatorSearch'
+import {
+  listGroundCouriers,
+  subscribeGroundCouriers,
+} from '@/lib/groundCourierStore'
 import { updateSheetOperatorField } from '@/lib/networkSheetStore'
 import {
   newDeskLeg,
@@ -75,6 +80,11 @@ function withClientMatch(
 export default function DeskParsePage() {
   const nav = useNavigate()
   const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
+  const couriers = useSyncExternalStore(
+    subscribeGroundCouriers,
+    listGroundCouriers,
+    listGroundCouriers,
+  )
   const [draft, setDraft] = useState<DeskDraft | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -335,8 +345,18 @@ export default function DeskParsePage() {
       return
     }
     for (const [i, leg] of draft.legs.entries()) {
+      if (leg.origin_kind === 'door' && !leg.origin_text.trim()) {
+        setError(`Leg ${i + 1}: pickup address required`)
+        return
+      }
+      if (leg.dest_kind === 'door' && !leg.dest_text.trim()) {
+        setError(`Leg ${i + 1}: delivery address required`)
+        return
+      }
       if (!leg.origin_icao.trim() || !leg.dest_icao.trim()) {
-        setError(`Leg ${i + 1}: origin and destination required`)
+        setError(
+          `Leg ${i + 1}: air airports required (nearest airport for door ends)`,
+        )
         return
       }
       if (draft.timing === 'scheduled' && !leg.date) {
@@ -666,6 +686,10 @@ export default function DeskParsePage() {
                           newDeskLeg({
                             origin_icao: leg0.dest_icao,
                             dest_icao: leg0.origin_icao,
+                            origin_kind: leg0.dest_kind,
+                            dest_kind: leg0.origin_kind,
+                            origin_text: leg0.dest_text,
+                            dest_text: leg0.origin_text,
                             pax: leg0.pax,
                             date: leg0.date,
                           }),
@@ -726,12 +750,41 @@ export default function DeskParsePage() {
           </section>
 
           <section className="space-y-3">
+            <div className="rounded-lg border border-gold/40 bg-gold/10 px-3 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="avionic rounded bg-gold px-2 py-0.5 text-xs font-bold text-ink">
+                  {draft.ops.sheet.badge}
+                </span>
+                <span className="text-sm font-semibold text-cream">
+                  {draft.ops.sheet.title}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted">{draft.ops.sheet.blurb}</p>
+              {draft.ops.forklift.label ? (
+                <p
+                  className={[
+                    'mt-2 text-xs font-medium',
+                    draft.ops.forklift.level === 'required'
+                      ? 'text-late'
+                      : 'text-gold',
+                  ].join(' ')}
+                >
+                  {draft.ops.forklift.label}
+                </p>
+              ) : null}
+              {draft.ops.needs_ground_courier ? (
+                <p className="mt-1 text-xs text-gold">
+                  Ground courier required — assign below (Network directory).
+                </p>
+              ) : null}
+            </div>
+
             <div className="flex items-end justify-between gap-2">
               <div className="text-xs font-medium uppercase tracking-wider text-muted">
                 Legs ({draft.legs.length})
               </div>
               <p className="text-[11px] text-muted">
-                Add legs if needed — roundtrip adds the return for you
+                Toggle Airport / Door per end — sheet updates to A2A · D2D · A2D · D2A
               </p>
             </div>
             {draft.legs.map((leg, idx) => (
@@ -767,24 +820,66 @@ export default function DeskParsePage() {
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <AirportSelect
-                    label="Origin"
-                    value={leg.origin_icao}
-                    required
-                    onChange={(icao) => {
-                      let legs = draft.legs.map((l) =>
-                        l.id === leg.id ? { ...l, origin_icao: icao } : l,
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <EndpointEditor
+                    title="Origin"
+                    kind={leg.origin_kind}
+                    text={leg.origin_text}
+                    icao={leg.origin_icao}
+                    courierId={leg.origin_courier_id}
+                    couriers={couriers}
+                    onKind={(kind) => {
+                      const next = syncDeskDraftDerived({
+                        ...draft,
+                        legs: draft.legs.map((l) =>
+                          l.id === leg.id
+                            ? {
+                                ...l,
+                                origin_kind: kind,
+                                origin_text:
+                                  kind === 'door'
+                                    ? l.origin_text || l.origin_icao
+                                    : l.origin_text,
+                              }
+                            : l,
+                        ),
+                      })
+                      setDraft(next)
+                      setBusy(true)
+                      void applyRecommend(next).finally(() => setBusy(false))
+                    }}
+                    onText={(text) => {
+                      setDraft(
+                        syncDeskDraftDerived({
+                          ...draft,
+                          legs: draft.legs.map((l) =>
+                            l.id === leg.id ? { ...l, origin_text: text } : l,
+                          ),
+                        }),
                       )
-                      // Keep roundtrip return leg mirrored from outbound.
+                    }}
+                    onIcao={(icao) => {
+                      let legs = draft.legs.map((l) =>
+                        l.id === leg.id
+                          ? {
+                              ...l,
+                              origin_icao: icao,
+                              origin_text:
+                                l.origin_kind === 'airport' ? icao : l.origin_text,
+                            }
+                          : l,
+                      )
                       if (draft.roundtrip && idx === 0 && legs[1]) {
                         legs = legs.map((l, i) =>
                           i === 1
                             ? {
                                 ...l,
                                 dest_icao: icao,
-                                origin_icao:
-                                  legs[0]?.dest_icao || l.origin_icao,
+                                dest_kind: legs[0]?.origin_kind || l.dest_kind,
+                                dest_text:
+                                  legs[0]?.origin_kind === 'door'
+                                    ? legs[0].origin_text
+                                    : icao,
                               }
                             : l,
                         )
@@ -794,14 +889,69 @@ export default function DeskParsePage() {
                       setBusy(true)
                       void applyRecommend(next).finally(() => setBusy(false))
                     }}
+                    onCourier={(id) => {
+                      patch({
+                        legs: draft.legs.map((l) =>
+                          l.id === leg.id
+                            ? { ...l, origin_courier_id: id }
+                            : l,
+                        ),
+                      })
+                    }}
+                    onBlurRecommend={() => {
+                      const next = syncDeskDraftDerived(draft)
+                      setDraft(next)
+                      setBusy(true)
+                      void applyRecommend(next).finally(() => setBusy(false))
+                    }}
                   />
-                  <AirportSelect
-                    label="Destination"
-                    value={leg.dest_icao}
-                    required
-                    onChange={(icao) => {
+                  <EndpointEditor
+                    title="Destination"
+                    kind={leg.dest_kind}
+                    text={leg.dest_text}
+                    icao={leg.dest_icao}
+                    courierId={leg.dest_courier_id}
+                    couriers={couriers}
+                    onKind={(kind) => {
+                      const next = syncDeskDraftDerived({
+                        ...draft,
+                        legs: draft.legs.map((l) =>
+                          l.id === leg.id
+                            ? {
+                                ...l,
+                                dest_kind: kind,
+                                dest_text:
+                                  kind === 'door'
+                                    ? l.dest_text || l.dest_icao
+                                    : l.dest_text,
+                              }
+                            : l,
+                        ),
+                      })
+                      setDraft(next)
+                      setBusy(true)
+                      void applyRecommend(next).finally(() => setBusy(false))
+                    }}
+                    onText={(text) => {
+                      setDraft(
+                        syncDeskDraftDerived({
+                          ...draft,
+                          legs: draft.legs.map((l) =>
+                            l.id === leg.id ? { ...l, dest_text: text } : l,
+                          ),
+                        }),
+                      )
+                    }}
+                    onIcao={(icao) => {
                       let legs = draft.legs.map((l) =>
-                        l.id === leg.id ? { ...l, dest_icao: icao } : l,
+                        l.id === leg.id
+                          ? {
+                              ...l,
+                              dest_icao: icao,
+                              dest_text:
+                                l.dest_kind === 'airport' ? icao : l.dest_text,
+                            }
+                          : l,
                       )
                       if (draft.roundtrip && idx === 0 && legs[1]) {
                         legs = legs.map((l, i) =>
@@ -809,12 +959,29 @@ export default function DeskParsePage() {
                             ? {
                                 ...l,
                                 origin_icao: icao,
-                                dest_icao: legs[0]?.origin_icao || l.dest_icao,
+                                origin_kind: legs[0]?.dest_kind || l.origin_kind,
+                                origin_text:
+                                  legs[0]?.dest_kind === 'door'
+                                    ? legs[0].dest_text
+                                    : icao,
                               }
                             : l,
                         )
                       }
                       const next = syncDeskDraftDerived({ ...draft, legs })
+                      setDraft(next)
+                      setBusy(true)
+                      void applyRecommend(next).finally(() => setBusy(false))
+                    }}
+                    onCourier={(id) => {
+                      patch({
+                        legs: draft.legs.map((l) =>
+                          l.id === leg.id ? { ...l, dest_courier_id: id } : l,
+                        ),
+                      })
+                    }}
+                    onBlurRecommend={() => {
+                      const next = syncDeskDraftDerived(draft)
                       setDraft(next)
                       setBusy(true)
                       void applyRecommend(next).finally(() => setBusy(false))
@@ -862,6 +1029,8 @@ export default function DeskParsePage() {
                     ...draft.legs,
                     newDeskLeg({
                       origin_icao: last?.dest_icao ?? '',
+                      origin_kind: last?.dest_kind ?? 'airport',
+                      origin_text: last?.dest_text || last?.dest_icao || '',
                       pax: draft.cargo_only ? 0 : last?.pax ?? 0,
                     }),
                   ],
@@ -1321,6 +1490,98 @@ function StandardCargoFields({
           aria-label="Standard cargo weight pounds"
         />
       </label>
+    </div>
+  )
+}
+
+function EndpointEditor({
+  title,
+  kind,
+  text,
+  icao,
+  courierId,
+  couriers,
+  onKind,
+  onText,
+  onIcao,
+  onCourier,
+  onBlurRecommend,
+}: {
+  title: string
+  kind: EndpointKind
+  text: string
+  icao: string
+  courierId: string | null
+  couriers: { id: string; name: string; active: boolean }[]
+  onKind: (k: EndpointKind) => void
+  onText: (t: string) => void
+  onIcao: (icao: string) => void
+  onCourier: (id: string | null) => void
+  onBlurRecommend: () => void
+}) {
+  const activeCouriers = couriers.filter((c) => c.active)
+  return (
+    <div className="space-y-2 rounded-md border border-border/60 bg-ink/40 p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-medium uppercase tracking-wider text-muted">
+          {title}
+        </div>
+        <div className="flex rounded-md border border-border p-0.5">
+          <button
+            type="button"
+            className={seg(kind === 'airport')}
+            onClick={() => onKind('airport')}
+          >
+            Airport
+          </button>
+          <button
+            type="button"
+            className={seg(kind === 'door')}
+            onClick={() => onKind('door')}
+          >
+            Door
+          </button>
+        </div>
+      </div>
+      {kind === 'door' ? (
+        <label className={label}>
+          Street address
+          <textarea
+            className={input}
+            rows={2}
+            value={text}
+            onChange={(e) => onText(e.target.value)}
+            onBlur={onBlurRecommend}
+            placeholder="17 Acorn Drive Nesquehoning PA 18240"
+          />
+        </label>
+      ) : null}
+      <AirportSelect
+        label={kind === 'door' ? 'Nearest airport (air leg)' : 'Airport'}
+        value={icao}
+        required
+        onChange={onIcao}
+      />
+      {kind === 'door' ? (
+        <label className={label}>
+          Ground courier
+          <select
+            className={input}
+            value={courierId ?? ''}
+            onChange={(e) => onCourier(e.target.value || null)}
+          >
+            <option value="">Assign later — find courier…</option>
+            {activeCouriers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">
+            Directory: Network → Ground couriers
+          </span>
+        </label>
+      ) : null}
     </div>
   )
 }
