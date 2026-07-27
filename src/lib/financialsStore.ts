@@ -13,6 +13,7 @@ import {
   type FinancialRecord,
   type FinancialVendorLine,
 } from '@/domain/financials'
+import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 
 const OVERRIDES_KEY = 'onfly.financials.overrides.v1'
 
@@ -34,7 +35,16 @@ const LIVE_MATH_FIELDS = new Set<keyof FinancialRecord>([
 
 function rebuild() {
   snapshot = [...records.values()]
-    .map((r) => computeFields(r))
+    .map((r) => {
+      const aircraft_type =
+        unifyAircraftType(r.aircraft_type ?? '') || r.aircraft_type
+      const vendor_lines = (r.vendor_lines ?? []).map((l) => ({
+        ...l,
+        aircraft_type:
+          unifyAircraftType(l.aircraft_type ?? '') || l.aircraft_type,
+      }))
+      return computeFields({ ...r, aircraft_type, vendor_lines })
+    })
     .sort((a, b) => (b.date_of_flight ?? '').localeCompare(a.date_of_flight ?? ''))
 }
 
@@ -262,7 +272,10 @@ export function updateFinancialField(
   const row = records.get(id)
   if (!row) return
   const patch: Partial<FinancialRecord> = {
-    [field]: value,
+    [field]:
+      field === 'aircraft_type' && typeof value === 'string'
+        ? unifyAircraftType(value) || null
+        : value,
   } as Partial<FinancialRecord>
 
   // Editing money on a legacy import unlocks live investor/margin math.
@@ -299,7 +312,8 @@ export function updateFinancialField(
         nextPrimary.tail_number = (value as string | null) ?? null
       }
       if (field === 'aircraft_type') {
-        nextPrimary.aircraft_type = (value as string | null) ?? null
+        nextPrimary.aircraft_type =
+          unifyAircraftType(String(value ?? '')) || null
       }
       if (field === 'pay_terms') {
         nextPrimary.pay_terms = (value as string | null) ?? null

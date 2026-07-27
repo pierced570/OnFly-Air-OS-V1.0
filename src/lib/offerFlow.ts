@@ -19,6 +19,7 @@ import {
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
 import { appPublicUrl } from '@/lib/appUrl'
+import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
 import { clientTotalForOffer } from '@/lib/offerPricing'
 import {
@@ -467,7 +468,7 @@ async function applyOfferQuote(
     throw new Error(`cannot quote from trip state ${trip.state}`)
   }
   const tail = input.tail?.trim().toUpperCase()
-  const typeName = input.type_name?.trim() || ''
+  const typeName = unifyAircraftType(input.type_name ?? '')
   if (!typeName) throw new Error('aircraft type is required')
   if (!tail) throw new Error('tail number is required')
   const quickTurn =
