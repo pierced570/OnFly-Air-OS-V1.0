@@ -396,6 +396,8 @@ export type TripStoreRow = {
   documents: TripDocument[]
   invoice: TripInvoice | null
   client_id?: string
+  /** Denormalized client display name for Dispatch cards / docs. */
+  client_name?: string | null
   /** Portal / dispatch request that spawned this trip. */
   request_id?: string
   /** Closest piston / turboprop / jet shortlist (Phase A). */
@@ -679,6 +681,7 @@ export function buildOfferRow(
 export function createRoutedTripWithShortlist(opts: {
   request_id?: string
   client_id?: string
+  client_name?: string | null
   lane: string
   payload_summary: string
   ready_label: string
@@ -708,6 +711,7 @@ export function createRoutedTripWithShortlist(opts: {
     candidates: opts.candidates,
     offers: [],
     client_id: opts.client_id,
+    client_name: opts.client_name?.trim() || null,
     request_id: opts.request_id,
     shortlist: opts.shortlist,
     po_number: opts.po_number ?? null,
@@ -776,6 +780,7 @@ export function createTripFromCandidates(opts: {
   candidates: Candidate[]
   payload_kind: 'cargo' | 'pax' | 'both'
   client_id?: string
+  client_name?: string | null
   /** Prefer this chain when materializing legs (selected option). */
   selectedChain?: ChainLeg[]
   service_pattern?: ServicePattern | null
@@ -801,6 +806,7 @@ export function createTripFromCandidates(opts: {
       buildOfferRow(id, c, i),
     ),
     client_id: opts.client_id,
+    client_name: opts.client_name?.trim() || null,
     shortlist: null,
     eta_chain: chain,
     service_pattern: opts.service_pattern ?? null,
@@ -868,6 +874,7 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
     offers: [],
     quick: structuredClone(meta),
     client_id: meta.client_id,
+    client_name: meta.client_name?.trim() || null,
     eta_chain: [],
     service_pattern: 'A2A',
     promised_delivery: null,

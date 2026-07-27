@@ -207,7 +207,7 @@ export function buildDispatchDrawers(input: {
     const tripIdLabel = code || `T-${t.ref}`
     const tripTitle = client
       ? `${client} · ${t.lane}${po}`
-      : `${t.lane}${po}`
+      : `Client TBD · ${t.lane}${po}`
     const recipients: DispatchRecipient[] = (t.offers ?? []).map((o) => {
       const status = offerRecipientStatus(o.state)
       const token = o.magic_token ?? ''

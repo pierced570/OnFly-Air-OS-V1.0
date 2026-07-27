@@ -153,6 +153,10 @@ function mapTripShellRow(
     documents: extras?.documents ?? [],
     invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
     client_id: r.client_id ? String(r.client_id) : undefined,
+    client_name:
+      typeof meta.client_name === 'string' && meta.client_name.trim()
+        ? meta.client_name.trim()
+        : null,
   }
 }
 

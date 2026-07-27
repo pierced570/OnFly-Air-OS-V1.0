@@ -382,6 +382,7 @@ export async function sendDeskTripOffers(opts: {
     candidates: opts.candidates,
     payload_kind: draft.payload_kind,
     client_id: draft.client_id || undefined,
+    client_name: draft.client_name?.trim() || null,
   })
   mutateTrip(trip.id, (t) => {
     t.offers = buildOffersFromCandidates(
@@ -390,6 +391,7 @@ export async function sendDeskTripOffers(opts: {
       opts.contactOverrides,
     )
     if (draft.client_id) t.client_id = draft.client_id
+    if (draft.client_name?.trim()) t.client_name = draft.client_name.trim()
     t.events.push({
       at: new Date().toISOString(),
       actor: 'dispatcher',

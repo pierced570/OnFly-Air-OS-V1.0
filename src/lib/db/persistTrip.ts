@@ -76,6 +76,7 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
         ref: trip.ref,
         code: trip.code,
         offer_margin_pct: trip.offer_margin_pct ?? null,
+        client_name: trip.client_name ?? null,
         quick: trip.quick ?? null,
         hard_quote: trip.hard_quote ?? null,
         candidates: trip.candidates.slice(0, 8),
@@ -107,6 +108,7 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
           ref: trip.ref,
           code: trip.code,
           offer_margin_pct: trip.offer_margin_pct ?? null,
+          client_name: trip.client_name ?? null,
           quick: trip.quick ?? null,
           hard_quote: trip.hard_quote ?? null,
           candidates: trip.candidates.slice(0, 8),
@@ -463,6 +465,7 @@ export async function syncTripTransition(opts: {
           ref: trip.ref,
           code: trip.code,
           offer_margin_pct: trip.offer_margin_pct ?? null,
+          client_name: trip.client_name ?? null,
         },
       }),
     )

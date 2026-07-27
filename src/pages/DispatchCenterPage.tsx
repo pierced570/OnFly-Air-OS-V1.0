@@ -36,13 +36,14 @@ import {
   getScratchPad,
   subscribeScratchPad,
 } from '@/lib/scratchPadStore'
-import { getClient } from '@/lib/clientStore'
+import { getClient, listClients, subscribeClients } from '@/lib/clientStore'
 import {
   acknowledgeDeclinedOffer,
   deskApproveTrip,
   updateTripOfferRequest,
 } from '@/lib/offerFlow'
 import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
+import { resolveTripClientName } from '@/lib/resolveTripClientName'
 import {
   deleteTrip,
   getTrip,
@@ -631,6 +632,7 @@ export default function DispatchCenterPage() {
   const [searchParams] = useSearchParams()
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
+  const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
   const scratch = useSyncExternalStore(
     subscribeScratchPad,
     getScratchPad,
@@ -761,16 +763,17 @@ export default function DispatchCenterPage() {
       buildDispatchDrawers({
         requests,
         trips: trips.map((t) => {
-          const fromQuick = t.quick?.client_name?.trim() || ''
           const fromDir =
             t.client_id ? getClient(t.client_id)?.name?.trim() || '' : ''
+          const client_name =
+            resolveTripClientName(t, fromDir) || null
           return {
             id: t.id,
             ref: t.ref,
             code: t.code,
             lane: t.lane,
             state: t.state,
-            client_name: fromQuick || fromDir || null,
+            client_name,
             quick: t.quick,
             legs: t.legs,
             offers: t.offers.map((o) => ({
@@ -780,7 +783,7 @@ export default function DispatchCenterPage() {
           }
         }),
       }),
-    [requests, trips],
+    [requests, trips, clients],
   )
 
   const scratchPreview = scratch.body.trim()

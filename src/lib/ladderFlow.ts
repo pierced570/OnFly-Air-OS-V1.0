@@ -159,6 +159,7 @@ export async function createRoutedTripFromRequest(
   const trip = createRoutedTripWithShortlist({
     request_id: row.id,
     client_id: row.client_id || undefined,
+    client_name: row.client_name || undefined,
     lane: row.lane,
     payload_summary: row.summary,
     ready_label: row.timing === 'asap' ? 'ASAP' : row.ready_at.slice(0, 16),

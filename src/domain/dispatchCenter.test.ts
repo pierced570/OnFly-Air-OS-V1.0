@@ -151,6 +151,25 @@ describe('dispatchCenter', () => {
     expect(buckets.tracking[0]?.href).toContain('/trips/')
   })
 
+  it('shows Client TBD when no client name is known', () => {
+    const buckets = buildDispatchDrawers({
+      requests: [],
+      trips: [
+        {
+          id: 't-noclient',
+          ref: 7,
+          code: 'ZZ007',
+          lane: 'KCAK→KHPN',
+          state: 'offers_out',
+          legs: [],
+          offers: [],
+        },
+      ],
+    })
+    expect(buckets.offers[0]?.title).toBe('Client TBD · KCAK→KHPN')
+    expect(buckets.offers[0]?.subtitle).toBe('ZZ007')
+  })
+
   it('collapses acknowledged declines to unavailable', () => {
     const buckets = buildDispatchDrawers({
       requests: [],
