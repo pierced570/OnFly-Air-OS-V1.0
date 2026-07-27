@@ -4,6 +4,8 @@
  * FET relevance recomputed from mtow_lbs (do not trust CSV fet_status).
  */
 
+import { normalizeAircraftType } from './typeAlias'
+
 export const FET_EXEMPT_MTOW_LBS = 6000
 
 export type NeedsInfoItem = {
@@ -225,7 +227,8 @@ export function parseFleetCsv(csvText: string): FleetParseResult {
     const { icao, needsInfo: icaoNeed } = normalizeIcao(icaoRaw)
     if (icao) icaos.add(icao)
 
-    const type_name = get(r, col.type)
+    const typeRaw = get(r, col.type)
+    const type_name = typeRaw ? normalizeAircraftType(typeRaw) || typeRaw : null
     if (type_name) typeNames.add(type_name)
 
     const mtow_lbs = toInt(get(r, col.mtow_lbs))

@@ -13,6 +13,7 @@ import {
   subscribeClients,
   type ClientProfile,
 } from '@/lib/clientStore'
+import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import { createQuickDispatchTrip } from '@/lib/tripStore'
 import { sendQuickDispatchEtaSheetAndPortalLinks } from '@/lib/etaSheetSender'
 import {
@@ -189,7 +190,7 @@ export default function QuickDispatchPage() {
         roundtrip,
         cargo_only: cargoOnly,
         operator_name: operator.trim(),
-        aircraft_type: aircraftType.trim(),
+        aircraft_type: unifyAircraftType(aircraftType) || aircraftType.trim(),
         tail: tail.trim().toUpperCase(),
         vendor_cost: Number(vendorCost) || 0,
         client_price: Number(clientPrice) || 0,
