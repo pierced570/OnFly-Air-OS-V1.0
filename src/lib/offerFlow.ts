@@ -1042,7 +1042,8 @@ export async function acceptHardQuote(
   const email = createEmailAdapter()
   const fresh = getTrip(trip.id)!
   const selected = fresh.offers.find((o) => o.state === 'selected')
-  const trackPath = `/portal/track/${fresh.id}`
+  const { portalTrackingUrlForTrip } = await import('@/lib/etaSheetSender')
+  const trackPath = portalTrackingUrlForTrip(fresh.id)
 
   for (const cell of recipientCells(fresh)) {
     await comms.send({
@@ -1141,14 +1142,33 @@ export async function acceptHardQuote(
   }
 
   try {
+    const { allocateNextPoForClient } = await import('@/lib/allocateNextPo')
+    const { getClient } = await import('@/lib/clientStore')
+    const booked = getTrip(trip.id)!
+    const clientName =
+      booked.quick?.client_name ??
+      (booked.client_id ? getClient(booked.client_id)?.name : undefined) ??
+      'Client'
+    if (!booked.po_number?.trim() && !booked.quick?.po?.trim()) {
+      const po = await allocateNextPoForClient({
+        clientId: booked.client_id,
+        clientName,
+      })
+      mutateTrip(trip.id, (t) => {
+        t.po_number = po
+        if (t.quick) t.quick.po = po
+      })
+    }
+    // Create QB invoice (draft) — desk sends from Approved actions with bubble.
     const { createInvoiceForTrip } = await import('@/lib/tripStore')
-    await createInvoiceForTrip(trip.id)
+    await createInvoiceForTrip(trip.id, { skipEmail: true })
   } catch (e) {
-    console.warn('[accept] invoice failed', e)
+    console.warn('[accept] invoice / PO allocate failed', e)
   }
 
   const { runOnBookedAutomations } = await import('@/lib/onBooked')
-  await runOnBookedAutomations(trip.id)
+  // ETA sheet is a desk action on Approved (bubble + send) — not auto-blast.
+  await runOnBookedAutomations(trip.id, { skipEtaEmail: true })
 
   return getTrip(trip.id)!
 }

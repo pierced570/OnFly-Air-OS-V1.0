@@ -37,7 +37,7 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'approved',
     label: 'Approved trips',
-    blurb: 'Booked — confirmations and ETA sheets',
+    blurb: 'Booked — send invoice + ETA sheet',
   },
   {
     id: 'tracking',

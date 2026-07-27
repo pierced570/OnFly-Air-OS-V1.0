@@ -14,6 +14,7 @@ import {
 } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
+import { BookedTripActionsPanel } from '@/components/BookedTripActionsPanel'
 import { DeskOfferQuoteWorkbench } from '@/components/DeskOfferQuoteWorkbench'
 import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
 import {
@@ -137,56 +138,67 @@ function CardList({
   onDeleteCard,
   onApproveCard,
   approvingId,
+  showBookedActions,
 }: {
   cards: DispatchCard[]
   onDeleteCard: (card: DispatchCard) => void
   onApproveCard: (card: DispatchCard) => void
   approvingId?: string | null
+  /** Approved drawer — invoice + ETA sheet actions. */
+  showBookedActions?: boolean
 }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
   return (
     <ul className="space-y-2">
-      {cards.map((c) => (
+      {cards.map((c) => {
+        const tripId = c.trip_id ?? (c.kind === 'trip' ? c.id : undefined)
+        return (
         <li
           key={`${c.kind}-${c.id}`}
-          className="flex items-stretch gap-2 rounded-md border border-border/70 bg-ink"
+          className="rounded-md border border-border/70 bg-ink px-3 py-3"
         >
-          <Link
-            to={c.href}
-            className="min-w-0 flex-1 px-3 py-3 hover:bg-surface-2/40"
-          >
-            <div className="font-medium text-cream">{c.title}</div>
-            <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-          </Link>
-          <div className="flex shrink-0 flex-col justify-center gap-1 py-2 pr-2">
-            {c.approvable ? (
-              <button
-                type="button"
-                aria-label={`Approve trip ${c.title}`}
-                title="Approve trip"
-                disabled={approvingId === c.id}
-                onClick={() => onApproveCard(c)}
-                className="rounded-md bg-gold/20 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/30 disabled:opacity-40"
-              >
-                {approvingId === c.id ? 'Approving…' : 'Approve trip'}
-              </button>
-            ) : null}
-            {c.deletable ? (
-              <button
-                type="button"
-                aria-label={`Delete ${c.title}`}
-                title="Delete"
-                onClick={() => onDeleteCard(c)}
-                className="px-2.5 py-1 text-xs text-muted hover:text-late"
-              >
-                Delete
-              </button>
-            ) : null}
+          <div className="flex items-stretch gap-2">
+            <Link
+              to={c.href}
+              className="min-w-0 flex-1 hover:opacity-90"
+            >
+              <div className="font-medium text-cream">{c.title}</div>
+              <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+            </Link>
+            <div className="flex shrink-0 flex-col justify-center gap-1">
+              {c.approvable ? (
+                <button
+                  type="button"
+                  aria-label={`Approve trip ${c.title}`}
+                  title="Approve trip"
+                  disabled={approvingId === c.id}
+                  onClick={() => onApproveCard(c)}
+                  className="rounded-md bg-gold/20 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/30 disabled:opacity-40"
+                >
+                  {approvingId === c.id ? 'Approving…' : 'Approve trip'}
+                </button>
+              ) : null}
+              {c.deletable ? (
+                <button
+                  type="button"
+                  aria-label={`Delete ${c.title}`}
+                  title="Delete"
+                  onClick={() => onDeleteCard(c)}
+                  className="px-2.5 py-1 text-xs text-muted hover:text-late"
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
           </div>
+          {showBookedActions && tripId ? (
+            <BookedTripActionsPanel tripId={tripId} />
+          ) : null}
         </li>
-      ))}
+        )
+      })}
     </ul>
   )
 }
@@ -930,6 +942,7 @@ export default function DispatchCenterPage() {
               onDeleteCard={removeWaterfallCard}
               onApproveCard={approveWaterfallCard}
               approvingId={approvingId}
+              showBookedActions={d.id === 'approved'}
             />
           )}
         </Drawer>

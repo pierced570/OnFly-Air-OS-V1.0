@@ -77,6 +77,8 @@ export interface AccountingAdapter {
   getInvoicePdfBase64(qbInvoiceId: string): Promise<string | null>
   sendInvoiceEmail(opts: {
     to: string[]
+    cc?: string[]
+    bcc?: string[]
     poNumber: string
     pdfBase64: string
     clientName?: string
@@ -188,11 +190,17 @@ export class MockAccountingAdapter implements AccountingAdapter {
 
   async sendInvoiceEmail(opts: {
     to: string[]
+    cc?: string[]
+    bcc?: string[]
     poNumber: string
     pdfBase64: string
     clientName?: string
   }) {
-    console.info('[MockQB] send-invoice-email', opts.to, opts.poNumber)
+    console.info(
+      '[MockQB] send-invoice-email',
+      { to: opts.to, cc: opts.cc, bcc: opts.bcc },
+      opts.poNumber,
+    )
     return { id: `mock-mail-${opts.poNumber}` }
   }
 }
@@ -317,6 +325,8 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
 
   async sendInvoiceEmail(opts: {
     to: string[]
+    cc?: string[]
+    bcc?: string[]
     poNumber: string
     pdfBase64: string
     clientName?: string
@@ -329,6 +339,8 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
       {
         body: {
           to: opts.to,
+          cc: opts.cc,
+          bcc: opts.bcc,
           po_number: opts.poNumber,
           pdf_base64: opts.pdfBase64,
           client_name: opts.clientName,

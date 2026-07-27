@@ -1525,7 +1525,18 @@ export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvo
   return createInvoiceForTrip(tripId)
 }
 
-export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice | null> {
+export async function createInvoiceForTrip(
+  tripId: string,
+  opts?: {
+    /** Skip Resend — desk sends later from Approved actions. */
+    skipEmail?: boolean
+    to?: string[]
+    cc?: string[]
+    bcc?: string[]
+    /** Force a PO; otherwise allocate last+1 for the client. */
+    poNumber?: string
+  },
+): Promise<TripInvoice | null> {
   const t = trips.get(tripId)
   if (!t) return null
   if (t.invoice) return t.invoice
@@ -1535,14 +1546,28 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   const total = t.quick?.client_price ?? t.hard_quote?.total ?? 0
   if (!(total > 0)) return null
   const { createAccountingAdapter } = await import('@/adapters/accounting')
+  const { getClient, listInvoiceEmails } = await import('@/lib/clientStore')
+  const { allocateNextPoForClient } = await import('@/lib/allocateNextPo')
+  const { ONFLY_INFO_BCC } = await import('@/domain/onflyEmails')
   const acct = createAccountingAdapter()
+  const client = t.client_id ? getClient(t.client_id) : undefined
   const clientName =
-    t.quick?.client_name ??
-    (t.client_id
-      ? (await import('@/lib/clientStore')).getClient(t.client_id)?.name
-      : undefined) ??
-    'Client'
-  const po = t.quick?.po?.trim() || `T-${t.ref}`
+    t.quick?.client_name ?? client?.name ?? 'Client'
+  let po =
+    opts?.poNumber?.trim() ||
+    t.po_number?.trim() ||
+    t.quick?.po?.trim() ||
+    ''
+  if (!po) {
+    po = await allocateNextPoForClient({
+      clientId: t.client_id,
+      clientName,
+    })
+  }
+  mutateTrip(tripId, (row) => {
+    row.po_number = po
+    if (row.quick) row.quick.po = po
+  })
   const txnDate = new Date().toISOString().slice(0, 10)
   const lines = tripInvoiceLines({
     tripRef: t.ref,
@@ -1552,30 +1577,54 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   })
   const created = await acct.createInvoice({
     customerName: clientName,
+    customerId: client?.qb_customer_id ?? undefined,
     poNumber: po,
     txnDate,
-    payTerms: t.quick?.pay_terms ?? 'Net 30',
+    payTerms: t.quick?.pay_terms ?? client?.pay_terms ?? 'Net 30',
     tripRef: t.ref,
     lines,
     notes: t.quick?.notes ?? null,
   })
 
   // Branded Resend delivery (never QBO /invoice/{id}/send)
-  const apTo = [
+  const defaultTo = [
+    ...(opts?.to ?? []),
     t.quick?.invoice_email,
+    client?.invoice_email,
+    ...(t.client_id ? listInvoiceEmails(t.client_id) : []),
     ...t.participants
       .filter((p) => p.role === 'client_ap' && p.email)
       .map((p) => p.email),
   ]
     .filter((e): e is string => Boolean(e?.includes('@')))
     .map((e) => e.toLowerCase())
-  const uniqueTo = [...new Set(apTo)]
-  if (uniqueTo.length && (t.quick?.send_invoice ?? true)) {
+  const uniqueTo = [...new Set(opts?.to?.length ? opts.to.map((e) => e.toLowerCase()) : defaultTo)]
+  const uniqueCc = [
+    ...new Set(
+      (opts?.cc ?? [])
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@') && !uniqueTo.includes(e)),
+    ),
+  ]
+  const uniqueBcc = [
+    ...new Set(
+      [...(opts?.bcc ?? []), ONFLY_INFO_BCC]
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@')),
+    ),
+  ]
+  const shouldEmail =
+    !opts?.skipEmail &&
+    uniqueTo.length > 0 &&
+    (t.quick?.send_invoice ?? true)
+  if (shouldEmail) {
     try {
       const pdf = await acct.getInvoicePdfBase64(created.qbInvoiceId)
       if (pdf) {
         await acct.sendInvoiceEmail({
           to: uniqueTo,
+          cc: uniqueCc,
+          bcc: uniqueBcc,
           poNumber: created.qbInvoiceNumber || po,
           pdfBase64: pdf,
           clientName,
@@ -1590,13 +1639,14 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
     id: crypto.randomUUID(),
     qb_invoice_id: created.qbInvoiceId,
     total,
-    status: 'sent',
+    status: shouldEmail ? 'sent' : 'draft',
     url: created.url,
     created_at: new Date().toISOString(),
   }
   const wasDelivered = t.state === 'delivered'
   mutateTrip(tripId, (row) => {
     row.invoice = inv
+    row.po_number = created.qbInvoiceNumber || po
     row.documents.push({
       id: crypto.randomUUID(),
       kind: 'other',
@@ -1613,6 +1663,10 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
         doc_number: created.qbInvoiceNumber,
         total,
         auto: wasDelivered,
+        emailed: shouldEmail,
+        to: uniqueTo,
+        cc: uniqueCc,
+        bcc: uniqueBcc,
       },
     })
   })
@@ -1630,6 +1684,77 @@ export async function createInvoiceForTrip(tripId: string): Promise<TripInvoice 
   } finally {
     invoiceInFlight.delete(tripId)
   }
+}
+
+/**
+ * Send (or re-send) the QuickBooks invoice PDF via branded email.
+ * Creates the QB invoice first when missing.
+ */
+export async function sendTripInvoiceEmail(
+  tripId: string,
+  opts: { to: string[]; cc?: string[]; bcc?: string[] },
+): Promise<{ poNumber: string; emailed: boolean }> {
+  let trip = trips.get(tripId)
+  if (!trip) throw new Error('trip not found')
+  if (!trip.invoice) {
+    await createInvoiceForTrip(tripId, {
+      skipEmail: true,
+      to: opts.to,
+      cc: opts.cc,
+      bcc: opts.bcc,
+    })
+    trip = trips.get(tripId)
+  }
+  if (!trip?.invoice) {
+    throw new Error('Could not create invoice — client total missing?')
+  }
+  const { createAccountingAdapter } = await import('@/adapters/accounting')
+  const { getClient } = await import('@/lib/clientStore')
+  const { ONFLY_INFO_BCC } = await import('@/domain/onflyEmails')
+  const acct = createAccountingAdapter()
+  const client = trip.client_id ? getClient(trip.client_id) : undefined
+  const clientName =
+    trip.quick?.client_name ?? client?.name ?? 'Client'
+  const po =
+    trip.po_number?.trim() ||
+    trip.quick?.po?.trim() ||
+    trip.invoice.qb_invoice_id
+  const to = [...new Set(opts.to.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')))]
+  if (!to.length) throw new Error('Add at least one To email for the invoice')
+  const cc = [
+    ...new Set(
+      (opts.cc ?? [])
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@') && !to.includes(e)),
+    ),
+  ]
+  const bcc = [
+    ...new Set(
+      [...(opts.bcc ?? []), ONFLY_INFO_BCC]
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@')),
+    ),
+  ]
+  const pdf = await acct.getInvoicePdfBase64(trip.invoice.qb_invoice_id)
+  if (!pdf) throw new Error('Could not load invoice PDF from QuickBooks')
+  await acct.sendInvoiceEmail({
+    to,
+    cc,
+    bcc,
+    poNumber: po,
+    pdfBase64: pdf,
+    clientName,
+  })
+  mutateTrip(tripId, (row) => {
+    if (row.invoice) row.invoice.status = 'sent'
+    row.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'invoice_emailed',
+      payload: { to, cc, bcc, po_number: po },
+    })
+  })
+  return { poNumber: po, emailed: true }
 }
 
 export function addTripDocument(
