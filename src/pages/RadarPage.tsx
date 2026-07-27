@@ -2,12 +2,18 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { isRealAdsbEnabled } from '@/adapters/adsb'
 import { createWxAdapter, type WxBrief } from '@/adapters/wx'
+import { D085ReviewPanel } from '@/components/D085ReviewPanel'
 import { FlightCatBadge } from '@/components/FlightCatBadge'
+import type { D085ReviewRow } from '@/domain/d085Match'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
 import { loadNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
 import { FlightChip } from '@/components/FlightChip'
 import { RadarMap } from '@/components/RadarMap'
+import {
+  acceptD085Review,
+  parseAndMatchD085,
+} from '@/lib/d085Review'
 import {
   listWatchedTails,
   subscribeWatchedTails,
@@ -40,15 +46,29 @@ export default function RadarPage({
   const [selected, setSelected] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
+  const [d085Busy, setD085Busy] = useState(false)
+  const [d085Error, setD085Error] = useState<string | null>(null)
+  const [d085Note, setD085Note] = useState<string | undefined>()
+  const [d085Source, setD085Source] = useState<string | undefined>()
+  const [d085Rows, setD085Rows] = useState<D085ReviewRow[] | null>(null)
+  const [d085OperatorId, setD085OperatorId] = useState('')
+  const [operators, setOperators] = useState<
+    Array<{ id: string; name: string; base_icao: string | null }>
+  >([])
 
   const adsbLive = isRealAdsbEnabled()
 
   async function refresh() {
     setBusy(true)
     try {
-      // Ensure watch list matches Network fleet (live DB or fixture).
-      await loadNetwork()
-      // Mock adapter returns no_data only — never invents airborne tracks.
+      const net = await loadNetwork()
+      setOperators(
+        net.operators.map((o) => ({
+          id: o.id,
+          name: o.name,
+          base_icao: o.base_icao,
+        })),
+      )
       setStatuses(await loadFleetStatuses())
       setWx(await createWxAdapter().brief('KCAK'))
     } finally {
@@ -80,6 +100,31 @@ export default function RadarPage({
 
   const selectedStatus = statuses.find((s) => s.tail === selected) ?? null
   const d085Count = watched.filter((w) => w.source === 'd085').length
+
+  async function onD085File(file: File) {
+    setD085Busy(true)
+    setD085Error(null)
+    try {
+      const bundle = await parseAndMatchD085(file)
+      setD085Rows(bundle.rows)
+      setD085Note(bundle.note)
+      setD085Source(bundle.source)
+      const linkedOp = bundle.rows.find((r) => r.existing_operator_id)
+        ?.existing_operator_id
+      if (linkedOp) setD085OperatorId(linkedOp)
+    } catch (e) {
+      setD085Error(e instanceof Error ? e.message : String(e))
+      setD085Rows(null)
+    } finally {
+      setD085Busy(false)
+    }
+  }
+
+  function clearD085() {
+    setD085Rows(null)
+    setD085Note(undefined)
+    setD085Source(undefined)
+  }
 
   return (
     <div
@@ -140,11 +185,90 @@ export default function RadarPage({
           >
             {busy ? 'Refreshing…' : adsbLive ? 'Refresh ADS-B' : 'ADS-B pending'}
           </button>
-          <Link to="/admin" className="text-sm text-muted hover:text-cream">
-            Upload D085 →
-          </Link>
+          <label className="cursor-pointer text-sm text-gold hover:text-gold-lt">
+            {d085Busy ? 'Parsing D085…' : 'Upload D085'}
+            <input
+              type="file"
+              accept=".pdf,.txt,.csv"
+              className="hidden"
+              disabled={d085Busy}
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                e.target.value = ''
+                if (f) void onD085File(f)
+              }}
+            />
+          </label>
         </div>
       </header>
+
+      {d085Error ? <p className="text-sm text-late">{d085Error}</p> : null}
+
+      {d085Rows ? (
+        <div className="space-y-3">
+          <label className="block text-xs text-muted">
+            Operator for new tails
+            <select
+              className="mt-1 w-full max-w-md rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream"
+              value={d085OperatorId}
+              onChange={(e) => setD085OperatorId(e.target.value)}
+            >
+              <option value="">Select operator…</option>
+              {operators.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                  {o.base_icao ? ` · ${o.base_icao}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <D085ReviewPanel
+            rows={d085Rows}
+            source={d085Source}
+            note={d085Note}
+            busy={d085Busy}
+            acceptLabel="Accept into Network + Radar"
+            onCancel={clearD085}
+            onAccept={(selectedRows) => {
+              const needsOp = selectedRows.some(
+                (r) => r.match_kind === 'new' || r.match_kind === 'conflict',
+              )
+              const op = operators.find((o) => o.id === d085OperatorId)
+              if (needsOp && !op) {
+                setD085Error(
+                  'Select an operator for new or conflicting tails before accepting.',
+                )
+                return
+              }
+              const payload = selectedRows.map((r) => {
+                if (r.match_kind === 'linked' && r.existing_operator_id) {
+                  return {
+                    tail: r.tail,
+                    type_name: r.type_name,
+                    match_kind: r.match_kind,
+                    operator_id: r.existing_operator_id,
+                    operator_name:
+                      r.existing_operator_name || op?.name || 'Operator',
+                    base_icao: op?.base_icao ?? null,
+                  }
+                }
+                return {
+                  tail: r.tail,
+                  type_name: r.type_name,
+                  match_kind: r.match_kind,
+                  operator_id: op!.id,
+                  operator_name: op!.name,
+                  base_icao: op!.base_icao,
+                }
+              })
+              acceptD085Review(payload)
+              clearD085()
+              setD085Error(null)
+              void refresh()
+            }}
+          />
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <input
@@ -248,11 +372,12 @@ export default function RadarPage({
             Watch sources
           </h2>
           <p className="mt-2 text-sm text-muted">
-            Network import tails are watched automatically. Confirming a D085 in
-            Admin adds those N-numbers to this radar and keeps takeoff/landing logs.
+            Network import tails are watched automatically. Upload a D085 above
+            to match existing N-numbers; new tails ask you to confirm details
+            before they are added.
           </p>
           <Link to="/admin" className="mt-3 inline-block text-xs text-gold">
-            Add operator / D085 →
+            Add operator / D085 wizard →
           </Link>
         </section>
       </div>

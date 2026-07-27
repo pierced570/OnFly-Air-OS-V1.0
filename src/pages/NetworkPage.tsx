@@ -11,7 +11,13 @@ import { Link } from 'react-router-dom'
 import { NeedsInfoBadge } from '@/components/NeedsInfoBadge'
 import { FlightChip } from '@/components/FlightChip'
 import { OperatorDocSlots } from '@/components/OperatorDocSlots'
+import { D085ReviewPanel } from '@/components/D085ReviewPanel'
 import { isRealAdsbEnabled } from '@/adapters/adsb'
+import type { D085ReviewRow } from '@/domain/d085Match'
+import {
+  acceptD085ForOperator,
+  parseAndMatchD085,
+} from '@/lib/d085Review'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
 import { loadNetwork, type LoadedNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
@@ -930,6 +936,13 @@ function OperatorDetail({
   const completed = countCompletedTripsForOperator(op.id, op.name)
   const eligible = completed >= namedInsurerTripThreshold()
   const docsOpen = expandedDocs === op.id
+  const [d085Rows, setD085Rows] = useState<D085ReviewRow[] | null>(null)
+  const [d085Meta, setD085Meta] = useState<{
+    source?: string
+    note?: string
+  } | null>(null)
+  const [d085Busy, setD085Busy] = useState(false)
+  const [d085Msg, setD085Msg] = useState<string | null>(null)
 
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-surface">
@@ -1027,11 +1040,64 @@ function OperatorDetail({
             compliance={compliance}
             onUpload={(kind: OperatorDocKind, file: File) => {
               void setOperatorDocFile(op.id, kind, file)
+              if (kind === 'd085') {
+                setD085Busy(true)
+                setD085Msg(null)
+                void parseAndMatchD085(file, { operatorId: op.id })
+                  .then((bundle) => {
+                    setD085Rows(bundle.rows)
+                    setD085Meta({
+                      source: bundle.source,
+                      note: bundle.note,
+                    })
+                  })
+                  .catch((e) =>
+                    setD085Msg(e instanceof Error ? e.message : String(e)),
+                  )
+                  .finally(() => setD085Busy(false))
+              }
             }}
             onExpiryChange={(kind, expiresOn) =>
               setOperatorDocExpiry(op.id, kind, expiresOn)
             }
           />
+          {d085Busy ? (
+            <p className="mt-3 text-xs text-gold">Matching D085 to Network…</p>
+          ) : null}
+          {d085Msg ? (
+            <p className="mt-3 text-xs text-late">{d085Msg}</p>
+          ) : null}
+          {d085Rows ? (
+            <div className="mt-3">
+              <D085ReviewPanel
+                rows={d085Rows}
+                source={d085Meta?.source}
+                note={d085Meta?.note}
+                acceptLabel="Accept for this operator"
+                onCancel={() => {
+                  setD085Rows(null)
+                  setD085Meta(null)
+                }}
+                onAccept={(selected) => {
+                  const result = acceptD085ForOperator({
+                    operator_id: op.id,
+                    operator_name: op.name,
+                    base_icao: op.base_icao,
+                    rows: selected.map((r) => ({
+                      tail: r.tail,
+                      type_name: r.type_name,
+                      match_kind: r.match_kind,
+                    })),
+                  })
+                  setD085Rows(null)
+                  setD085Meta(null)
+                  setD085Msg(
+                    `Accepted ${result.watched} · ${result.added} new on Network`,
+                  )
+                }}
+              />
+            </div>
+          ) : null}
         </div>
       )}
 

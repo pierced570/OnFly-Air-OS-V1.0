@@ -68,6 +68,78 @@ export function upsertCachedOperator(op: OperatorRow): void {
   bump()
 }
 
+/**
+ * Insert or update an aircraft row in the in-memory Network cache
+ * (D085 accept for new / reassigned tails). Returns null if network not loaded.
+ */
+export function upsertCachedAircraft(input: {
+  operator_id: string
+  operator_name: string
+  tail: string
+  type_name: string | null
+  base_icao?: string | null
+  id?: string
+}): AircraftRow | null {
+  if (!cached) return null
+  const tail = String(input.tail ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+  if (!tail) return null
+
+  const existingIdx = cached.aircraft.findIndex(
+    (a) =>
+      a.tail.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') === tail &&
+      a.operator_id === input.operator_id,
+  )
+  const nowNeeds: AircraftRow['needs_info'] = []
+  if (!input.type_name || input.type_name === 'Unknown') {
+    nowNeeds.push({ field: 'type_name', note: 'Verify type from D085' })
+  }
+
+  if (existingIdx >= 0) {
+    const prev = cached.aircraft[existingIdx]!
+    const next: AircraftRow = {
+      ...prev,
+      type_name: input.type_name || prev.type_name,
+      base_icao: input.base_icao ?? prev.base_icao,
+      operator_name: input.operator_name || prev.operator_name,
+      active: true,
+    }
+    cached.aircraft[existingIdx] = next
+    bump()
+    return next
+  }
+
+  const row: AircraftRow = {
+    id: input.id ?? crypto.randomUUID(),
+    operator_id: input.operator_id,
+    operator_name: input.operator_name,
+    tail,
+    type_name: input.type_name,
+    category: null,
+    engines: null,
+    cargo_pax: null,
+    crew: null,
+    base_icao: input.base_icao ?? null,
+    cruise_kts: null,
+    range_nm: null,
+    mtow_lbs: null,
+    max_payload_lbs: null,
+    seats: null,
+    fet_applies: null,
+    needs_info: nowNeeds,
+    active: true,
+  }
+  cached.aircraft = [row, ...cached.aircraft]
+  const op = cached.operators.find((o) => o.id === input.operator_id)
+  if (op) {
+    op.aircraft_count = (op.aircraft_count ?? 0) + 1
+  }
+  bump()
+  return row
+}
+
 function enrichAircraftFromSpecs(
   aircraft: AircraftRow[],
   type_specs: Array<Record<string, unknown>>,
