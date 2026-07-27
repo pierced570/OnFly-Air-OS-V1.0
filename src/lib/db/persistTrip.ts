@@ -74,6 +74,8 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
       po_number: trip.quick?.po || null,
       session_meta: {
         ref: trip.ref,
+        code: trip.code,
+        offer_margin_pct: trip.offer_margin_pct ?? null,
         quick: trip.quick ?? null,
         hard_quote: trip.hard_quote ?? null,
         candidates: trip.candidates.slice(0, 8),
@@ -103,6 +105,8 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
         po_number: trip.quick?.po || null,
         session_meta: {
           ref: trip.ref,
+          code: trip.code,
+          offer_margin_pct: trip.offer_margin_pct ?? null,
           quick: trip.quick ?? null,
           hard_quote: trip.hard_quote ?? null,
           candidates: trip.candidates.slice(0, 8),
@@ -440,7 +444,11 @@ export async function syncTripTransition(opts: {
         payload_summary: trip.payload_summary,
         ready_label: trip.ready_label,
         accept_token: trip.hard_quote?.accept_token ?? null,
-        session_meta: { ref: trip.ref },
+        session_meta: {
+          ref: trip.ref,
+          code: trip.code,
+          offer_margin_pct: trip.offer_margin_pct ?? null,
+        },
       }),
     )
   } else if (String((existing as { state: string }).state) === toState) {

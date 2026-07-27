@@ -21,6 +21,8 @@ export type OfferQuotePreviewInput = {
   fee_scope: string | null
   mtow_lbs: number | null
   payload_kind: 'cargo' | 'pax' | 'both'
+  /** Override margin % (desk edit). Defaults to DEFAULT_OFFER_MARGIN_PCT. */
+  margin_pct?: number | null
   /** Override client total (desk edit). */
   client_total_override?: number | null
   segment_count?: number
@@ -62,7 +64,10 @@ export function buildOfferQuotePreview(
   optionIndex: number,
 ): OfferQuotePreview {
   const vendor = Math.max(0, Math.round(input.price_net ?? 0))
-  const margin_pct = DEFAULT_OFFER_MARGIN_PCT
+  const margin_pct =
+    input.margin_pct != null && Number.isFinite(input.margin_pct)
+      ? Math.max(0, input.margin_pct)
+      : DEFAULT_OFFER_MARGIN_PCT
   const client_air = priceFromMargin(vendor, margin_pct)
   const segments = Math.max(1, input.segment_count ?? 1)
   const paxCount = Math.max(1, input.pax_count ?? 1)

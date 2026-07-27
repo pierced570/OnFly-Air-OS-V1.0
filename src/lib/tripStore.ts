@@ -19,6 +19,11 @@ import {
 } from '@/domain/etaChain'
 import type { TripState } from '@/domain/stateMachine'
 import { transition } from '@/domain/stateMachine'
+import {
+  generateTripCode,
+  isValidTripCode,
+  normalizeTripCode,
+} from '@/domain/tripCode'
 import { parseThreadActual } from '@/domain/threadParse'
 import {
   applyChainToLegs,
@@ -326,6 +331,11 @@ export type TripInvoice = {
 export type TripStoreRow = {
   id: string
   ref: number
+  /**
+   * Internal unique trip code — 2 letters + 3 digits (e.g. AB123).
+   * Shown on Dispatch cards; distinct from numeric `ref`.
+   */
+  code: string
   state: TripState
   lane: string
   payload_summary: string
@@ -333,6 +343,11 @@ export type TripStoreRow = {
   candidates: Candidate[]
   offers: OfferRow[]
   events: Array<{ at: string; actor: string; kind: string; payload: Record<string, unknown> }>
+  /**
+   * Desk default margin % when building client totals from operator NET.
+   * Null/undefined → DEFAULT_OFFER_MARGIN_PCT.
+   */
+  offer_margin_pct?: number | null
   hard_quote?: {
     total: number
     accept_token: string
@@ -416,6 +431,37 @@ function rebuild() {
   snapshot = [...trips.values()].sort((a, b) => b.ref - a.ref)
 }
 
+function usedTripCodes(exceptId?: string): Set<string> {
+  const used = new Set<string>()
+  for (const t of trips.values()) {
+    if (exceptId && t.id === exceptId) continue
+    if (t.code && isValidTripCode(t.code)) used.add(normalizeTripCode(t.code))
+  }
+  return used
+}
+
+function allocateTripCode(exceptId?: string): string {
+  return generateTripCode(usedTripCodes(exceptId))
+}
+
+/** Backfill missing/invalid codes on hydrated or legacy local trips. */
+export function ensureTripCodes(): void {
+  let changed = false
+  const used = usedTripCodes()
+  for (const t of trips.values()) {
+    if (t.code && isValidTripCode(t.code)) {
+      t.code = normalizeTripCode(t.code)
+      used.add(t.code)
+      continue
+    }
+    t.code = generateTripCode(used)
+    used.add(t.code)
+    changed = true
+    schedulePersist(t.id)
+  }
+  if (changed) bump()
+}
+
 function persistLocal(): void {
   if (typeof localStorage === 'undefined') return
   try {
@@ -443,6 +489,11 @@ function loadLocal(): void {
       if (row.thread_disbanded_at === undefined) row.thread_disbanded_at = null
       if (!Array.isArray(row.legs)) row.legs = []
       if (!Array.isArray(row.participants)) row.participants = []
+      if (!row.code || !isValidTripCode(String(row.code))) {
+        row.code = ''
+      } else {
+        row.code = normalizeTripCode(String(row.code))
+      }
       row.participants = row.participants.map((p) => ({
         ...p,
         company: p.company ?? '',
@@ -476,6 +527,7 @@ function bump() {
 }
 
 loadLocal()
+ensureTripCodes()
 rebuild()
 
 export function subscribeTrips(fn: () => void): () => void {
@@ -648,6 +700,7 @@ export function createRoutedTripWithShortlist(opts: {
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
+    code: allocateTripCode(),
     state: 'draft',
     lane: opts.lane,
     payload_summary: opts.payload_summary,
@@ -738,6 +791,7 @@ export function createTripFromCandidates(opts: {
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
+    code: allocateTripCode(),
     state: 'quoted_estimated',
     lane: opts.lane,
     payload_summary: opts.payload_summary,
@@ -803,6 +857,7 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
+    code: allocateTripCode(),
     state: 'booked',
     lane,
     payload_summary: meta.cargo_only
@@ -919,6 +974,11 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
         r.service_pattern = r.service_pattern ?? existing.service_pattern
         r.promised_delivery = r.promised_delivery ?? existing.promised_delivery
       }
+    }
+    if (!r.code || !isValidTripCode(r.code)) {
+      r.code = allocateTripCode(r.id)
+    } else {
+      r.code = normalizeTripCode(r.code)
     }
     trips.set(r.id, r)
     if (r.ref >= refSeq) refSeq = r.ref + 1

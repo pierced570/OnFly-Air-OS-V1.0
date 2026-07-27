@@ -571,13 +571,21 @@ export async function selectOffersAndHardQuote(
     notifyClient?: boolean
     ccEmails?: string[]
     bccEmails?: string[]
+    /** Desk margin % applied when totals are not overridden. */
+    marginPct?: number | null
   },
 ) {
   const trip = getTrip(tripId)!
   if (!offerIds.length) throw new Error('select at least one offer')
   const notifyClient = opts?.notifyClient !== false
+  if (opts?.marginPct != null && Number.isFinite(opts.marginPct)) {
+    mutateTrip(tripId, (t) => {
+      t.offer_margin_pct = Math.max(0, opts.marginPct!)
+    })
+  }
+  const pricedTrip = getTrip(tripId)!
   const selectedOffers = offerIds.map((id) => {
-    const o = trip.offers.find((x) => x.id === id)
+    const o = pricedTrip.offers.find((x) => x.id === id)
     if (!o) throw new Error(`offer not found: ${id}`)
     if (o.bookingGated) throw new Error('booking gated — insurance/compliance')
     if (o.state !== 'quoted' && o.state !== 'selected') {
@@ -586,22 +594,22 @@ export async function selectOffersAndHardQuote(
     return o
   })
 
-  const kind = payloadKindOf(trip)
+  const kind = payloadKindOf(pricedTrip)
   const accept_token = crypto.randomUUID().replace(/-/g, '').slice(0, 20)
 
   const sentAt = new Date().toISOString()
   const options = selectedOffers.map((o, i) => {
-    const priced = clientTotalForOffer(o, trip)
+    const priced = clientTotalForOffer(o, pricedTrip)
     const client =
       clientTotalsByOffer?.[o.id] != null
         ? Math.round(clientTotalsByOffer[o.id]!)
         : priced.client
-    const cand = trip.candidates.find((c) => c.aircraft_id === o.aircraft_id)
+    const cand = pricedTrip.candidates.find((c) => c.aircraft_id === o.aircraft_id)
     return {
       offer_id: o.id,
       label: `Option ${String.fromCharCode(65 + i)}`,
       client_total: client,
-      eta_end: cand?.eta_end ?? trip.promised_delivery,
+      eta_end: cand?.eta_end ?? pricedTrip.promised_delivery,
       fee_scope: o.fee_scope,
       /** Client-safe aircraft type (not carrier). */
       type_name: o.type_name ?? cand?.type_name ?? null,
@@ -778,6 +786,49 @@ export async function selectOffersAndHardQuote(
 }
 
 /** Client accepts one option from the public accept page. */
+/**
+ * Update client-facing totals / margin on an already-sent hard quote
+ * without re-notifying the client (desk edit).
+ */
+export function updateHardQuoteClientPricing(
+  tripId: string,
+  input: {
+    margin_pct: number
+    options: Array<{ offer_id: string; client_total: number }>
+  },
+): TripStoreRow {
+  const trip = getTrip(tripId)
+  if (!trip?.hard_quote?.options?.length) {
+    throw new Error('no hard quote to update')
+  }
+  const margin = Math.max(0, input.margin_pct)
+  const byId = new Map(
+    input.options.map((o) => [o.offer_id, Math.round(o.client_total)]),
+  )
+  mutateTrip(tripId, (t) => {
+    t.offer_margin_pct = margin
+    if (!t.hard_quote?.options) return
+    for (const opt of t.hard_quote.options) {
+      const next = byId.get(opt.offer_id)
+      if (next != null) opt.client_total = next
+    }
+    t.hard_quote.total = Math.min(
+      ...t.hard_quote.options.map((o) => o.client_total),
+    )
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'hard_quote_pricing_updated',
+      payload: {
+        margin_pct: margin,
+        totals: Object.fromEntries(byId),
+        accept_token: t.hard_quote.accept_token,
+      },
+    })
+  })
+  return getTrip(tripId)!
+}
+
 export async function acceptHardQuoteOption(token: string, offerId: string) {
   const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
   if (!trip) throw new Error('invalid accept token')

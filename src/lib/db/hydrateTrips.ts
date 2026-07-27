@@ -105,6 +105,7 @@ function mapTripShellRow(
   return {
     id: String(r.id),
     ref: Number(r.ref ?? meta.ref ?? 0),
+    code: typeof meta.code === 'string' ? meta.code : '',
     state: String(r.state) as TripState,
     lane: String(r.lane_label || ''),
     payload_summary: String(r.payload_summary || ''),
@@ -114,6 +115,10 @@ function mapTripShellRow(
       : [],
     offers,
     events: extras?.events ?? [],
+    offer_margin_pct:
+      typeof meta.offer_margin_pct === 'number'
+        ? meta.offer_margin_pct
+        : null,
     hard_quote: hard
       ? { ...hard, accept_token: String(r.accept_token || hard.accept_token) }
       : r.accept_token

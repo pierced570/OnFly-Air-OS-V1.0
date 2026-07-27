@@ -362,14 +362,9 @@ function OfferTripList({
             ].join(' ')}
           >
             <div className="font-medium text-cream">{c.title}</div>
-            <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-            {c.recipients && c.recipients.length > 0 ? (
-              <p className="mt-1 text-xs text-muted">
-                Quote-request links are emailed on send. Status updates when
-                they answer Yes / No or submit a quote. Use Quotes & pricing
-                for manual quotes and client hard quotes.
-              </p>
-            ) : null}
+            <div className="mt-0.5 font-mono text-sm text-gold/90">
+              {c.subtitle}
+            </div>
             {c.recipients && c.recipients.length > 0 ? (
               <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">
                 {c.recipients.map((r) =>
@@ -394,14 +389,6 @@ function OfferTripList({
                         {r.status_label}
                       </span>
                     </div>
-                    <div className="mt-1 font-mono text-[11px] text-muted">
-                      {r.destination_summary}
-                    </div>
-                    {r.destination_gaps.length > 0 ? (
-                      <div className="mt-0.5 text-[11px] text-late">
-                        {r.destination_gaps.join(' · ')}
-                      </div>
-                    ) : null}
                     {r.sent_label ? (
                       <div className="mt-1 font-mono text-[11px] text-muted">
                         {r.sent_label}
@@ -630,6 +617,7 @@ export default function DispatchCenterPage() {
           return {
             id: t.id,
             ref: t.ref,
+            code: t.code,
             lane: t.lane,
             state: t.state,
             client_name: fromQuick || fromDir || null,

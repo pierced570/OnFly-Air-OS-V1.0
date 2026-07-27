@@ -22,7 +22,7 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'offers',
     label: 'Trip offers to operators',
-    blurb: 'Who got the request — yes / no / awaiting',
+    blurb: 'Operator trip offers and replies',
   },
   {
     id: 'submitted_quotes',
@@ -132,6 +132,8 @@ export function buildDispatchDrawers(input: {
   trips: Array<{
     id: string
     ref: number
+    /** Unique internal code (2 letters + 3 digits), e.g. AB123. */
+    code?: string | null
     lane: string
     state: TripState
     /** Who this trip is for — preferred in card titles over T-####. */
@@ -190,9 +192,11 @@ export function buildDispatchDrawers(input: {
       t.quick?.client_name ||
       ''
     ).trim()
+    const code = (t.code ?? '').trim().toUpperCase()
+    const tripIdLabel = code || `T-${t.ref}`
     const tripTitle = client
       ? `${client} · ${t.lane}${po}`
-      : `T-${t.ref} · ${t.lane}${po}`
+      : `${t.lane}${po}`
     const recipients: DispatchRecipient[] = (t.offers ?? []).map((o) => {
       const status = offerRecipientStatus(o.state)
       const token = o.magic_token ?? ''
@@ -222,25 +226,19 @@ export function buildDispatchDrawers(input: {
           : `/dispatch?drawer=${drawer ?? 'offers'}&focus=${t.id}`,
       }
     })
-    const yes = recipients.filter((r) => r.status === 'yes').length
-    const no = recipients.filter((r) => r.status === 'no').length
-    const quoted = recipients.filter((r) => r.status === 'quote_submitted').length
-    const awaiting = recipients.filter((r) => r.status === 'awaiting').length
-    const notifiedN = recipients.filter((r) => r.notified).length
-    const offerBit =
-      (t.state === 'offers_out' || t.state === 'quoted_hard') &&
-      recipients.length
-        ? ` · ${recipients.length} recipients · ${notifiedN} notified · ${yes} yes · ${no} no · ${quoted} quoted · ${awaiting} awaiting`
-        : ''
     const stayOnDispatch =
       t.state === 'offers_out' || t.state === 'quoted_hard'
+    const offerSubtitle =
+      t.state === 'offers_out' || t.state === 'quoted_hard'
+        ? tripIdLabel
+        : `${tripStateLabel(t.state)} · ${tripIdLabel}${
+            t.quick ? ' · quick' : ''
+          }${legBit}`
     out[drawer].push({
       kind: 'trip',
       id: t.id,
       title: tripTitle,
-      subtitle: `${tripStateLabel(t.state)} · T-${t.ref}${
-        t.quick ? ' · quick' : ''
-      }${legBit}${offerBit}`,
+      subtitle: offerSubtitle,
       href: stayOnDispatch
         ? `/dispatch?drawer=${drawer}&focus=${t.id}`
         : `/trips/${t.id}`,
@@ -260,7 +258,7 @@ export function buildDispatchDrawers(input: {
       for (const o of t.offers ?? []) {
         if (o.state !== 'quoted' && o.state !== 'selected') continue
         const summary = formatOfferQuoteSummary(o)
-        const who = client || `T-${t.ref}`
+        const who = client || tripIdLabel
         out.submitted_quotes.push({
           kind: 'offer_quote',
           id: o.id,
