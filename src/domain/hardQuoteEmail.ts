@@ -14,6 +14,11 @@ export type HardQuoteEmailInput = {
   acceptUrl?: string | null
   /** Absolute URL to ONFLYAIR wordmark for email header */
   logoUrl?: string | null
+  /**
+   * Ground / forklift / after-hours notes (client-safe).
+   * Timeline detail remains on the accept page + ETA sheet.
+   */
+  opsNotes?: string[]
 }
 
 export function hardQuoteEmailSubject(title: string): string {
@@ -46,6 +51,9 @@ export function renderHardQuoteEmailText(input: HardQuoteEmailInput): string {
     '',
     ...blocks.flatMap((b, i) => (i === 0 ? [b] : ['', b])),
   ]
+  if (input.opsNotes?.length) {
+    lines.push('', 'Ground & ops notes:', ...input.opsNotes.map((n) => `• ${n}`))
+  }
   if (input.acceptUrl) {
     lines.push('', `Accept / Deny / Change request: ${input.acceptUrl}`)
   }
@@ -104,6 +112,15 @@ export function renderHardQuoteEmailHtml(input: HardQuoteEmailInput): string {
     })
     .join('')
 
+  const opsBlock = input.opsNotes?.length
+    ? `<div style="margin:0 0 20px;padding:14px 16px;border:1px solid #e5dfd0;border-radius:8px;background:#faf8f2">
+        <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#6b6560;margin:0 0 8px">Ground &amp; ops</div>
+        <ul style="margin:0;padding-left:18px;color:#2a2a2e;font-size:13px;line-height:1.45">
+          ${input.opsNotes.map((n) => `<li style="margin:0 0 6px">${escapeHtml(n)}</li>`).join('')}
+        </ul>
+      </div>`
+    : ''
+
   const acceptBlock = input.acceptUrl
     ? `<p style="margin:8px 0 0 0">
         <a href="${escapeAttr(input.acceptUrl)}"
@@ -127,6 +144,7 @@ export function renderHardQuoteEmailHtml(input: HardQuoteEmailInput): string {
           Operated by a vetted Part 135 carrier
         </p>
         ${optionBlocks}
+        ${opsBlock}
         ${acceptBlock}
         <p style="margin:24px 0 0;font-size:12px;color:#9a948a;line-height:1.5">
           Times are estimated from Go and may shift. Local times use the stop airport zone; Zulu shown for ops coordination.

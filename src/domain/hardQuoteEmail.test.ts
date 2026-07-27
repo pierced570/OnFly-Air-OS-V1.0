@@ -25,6 +25,10 @@ describe('hardQuoteEmail', () => {
       options: [opt],
       acceptUrl: 'https://app.example/accept/abc',
       logoUrl: 'https://app.example/brand/onfly-logo.png',
+      opsNotes: [
+        'Ground transport on timeline — pickup / delivery legs included on this ETA sheet.',
+        'Forklift required at cargo airports — confirm FBO capacity.',
+      ],
     })
     expect(html).toContain('onfly-logo.png')
     expect(html).toContain('Option A: Citation CJ3')
@@ -35,6 +39,8 @@ describe('hardQuoteEmail', () => {
     expect(html).toContain('All taxes and fees included')
     expect(html).toContain('vetted Part 135 carrier')
     expect(html).toContain('Review — Accept / Deny / Change request')
+    expect(html).toContain('Ground &amp; ops')
+    expect(html).toContain('Forklift required')
     expect(html).not.toMatch(/Pmoney|vendor cost|target margin|NET \$/i)
     expect(hardQuoteEmailSubject('Logistics Quote Request (KCAK → KHPN)')).toContain(
       'OnFly Air',

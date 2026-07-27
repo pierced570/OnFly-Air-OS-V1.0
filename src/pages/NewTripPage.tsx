@@ -168,10 +168,16 @@ export default function NewTripPage() {
       const maps = createMapsAdapter()
       const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
       const { getClient, clientRulesForRouting } = await import('@/lib/clientStore')
-      const { fboFeesForAirport } = await import('@/lib/fboStore')
+      const { resolveOriginDestFboFees } = await import('@/lib/fboOpsFees')
       const client = request.client_id ? getClient(request.client_id) : undefined
-      const originFees = fboFeesForAirport(originAp.icao)
-      const destFees = fboFeesForAirport(destAp.icao)
+      const fboFees = resolveOriginDestFboFees({
+        originIcao: originAp.icao,
+        destIcao: destAp.icao,
+        originAtIso: request.ready_at,
+        destAtIso: request.hard_deadline_at || request.ready_at,
+        originTz: originAp.tz,
+        destTz: destAp.tz,
+      })
       const t0 = performance.now()
       const priors = await loadPricingPriors()
       const doorShipper =
@@ -227,9 +233,9 @@ export default function NewTripPage() {
         {
           fleetStatusByTail: radar,
           fboFees: {
-            origin: originFees.fee,
-            dest: destFees.fee,
-            notes: [...originFees.reasoning, ...destFees.reasoning],
+            origin: fboFees.origin,
+            dest: fboFees.dest,
+            notes: fboFees.notes,
           },
           matrix: getRecommendMatrix(),
           priorRatePerNm: (typeName, operatorId) =>

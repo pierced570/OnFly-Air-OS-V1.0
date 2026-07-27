@@ -85,6 +85,15 @@ export default function TripPage() {
             },
           })
         })
+        const { applyTripOpsFlags } = await import('@/lib/applyTripOpsFlags')
+        applyTripOpsFlags(
+          trip.id,
+          rows.map((r) => ({
+            icao: r.icao,
+            flightCat: r.flightCat,
+            tafWorstCat: r.tafWorstCat,
+          })),
+        )
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,6 +397,14 @@ export default function TripPage() {
                     <span className="inline-flex items-center gap-1 text-[11px] text-muted">
                       TAF
                       <FlightCatBadge cat={b.tafWorstCat} size="sm" />
+                    </span>
+                  )}
+                  {(b.flightCat === 'IFR' ||
+                    b.flightCat === 'LIFR' ||
+                    b.tafWorstCat === 'IFR' ||
+                    b.tafWorstCat === 'LIFR') && (
+                    <span className="rounded border border-late/50 bg-late/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-late">
+                      Flagged
                     </span>
                   )}
                 </div>

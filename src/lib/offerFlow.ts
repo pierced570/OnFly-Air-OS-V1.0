@@ -703,8 +703,23 @@ export async function selectOffersAndHardQuote(
       buildHardQuoteEmailPayload,
       renderHardQuoteEmail,
     } = await import('@/lib/hardQuoteEmail')
+    const { buildOpsSheetNotes } = await import('@/domain/opsFlags')
+    const liveTrip = getTrip(tripId)!
+    const hasTruck = (liveTrip.eta_chain ?? []).some(
+      (l) => l.branch === 'truck' || l.type.startsWith('truck'),
+    )
+    const clientOpsNotes = buildOpsSheetNotes({
+      pattern: liveTrip.service_pattern,
+      hasTruckLegs: hasTruck,
+      forkliftLevel: liveTrip.forklift_required
+        ? 'required'
+        : liveTrip.forklift_recommended
+          ? 'recommended'
+          : 'none',
+      flags: [],
+    })
     const payload = buildHardQuoteEmailPayload({
-      trip: getTrip(tripId)!,
+      trip: liveTrip,
       options: options.map((o) => ({
         offer_id: o.offer_id,
         label: o.label,
@@ -716,8 +731,14 @@ export async function selectOffersAndHardQuote(
       })),
       acceptUrl: `/accept/${accept_token}`,
       goAtIso: sentAt,
+      opsNotes: clientOpsNotes,
     })
     const rendered = renderHardQuoteEmail(payload)
+
+    // Process flags (after-hours / forklift gaps) — desk + Board, not client email.
+    void import('@/lib/applyTripOpsFlags').then((m) =>
+      m.applyTripOpsFlags(tripId),
+    )
 
     for (const cell of recipientCells(trip)) {
       await comms.send({
