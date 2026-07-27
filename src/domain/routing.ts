@@ -14,11 +14,62 @@ import {
 import type { MapsAdapter } from '@/adapters/maps'
 import { haversineNm } from '@/domain/geo'
 import type { LatLon } from '@/adapters/maps'
+import { lookupAirport } from '@/domain/airports'
 import {
   radarRankPenalty,
   type FleetStatus,
   type FlightPhase,
 } from '@/domain/fleetStatus'
+
+/** Resolve aircraft home base coords — never pretend a distant ICAO is at origin. */
+function resolveAircraftBase(
+  ac: AircraftCandidateSource,
+  origin: LatLon & { icao?: string; tz?: string },
+): {
+  base: LatLon & { icao?: string; tz?: string }
+  unresolvedIcao: boolean
+} {
+  if (ac.base && Number.isFinite(ac.base.lat) && Number.isFinite(ac.base.lon)) {
+    return {
+      base: {
+        lat: ac.base.lat,
+        lon: ac.base.lon,
+        icao: ac.base.icao ?? ac.base_icao ?? undefined,
+        tz: ac.base.tz,
+      },
+      unresolvedIcao: false,
+    }
+  }
+  if (ac.base_icao) {
+    const ap = lookupAirport(ac.base_icao)
+    if (ap) {
+      return {
+        base: { lat: ap.lat, lon: ap.lon, icao: ap.icao, tz: ap.tz },
+        unresolvedIcao: false,
+      }
+    }
+    // Keep the ICAO label but do not fall back to origin lat/lon — that
+    // zeroed reposition and crowned distant jets as "fastest".
+    return {
+      base: {
+        lat: origin.lat,
+        lon: origin.lon,
+        icao: ac.base_icao,
+        tz: origin.tz,
+      },
+      unresolvedIcao: true,
+    }
+  }
+  return {
+    base: {
+      lat: origin.lat,
+      lon: origin.lon,
+      icao: origin.icao,
+      tz: origin.tz,
+    },
+    unresolvedIcao: false,
+  }
+}
 
 export type ClientRules = {
   dual_pilot_required?: boolean
@@ -291,15 +342,21 @@ export async function generateCandidates(
       confidence -= 0.25
     }
 
-    const base: LatLon & { icao?: string; tz?: string } = ac.base ?? {
-      lat: origin.lat,
-      lon: origin.lon,
-      icao: ac.base_icao ?? undefined,
-      tz: origin.tz,
+    const { base, unresolvedIcao } = resolveAircraftBase(ac, origin)
+    if (unresolvedIcao) {
+      needsInfo.push('base coords')
+      confidence -= 0.35
+      reasoning.push(
+        `base ${ac.base_icao} not in catalog — reposition unknown (not assumed at origin)`,
+      )
     }
 
     const legNm = haversineNm(origin.lat, origin.lon, dest.lat, dest.lon)
-    const posNm = haversineNm(base.lat, base.lon, origin.lat, origin.lon)
+    // Unresolved ICAO: treat reposition as unknown long-haul so they cannot
+    // win "fastest" / cheap circuit on a fake zero-mile repo.
+    const posNm = unresolvedIcao
+      ? 2500
+      : haversineNm(base.lat, base.lon, origin.lat, origin.lon)
     const circuitNm = posNm + legNm + legNm * 0.05 // small repo fudge
     if (ac.range_nm != null && circuitNm + PRICING_CONSTANTS.reserveNmEquiv > ac.range_nm) {
       hardFail = true
@@ -378,9 +435,10 @@ export async function generateCandidates(
     const price = Math.round((cost / (1 - margin)) * 100) / 100
 
     if (ac.base_icao) {
-      const nmFromOrigin = haversineNm(base.lat, base.lon, origin.lat, origin.lon)
       reasoning.push(
-        `closest capable: based ${ac.base_icao} ${Math.round(nmFromOrigin)} NM from origin`,
+        unresolvedIcao
+          ? `closest capable: based ${ac.base_icao} (coords unknown) — treated as distant`
+          : `closest capable: based ${ac.base_icao} ${Math.round(posNm)} NM from origin`,
       )
     }
 
@@ -413,6 +471,16 @@ export async function generateCandidates(
       consignee: trip.consignee,
       readyAtUtc: trip.ready_at,
       mode: trip.mode,
+      // Unresolved base coords must not inherit origin TTP (nm≈0 → callout default).
+      ...(unresolvedIcao
+        ? {
+            acftTtpMin: Math.round(
+              (2500 / (ac.cruise_kts && ac.cruise_kts > 0 ? ac.cruise_kts : 250)) *
+                60,
+            ) + 12,
+            acftTtpSource: 'assumed' as const,
+          }
+        : {}),
     }
     const chain = await buildChain(routing, maps, DEFAULT_LEG_DEFAULTS)
 
