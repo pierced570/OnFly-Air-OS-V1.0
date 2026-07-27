@@ -77,6 +77,11 @@ export type DispatchCard = {
   /** Per-operator rows for trip-offer cards. */
   recipients?: DispatchRecipient[]
   trip_id?: string
+  /**
+   * Dynamic queue data can be deleted from the waterfall.
+   * Hardcoded chrome (tools, drawer labels) never becomes a card.
+   */
+  deletable: boolean
 }
 
 function requestSourceLabel(source: string): string {
@@ -178,6 +183,7 @@ export function buildDispatchDrawers(input: {
       }${r.email ? ` · ${r.email}` : ''}`,
       href: `/trips/new?request=${r.id}`,
       ref: r.ref,
+      deletable: true,
     })
   }
 
@@ -249,6 +255,7 @@ export function buildDispatchDrawers(input: {
           ? recipients
           : undefined,
       trip_id: t.id,
+      deletable: true,
     })
 
     // Submitted quotes waterfall — each quoted operator as its own card.
@@ -267,6 +274,7 @@ export function buildDispatchDrawers(input: {
           href: `/dispatch?drawer=${focusDrawer}&focus=${t.id}`,
           ref: t.ref,
           trip_id: t.id,
+          deletable: true,
         })
       }
     }

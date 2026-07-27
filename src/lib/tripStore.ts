@@ -954,6 +954,42 @@ export function deleteTrip(id: string): boolean {
   return true
 }
 
+/**
+ * Remove one operator offer from a trip (waterfall cleanup).
+ * Does not change trip state. Persists offer orphan deletes to DB.
+ */
+export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
+  const trip = trips.get(tripId)
+  if (!trip) return false
+  const before = trip.offers.length
+  const removed = trip.offers.find((o) => o.id === offerId)
+  if (!removed) return false
+  mutateTrip(tripId, (t) => {
+    t.offers = t.offers.filter((o) => o.id !== offerId)
+    if (t.hard_quote?.options?.length) {
+      t.hard_quote.options = t.hard_quote.options.filter(
+        (o) => o.offer_id !== offerId,
+      )
+      if (t.hard_quote.options.length) {
+        t.hard_quote.total = Math.min(
+          ...t.hard_quote.options.map((o) => o.client_total),
+        )
+      }
+    }
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'offer_removed',
+      payload: {
+        offer_id: offerId,
+        operator_name: removed.operator_name,
+        previous_count: before,
+      },
+    })
+  })
+  return true
+}
+
 /** Merge DB rows into session (does not wipe local-only trips still syncing). */
 export function replaceTripsFromDb(rows: TripStoreRow[]): void {
   if (!rows.length) return

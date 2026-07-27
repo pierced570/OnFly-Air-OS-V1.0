@@ -288,7 +288,22 @@ async function upsertOfferRow(
 }
 
 async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> {
-  if (!canPersist() || !offers.length) return
+  if (!canPersist() || !isUuid(tripId)) return
+  const keepIds = offers.map((o) => o.id).filter(isUuid)
+  // Drop offers removed from the desk waterfall (orphan cleanup).
+  if (keepIds.length) {
+    await safeQuery('offers.delete_orphans', () =>
+      db()
+        .from('offers')
+        .delete()
+        .eq('trip_id', tripId)
+        .not('id', 'in', `(${keepIds.join(',')})`),
+    )
+  } else {
+    await safeQuery('offers.delete_all', () =>
+      db().from('offers').delete().eq('trip_id', tripId),
+    )
+  }
   for (const o of offers) {
     if (!isUuid(o.id) || !o.magic_token?.trim()) {
       console.warn('[db] offer missing uuid/token — skip', o.operator_name)

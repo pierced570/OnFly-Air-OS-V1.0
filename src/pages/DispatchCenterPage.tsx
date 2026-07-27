@@ -45,6 +45,7 @@ import {
   deleteTrip,
   getTrip,
   listTripsStable,
+  removeOfferFromTrip,
   subscribeTrips,
 } from '@/lib/tripStore'
 
@@ -132,57 +133,41 @@ function Drawer({
 
 function CardList({
   cards,
-  onDeleteRequest,
-  onDeleteTrip,
+  onDeleteCard,
 }: {
   cards: DispatchCard[]
-  onDeleteRequest?: (id: string, title: string) => void
-  onDeleteTrip?: (tripId: string, title: string) => void
+  onDeleteCard: (card: DispatchCard) => void
 }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
   return (
     <ul className="space-y-2">
-      {cards.map((c) => {
-        const tripId = c.trip_id ?? (c.kind === 'trip' ? c.id : undefined)
-        return (
-          <li
-            key={`${c.kind}-${c.id}`}
-            className="flex items-stretch gap-2 rounded-md border border-border/70 bg-ink"
+      {cards.map((c) => (
+        <li
+          key={`${c.kind}-${c.id}`}
+          className="flex items-stretch gap-2 rounded-md border border-border/70 bg-ink"
+        >
+          <Link
+            to={c.href}
+            className="min-w-0 flex-1 px-3 py-3 hover:bg-surface-2/40"
           >
-            <Link
-              to={c.href}
-              className="min-w-0 flex-1 px-3 py-3 hover:bg-surface-2/40"
+            <div className="font-medium text-cream">{c.title}</div>
+            <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+          </Link>
+          {c.deletable ? (
+            <button
+              type="button"
+              aria-label={`Delete ${c.title}`}
+              title="Delete"
+              onClick={() => onDeleteCard(c)}
+              className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
             >
-              <div className="font-medium text-cream">{c.title}</div>
-              <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-            </Link>
-            {c.kind === 'request' && onDeleteRequest ? (
-              <button
-                type="button"
-                aria-label={`Delete ${c.title}`}
-                title="Delete request"
-                onClick={() => onDeleteRequest(c.id, c.title)}
-                className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
-              >
-                Delete
-              </button>
-            ) : null}
-            {tripId && onDeleteTrip && c.kind !== 'request' ? (
-              <button
-                type="button"
-                aria-label={`Delete trip ${c.title}`}
-                title="Delete trip"
-                onClick={() => onDeleteTrip(tripId, c.title)}
-                className="shrink-0 px-3 text-xs text-muted hover:bg-late/10 hover:text-late"
-              >
-                Delete
-              </button>
-            ) : null}
-          </li>
-        )
-      })}
+              Delete
+            </button>
+          ) : null}
+        </li>
+      ))}
     </ul>
   )
 }
@@ -313,12 +298,14 @@ function OfferTripList({
   cards,
   focusTripId,
   onAcknowledgeDeclined,
-  onDeleteTrip,
+  onDeleteCard,
+  onDeleteOffer,
 }: {
   cards: DispatchCard[]
   focusTripId?: string | null
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
-  onDeleteTrip?: (tripId: string, title: string) => void
+  onDeleteCard: (card: DispatchCard) => void
+  onDeleteOffer: (tripId: string, offerId: string, name: string) => void
 }) {
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
   const [addingTripId, setAddingTripId] = useState<string | null>(null)
@@ -361,9 +348,22 @@ function OfferTripList({
                 : 'border-border/70',
             ].join(' ')}
           >
-            <div className="font-medium text-cream">{c.title}</div>
-            <div className="mt-0.5 font-mono text-sm text-gold/90">
-              {c.subtitle}
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-medium text-cream">{c.title}</div>
+                <div className="mt-0.5 font-mono text-sm text-gold/90">
+                  {c.subtitle}
+                </div>
+              </div>
+              {c.deletable ? (
+                <button
+                  type="button"
+                  className="shrink-0 text-xs text-muted hover:text-late"
+                  onClick={() => onDeleteCard(c)}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
             {c.recipients && c.recipients.length > 0 ? (
               <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">
@@ -374,7 +374,20 @@ function OfferTripList({
                       className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
                     >
                       <span className="text-cream/80">{r.name}</span>
-                      <span className="text-muted">unavailable</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted">unavailable</span>
+                        {c.trip_id ? (
+                          <button
+                            type="button"
+                            className="text-xs text-muted hover:text-late"
+                            onClick={() =>
+                              onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                            }
+                          >
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
                     </li>
                   ) : (
                   <li
@@ -433,6 +446,17 @@ function OfferTripList({
                       >
                         Copy link
                       </button>
+                      {c.trip_id ? (
+                        <button
+                          type="button"
+                          className="text-muted hover:text-late"
+                          onClick={() =>
+                            onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                          }
+                        >
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                   </li>
                   ),
@@ -527,15 +551,6 @@ function OfferTripList({
                   {editing ? 'Close update' : 'Update request'}
                 </button>
               ) : null}
-              {c.trip_id && onDeleteTrip ? (
-                <button
-                  type="button"
-                  className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted hover:border-late/50 hover:text-late"
-                  onClick={() => onDeleteTrip(c.trip_id!, c.title)}
-                >
-                  Delete trip
-                </button>
-              ) : null}
             </div>
           </li>
         )
@@ -590,20 +605,44 @@ export default function DispatchCenterPage() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [focusTripId, openDrawer, trips])
 
-  function removeTripRequest(id: string, title: string) {
-    if (!window.confirm(`Delete trip request?\n\n${title}`)) return
-    deleteRequest(id)
-  }
-
-  function removeTripFromQueue(tripId: string, title: string) {
+  function removeWaterfallCard(card: DispatchCard) {
+    if (!card.deletable) return
+    if (card.kind === 'request') {
+      if (!window.confirm(`Delete trip request?\n\n${card.title}`)) return
+      deleteRequest(card.id)
+      return
+    }
+    if (card.kind === 'offer_quote' && card.trip_id) {
+      if (
+        !window.confirm(
+          `Remove this submitted quote from the queue?\n\n${card.title}`,
+        )
+      ) {
+        return
+      }
+      removeOfferFromTrip(card.trip_id, card.id)
+      return
+    }
+    const tripId = card.trip_id ?? card.id
     if (
       !window.confirm(
-        `Delete this trip from the queue?\n\n${title}\n\nThis removes the trip and its offers. Cannot be undone.`,
+        `Delete this trip from the queue?\n\n${card.title}\n\nThis removes the trip and its offers. Cannot be undone.`,
       )
     ) {
       return
     }
     deleteTrip(tripId)
+  }
+
+  function removeOfferRow(tripId: string, offerId: string, name: string) {
+    if (
+      !window.confirm(
+        `Remove ${name} from this trip?\n\nTheir offer link will stop working.`,
+      )
+    ) {
+      return
+    }
+    removeOfferFromTrip(tripId, offerId)
   }
 
   const buckets = useMemo(
@@ -774,17 +813,13 @@ export default function DispatchCenterPage() {
                   console.warn('[dispatch] acknowledge declined', e),
                 )
               }}
-              onDeleteTrip={removeTripFromQueue}
+              onDeleteCard={removeWaterfallCard}
+              onDeleteOffer={removeOfferRow}
             />
           ) : (
             <CardList
               cards={buckets[d.id]}
-              onDeleteRequest={
-                d.id === 'requests' ? removeTripRequest : undefined
-              }
-              onDeleteTrip={
-                d.id === 'requests' ? undefined : removeTripFromQueue
-              }
+              onDeleteCard={removeWaterfallCard}
             />
           )}
         </Drawer>
