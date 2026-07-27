@@ -112,14 +112,8 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   return (
     <div className="mt-3 space-y-3 rounded-md border border-gold/40 bg-ink/50 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <div className="text-[11px] uppercase tracking-wider text-gold">
-            Quotes & pricing
-          </div>
-          <p className="mt-0.5 text-xs text-muted">
-            Operator NET, then margin / tax / client total — send hard quotes
-            without leaving Dispatch.
-          </p>
+        <div className="text-[11px] uppercase tracking-wider text-gold">
+          Quotes & pricing
         </div>
         {onClose ? (
           <button
@@ -134,26 +128,20 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
 
       {error ? <p className="text-sm text-late">{error}</p> : null}
 
-      <label className="flex flex-wrap items-end gap-3 text-xs text-muted">
-        <span>
-          Desk margin %
-          <input
-            type="number"
-            min={0}
-            step={0.5}
-            className="mt-1 block w-24 rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
-            value={marginPct}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              setMarginPct(Number.isFinite(n) ? n : DEFAULT_OFFER_MARGIN_PCT)
-              setClientEdits({})
-            }}
-          />
-        </span>
-        <span className="pb-1 text-[11px] text-muted">
-          Applied when computing client totals from operator NET (tax
-          table-driven).
-        </span>
+      <label className="block text-xs text-muted">
+        Desk margin %
+        <input
+          type="number"
+          min={0}
+          step={0.5}
+          className="mt-1 block w-24 rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
+          value={marginPct}
+          onChange={(e) => {
+            const n = Number(e.target.value)
+            setMarginPct(Number.isFinite(n) ? n : DEFAULT_OFFER_MARGIN_PCT)
+            setClientEdits({})
+          }}
+        />
       </label>
 
       <ul className="space-y-2">
@@ -272,7 +260,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               {showPricing && preview ? (
                 <div className="mt-2 space-y-2 rounded border border-gold/25 bg-ink/60 p-2.5">
                   <div className="text-[11px] uppercase tracking-wider text-gold/90">
-                    Client pricing (internal)
+                    Client pricing
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="font-mono text-[11px] text-muted space-y-0.5">
