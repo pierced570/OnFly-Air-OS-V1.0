@@ -16,7 +16,13 @@ import {
   type TripStoreRow,
 } from '@/lib/tripStore'
 
-export async function runOnBookedAutomations(tripId: string): Promise<{
+export async function runOnBookedAutomations(
+  tripId: string,
+  opts?: {
+    /** Desk sends ETA from Approved actions panel — skip auto blast. */
+    skipEtaEmail?: boolean
+  },
+): Promise<{
   etaSentTo: string[]
   checkpoints: number
 }> {
@@ -36,6 +42,10 @@ export async function runOnBookedAutomations(tripId: string): Promise<{
 
   // Timers for T-minus check-ins with pilot / ground / on-shift
   const scheduled = scheduleCheckpointsForTrip(tripId)
+
+  if (opts?.skipEtaEmail) {
+    return { etaSentTo: [], checkpoints: scheduled.length }
+  }
 
   const recipients = resolveTrackerRecipients(trip)
   if (!recipients.length) {

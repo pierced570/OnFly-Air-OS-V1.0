@@ -46,6 +46,7 @@ describe('dispatchCenter', () => {
         {
           id: 't1',
           ref: 1,
+          code: 'PS001',
           lane: 'KCAK→KMDW',
           state: 'offers_out',
           client_name: 'PSA Airlines',
@@ -112,7 +113,8 @@ describe('dispatchCenter', () => {
     expect(buckets.requests).toHaveLength(1)
     expect(buckets.offers[0]?.href).toContain('/dispatch?drawer=offers&focus=')
     expect(buckets.offers[0]?.title).toBe('PSA Airlines · KCAK→KMDW')
-    expect(buckets.offers[0]?.subtitle).toMatch(/T-1/)
+    expect(buckets.offers[0]?.subtitle).toBe('PS001')
+    expect(buckets.offers[0]?.subtitle).not.toMatch(/yes|awaiting|quoted/)
     expect(buckets.offers[0]?.recipients).toHaveLength(4)
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air'))
       .toMatchObject({
@@ -147,6 +149,25 @@ describe('dispatchCenter', () => {
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
     expect(buckets.tracking[0]?.href).toContain('/trips/')
+  })
+
+  it('shows Client TBD when no client name is known', () => {
+    const buckets = buildDispatchDrawers({
+      requests: [],
+      trips: [
+        {
+          id: 't-noclient',
+          ref: 7,
+          code: 'ZZ007',
+          lane: 'KCAK→KHPN',
+          state: 'offers_out',
+          legs: [],
+          offers: [],
+        },
+      ],
+    })
+    expect(buckets.offers[0]?.title).toBe('Client TBD · KCAK→KHPN')
+    expect(buckets.offers[0]?.subtitle).toBe('ZZ007')
   })
 
   it('collapses acknowledged declines to unavailable', () => {

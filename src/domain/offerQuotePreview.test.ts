@@ -40,4 +40,27 @@ describe('offerQuotePreview', () => {
     expect(formatMinutes(40)).toBe('40m')
     expect(formatMinutes(null)).toBe('—')
   })
+
+  it('honors desk margin % override', () => {
+    const p = buildOfferQuotePreview(
+      {
+        offer_id: 'o1',
+        operator_name: 'Pmoney',
+        tail: 'N173WT',
+        price_net: 4000,
+        time_to_position_min: 90,
+        quick_turn_min: 40,
+        live_leg_min: 75,
+        fee_scope: 'aircraft_and_fees',
+        mtow_lbs: 12500,
+        payload_kind: 'cargo',
+        margin_pct: 25,
+      },
+      TEST_TAX_RATES_2026,
+      0,
+    )
+    expect(p.margin_pct).toBe(25)
+    // Margin-on-sell: 4000 / (1 - 0.25) ≈ 5333
+    expect(p.client_air).toBe(5333)
+  })
 })

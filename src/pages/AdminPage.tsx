@@ -10,10 +10,7 @@ import { addClient, type ContactRole } from '@/lib/clientStore'
 import { addFbo } from '@/lib/fboStore'
 import { addNeedsInfoTask } from '@/lib/needsInfoStore'
 import { saveOperatorDraft } from '@/lib/operatorDraftStore'
-import {
-  parseD085File,
-  type D085ParseResult,
-} from '@/lib/parseD085File'
+import { parseAndMatchD085 } from '@/lib/d085Review'
 import {
   ensureOperatorCompliance,
   setOperatorDocExpiry,
@@ -26,7 +23,7 @@ import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
 import { ClientInvitePanel } from '@/components/ClientInvitePanel'
 import { VendorInvitePanel } from '@/components/VendorInvitePanel'
 import { listAdapterDoorStatus } from '@/lib/adapterStatus'
-import type { D085AircraftRow } from '@/domain/d085Parse'
+import type { D085ReviewRow } from '@/domain/d085Match'
 import {
   ETA_DEFAULT_LABELS,
   getEtaDefaults,
@@ -266,10 +263,11 @@ function OperatorWizard() {
   const [dual, setDual] = useState(false)
   const [night, setNight] = useState('Case-by-case')
   const [d085Name, setD085Name] = useState('')
-  const [parsed, setParsed] = useState<D085AircraftRow[]>([])
-  const [d085Meta, setD085Meta] = useState<Pick<D085ParseResult, 'source' | 'note'> | null>(
-    null,
-  )
+  const [parsed, setParsed] = useState<D085ReviewRow[]>([])
+  const [d085Meta, setD085Meta] = useState<{
+    source?: string
+    note?: string
+  } | null>(null)
   const [d085Busy, setD085Busy] = useState(false)
   const [selectedTails, setSelectedTails] = useState<string[]>([])
   const [rates, setRates] = useState('')
@@ -279,10 +277,12 @@ function OperatorWizard() {
     setD085Busy(true)
     setD085Name(file.name)
     try {
-      const result = await parseD085File(file)
+      const result = await parseAndMatchD085(file)
       setParsed(result.rows)
       setD085Meta({ source: result.source, note: result.note })
-      setSelectedTails(result.rows.filter((r) => r.matched).map((r) => r.tail))
+      setSelectedTails(
+        result.rows.filter((r) => r.default_accept).map((r) => r.tail),
+      )
     } finally {
       setD085Busy(false)
     }
@@ -598,8 +598,9 @@ function OperatorWizard() {
       {step === 4 && (
         <div className="space-y-3">
           <p className="text-sm text-muted">
-            Upload D085 → Claude extract (verify every tail before save). Prefer a
-            text export when the PDF is a scan. File is also kept on Documents.
+            Upload D085 → match existing Network tails. New N-numbers stay
+            unchecked until you confirm details. Prefer a text export when the
+            PDF is a scan.
           </p>
           <input
             type="file"
@@ -649,9 +650,21 @@ function OperatorWizard() {
                     <div className="min-w-0">
                       <div className="avionic text-gold">{r.tail}</div>
                       <div className="text-sm text-cream">{r.type_name}</div>
-                      {r.conflict && (
+                      <div
+                        className={[
+                          'mt-0.5 text-xs',
+                          r.match_kind === 'linked'
+                            ? 'text-onplan'
+                            : r.match_kind === 'conflict'
+                              ? 'text-late'
+                              : 'text-gold',
+                        ].join(' ')}
+                      >
+                        {r.match_label}
+                      </div>
+                      {r.conflict && r.match_kind !== 'linked' ? (
                         <div className="mt-0.5 text-xs text-late">{r.conflict}</div>
-                      )}
+                      ) : null}
                     </div>
                   </li>
                 ))}
@@ -663,7 +676,7 @@ function OperatorWizard() {
                       <th className="py-2 pr-2">Use</th>
                       <th className="py-2 pr-2">Tail</th>
                       <th className="py-2 pr-2">Type</th>
-                      <th className="py-2">Flags</th>
+                      <th className="py-2">Network match</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -688,8 +701,17 @@ function OperatorWizard() {
                         </td>
                         <td className="avionic py-2 pr-2">{r.tail}</td>
                         <td className="py-2 pr-2">{r.type_name}</td>
-                        <td className="py-2 text-xs text-late">
-                          {r.conflict ?? '—'}
+                        <td
+                          className={[
+                            'py-2 text-xs',
+                            r.match_kind === 'linked'
+                              ? 'text-onplan'
+                              : r.match_kind === 'conflict'
+                                ? 'text-late'
+                                : 'text-gold',
+                          ].join(' ')}
+                        >
+                          {r.match_label}
                         </td>
                       </tr>
                     ))}

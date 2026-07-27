@@ -198,6 +198,40 @@ export function updateFbo(
   return row
 }
 
+export function deleteFbo(id: string): boolean {
+  if (!fbos.has(id)) return false
+  fbos.delete(id)
+  rebuild()
+  for (const l of listeners) l()
+  void import('@/lib/db/persist').then((m) => m.deleteFboFromDb(id))
+  return true
+}
+
+/** Flag common gaps so the board surfaces NEEDS-INFO. */
+export function fboNeedsInfoFrom(row: Pick<
+  FboRow,
+  | 'phone'
+  | 'after_hours_phone'
+  | 'is_24hr'
+  | 'forklift'
+  | 'forklift_capacity_lbs'
+  | 'gl_insurance'
+  | 'fee_handling'
+  | 'street'
+>): string[] {
+  const needs: string[] = []
+  if (!row.phone.trim()) needs.push('phone')
+  if (!row.is_24hr && !row.after_hours_phone.trim()) {
+    needs.push('after_hours_phone')
+  }
+  if (row.forklift && row.forklift_capacity_lbs == null) {
+    needs.push('forklift_capacity_lbs')
+  }
+  if (row.fee_handling == null) needs.push('fee_handling')
+  if (!row.street.trim()) needs.push('street')
+  return needs
+}
+
 /** Prefer 24hr + forklift + insured for cargo airport choice. */
 export function rankFbosForCargo(icao: string): FboRow[] {
   return snapshot

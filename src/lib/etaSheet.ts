@@ -179,7 +179,7 @@ export function computeEtaSheetFromBookedTrip(
     ? ''
     : trip.quick?.operator_name || selected?.operator_name || ''
   const aircraft_type = trip.quick?.aircraft_type || selected?.type_name || ''
-  const po = trip.quick?.po || `T-${trip.ref}`
+  const po = trip.po_number?.trim() || trip.quick?.po?.trim() || `T-${trip.ref}`
 
   if (!chain.length) {
     if (trip.quick) {
@@ -196,7 +196,50 @@ export function computeEtaSheetFromBookedTrip(
         mileage: null,
       }
     }
-    return null
+    // Fall back to trip.legs when eta_chain not materialized yet.
+    if (trip.legs.length) {
+      const lines: EtaSheetLine[] = trip.legs.map((l, idx) => ({
+        seq: l.seq ?? idx + 1,
+        leg_label: l.label || `Leg ${idx + 1}`,
+        event: l.label || '',
+        pickup_location: (l.origin || '—').toUpperCase(),
+        where_going: (l.dest || '—').toUpperCase(),
+        pickup_time_zulu: l.est_start
+          ? zuluOnly(l.est_start)
+          : '—',
+        depart_time_zulu: l.est_start ? zuluOnly(l.est_start) : '—',
+        arrive_time_zulu: l.est_end ? zuluOnly(l.est_end) : '—',
+        est_display: l.est_end || '—',
+        actual_display: null,
+        source: 'leg',
+        slack_min: null,
+        duration_min: 0,
+      }))
+      return {
+        tail,
+        po,
+        operator_name,
+        aircraft_type,
+        pattern: trip.service_pattern ?? null,
+        promised_delivery_display: null,
+        projected_delivery_display: null,
+        delta_min: null,
+        lines,
+        mileage: null,
+      }
+    }
+    return {
+      tail,
+      po,
+      operator_name,
+      aircraft_type,
+      pattern: trip.service_pattern ?? null,
+      promised_delivery_display: null,
+      projected_delivery_display: null,
+      delta_min: null,
+      lines: [],
+      mileage: null,
+    }
   }
 
   const promised = trip.promised_delivery ?? chain[chain.length - 1]?.est_end ?? null

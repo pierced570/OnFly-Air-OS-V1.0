@@ -1,13 +1,24 @@
 /**
- * Operator recommendation matrix — mission inputs → scored candidates.
- * Reuses desk routing recommend (generateCandidates spine). Approve-don't-enter.
+ * Recommendation matrix — the scoring system for trip operator shortlists.
+ * Edit knobs here; Dispatch / Parse / Send-to-new-operator all reuse them
+ * via recommendForDeskDraft → generateCandidates.
  */
 
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { FlightChip } from '@/components/FlightChip'
+import {
+  RECOMMEND_MATRIX_LABELS,
+  type RecommendMatrixConfig,
+} from '@/domain/recommendMatrix'
 import type { Candidate } from '@/domain/routing'
+import {
+  getRecommendMatrix,
+  resetRecommendMatrix,
+  setRecommendMatrixField,
+  subscribeRecommendMatrix,
+} from '@/lib/recommendMatrixStore'
 import {
   newDeskLeg,
   recommendForDeskDraft,
@@ -44,7 +55,105 @@ function labelBadge(c: Candidate): string | null {
   return null
 }
 
+const FIELD_ORDER: (keyof RecommendMatrixConfig)[] = [
+  'weight_price',
+  'weight_time',
+  'weight_radar',
+  'target_margin_pct',
+  'recommend_limit',
+  'truck_per_mile',
+  'truck_min',
+  'payload_factor',
+  'reserve_nm',
+  'door_diagonal_factor',
+  'unresolved_base_nm',
+]
+
+function MatrixSettingsPanel() {
+  const matrix = useSyncExternalStore(
+    subscribeRecommendMatrix,
+    getRecommendMatrix,
+    getRecommendMatrix,
+  )
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="rounded-lg border border-gold/30 bg-gold/5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wider text-gold">
+            Scoring settings
+          </div>
+          <p className="mt-0.5 text-xs text-muted">
+            Changes apply to Dispatch recommend, Parse & shortlist, and this
+            matrix — no code deploy needed.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="text-xs text-gold hover:text-gold-lt"
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? 'Hide settings' : 'Edit settings'}
+          </button>
+          {open ? (
+            <button
+              type="button"
+              className="text-xs text-muted hover:text-cream"
+              onClick={() => resetRecommendMatrix()}
+            >
+              Reset defaults
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {open ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {FIELD_ORDER.map((key) => (
+            <label key={key} className="block text-xs text-muted">
+              {RECOMMEND_MATRIX_LABELS[key]}
+              <input
+                type="number"
+                step={
+                  key.startsWith('weight_') ||
+                  key === 'payload_factor' ||
+                  key === 'door_diagonal_factor'
+                    ? 0.01
+                    : key === 'recommend_limit'
+                      ? 1
+                      : 0.5
+                }
+                min={0}
+                className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 font-mono text-sm text-cream"
+                value={matrix[key]}
+                onChange={(e) => {
+                  const n = Number(e.target.value)
+                  if (!Number.isFinite(n)) return
+                  setRecommendMatrixField(key, n)
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 font-mono text-[11px] text-muted">
+          Best weights {matrix.weight_price.toFixed(2)}/
+          {matrix.weight_time.toFixed(2)}/{matrix.weight_radar.toFixed(2)} ·
+          margin {matrix.target_margin_pct}% · shortlist{' '}
+          {matrix.recommend_limit}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function RecommendationMatrixPanel() {
+  const matrix = useSyncExternalStore(
+    subscribeRecommendMatrix,
+    getRecommendMatrix,
+    getRecommendMatrix,
+  )
   const [origin, setOrigin] = useState('')
   const [dest, setDest] = useState('')
   const [pieces, setPieces] = useState('')
@@ -100,10 +209,13 @@ export function RecommendationMatrixPanel() {
           Recommendation matrix
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Score the network for a mission — door fit, payload, distance, cost,
-          and radar. Review before you send trip offers (desk / dispatch).
+          Internal scoring for trip operator shortlists — door fit, payload,
+          distance, cost, and radar. Dispatch “Send to new operator” and Parse
+          & shortlist use these same settings.
         </p>
       </header>
+
+      <MatrixSettingsPanel />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <AirportSelect
@@ -171,7 +283,9 @@ export function RecommendationMatrixPanel() {
       {lane && !error && (
         <p className="font-mono text-xs text-gold">
           {lane}
-          {rows.length ? ` · ${rows.length} candidates` : ''}
+          {rows.length
+            ? ` · ${rows.length}/${matrix.recommend_limit} candidates`
+            : ''}
         </p>
       )}
 
@@ -254,8 +368,8 @@ export function RecommendationMatrixPanel() {
         To send trip offers, use{' '}
         <Link to="/dispatch" className="text-gold hover:text-gold-lt">
           Dispatch center
-        </Link>{' '}
-        → Parse & shortlist (or Work tools). This matrix is for ranking only.
+        </Link>
+        . Shortlists there are scored with this matrix.
       </p>
     </div>
   )

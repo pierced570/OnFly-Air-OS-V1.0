@@ -88,8 +88,11 @@ describe('etaChain merge rule + patterns', () => {
     expect(meta.pattern).toBe('D2D')
     expect(legs.some((l) => l.branch === 'truck')).toBe(true)
     expect(legs.some((l) => l.duration_key === 'acft_ttp')).toBe(true)
-    expect(legs.find((l) => l.duration_key === 'acft_ttp')!.duration_min).toBe(120)
-    expect(legs.find((l) => l.duration_key === 'acft_ttp')!.source).toBe('assumed')
+    // Position = base→origin flight time (KCGF→KCAK), not flat 2:00 callout.
+    const ttp = legs.find((l) => l.duration_key === 'acft_ttp')!
+    expect(ttp.duration_min).toBe(21)
+    expect(ttp.distance_nm).toBeGreaterThan(30)
+    expect(ttp.source).toBe('assumed')
     const airLeg = legs.find((l) => l.type === 'air_leg')
     expect(airLeg).toBeTruthy()
     expect(DateTime.fromISO(airLeg!.est_start).toMillis()).toBeGreaterThanOrEqual(
@@ -118,6 +121,29 @@ describe('etaChain merge rule + patterns', () => {
     expect(legs.some((l) => l.branch === 'truck')).toBe(false)
     expect(legs.some((l) => l.type === 'truck_pickup')).toBe(false)
     expect(legs.some((l) => l.type === 'truck_delivery')).toBe(false)
+    // Co-located base uses callout default (not taxi-only).
+    expect(legs.find((l) => l.duration_key === 'acft_ttp')!.duration_min).toBe(120)
+  })
+
+  it('distant base position uses flight minutes, not flat acft_ttp', async () => {
+    const maps = new MockMapsAdapter()
+    const khum = AIRPORTS.KHUM!
+    const { legs } = await buildTripChain(
+      {
+        originAirport: { ...kcak, icao: 'KCAK', tz: kcak.tz },
+        destAirport: kmdw,
+        aircraftBase: { ...khum, icao: 'KHUM', tz: khum.tz },
+        cruiseKts: 470,
+        readyAtUtc: '2026-07-15T13:00:00.000Z',
+        mode: 'A2A',
+      },
+      maps,
+    )
+    const ttp = legs.find((l) => l.duration_key === 'acft_ttp')!
+    expect(ttp.distance_nm).toBeGreaterThan(800)
+    // ~817 NM ÷ 470 kts + taxi ≈ 116 — far above a local callout, not capped at 120.
+    expect(ttp.duration_min).toBeGreaterThan(100)
+    expect(ttp.duration_min).toBeLessThan(130)
   })
 
   it('quoted TTP 1:45 replaces 2:00 and shifts wheels-up', async () => {

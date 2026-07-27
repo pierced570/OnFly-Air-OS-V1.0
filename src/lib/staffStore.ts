@@ -66,7 +66,7 @@ function seedStaff(): StaffMember[] {
       name: 'Austin Ouellette',
       phone: '',
       is_admin: false,
-      sections: ['board', 'clients', 'network', 'briefing', 'trips', 'quotes'],
+      sections: ['board', 'clients', 'network', 'trips', 'quotes'],
       active: true,
     }),
   ]
