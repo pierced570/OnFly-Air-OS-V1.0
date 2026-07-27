@@ -22,6 +22,7 @@ import { hydrateRecommendMatrixFromDb } from '@/lib/recommendMatrixStore'
 import { hydrateShiftsFromDb } from '@/lib/shiftStore'
 import { hydratePresenceFromDb } from '@/lib/presenceStore'
 import { ensureStaffHydrated } from '@/lib/staffStore'
+import { hydrateRadarTracks } from '@/lib/radarTrackingStore'
 import { loadTaxRates } from '@/lib/taxRatesStore'
 
 export async function hydrateOperatingData(): Promise<{
@@ -51,6 +52,7 @@ export async function hydrateOperatingData(): Promise<{
     loadTaxRates(),
     loadPricingPriors(),
     hydrateRecommendMatrixFromDb(),
+    hydrateRadarTracks(),
   ])
 
   const clientRows = await safeQuery('clients', () =>
