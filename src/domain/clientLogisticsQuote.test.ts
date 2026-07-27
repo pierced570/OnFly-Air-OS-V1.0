@@ -28,6 +28,8 @@ describe('clientLogisticsQuote', () => {
     expect(opt.aircraft_type).toBe('Citation CJ3')
     expect(opt.price).toBe(5625)
     expect(opt.taxes_fees_note).toBe(CLIENT_QUOTE_TAXES_NOTE)
+    // Client surface never carries tail — only type.
+    expect(JSON.stringify(opt)).not.toMatch(/N[0-9]/
     expect(formatTtpFromGo(opt.ttp_min, opt.departure_label)).toContain(
       'from Go',
     )

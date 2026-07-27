@@ -435,7 +435,9 @@ export async function respondOfferAvailability(
 }
 
 export type OperatorQuoteInput = {
-  /** Operator-chosen tail — never pre-recommended on the offer board. */
+  /** Aircraft type — client-safe (shown on logistics quote). */
+  type_name?: string
+  /** Operator-chosen tail — desk/ops only; never on client quote. */
   tail?: string
   time_to_position_min: number
   /** Ground time at origin after position ETA (default 40). */
@@ -465,6 +467,9 @@ async function applyOfferQuote(
     throw new Error(`cannot quote from trip state ${trip.state}`)
   }
   const tail = input.tail?.trim().toUpperCase()
+  const typeName = input.type_name?.trim() || ''
+  if (!typeName) throw new Error('aircraft type is required')
+  if (!tail) throw new Error('tail number is required')
   const quickTurn =
     input.quick_turn_min != null && Number.isFinite(input.quick_turn_min)
       ? Math.max(0, Math.floor(input.quick_turn_min))
@@ -474,7 +479,8 @@ async function applyOfferQuote(
   const at = new Date().toISOString()
   mutateTrip(tripId, (t) => {
     const o = t.offers.find((x) => x.id === offerId)!
-    if (tail) o.tail = tail
+    o.type_name = typeName
+    o.tail = tail
     o.time_to_position_min = input.time_to_position_min
     o.quick_turn_min = quickTurn
     o.live_leg_min = input.live_leg_min
@@ -485,15 +491,24 @@ async function applyOfferQuote(
     o.notes = input.notes?.trim() || null
     if (o.state !== 'selected') o.state = 'quoted'
     if (!o.replied_at) o.replied_at = at
+    // Keep candidate label in sync for desk shortlist views.
+    const cand =
+      t.candidates.find((c) => c.aircraft_id === o.aircraft_id) ??
+      t.candidates.find((c) => c.tail === o.tail)
+    if (cand) {
+      cand.type_name = typeName
+      cand.tail = tail
+    }
     t.events.push({
       at,
       actor: meta.actor,
       kind: meta.kind,
       payload: {
         ...input,
+        type_name: typeName,
         price_net: price,
         quick_turn_min: quickTurn,
-        tail: tail || o.tail,
+        tail,
         offer_id: o.id,
         source: meta.source,
       },

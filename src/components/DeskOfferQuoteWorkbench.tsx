@@ -225,6 +225,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                       o.price_net != null ? 'Update quote' : 'Save quote'
                     }
                     intro=""
+                    initialTypeName={o.type_name || ''}
                     initialTail={o.tail || ''}
                     initialPriceNet={o.price_net ?? undefined}
                     initialTtpMin={o.time_to_position_min ?? undefined}

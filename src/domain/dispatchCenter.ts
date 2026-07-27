@@ -151,6 +151,7 @@ export function buildDispatchDrawers(input: {
       time_to_position_min?: number | null
       live_leg_min?: number | null
       fee_scope?: string | null
+      type_name?: string | null
       tail?: string | null
       contact_email?: string | null
       contact_cell?: string | null
