@@ -422,3 +422,7 @@ verify_jwt = false
 
 [functions.send-invoice-email]
 verify_jwt = false
+
+# FlightAware posts movement alerts without a user JWT
+[functions.adsb-alert-webhook]
+verify_jwt = false

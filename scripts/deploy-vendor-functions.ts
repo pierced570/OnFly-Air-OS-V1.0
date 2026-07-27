@@ -6,7 +6,10 @@
  *   RESEND_API_KEY, EMAIL_FROM
  *   ANTHROPIC_API_KEY (preferred for llm-extract)
  *   OPENAI_API_KEY (optional fallback)
- *   ADSB_RAPIDAPI_KEY (optional — function still deploys)
+ *   ADSB_RAPIDAPI_KEY (optional — legacy; prefer FlightAware)
+ *   FLIGHTAWARE_AEROAPI_KEY (preferred ADS-B / AeroAPI)
+ *   ADSB_PROVIDER (optional — flightaware | adsbx)
+ *   ADSB_ALERT_WEBHOOK_URL (optional — FlightAware alert callback)
  *   QB_CLIENT_ID, QB_CLIENT_SECRET (optional — QuickBooks OAuth)
  *   QB_ENVIRONMENT, QB_REDIRECT_URI, INVOICE_EMAIL_FROM (optional)
  *
@@ -62,6 +65,19 @@ if (process.env.OPENAI_API_KEY?.trim()) {
 if (process.env.ADSB_RAPIDAPI_KEY?.trim()) {
   pairs.push(`ADSB_RAPIDAPI_KEY=${process.env.ADSB_RAPIDAPI_KEY.trim()}`)
 }
+if (process.env.FLIGHTAWARE_AEROAPI_KEY?.trim()) {
+  pairs.push(
+    `FLIGHTAWARE_AEROAPI_KEY=${process.env.FLIGHTAWARE_AEROAPI_KEY.trim()}`,
+  )
+  pairs.push(
+    `ADSB_PROVIDER=${(process.env.ADSB_PROVIDER ?? 'flightaware').trim()}`,
+  )
+}
+if (process.env.ADSB_ALERT_WEBHOOK_URL?.trim()) {
+  pairs.push(
+    `ADSB_ALERT_WEBHOOK_URL=${process.env.ADSB_ALERT_WEBHOOK_URL.trim()}`,
+  )
+}
 if (process.env.OPENAI_MODEL?.trim()) {
   pairs.push(`OPENAI_MODEL=${process.env.OPENAI_MODEL.trim()}`)
 }
@@ -99,11 +115,13 @@ const noJwt = new Set([
   'quickbooks-auth',
   'quickbooks-api',
   'send-invoice-email',
+  'adsb-alert-webhook',
 ])
 for (const fn of [
   'send-email',
   'llm-extract',
   'adsb-positions',
+  'adsb-alert-webhook',
   'wx-brief',
   'quickbooks-auth',
   'quickbooks-api',
@@ -137,6 +155,6 @@ Deployed. Enable on Vercel / .env.local:
 QuickBooks redirect URI (Intuit developer app):
   https://${PROJECT_REF}.supabase.co/functions/v1/quickbooks-auth/callback
 
-Note: ADS-B RapidAPI returned "not subscribed" when probed — renew
-ADSBexchange-com1 on RapidAPI; until then Radar shows no_data flags.
+Note: Prefer FlightAware AeroAPI (FLIGHTAWARE_AEROAPI_KEY). RapidAPI ADSBX
+is legacy. After secrets + deploy, set VITE_ADSB_ADAPTER=real and Seed from Radar.
 `)

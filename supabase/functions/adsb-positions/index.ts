@@ -1,9 +1,13 @@
 /**
- * Live positions via ADS-B Exchange on RapidAPI.
- * Secret: ADSB_RAPIDAPI_KEY
- * Host: adsbexchange-com1.p.rapidapi.com
+ * Live positions / seed / FlightAware alerts via AeroAPI (preferred) or RapidAPI ADSBX.
  *
- * Deploy: npx supabase functions deploy adsb-positions --project-ref udowzmoswudrqtjebehr
+ * Secrets (never VITE_*):
+ *   FLIGHTAWARE_AEROAPI_KEY  — AeroAPI Standard+
+ *   ADSB_ALERT_WEBHOOK_URL   — public URL for PUT /alerts/endpoint (optional until alerts)
+ *   ADSB_RAPIDAPI_KEY        — legacy fallback only
+ *   ADSB_PROVIDER            — flightaware | adsbx (default: flightaware if FA key present)
+ *
+ * Deploy: npx supabase functions deploy adsb-positions --project-ref <ref>
  */
 
 const corsHeaders = {
@@ -12,7 +16,8 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 }
 
-const HOST = 'adsbexchange-com1.p.rapidapi.com'
+const FA_BASE = 'https://aeroapi.flightaware.com/aeroapi'
+const RAPID_HOST = 'adsbexchange-com1.p.rapidapi.com'
 
 type Ac = {
   lat?: number
@@ -24,6 +29,23 @@ type Ac = {
   seen_pos?: number
 }
 
+type FaFlight = {
+  ident?: string
+  registration?: string
+  actual_off?: string | null
+  actual_on?: string | null
+  estimated_off?: string | null
+  estimated_on?: string | null
+  last_position?: {
+    latitude?: number
+    longitude?: number
+    altitude?: number | null
+    groundspeed?: number | null
+    timestamp?: string
+  } | null
+  status?: string
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -33,22 +55,37 @@ Deno.serve(async (req) => {
     if (!req.headers.get('Authorization')) {
       return json({ error: 'Missing Authorization' }, 401)
     }
-    const apiKey = Deno.env.get('ADSB_RAPIDAPI_KEY')
-    if (!apiKey) return json({ error: 'ADSB_RAPIDAPI_KEY not configured' }, 500)
 
-    const body = (await req.json()) as { tails?: string[] }
+    const body = (await req.json()) as {
+      action?: string
+      tails?: string[]
+      tail?: string
+    }
+    const action = String(body.action ?? 'positions').toLowerCase()
+
+    if (action === 'alert_set' || action === 'alert_clear') {
+      const tail = String(body.tail ?? '')
+        .trim()
+        .toUpperCase()
+      if (!tail) return json({ ok: false, error: 'tail required' }, 400)
+      return json(await handleAlert(tail, action === 'alert_set'))
+    }
+
     const tails = (body.tails ?? [])
       .map((t) => String(t).trim().toUpperCase())
       .filter(Boolean)
       .slice(0, 40)
-    if (!tails.length) return json({ positions: [], provider: 'adsbx' })
-
-    const positions = []
-    // Sequential with small concurrency to respect RapidAPI rate limits
-    for (const tail of tails) {
-      positions.push(await fetchTail(apiKey, tail))
+    if (!tails.length) {
+      return json({ positions: [], provider: providerName() })
     }
-    return json({ positions, provider: 'adsbx' })
+
+    const provider = providerName()
+    const positions =
+      provider === 'flightaware'
+        ? await seedOrPositionsFa(tails, action === 'seed')
+        : await positionsRapid(tails)
+
+    return json({ positions, provider })
   } catch (e) {
     console.error('[adsb-positions]', e)
     return json(
@@ -58,38 +95,249 @@ Deno.serve(async (req) => {
   }
 })
 
-async function fetchTail(apiKey: string, tail: string) {
+function providerName(): 'flightaware' | 'adsbx' {
+  const forced = (Deno.env.get('ADSB_PROVIDER') ?? '').toLowerCase()
+  if (forced === 'adsbx') return 'adsbx'
+  if (forced === 'flightaware') return 'flightaware'
+  if (Deno.env.get('FLIGHTAWARE_AEROAPI_KEY')) return 'flightaware'
+  if (Deno.env.get('ADSB_RAPIDAPI_KEY')) return 'adsbx'
+  return 'flightaware'
+}
+
+function faKey(): string | null {
+  return Deno.env.get('FLIGHTAWARE_AEROAPI_KEY')?.trim() || null
+}
+
+async function seedOrPositionsFa(tails: string[], _seed: boolean) {
+  const key = faKey()
+  if (!key) {
+    return tails.map((t) => ({
+      ...noData(t),
+      error: 'FLIGHTAWARE_AEROAPI_KEY not configured',
+    }))
+  }
+  const out = []
+  for (const tail of tails) {
+    out.push(await fetchFaTail(key, tail))
+  }
+  return out
+}
+
+async function fetchFaTail(key: string, tail: string) {
+  const url =
+    `${FA_BASE}/flights/${encodeURIComponent(tail)}` +
+    `?max_pages=1&ident_type=registration`
+  const res = await fetch(url, {
+    headers: { 'x-apikey': key, Accept: 'application/json' },
+  })
+  if (res.status === 401 || res.status === 403) {
+    return {
+      ...noData(tail),
+      error: 'FlightAware auth failed — check AeroAPI key / tier',
+    }
+  }
+  if (!res.ok) return noData(tail)
+  const data = (await res.json().catch(() => ({}))) as {
+    flights?: FaFlight[]
+  }
+  const flight = data.flights?.[0]
+  if (!flight) return noData(tail)
+
+  const lp = flight.last_position
+  const lat = lp?.latitude
+  const lon = lp?.longitude
+  if (lat == null || lon == null) {
+    // Still capture actuals if present
+    return {
+      ...noData(tail),
+      lastTakeoffAt: flight.actual_off ?? null,
+      lastLandingAt: flight.actual_on ?? null,
+      laddBlocked: true,
+    }
+  }
+  const alt = Number(lp.altitude ?? 0) || 0
+  const gs = Number(lp.groundspeed ?? 0) || 0
+  const seenAt = lp.timestamp
+    ? new Date(lp.timestamp).toISOString()
+    : new Date().toISOString()
+  const status = String(flight.status ?? '').toLowerCase()
+  const airborne =
+    status.includes('en route') ||
+    status.includes('airborne') ||
+    alt > 500 ||
+    gs > 50
+  return {
+    tail,
+    lat,
+    lon,
+    alt,
+    gs,
+    seenAt,
+    laddBlocked: false,
+    lastTakeoffAt: flight.actual_off ?? flight.estimated_off ?? null,
+    lastLandingAt: flight.actual_on ?? flight.estimated_on ?? null,
+    phase: airborne ? ('airborne' as const) : ('on_ground' as const),
+  }
+}
+
+async function handleAlert(tail: string, enable: boolean) {
+  const key = faKey()
+  if (!key) {
+    return {
+      ok: false,
+      tail,
+      enabled: enable,
+      error: 'FLIGHTAWARE_AEROAPI_KEY not configured',
+    }
+  }
+
+  if (!enable) {
+    const existing = await findAlertId(key, tail)
+    if (existing != null) {
+      const del = await fetch(`${FA_BASE}/alerts/${existing}`, {
+        method: 'DELETE',
+        headers: { 'x-apikey': key },
+      })
+      if (!del.ok && del.status !== 404) {
+        const text = await del.text().catch(() => '')
+        return {
+          ok: false,
+          tail,
+          enabled: false,
+          error: `Delete alert failed: ${del.status} ${text}`,
+        }
+      }
+    }
+    return { ok: true, tail, enabled: false, alertId: null }
+  }
+
+  await ensureAlertEndpoint(key)
+
+  const existing = await findAlertId(key, tail)
+  if (existing != null) {
+    return { ok: true, tail, enabled: true, alertId: String(existing) }
+  }
+
+  const res = await fetch(`${FA_BASE}/alerts`, {
+    method: 'POST',
+    headers: {
+      'x-apikey': key,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      ident: tail,
+      max_weekly: 200,
+      events: {
+        departure: true,
+        arrival: true,
+        cancelled: true,
+        diverted: true,
+        filed: false,
+        out: false,
+        off: true,
+        on: true,
+        in: false,
+        hold_start: false,
+        hold_end: false,
+      },
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    return {
+      ok: false,
+      tail,
+      enabled: true,
+      error: `Create alert failed: ${res.status} ${text}`,
+    }
+  }
+  const created = (await res.json().catch(() => ({}))) as { id?: number }
+  return {
+    ok: true,
+    tail,
+    enabled: true,
+    alertId: created.id != null ? String(created.id) : null,
+  }
+}
+
+async function ensureAlertEndpoint(key: string) {
+  const webhook = Deno.env.get('ADSB_ALERT_WEBHOOK_URL')?.trim()
+  if (!webhook) return
+  const get = await fetch(`${FA_BASE}/alerts/endpoint`, {
+    headers: { 'x-apikey': key, Accept: 'application/json' },
+  })
+  if (get.ok) {
+    const cur = (await get.json().catch(() => ({}))) as {
+      url?: string | null
+    }
+    if (cur.url === webhook) return
+  }
+  await fetch(`${FA_BASE}/alerts/endpoint`, {
+    method: 'PUT',
+    headers: {
+      'x-apikey': key,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({ url: webhook }),
+  })
+}
+
+async function findAlertId(
+  key: string,
+  tail: string,
+): Promise<number | null> {
+  const res = await fetch(`${FA_BASE}/alerts?max_pages=5`, {
+    headers: { 'x-apikey': key, Accept: 'application/json' },
+  })
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => ({}))) as {
+    alerts?: Array<{ id?: number; ident?: string | null; user_ident?: string | null }>
+  }
+  const hit = (data.alerts ?? []).find((a) => {
+    const idents = [a.ident, a.user_ident]
+      .filter(Boolean)
+      .map((s) => String(s).toUpperCase())
+    return idents.includes(tail)
+  })
+  return hit?.id ?? null
+}
+
+async function positionsRapid(tails: string[]) {
+  const apiKey = Deno.env.get('ADSB_RAPIDAPI_KEY')
+  if (!apiKey) {
+    return tails.map((t) => ({
+      ...noData(t),
+      error: 'ADSB_RAPIDAPI_KEY not configured',
+    }))
+  }
+  const positions = []
+  for (const tail of tails) {
+    positions.push(await fetchRapidTail(apiKey, tail))
+  }
+  return positions
+}
+
+async function fetchRapidTail(apiKey: string, tail: string) {
   const reg = encodeURIComponent(tail.replace(/^N/i, 'N').toUpperCase())
-  const url = `https://${HOST}/v2/registration/${reg}/`
+  const url = `https://${RAPID_HOST}/v2/registration/${reg}/`
   const res = await fetch(url, {
     headers: {
       'X-RapidAPI-Key': apiKey,
-      'X-RapidAPI-Host': HOST,
+      'X-RapidAPI-Host': RAPID_HOST,
     },
   })
   if (res.status === 403) {
     return {
-      tail,
-      lat: 0,
-      lon: 0,
-      alt: 0,
-      gs: 0,
-      seenAt: new Date(0).toISOString(),
-      laddBlocked: true,
-      lastTakeoffAt: null,
-      lastLandingAt: null,
-      phase: 'no_data' as const,
+      ...noData(tail),
       error: 'RapidAPI not subscribed to ADSBexchange-com1',
     }
   }
-  if (!res.ok) {
-    return noData(tail)
-  }
+  if (!res.ok) return noData(tail)
   const data = (await res.json().catch(() => ({}))) as { ac?: Ac[] }
   const ac = data.ac?.[0]
-  if (!ac || ac.lat == null || ac.lon == null) {
-    return noData(tail)
-  }
+  if (!ac || ac.lat == null || ac.lon == null) return noData(tail)
   const altRaw = ac.alt_baro
   const alt =
     typeof altRaw === 'number'

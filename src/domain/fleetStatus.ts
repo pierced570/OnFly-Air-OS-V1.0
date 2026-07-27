@@ -25,6 +25,8 @@ export type FleetStatus = {
   type_name?: string | null
   base_icao?: string | null
   source?: string
+  /** Dispatcher enabled FlightAware movement alerts for this tail. */
+  alertTracked?: boolean
 }
 
 export type FleetStatusInput = {
@@ -35,6 +37,7 @@ export type FleetStatusInput = {
   type_name?: string | null
   base_icao?: string | null
   source?: string
+  alertTracked?: boolean
 }
 
 export function deriveFlightPhase(p: AdsbPosition): FlightPhase {
@@ -70,6 +73,7 @@ export function deriveFleetStatus(input: FleetStatusInput): FleetStatus {
     type_name: input.type_name,
     base_icao: input.base_icao ?? input.base?.icao,
     source: input.source,
+    alertTracked: input.alertTracked,
   }
 }
 

@@ -5,6 +5,7 @@ import { createWxAdapter, type WxBrief } from '@/adapters/wx'
 import { D085ReviewPanel } from '@/components/D085ReviewPanel'
 import { FlightCatBadge } from '@/components/FlightCatBadge'
 import type { D085ReviewRow } from '@/domain/d085Match'
+import { trackingSummary } from '@/domain/radarTracking'
 import { loadFleetStatuses } from '@/lib/fleetRadar'
 import { loadNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
@@ -15,11 +16,19 @@ import {
   parseAndMatchD085,
 } from '@/lib/d085Review'
 import {
+  seedRadarLastKnown,
+  setRadarMovementAlert,
+} from '@/lib/radarSeedFlow'
+import {
+  listRadarTracks,
+  subscribeRadarTracks,
+} from '@/lib/radarTrackingStore'
+import {
   listWatchedTails,
   subscribeWatchedTails,
 } from '@/lib/watchedTailsStore'
 
-type Filter = 'all' | 'airborne' | 'on_ground' | 'no_data' | 'd085'
+type Filter = 'all' | 'airborne' | 'on_ground' | 'no_data' | 'd085' | 'alert'
 
 function fmtWhen(iso: string | null): string {
   if (!iso) return '—'
@@ -40,12 +49,21 @@ export default function RadarPage({
     listWatchedTails,
     listWatchedTails,
   )
+  const tracks = useSyncExternalStore(
+    subscribeRadarTracks,
+    listRadarTracks,
+    listRadarTracks,
+  )
   const [statuses, setStatuses] = useState<FleetStatus[]>([])
   const [wx, setWx] = useState<WxBrief | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
+  const [seedBusy, setSeedBusy] = useState(false)
+  const [seedNote, setSeedNote] = useState<string | null>(null)
+  const [alertBusyTail, setAlertBusyTail] = useState<string | null>(null)
+  const [alertError, setAlertError] = useState<string | null>(null)
   const [d085Busy, setD085Busy] = useState(false)
   const [d085Error, setD085Error] = useState<string | null>(null)
   const [d085Note, setD085Note] = useState<string | undefined>()
@@ -57,6 +75,7 @@ export default function RadarPage({
   >([])
 
   const adsbLive = isRealAdsbEnabled()
+  const trackSummary = trackingSummary(tracks)
 
   async function refresh() {
     setBusy(true)
@@ -78,7 +97,7 @@ export default function RadarPage({
 
   useEffect(() => {
     void refresh()
-  }, [watched.length])
+  }, [watched.length, tracks.length, trackSummary.alertOn])
 
   const filtered = useMemo(() => {
     return statuses.filter((s) => {
@@ -94,12 +113,47 @@ export default function RadarPage({
       if (filter === 'on_ground') return s.phase === 'on_ground'
       if (filter === 'no_data') return s.phase === 'no_data' || s.laddBlocked
       if (filter === 'd085') return s.source === 'd085'
+      if (filter === 'alert') return Boolean(s.alertTracked)
       return true
     })
   }, [statuses, filter, q])
 
   const selectedStatus = statuses.find((s) => s.tail === selected) ?? null
   const d085Count = watched.filter((w) => w.source === 'd085').length
+
+  async function onSeed() {
+    setSeedBusy(true)
+    setSeedNote(null)
+    try {
+      const result = await seedRadarLastKnown()
+      setSeedNote(
+        `Seeded ${result.seeded} of ${result.requested}` +
+          (result.noData ? ` · ${result.noData} still no ADS-B` : '') +
+          ` · ${result.summary.alertOn} on alerts`,
+      )
+      await refresh()
+    } catch (e) {
+      setSeedNote(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSeedBusy(false)
+    }
+  }
+
+  async function onToggleAlert(tail: string, enabled: boolean) {
+    setAlertBusyTail(tail)
+    setAlertError(null)
+    try {
+      const res = await setRadarMovementAlert(tail, enabled)
+      if (!res.ok) {
+        setAlertError(res.error ?? 'Could not update alert')
+      }
+      await refresh()
+    } catch (e) {
+      setAlertError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAlertBusyTail(null)
+    }
+  }
 
   async function onD085File(file: File) {
     setD085Busy(true)
@@ -148,15 +202,24 @@ export default function RadarPage({
           <p className="mt-1 text-sm text-muted">
             {watched.length} watched tails
             {d085Count ? ` · ${d085Count} from D085 uploads` : ''}
+            {` · ${trackSummary.seeded} seeded`}
+            {` · ${trackSummary.alertOn} alert-tracked`}
             {adsbLive
-              ? ' · last takeoff / landing from ADS-B'
-              : ' · ADS-B API not connected yet'}
+              ? ' · FlightAware seed + movement alerts'
+              : ' · ADS-B API not connected yet (mock seed uses base)'}
           </p>
           {!adsbLive && (
             <p className="mt-2 text-xs text-gold">
-              Positions are off until the ADS-B provider is connected. Tails
-              below are from Network.
+              Seed last-known, then toggle Alert on the tails you want movement
+              updates for. Connect AeroAPI (`VITE_ADSB_ADAPTER=real` + edge
+              key) when ready.
             </p>
+          )}
+          {seedNote && (
+            <p className="mt-2 text-xs text-gold/90">{seedNote}</p>
+          )}
+          {alertError && (
+            <p className="mt-2 text-xs text-late">{alertError}</p>
           )}
           {wx && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -171,19 +234,32 @@ export default function RadarPage({
             </p>
           )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="rounded-md border border-gold/40 px-3 py-2 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
+            disabled={seedBusy || !watched.length}
+            onClick={() => void onSeed()}
+            title="One-shot last-known for watched tails (cheap). Then enable alerts per tail."
+          >
+            {seedBusy ? 'Seeding…' : 'Seed last-known'}
+          </button>
           <button
             type="button"
             className="text-sm text-gold disabled:opacity-50"
-            disabled={busy || !adsbLive}
+            disabled={busy || trackSummary.alertOn === 0}
             onClick={() => void refresh()}
             title={
-              adsbLive
-                ? 'Refresh live positions'
-                : 'ADS-B provider not connected'
+              trackSummary.alertOn
+                ? 'Refresh live positions for alert-tracked tails'
+                : 'Enable Alert on at least one tail first'
             }
           >
-            {busy ? 'Refreshing…' : adsbLive ? 'Refresh ADS-B' : 'ADS-B pending'}
+            {busy
+              ? 'Refreshing…'
+              : trackSummary.alertOn
+                ? 'Refresh alert-tracked'
+                : 'No alerts yet'}
           </button>
           <label className="cursor-pointer text-sm text-gold hover:text-gold-lt">
             {d085Busy ? 'Parsing D085…' : 'Upload D085'}
@@ -281,6 +357,7 @@ export default function RadarPage({
           {(
             [
               ['all', 'All'],
+              ['alert', 'Alert on'],
               ['airborne', 'Airborne'],
               ['on_ground', 'On ground'],
               ['no_data', 'No ADS-B'],
@@ -342,12 +419,17 @@ export default function RadarPage({
             <div className="mt-4 border-t border-border pt-3 text-sm">
               <div className="avionic text-gold">{selectedStatus.tail}</div>
               <div className="text-muted">{selectedStatus.operator_name}</div>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <FlightChip
                   phase={selectedStatus.phase}
                   inPosition={selectedStatus.inPositionOfBase}
                   laddBlocked={selectedStatus.laddBlocked}
                 />
+                {selectedStatus.alertTracked ? (
+                  <span className="text-[10px] uppercase tracking-wide text-gold">
+                    Alert on
+                  </span>
+                ) : null}
               </div>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
@@ -363,18 +445,35 @@ export default function RadarPage({
                   </dd>
                 </div>
               </dl>
+              <button
+                type="button"
+                className="mt-3 text-xs text-gold disabled:opacity-50"
+                disabled={alertBusyTail === selectedStatus.tail}
+                onClick={() =>
+                  void onToggleAlert(
+                    selectedStatus.tail,
+                    !selectedStatus.alertTracked,
+                  )
+                }
+              >
+                {alertBusyTail === selectedStatus.tail
+                  ? 'Updating…'
+                  : selectedStatus.alertTracked
+                    ? 'Remove from alert tracking'
+                    : 'Add to alert tracking'}
+              </button>
             </div>
           )}
         </section>
 
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">
-            Watch sources
+            Seed → alert watchlist
           </h2>
           <p className="mt-2 text-sm text-muted">
-            Network import tails are watched automatically. Upload a D085 above
-            to match existing N-numbers; new tails ask you to confirm details
-            before they are added.
+            Network / D085 tails appear here automatically. Seed last-known
+            once, then turn <span className="text-cream">Alert</span> on only
+            for tails you want movement updates for — add or remove anytime.
           </p>
           <Link to="/admin" className="mt-3 inline-block text-xs text-gold">
             Add operator / D085 wizard →
@@ -406,6 +505,18 @@ export default function RadarPage({
               </div>
             </button>
             <div className="flex items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-muted">
+                <input
+                  type="checkbox"
+                  className="accent-[#C9A227]"
+                  checked={Boolean(p.alertTracked)}
+                  disabled={alertBusyTail === p.tail}
+                  onChange={(e) =>
+                    void onToggleAlert(p.tail, e.target.checked)
+                  }
+                />
+                Alert
+              </label>
               <span className="avionic text-xs text-muted">{p.gs} kt</span>
               <FlightChip
                 phase={p.phase}

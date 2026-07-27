@@ -77,11 +77,11 @@ export function listAdapterDoorStatus(): AdapterDoorStatus[] {
     },
     {
       id: 'adsb',
-      label: 'ADS-B',
-      state: 'blocked',
-      detail: isRealAdsbEnabled()
-        ? 'Provider key / edge not returning tracks yet'
-        : 'Provider API not wired yet — set VITE_ADSB_ADAPTER=real when ready',
+      label: 'ADS-B (FlightAware)',
+      state: isRealAdsbEnabled() && isSupabaseConfigured ? 'live' : 'blocked',
+      detail: isRealAdsbEnabled() && isSupabaseConfigured
+        ? 'Seed + alert watchlist via AeroAPI · FLIGHTAWARE_AEROAPI_KEY on edge'
+        : 'Set FLIGHTAWARE_AEROAPI_KEY + VITE_ADSB_ADAPTER=real; seed from Radar',
     },
     {
       id: 'comms',
