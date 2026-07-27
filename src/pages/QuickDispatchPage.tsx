@@ -86,13 +86,6 @@ export default function QuickDispatchPage() {
   const [operator, setOperator] = useState('')
   const [aircraftType, setAircraftType] = useState('')
   const [tail, setTail] = useState('')
-  const aircraftTypeUnified = unifyAircraftType(aircraftType)
-  const aircraftTypeHint =
-    aircraftType.trim() &&
-    aircraftTypeUnified &&
-    aircraftTypeUnified.toLowerCase() !== aircraftType.trim().toLowerCase()
-      ? aircraftTypeUnified
-      : null
 
   const [vendorCost, setVendorCost] = useState('')
   const [clientPrice, setClientPrice] = useState('')
@@ -197,7 +190,7 @@ export default function QuickDispatchPage() {
         roundtrip,
         cargo_only: cargoOnly,
         operator_name: operator.trim(),
-        aircraft_type: aircraftTypeUnified || aircraftType.trim(),
+        aircraft_type: unifyAircraftType(aircraftType) || aircraftType.trim(),
         tail: tail.trim().toUpperCase(),
         vendor_cost: Number(vendorCost) || 0,
         client_price: Number(clientPrice) || 0,
@@ -587,11 +580,6 @@ export default function QuickDispatchPage() {
               onChange={(e) => setAircraftType(e.target.value)}
               placeholder="e.g. C310, KA200"
             />
-            {aircraftTypeHint ? (
-              <span className="mt-1 block font-mono text-xs text-gold">
-                Saved as {aircraftTypeHint}
-              </span>
-            ) : null}
           </label>
           <label className={label}>
             Tail number

@@ -6,6 +6,10 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import {
+  AircraftTypeSelect,
+  initialAircraftTypeSelectValue,
+} from '@/components/AircraftTypeSelect'
+import {
   ClientEmailRecipientsBubble,
   defaultInvoiceEmailSelection,
   defaultTrackerEmailSelection,
@@ -41,11 +45,23 @@ export function BookedTripActionsPanel({ tripId }: Props) {
   const [busy, setBusy] = useState<'invoice' | 'eta' | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const draftType =
+    trip?.quick?.aircraft_type ||
+    trip?.offers.find((o) => o.state === 'selected')?.type_name ||
+    trip?.hard_quote?.options?.[0]?.type_name ||
+    ''
+  const [confirmedType, setConfirmedType] = useState(() =>
+    initialAircraftTypeSelectValue(draftType),
+  )
 
   useEffect(() => {
     setInvoiceSel(defaultInvoiceEmailSelection(trip?.client_id))
     setEtaSel(defaultTrackerEmailSelection(trip?.client_id))
   }, [trip?.client_id, tripId])
+
+  useEffect(() => {
+    setConfirmedType((prev) => prev || initialAircraftTypeSelectValue(draftType))
+  }, [draftType])
 
   if (!trip) return null
 
@@ -78,6 +94,12 @@ export function BookedTripActionsPanel({ tripId }: Props) {
 
       <div className="space-y-2 rounded-md border border-border/50 bg-ink/40 p-2.5">
         <div className="text-sm font-medium text-cream">1. QuickBooks invoice</div>
+        <AircraftTypeSelect
+          draft={draftType}
+          value={confirmedType}
+          onChange={setConfirmedType}
+          label="Confirm aircraft type on invoice"
+        />
         <ClientEmailRecipientsBubble
           clientId={trip.client_id}
           value={invoiceSel}
@@ -86,7 +108,11 @@ export function BookedTripActionsPanel({ tripId }: Props) {
         />
         <button
           type="button"
-          disabled={busy !== null || invoiceSel.to.length === 0}
+          disabled={
+            busy !== null ||
+            invoiceSel.to.length === 0 ||
+            !confirmedType.trim()
+          }
           className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
           onClick={() => {
             setBusy('invoice')
@@ -96,6 +122,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
               to: invoiceSel.to,
               cc: invoiceSel.cc,
               bcc: invoiceSel.bcc,
+              aircraftType: confirmedType.trim(),
             })
               .then((r) => {
                 setMsg(`Invoice emailed · PO ${r.poNumber}`)

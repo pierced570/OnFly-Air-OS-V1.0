@@ -141,11 +141,17 @@ export function tripInvoiceLines(opts: {
   flightDate: string | null
   airAmount: number
   taxLines?: Array<{ code: string; amount: number; note?: string }>
+  /** Confirmed aircraft type — appears on the air line description. */
+  aircraftType?: string | null
 }): QbInvoiceLineInput[] {
   const dateBit = opts.flightDate ?? ''
+  const typeBit = (opts.aircraftType ?? '').trim()
+  const desc = [`T-${opts.tripRef}`, opts.lane, typeBit, dateBit]
+    .filter(Boolean)
+    .join(' ')
   const lines: QbInvoiceLineInput[] = [
     {
-      description: `T-${opts.tripRef} ${opts.lane} ${dateBit}`.trim(),
+      description: desc,
       amount: opts.airAmount,
     },
   ]

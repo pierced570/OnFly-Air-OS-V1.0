@@ -118,14 +118,6 @@ export function OfferQuoteForm({
     [lane, ttp, quickTurn, live],
   )
 
-  const typeHint = useMemo(() => {
-    const raw = typeName.trim()
-    if (!raw) return null
-    const unified = unifyAircraftType(raw)
-    if (!unified || unified.toLowerCase() === raw.toLowerCase()) return null
-    return unified
-  }, [typeName])
-
   return (
     <form
       className="space-y-4"
@@ -168,11 +160,6 @@ export function OfferQuoteForm({
           required
           autoComplete="off"
         />
-        {typeHint ? (
-          <span className="mt-1 block font-mono text-sm text-gold">
-            Saved as {typeHint}
-          </span>
-        ) : null}
       </label>
 
       <label className={offerLabel}>

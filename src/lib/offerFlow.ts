@@ -574,6 +574,11 @@ export async function selectOffersAndHardQuote(
     bccEmails?: string[]
     /** Desk margin % applied when totals are not overridden. */
     marginPct?: number | null
+    /**
+     * Dispatcher-confirmed aircraft types (dropdown) per offer —
+     * written onto the offer and hard-quote options before client send.
+     */
+    typeNamesByOffer?: Record<string, string>
   },
 ) {
   const trip = getTrip(tripId)!
@@ -584,6 +589,15 @@ export async function selectOffersAndHardQuote(
       t.offer_margin_pct = Math.max(0, opts.marginPct!)
     })
   }
+  // Persist confirmed types onto offers before snapshotting the hard quote.
+  if (opts?.typeNamesByOffer) {
+    mutateTrip(tripId, (t) => {
+      for (const o of t.offers) {
+        const confirmed = opts.typeNamesByOffer?.[o.id]?.trim()
+        if (confirmed) o.type_name = confirmed
+      }
+    })
+  }
   const pricedTrip = getTrip(tripId)!
   const selectedOffers = offerIds.map((id) => {
     const o = pricedTrip.offers.find((x) => x.id === id)
@@ -591,6 +605,10 @@ export async function selectOffersAndHardQuote(
     if (o.bookingGated) throw new Error('booking gated — insurance/compliance')
     if (o.state !== 'quoted' && o.state !== 'selected') {
       throw new Error(`offer ${o.tail} is not quoted yet`)
+    }
+    const confirmed = opts?.typeNamesByOffer?.[o.id]?.trim()
+    if (!confirmed && !(o.type_name ?? '').trim()) {
+      throw new Error('confirm aircraft type for each selected option')
     }
     return o
   })
@@ -606,6 +624,11 @@ export async function selectOffersAndHardQuote(
         ? Math.round(clientTotalsByOffer[o.id]!)
         : priced.client
     const cand = pricedTrip.candidates.find((c) => c.aircraft_id === o.aircraft_id)
+    const typeName =
+      opts?.typeNamesByOffer?.[o.id]?.trim() ||
+      o.type_name ||
+      cand?.type_name ||
+      null
     return {
       offer_id: o.id,
       label: `Option ${String.fromCharCode(65 + i)}`,
@@ -613,7 +636,7 @@ export async function selectOffersAndHardQuote(
       eta_end: cand?.eta_end ?? pricedTrip.promised_delivery,
       fee_scope: o.fee_scope,
       /** Client-safe aircraft type (not carrier). */
-      type_name: o.type_name ?? cand?.type_name ?? null,
+      type_name: typeName,
       time_to_position_min: o.time_to_position_min,
       quick_turn_min: o.quick_turn_min,
       live_leg_min: o.live_leg_min,

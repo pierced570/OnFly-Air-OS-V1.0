@@ -5,6 +5,10 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
+  AircraftTypeSelect,
+  initialAircraftTypeSelectValue,
+} from '@/components/AircraftTypeSelect'
+import {
   ClientEmailRecipientsBubble,
   defaultClientEmailSelection,
   emptyClientEmailSelection,
@@ -63,10 +67,27 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const [manualQuoteBusy, setManualQuoteBusy] = useState(false)
   const [pricingBusy, setPricingBusy] = useState(false)
   const [approveBusy, setApproveBusy] = useState(false)
+  /** Confirmed aircraft types for hard-quote send (offerId → label). */
+  const [confirmedTypes, setConfirmedTypes] = useState<Record<string, string>>(
+    {},
+  )
 
   useEffect(() => {
     setEmailSel(defaultClientEmailSelection(trip?.client_id))
   }, [trip?.client_id])
+
+  useEffect(() => {
+    if (!trip) return
+    setConfirmedTypes((prev) => {
+      const next = { ...prev }
+      for (const o of trip.offers) {
+        if (next[o.id]) continue
+        const suggested = initialAircraftTypeSelectValue(o.type_name)
+        if (suggested) next[o.id] = suggested
+      }
+      return next
+    })
+  }, [trip])
 
   const quoteableIds = useMemo(
     () =>
@@ -421,12 +442,39 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
             value={emailSel}
             onChange={setEmailSel}
           />
+          {picked.length > 0 ? (
+            <div className="space-y-2 rounded border border-border/60 bg-ink/30 p-2">
+              <div className="text-xs text-gold">
+                Confirm aircraft type before send
+              </div>
+              {picked.map((oid) => {
+                const o = trip.offers.find((x) => x.id === oid)
+                if (!o) return null
+                return (
+                  <AircraftTypeSelect
+                    key={oid}
+                    label={`${o.operator_name || 'Option'} · ${o.tail || 'TBD'}`}
+                    draft={o.type_name}
+                    value={confirmedTypes[oid] ?? ''}
+                    onChange={(v) =>
+                      setConfirmedTypes((m) => ({ ...m, [oid]: v }))
+                    }
+                  />
+                )
+              })}
+            </div>
+          ) : null}
           <button
             type="button"
-            disabled={picked.length === 0 || emailSel.to.length === 0}
+            disabled={
+              picked.length === 0 ||
+              emailSel.to.length === 0 ||
+              picked.some((oid) => !(confirmedTypes[oid] ?? '').trim())
+            }
             className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
             onClick={() => {
               const totals: Record<string, number> = {}
+              const typeNamesByOffer: Record<string, string> = {}
               for (const oid of picked) {
                 const o = trip.offers.find((x) => x.id === oid)!
                 const p = offerQuotePreviewFor(
@@ -437,6 +485,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   marginPct,
                 )
                 totals[oid] = clientEdits[oid] ?? p.client_total
+                typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
               }
               if (trip.client_id) {
                 rememberEmailsOnClient(
@@ -454,6 +503,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   ccEmails: emailSel.cc,
                   bccEmails: emailSel.bcc,
                   marginPct,
+                  typeNamesByOffer,
                 },
               )
                 .then(() => {

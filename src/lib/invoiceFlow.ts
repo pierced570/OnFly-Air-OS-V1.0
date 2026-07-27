@@ -76,6 +76,7 @@ export async function sendFinancialInvoice(
     lane: row.route_text || '',
     flightDate: row.date_of_flight,
     airAmount: air || row.client_invoiced_amount,
+    aircraftType: row.aircraft_type,
     taxLines: (row.tax_breakdown ?? []).map((t) => ({
       code: t.code,
       amount: t.amount,
@@ -85,7 +86,15 @@ export async function sendFinancialInvoice(
   if (lines[0]) {
     lines[0] = {
       ...lines[0],
-      description: `${poNumber} ${row.route_text || ''} ${txnDate}`.trim(),
+      description: [
+        poNumber,
+        row.route_text || '',
+        row.aircraft_type || '',
+        txnDate,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim(),
     }
   }
 
