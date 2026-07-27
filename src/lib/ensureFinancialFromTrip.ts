@@ -9,6 +9,7 @@ import {
   type FinancialRecord,
   type FinancialVendorLine,
 } from '@/domain/financials'
+import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import { getReferral, getReferralByName } from '@/lib/referralStore'
 import { upsertFinancial, getFinancial } from '@/lib/financialsStore'
 import type { TripStoreRow } from '@/lib/tripStore'
@@ -70,10 +71,12 @@ export function ensureFinancialFromBookedTrip(trip: TripStoreRow): FinancialReco
   const po =
     trip.quick?.po || trip.po_number || existing?.operator_po || null
   const aircraftType =
-    trip.quick?.aircraft_type ||
-    selected?.type_name ||
-    existing?.aircraft_type ||
-    null
+    unifyAircraftType(
+      trip.quick?.aircraft_type ||
+        selected?.type_name ||
+        existing?.aircraft_type ||
+        '',
+    ) || null
   const tail =
     trip.quick?.tail || selected?.tail || existing?.tail_number || null
   const vendorName =

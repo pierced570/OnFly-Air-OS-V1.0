@@ -12,6 +12,7 @@ import {
   loadNetwork,
   upsertCachedAircraft,
 } from '@/lib/networkData'
+import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import { parseD085File, type D085ParseResult } from '@/lib/parseD085File'
 import { watchTail } from '@/lib/watchedTailsStore'
 
@@ -66,7 +67,8 @@ export function acceptD085Review(rows: AcceptD085Row[]): {
   for (const r of rows) {
     const tail = normalizeTail(r.tail)
     if (!tail.startsWith('N')) continue
-    const type_name = r.type_name.trim() || 'Unknown'
+    const type_name =
+      unifyAircraftType(r.type_name) || r.type_name.trim() || 'Unknown'
     watchTail({
       tail,
       type_name,

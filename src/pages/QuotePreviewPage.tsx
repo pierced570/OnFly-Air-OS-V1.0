@@ -3,6 +3,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { Candidate } from '@/domain/routing'
 import { buildQuoteTotals, type MarkupMode } from '@/domain/quote'
 import { formatStopLocal } from '@/domain/timeFmt'
+import {
+  AircraftTypeSelect,
+  initialAircraftTypeSelectValue,
+} from '@/components/AircraftTypeSelect'
 import { getClient } from '@/lib/clientStore'
 import { getRequest } from '@/lib/requestStore'
 import { getTaxRates } from '@/lib/taxRatesStore'
@@ -57,6 +61,13 @@ export default function QuotePreviewPage() {
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [confirmedType, setConfirmedType] = useState(() => {
+    const c =
+      draft?.candidates.find((x) => x.aircraft_id === draft.preferredAircraftId) ??
+      draft?.candidates.find((x) => x.label === 'best') ??
+      draft?.candidates[0]
+    return initialAircraftTypeSelectValue(c?.type_name)
+  })
 
   if (!draft) {
     return (
@@ -71,6 +82,10 @@ export default function QuotePreviewPage() {
 
   const selected =
     draft.candidates.find((c) => c.aircraft_id === selectedId) ?? draft.candidates[0]!
+  const selectedForSend: Candidate = {
+    ...selected,
+    type_name: confirmedType.trim() || selected.type_name,
+  }
   const mtow = selected.mtow_lbs
   const airSubtotal =
     markupValue === 0
@@ -102,6 +117,10 @@ export default function QuotePreviewPage() {
 
   async function sendEstimate() {
     setError(null)
+    if (!confirmedType.trim()) {
+      setError('Confirm aircraft type before sending the quote')
+      return
+    }
     setBusy(true)
     try {
       const to = toField
@@ -113,8 +132,12 @@ export default function QuotePreviewPage() {
         destLabel: draft!.destText,
         readyLabel: draft!.ready_at,
         payloadKind: draft!.payloadKind,
-        candidates: draft!.candidates,
-        selected,
+        candidates: draft!.candidates.map((c) =>
+          c.aircraft_id === selectedForSend.aircraft_id
+            ? selectedForSend
+            : c,
+        ),
+        selected: selectedForSend,
         airSubtotal,
         total: tax.total,
         taxLines: tax.tax.lines,
@@ -159,7 +182,10 @@ export default function QuotePreviewPage() {
           <button
             key={c.aircraft_id}
             type="button"
-            onClick={() => setSelectedId(c.aircraft_id)}
+            onClick={() => {
+              setSelectedId(c.aircraft_id)
+              setConfirmedType(initialAircraftTypeSelectValue(c.type_name))
+            }}
             className={[
               'rounded-md border px-3 py-1.5 text-sm',
               c.aircraft_id === selected.aircraft_id
@@ -225,13 +251,20 @@ export default function QuotePreviewPage() {
               placeholder="client@company.com"
             />
           </label>
+          <AircraftTypeSelect
+            className="block text-xs text-muted"
+            label="Confirm aircraft type"
+            draft={selected.type_name}
+            value={confirmedType}
+            onChange={setConfirmedType}
+          />
           <p className="text-[11px] text-muted">
             Includes estimated timeline (stop-local + Zulu). Carrier stays unnamed.
           </p>
 
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !confirmedType.trim()}
             onClick={() => void sendEstimate()}
             className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
           >

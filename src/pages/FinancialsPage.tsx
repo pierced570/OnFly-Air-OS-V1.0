@@ -27,6 +27,10 @@ import { getReferralByName } from '@/lib/referralStore'
 import { sendFinancialInvoice } from '@/lib/invoiceFlow'
 import { useQuickBooksDashboard } from '@/lib/useQuickBooksDashboard'
 import { isRealQbEnabled } from '@/adapters/accounting'
+import {
+  AircraftTypeSelect,
+  initialAircraftTypeSelectValue,
+} from '@/components/AircraftTypeSelect'
 import { BrandLockup } from '@/components/BrandLockup'
 import {
   canUseStorage,
@@ -196,10 +200,19 @@ export default function FinancialsPage() {
   }
 
   async function sendInvoice(r: ComputedFinancial) {
+    const latest = listFinancials().find((x) => x.id === r.id) ?? r
+    const confirmed = (latest.aircraft_type ?? '').trim()
+    if (!confirmed) {
+      setInvoiceMsg(
+        'Confirm aircraft type on the row (Edit or Client Pmts) before sending the invoice.',
+      )
+      setDrawer(r.id, 'client')
+      return
+    }
     setInvoiceBusy(r.id)
     setInvoiceMsg(null)
     try {
-      const result = await sendFinancialInvoice(r)
+      const result = await sendFinancialInvoice(latest)
       setInvoiceMsg(
         result.emailed
           ? `Invoice ${result.poNumber} created + emailed to ${result.to.join(', ')}`
@@ -709,7 +722,10 @@ function MobileFinancialCard({
             <button
               type="button"
               disabled={
-                invoiceBusy || alreadyInvoiced || r.client_invoiced_amount <= 0
+                invoiceBusy ||
+                alreadyInvoiced ||
+                r.client_invoiced_amount <= 0 ||
+                !(r.aircraft_type ?? '').trim()
               }
               onClick={onSendInvoice}
               className="min-h-10 rounded-md border border-gold/40 px-3 py-2 text-xs font-medium text-gold disabled:opacity-40"
@@ -863,7 +879,12 @@ function FragmentRow({
           </button>
           <button
             type="button"
-            disabled={invoiceBusy || alreadyInvoiced || r.client_invoiced_amount <= 0}
+            disabled={
+              invoiceBusy ||
+              alreadyInvoiced ||
+              r.client_invoiced_amount <= 0 ||
+              !(r.aircraft_type ?? '').trim()
+            }
             onClick={onSendInvoice}
             className="min-h-9 rounded border border-gold/40 px-2.5 py-1.5 text-xs font-medium text-gold disabled:opacity-40"
             title={
@@ -991,21 +1012,16 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
             placeholder="KCAK → KMDW"
           />
         </label>
-        <label className="text-xs text-muted">
-          Aircraft type
-          <input
-            key={`ac-${r.id}-${r.aircraft_type}`}
-            className={field}
-            defaultValue={r.aircraft_type ?? ''}
-            onBlur={(e) =>
-              updateFinancialField(
-                r.id,
-                'aircraft_type',
-                e.target.value || null,
-              )
-            }
-          />
-        </label>
+        <AircraftTypeSelect
+          key={`ac-${r.id}-${r.aircraft_type}`}
+          label="Aircraft type"
+          draft={r.aircraft_type}
+          value={r.aircraft_type ?? ''}
+          onChange={(v) =>
+            updateFinancialField(r.id, 'aircraft_type', v || null)
+          }
+          selectClassName={field}
+        />
         <label className="text-xs text-muted">
           Tail
           <input
@@ -1535,6 +1551,14 @@ function ClientDrawer({
   invoiceBusy: boolean
   onSendInvoice: () => void
 }) {
+  const [confirmedType, setConfirmedType] = useState(() =>
+    initialAircraftTypeSelectValue(r.aircraft_type),
+  )
+
+  useEffect(() => {
+    setConfirmedType((prev) => prev || initialAircraftTypeSelectValue(r.aircraft_type))
+  }, [r.aircraft_type])
+
   return (
     <div className="rounded-lg border border-onplan/30 bg-onplan/5 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -1546,9 +1570,15 @@ function ClientDrawer({
           disabled={
             invoiceBusy ||
             Boolean(r.qb_invoice_id) ||
-            r.client_invoiced_amount <= 0
+            r.client_invoiced_amount <= 0 ||
+            !confirmedType.trim()
           }
-          onClick={onSendInvoice}
+          onClick={() => {
+            if (confirmedType.trim() !== (r.aircraft_type ?? '').trim()) {
+              updateFinancialField(r.id, 'aircraft_type', confirmedType.trim())
+            }
+            onSendInvoice()
+          }}
           className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink disabled:opacity-40"
         >
           {invoiceBusy
@@ -1558,6 +1588,17 @@ function ClientDrawer({
               : 'Send Invoice'}
         </button>
       </div>
+      <AircraftTypeSelect
+        className="mb-3 block text-xs text-muted"
+        label="Confirm aircraft type before invoice"
+        draft={r.aircraft_type}
+        value={confirmedType}
+        onChange={(v) => {
+          setConfirmedType(v)
+          updateFinancialField(r.id, 'aircraft_type', v || null)
+        }}
+        selectClassName={field}
+      />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-xs text-muted">
           Charged ($)

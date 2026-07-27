@@ -1581,6 +1581,10 @@ export async function createInvoiceForTrip(
     lane: t.lane,
     flightDate: t.quick?.legs[0]?.date ?? null,
     airAmount: total,
+    aircraftType:
+      t.quick?.aircraft_type ||
+      t.offers.find((o) => o.state === 'selected')?.type_name ||
+      null,
   })
   const created = await acct.createInvoice({
     customerName: clientName,
@@ -1699,9 +1703,36 @@ export async function createInvoiceForTrip(
  */
 export async function sendTripInvoiceEmail(
   tripId: string,
-  opts: { to: string[]; cc?: string[]; bcc?: string[] },
+  opts: {
+    to: string[]
+    cc?: string[]
+    bcc?: string[]
+    /** Dispatcher-confirmed aircraft type (dropdown) before client send. */
+    aircraftType?: string
+  },
 ): Promise<{ poNumber: string; emailed: boolean }> {
   let trip = trips.get(tripId)
+  if (!trip) throw new Error('trip not found')
+  const confirmedType = opts.aircraftType?.trim()
+  if (confirmedType) {
+    mutateTrip(tripId, (t) => {
+      if (t.quick) t.quick.aircraft_type = confirmedType
+      const selected = t.offers.find((o) => o.state === 'selected')
+      if (selected) selected.type_name = confirmedType
+      if (t.hard_quote?.options?.length) {
+        for (const opt of t.hard_quote.options) {
+          if (!selected || opt.offer_id === selected.id) {
+            opt.type_name = confirmedType
+          }
+        }
+      }
+    })
+    void import('@/lib/ensureFinancialFromTrip').then((m) => {
+      const row = trips.get(tripId)
+      if (row) m.ensureFinancialFromBookedTrip(row)
+    })
+    trip = trips.get(tripId)
+  }
   if (!trip) throw new Error('trip not found')
   if (!trip.invoice) {
     await createInvoiceForTrip(tripId, {

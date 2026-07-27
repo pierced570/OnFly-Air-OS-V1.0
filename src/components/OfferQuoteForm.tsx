@@ -16,6 +16,7 @@ import {
   type ZuluLocal,
 } from '@/domain/offerQuoteTiming'
 import type { FeeScope } from '@/lib/tripStore'
+import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 
 export type OfferQuoteFormValues = {
   /** Aircraft type (e.g. Citation CJ3) — client-safe. */
@@ -122,7 +123,7 @@ export function OfferQuoteForm({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
-        const type = typeName.trim()
+        const type = unifyAircraftType(typeName) || typeName.trim()
         const t = tail.trim().toUpperCase()
         if (!type) {
           setLocalError('Enter the aircraft type')

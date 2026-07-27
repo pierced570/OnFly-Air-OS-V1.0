@@ -2,6 +2,7 @@ import type { AircraftRow, NetworkFixture, OperatorRow } from '@/lib/types'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { syncWatchedFromFleet } from '@/lib/watchedTailsStore'
 import { typeSpecMap } from '@/domain/networkSheet'
+import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 
 export type { OperatorRow, AircraftRow }
 
@@ -92,8 +93,12 @@ export function upsertCachedAircraft(input: {
       a.tail.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') === tail &&
       a.operator_id === input.operator_id,
   )
+  const typeName =
+    unifyAircraftType(input.type_name) ||
+    (input.type_name || '').trim() ||
+    null
   const nowNeeds: AircraftRow['needs_info'] = []
-  if (!input.type_name || input.type_name === 'Unknown') {
+  if (!typeName || typeName === 'Unknown') {
     nowNeeds.push({ field: 'type_name', note: 'Verify type from D085' })
   }
 
@@ -101,7 +106,7 @@ export function upsertCachedAircraft(input: {
     const prev = cached.aircraft[existingIdx]!
     const next: AircraftRow = {
       ...prev,
-      type_name: input.type_name || prev.type_name,
+      type_name: typeName || prev.type_name,
       base_icao: input.base_icao ?? prev.base_icao,
       operator_name: input.operator_name || prev.operator_name,
       active: true,
@@ -116,7 +121,7 @@ export function upsertCachedAircraft(input: {
     operator_id: input.operator_id,
     operator_name: input.operator_name,
     tail,
-    type_name: input.type_name,
+    type_name: typeName,
     category: null,
     engines: null,
     cargo_pax: null,
