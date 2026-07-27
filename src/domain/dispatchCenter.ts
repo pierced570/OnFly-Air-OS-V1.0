@@ -82,6 +82,10 @@ export type DispatchCard = {
    * Hardcoded chrome (tools, drawer labels) never becomes a card.
    */
   deletable: boolean
+  /** Desk can book this card (quoted operator ready). */
+  approvable: boolean
+  /** Preferred offer when approving a submitted-quote card. */
+  approve_offer_id?: string
 }
 
 function requestSourceLabel(source: string): string {
@@ -184,6 +188,7 @@ export function buildDispatchDrawers(input: {
       href: `/trips/new?request=${r.id}`,
       ref: r.ref,
       deletable: true,
+      approvable: false,
     })
   }
 
@@ -240,6 +245,17 @@ export function buildDispatchDrawers(input: {
         : `${tripStateLabel(t.state)} · ${tripIdLabel}${
             t.quick ? ' · quick' : ''
           }${legBit}`
+    const quoteableOffers = (t.offers ?? []).filter(
+      (o) =>
+        (o.state === 'quoted' || o.state === 'selected') &&
+        o.price_net != null,
+    )
+    const tripApprovable =
+      quoteableOffers.length > 0 &&
+      (t.state === 'offers_out' ||
+        t.state === 'quoted_hard' ||
+        t.state === 'quoted_estimated' ||
+        t.state === 'lost')
     out[drawer].push({
       kind: 'trip',
       id: t.id,
@@ -256,6 +272,8 @@ export function buildDispatchDrawers(input: {
           : undefined,
       trip_id: t.id,
       deletable: true,
+      approvable: tripApprovable,
+      approve_offer_id: quoteableOffers.find((o) => o.state === 'selected')?.id,
     })
 
     // Submitted quotes waterfall — each quoted operator as its own card.
@@ -275,6 +293,8 @@ export function buildDispatchDrawers(input: {
           ref: t.ref,
           trip_id: t.id,
           deletable: true,
+          approvable: o.price_net != null,
+          approve_offer_id: o.id,
         })
       }
     }

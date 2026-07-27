@@ -874,7 +874,73 @@ export async function deskAcceptOfferOption(
   const trip = getTrip(tripId)
   const token = trip?.hard_quote?.accept_token
   if (!token) throw new Error('hard quote missing after select')
-  return acceptHardQuote(token)
+  return acceptHardQuote(token, { actor: 'dispatcher' })
+}
+
+/**
+ * Desk "Approve trip" from Dispatch waterfall — pick a quoted operator
+ * (or use offerId), lock hard quote without client email, book the trip.
+ */
+export async function deskApproveTrip(
+  tripId: string,
+  offerId?: string,
+): Promise<TripStoreRow> {
+  const trip = getTrip(tripId)
+  if (!trip) throw new Error('trip not found')
+  if (
+    ['booked', 'in_progress', 'delivered', 'invoiced', 'closed'].includes(
+      trip.state,
+    )
+  ) {
+    return trip
+  }
+
+  const quoteable = trip.offers.filter(
+    (o) =>
+      (o.state === 'quoted' || o.state === 'selected') &&
+      o.price_net != null &&
+      !o.bookingGated,
+  )
+  const picked =
+    (offerId
+      ? quoteable.find((o) => o.id === offerId) ??
+        trip.offers.find((o) => o.id === offerId)
+      : null) ??
+    quoteable.find((o) => o.state === 'selected') ??
+    [...quoteable].sort(
+      (a, b) => (a.price_net ?? Infinity) - (b.price_net ?? Infinity),
+    )[0]
+
+  if (!picked) {
+    throw new Error('Enter an operator quote before approving the trip')
+  }
+  if (picked.bookingGated) {
+    throw new Error('booking gated — insurance/compliance')
+  }
+  if (picked.price_net == null) {
+    throw new Error('Enter an operator quote before approving the trip')
+  }
+  if (picked.state !== 'quoted' && picked.state !== 'selected') {
+    throw new Error('Operator must have submitted a quote before approve')
+  }
+
+  // Estimated quotes sit before offers_out — step through for legal transitions.
+  if (trip.state === 'quoted_estimated') {
+    safeTransitionTrip(tripId, 'offers_out', 'dispatcher', {
+      reason: 'desk_approve_trip',
+    })
+  }
+
+  mutateTrip(tripId, (t) => {
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'dispatcher',
+      kind: 'desk_approve_trip',
+      payload: { offer_id: picked.id, operator_name: picked.operator_name },
+    })
+  })
+
+  return deskAcceptOfferOption(tripId, picked.id)
 }
 
 function resolveHardQuoteRecipients(
@@ -923,7 +989,10 @@ function canSms(cell: string | null | undefined, isMock?: boolean): boolean {
   return Boolean(cell?.trim()) && !isMock
 }
 
-export async function acceptHardQuote(token: string) {
+export async function acceptHardQuote(
+  token: string,
+  opts?: { actor?: string },
+) {
   const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
   if (!trip) throw new Error('invalid accept token')
   if (trip.state === 'booked' || trip.state === 'in_progress' || trip.state === 'delivered') {
@@ -932,6 +1001,7 @@ export async function acceptHardQuote(token: string) {
   if (trip.state !== 'quoted_hard') {
     throw new Error(`cannot accept from state ${trip.state}`)
   }
+  const actor = opts?.actor?.trim() || 'client'
   const kind = payloadKindOf(trip)
   const acceptedAt = new Date().toISOString()
   mutateTrip(trip.id, (t) => {
@@ -944,12 +1014,15 @@ export async function acceptHardQuote(token: string) {
     }
     t.events.push({
       at: acceptedAt,
-      actor: 'client',
+      actor,
       kind: 'hard_quote_accepted',
-      payload: { accept_token: token },
+      payload: {
+        accept_token: token,
+        desk_approved: actor === 'dispatcher',
+      },
     })
   })
-  safeTransitionTrip(trip.id, 'booked', 'client', { accept_token: token })
+  safeTransitionTrip(trip.id, 'booked', actor, { accept_token: token })
   {
     const { materializeTripLegsFromChain, getTrip: gt, applyOfferTtpToTrip } =
       await import('@/lib/tripStore')
