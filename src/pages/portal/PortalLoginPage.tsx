@@ -49,8 +49,8 @@ export default function PortalLoginPage() {
           <BrandLockup showTagline={false} />
           <h1 className="mt-2 text-3xl font-semibold">Client portal</h1>
           <p className="mt-2 text-sm text-muted">
-            Sign in with the email on file with dispatch. We’ll email a magic
-            link — no password.
+            Sign in with the email OnFly granted for your company. We’ll email a
+            magic link — no password. Desk manages access under Portal access.
           </p>
         </header>
 
