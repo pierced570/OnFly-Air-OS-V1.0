@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { useParams } from 'react-router-dom'
 import { BrandLockup } from '@/components/BrandLockup'
+import { ClientLogisticsQuotePreview } from '@/components/ClientLogisticsQuotePreview'
 import {
   buildChangeRequestMailto,
   buildLogisticsQuoteOption,
@@ -20,10 +21,6 @@ import {
   listTripsStable,
   subscribeTrips,
 } from '@/lib/tripStore'
-
-function money(n: number): string {
-  return `$${Math.round(n).toLocaleString('en-US')}`
-}
 
 export default function AcceptPage() {
   const { token } = useParams()
@@ -93,157 +90,50 @@ export default function AcceptPage() {
     <div className="min-h-screen bg-cream px-4 py-10 text-ink" data-theme="client">
       <div className="mx-auto max-w-lg space-y-6">
         <BrandLockup showTagline={false} />
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold leading-snug">{title}</h1>
-          <p className="text-sm text-muted">
-            Operated by a vetted Part 135 carrier
-          </p>
-        </header>
-
-        <ul className="space-y-4">
-          {options.map((opt) => (
-            <li
-              key={opt.offer_id}
-              className="rounded-lg border border-border bg-white px-4 py-4 shadow-sm"
-            >
-              <div className="text-lg font-semibold">
-                {opt.label}: {opt.aircraft_type}
-              </div>
-              <dl className="mt-3 space-y-3 text-sm">
-                <div>
-                  <dt className="text-muted">
-                    Time to be in ({opt.departure_label}) from Go
-                  </dt>
-                  <dd className="mt-0.5">
-                    <div className="avionic text-base font-medium">
-                      {opt.position_eta.duration}
-                    </div>
-                    {opt.position_eta.clock ? (
-                      <div className="avionic mt-0.5 text-sm text-muted">
-                        ETA {opt.position_eta.clock}
-                      </div>
-                    ) : null}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted">
-                    Estimated loading and turn around time
-                  </dt>
-                  <dd className="mt-0.5">
-                    <div className="avionic text-base font-medium">
-                      {opt.etd.duration}
-                    </div>
-                    {opt.etd.clock ? (
-                      <div className="avionic mt-0.5 text-sm text-muted">
-                        ETD {opt.etd.clock}
-                      </div>
-                    ) : null}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted">
-                    Live leg time ({opt.departure_label} to{' '}
-                    {opt.destination_label})
-                  </dt>
-                  <dd className="mt-0.5">
-                    <div className="avionic text-base font-medium">
-                      {opt.arrival_eta.duration}
-                    </div>
-                    {opt.etd.clock ? (
-                      <div className="avionic mt-0.5 text-sm text-muted">
-                        ETD {opt.etd.clock}
-                      </div>
-                    ) : null}
-                    {opt.arrival_eta.clock ? (
-                      <div className="avionic mt-0.5 text-sm text-muted">
-                        ETA {opt.arrival_eta.clock}
-                      </div>
-                    ) : null}
-                  </dd>
-                </div>
-                <div className="border-t border-border/70 pt-3">
-                  <dt className="text-muted">Price</dt>
-                  <dd className="avionic mt-0.5 text-3xl font-semibold text-ink">
-                    {money(opt.price)}
-                  </dd>
-                  <p className="mt-1 text-xs text-muted">
-                    {opt.taxes_fees_note}
-                  </p>
-                </div>
-              </dl>
-
-              {!alreadyAccepted && !alreadyDeclined ? (
-                <div className="mt-4 flex flex-col gap-2">
-                  <button
-                    type="button"
-                    disabled={busyId != null}
-                    className="w-full rounded-md bg-gold py-3 text-sm font-semibold text-ink disabled:opacity-50"
-                    onClick={() => {
-                      setError(null)
-                      setBusyId(opt.offer_id)
-                      void acceptHardQuoteOption(token!, opt.offer_id)
-                        .then(() => {
-                          setAcceptedLabel(opt.label)
-                          setAccepted(true)
-                        })
-                        .catch((e) =>
-                          setError(
-                            e instanceof Error ? e.message : String(e),
-                          ),
-                        )
-                        .finally(() => setBusyId(null))
-                    }}
-                  >
-                    {busyId === opt.offer_id ? 'Accepting…' : 'Accept'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busyId != null}
-                    className="w-full rounded-md border border-border bg-cream py-3 text-sm font-medium text-ink disabled:opacity-50"
-                    onClick={() => {
-                      if (
-                        !window.confirm(
-                          'Deny this quote? We will release the aircraft hold.',
-                        )
-                      ) {
-                        return
-                      }
-                      setError(null)
-                      setBusyId(opt.offer_id)
-                      void declineHardQuote(token!)
-                        .then(() => setDeclined(true))
-                        .catch((e) =>
-                          setError(
-                            e instanceof Error ? e.message : String(e),
-                          ),
-                        )
-                        .finally(() => setBusyId(null))
-                    }}
-                  >
-                    Deny
-                  </button>
-                  <a
-                    className="w-full rounded-md border border-gold/40 bg-gold/10 py-3 text-center text-sm font-medium text-ink"
-                    href={buildChangeRequestMailto({
-                      lane: trip.lane,
-                      optionLabel: opt.label,
-                      acceptToken: hq.accept_token,
-                    })}
-                  >
-                    Add details / Change request
-                  </a>
-                </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-
-        {isPax && hq.disclosure_text ? (
-          <div className="rounded-md border border-border bg-white p-4 text-sm">
-            <div className="font-medium">Part 295.24 disclosure</div>
-            <p className="mt-2 text-muted">{hq.disclosure_text}</p>
-          </div>
-        ) : null}
+        <ClientLogisticsQuotePreview
+          title={title}
+          options={options}
+          interactive={!alreadyAccepted && !alreadyDeclined}
+          disclosureText={isPax ? hq.disclosure_text : null}
+          optionActions={(opt) => ({
+            busy: busyId === opt.offer_id,
+            onAccept: () => {
+              setError(null)
+              setBusyId(opt.offer_id)
+              void acceptHardQuoteOption(token!, opt.offer_id)
+                .then(() => {
+                  setAcceptedLabel(opt.label)
+                  setAccepted(true)
+                })
+                .catch((e) =>
+                  setError(e instanceof Error ? e.message : String(e)),
+                )
+                .finally(() => setBusyId(null))
+            },
+            onDeny: () => {
+              if (
+                !window.confirm(
+                  'Deny this quote? We will release the aircraft hold.',
+                )
+              ) {
+                return
+              }
+              setError(null)
+              setBusyId(opt.offer_id)
+              void declineHardQuote(token!)
+                .then(() => setDeclined(true))
+                .catch((e) =>
+                  setError(e instanceof Error ? e.message : String(e)),
+                )
+                .finally(() => setBusyId(null))
+            },
+            changeRequestHref: buildChangeRequestMailto({
+              lane: trip.lane,
+              optionLabel: opt.label,
+              acceptToken: hq.accept_token,
+            }),
+          })}
+        />
 
         {error ? <p className="text-sm text-[#C0392B]">{error}</p> : null}
 

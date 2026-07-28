@@ -31,6 +31,8 @@ type Props = {
   onChange: (next: ClientEmailSelection) => void
   /** Optional title override. */
   title?: string
+  /** Skip outer gold card when nested in another panel. */
+  embedded?: boolean
 }
 
 function normalize(email: string): string {
@@ -139,6 +141,7 @@ export function ClientEmailRecipientsBubble({
   value,
   onChange,
   title = 'Client emails — quote & ETA loop',
+  embedded = false,
 }: Props) {
   useSyncExternalStore(subscribeClients, listClients, listClients)
   const client = clientId ? getClient(clientId) : undefined
@@ -171,8 +174,13 @@ export function ClientEmailRecipientsBubble({
   }, [client, value])
 
   return (
-    <div className="rounded-xl border border-gold/35 bg-gold/5 p-3">
-      <div className="text-[11px] font-medium uppercase tracking-wider text-gold">
+    <div
+      className={
+        embedded
+          ? 'space-y-2'
+          : 'rounded-xl border border-gold/35 bg-gold/5 p-3'
+      }
+    >      <div className="text-[11px] font-medium uppercase tracking-wider text-gold">
         {title}
       </div>
       <p className="mt-1 text-[11px] text-muted">

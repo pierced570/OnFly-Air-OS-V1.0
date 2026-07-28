@@ -14,17 +14,22 @@ import {
   emptyClientEmailSelection,
   type ClientEmailSelection,
 } from '@/components/ClientEmailRecipientsBubble'
+import { ClientLogisticsQuotePreview } from '@/components/ClientLogisticsQuotePreview'
+import { OfferQuoteFactsBlock } from '@/components/OfferQuoteFactsBlock'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
+import {
+  buildLogisticsQuoteOption,
+  logisticsQuoteTitle,
+} from '@/domain/clientLogisticsQuote'
 import {
   hardQuoteClientStatus,
   hardQuoteClientStatusLabel,
 } from '@/domain/hardQuoteClientStatus'
+import { DISCLOSURE_295_24_TEMPLATE } from '@/domain/offers'
+import { DEFAULT_OFFER_MARGIN_PCT } from '@/domain/offerQuotePreview'
+import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
 import {
-  DEFAULT_OFFER_MARGIN_PCT,
-  formatMinutes,
-} from '@/domain/offerQuotePreview'
-import {
-  formatOfferQuoteSummary,
+  offerQuoteFacts,
   offerRecipientStatus,
 } from '@/domain/offerRecipients'
 import { formatTaxLineDesk } from '@/domain/tax'
@@ -42,6 +47,7 @@ import {
 import {
   getTrip,
   listTripsStable,
+  payloadKindOf,
   subscribeTrips,
 } from '@/lib/tripStore'
 
@@ -61,6 +67,8 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
     emptyClientEmailSelection,
   )
   const [composeAnotherQuote, setComposeAnotherQuote] = useState(false)
+  const [clientQuotePreview, setClientQuotePreview] = useState(false)
+  const [sendBusy, setSendBusy] = useState(false)
   const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
     null,
   )
@@ -131,16 +139,91 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
     )
   }
 
+  const liveTrip = trip
+
   const picked = quoteableIds.filter((oid) => selected[oid])
   // Margin is applied later when building client totals — not edited on this
   // early waterfall stage (operator quotes → hard quote).
   const marginPct =
-    trip.offer_margin_pct != null && Number.isFinite(trip.offer_margin_pct)
-      ? trip.offer_margin_pct
+    liveTrip.offer_margin_pct != null &&
+    Number.isFinite(liveTrip.offer_margin_pct)
+      ? liveTrip.offer_margin_pct
       : DEFAULT_OFFER_MARGIN_PCT
 
+  const canPreviewClientQuote =
+    picked.length > 0 &&
+    emailSel.to.length > 0 &&
+    picked.every((oid) => (confirmedTypes[oid] ?? '').trim())
+
+  const clientPreviewOptions =
+    clientQuotePreview && canPreviewClientQuote
+      ? picked.map((oid, i) => {
+          const o = liveTrip.offers.find((x) => x.id === oid)!
+          const p = offerQuotePreviewFor(
+            o,
+            liveTrip,
+            0,
+            clientEdits[oid] ?? null,
+            marginPct,
+          )
+          const typeName = confirmedTypes[oid]!.trim()
+          return buildLogisticsQuoteOption({
+            offer_id: oid,
+            label: `Option ${String.fromCharCode(65 + i)}`,
+            type_name: typeName,
+            time_to_position_min: o.time_to_position_min,
+            quick_turn_min: o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
+            live_leg_min: o.live_leg_min,
+            client_total: clientEdits[oid] ?? p.client_total,
+            lane: liveTrip.lane,
+            goAtIso: new Date().toISOString(),
+          })
+        })
+      : []
+
+  const kind = payloadKindOf(liveTrip)
+  const showPaxDisclosure = kind === 'pax' || kind === 'both'
+
+  function sendHardQuoteNow() {
+    const totals: Record<string, number> = {}
+    const typeNamesByOffer: Record<string, string> = {}
+    for (const oid of picked) {
+      const o = liveTrip.offers.find((x) => x.id === oid)!
+      const p = offerQuotePreviewFor(
+        o,
+        liveTrip,
+        0,
+        clientEdits[oid] ?? null,
+        marginPct,
+      )
+      totals[oid] = clientEdits[oid] ?? p.client_total
+      typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
+    }
+    if (liveTrip.client_id) {
+      rememberEmailsOnClient(
+        liveTrip.client_id,
+        emailSel.to[0] ?? '',
+        [...emailSel.cc, ...emailSel.bcc],
+      )
+    }
+    setSendBusy(true)
+    void selectOffersAndHardQuote(liveTrip.id, picked, totals, emailSel.to, {
+      ccEmails: emailSel.cc,
+      bccEmails: emailSel.bcc,
+      marginPct,
+      typeNamesByOffer,
+    })
+      .then(() => {
+        setComposeAnotherQuote(false)
+        setClientQuotePreview(false)
+        setError(null)
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setSendBusy(false))
+  }
+
   return (
-    <div className="mt-3 space-y-3 rounded-md border border-gold/40 bg-ink/50 p-3">
+    <div className="mt-3 space-y-4 border-t border-gold/30 pt-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="text-[11px] uppercase tracking-wider text-gold">
           Quotes & pricing
@@ -158,12 +241,12 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
 
       {error ? <p className="text-sm text-late">{error}</p> : null}
 
-      <ul className="space-y-2">
-        {trip.offers.map((o) => {
+      <ul className="space-y-4">
+        {liveTrip.offers.map((o) => {
           const status = offerRecipientStatus(o.state)
           if (status === 'no' && o.declined_acked_at) return null
           if (status === 'stood_down' || status === 'expired') return null
-          const summary = formatOfferQuoteSummary(o)
+          const facts = offerQuoteFacts(o)
           const preview =
             o.price_net != null
               ? offerQuotePreviewFor(
@@ -192,7 +275,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
           return (
             <li
               key={o.id}
-              className="rounded-md border border-border/50 bg-surface/40 px-2.5 py-2"
+              className="space-y-2 border-t border-border/40 pt-3 first:border-t-0 first:pt-0"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -214,33 +297,22 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   ) : null}
                   <div className="text-sm font-medium text-cream">
                     {o.operator_name}
-                    {o.type_name ? (
-                      <span className="font-normal text-cream/75">
-                        {' '}
-                        · {o.type_name}
-                      </span>
-                    ) : null}
-                    {o.tail ? (
-                      <span className="avionic ml-1 text-xs text-cream/70">
-                        {o.tail}
-                      </span>
-                    ) : null}
                   </div>
-                  {summary ? (
-                    <div className="mt-0.5 font-mono text-[11px] text-cream/85">
-                      {summary}
-                    </div>
+                  {facts ? (
+                    <OfferQuoteFactsBlock
+                      facts={facts}
+                      clientTotal={
+                        priced
+                          ? (clientEdits[o.id] ?? priced.client)
+                          : null
+                      }
+                      fetExempt={priced?.fetExempt}
+                    />
                   ) : (
-                    <div className="mt-0.5 text-[11px] text-muted">
+                    <div className="mt-1 text-[11px] text-muted">
                       No quote yet
                     </div>
                   )}
-                  {priced ? (
-                    <div className="mt-0.5 text-xs text-gold">
-                      Client ${clientEdits[o.id] ?? priced.client}
-                      {priced.fetExempt ? ' · FET exempt' : ''}
-                    </div>
-                  ) : null}
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {canManual ? (
@@ -277,12 +349,12 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               </div>
 
               {showPricing && preview ? (
-                <div className="mt-2 space-y-2 rounded border border-gold/25 bg-ink/60 p-2.5">
-                  <div className="text-[11px] uppercase tracking-wider text-gold/90">
-                    Client pricing
+                <div className="space-y-2 pt-1">
+                  <div className="text-[11px] uppercase tracking-wider text-muted">
+                    Client pricing detail
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="font-mono text-[11px] text-muted space-y-0.5">
+                    <div className="space-y-0.5 font-mono text-[11px] text-muted">
                       <div>Vendor NET ${preview.vendor_price.toFixed(0)}</div>
                       <div>
                         Margin {preview.margin_pct}% → air $
@@ -302,22 +374,24 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                     <label className="block text-xs text-muted">
                       Client total $
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
-                        value={clientEdits[o.id] ?? preview.client_total}
-                        onChange={(e) =>
-                          setClientEdits((m) => ({
-                            ...m,
-                            [o.id]: Number(e.target.value),
-                          }))
-                        }
+                        value={String(
+                          clientEdits[o.id] ?? preview.client_total,
+                        )}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/,/g, '')
+                          if (v === '' || /^\d*\.?\d*$/.test(v)) {
+                            setClientEdits((m) => ({
+                              ...m,
+                              [o.id]:
+                                v === '' ? preview.client_total : Number(v),
+                            }))
+                          }
+                        }}
                       />
                     </label>
-                  </div>
-                  <div className="font-mono text-[11px] text-cream/80">
-                    TTP {formatMinutes(preview.ttp_min)} · turn{' '}
-                    {formatMinutes(preview.turn_load_min)} · live{' '}
-                    {formatMinutes(preview.live_leg_min)}
                   </div>
                   {trip.hard_quote?.options?.some(
                     (opt) => opt.offer_id === o.id,
@@ -359,7 +433,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               ) : null}
 
               {manualQuoteOfferId === o.id ? (
-                <div className="mt-2 rounded border border-gold/30 bg-ink/60 p-2.5">
+                <div className="pt-1">
                   <OfferQuoteForm
                     lane={trip.lane}
                     busy={manualQuoteBusy}
@@ -422,7 +496,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
       ) : null}
 
       {showQuoteComposer ? (
-        <div className="space-y-2 rounded-md border border-gold/40 bg-gold/10 p-3">
+        <div className="space-y-3 border-t border-gold/30 pt-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="text-sm text-gold">
               {trip.hard_quote ? 'Send another quote' : 'Send hard quote'}
@@ -431,7 +505,10 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               <button
                 type="button"
                 className="text-xs text-muted hover:text-cream"
-                onClick={() => setComposeAnotherQuote(false)}
+                onClick={() => {
+                  setComposeAnotherQuote(false)
+                  setClientQuotePreview(false)
+                }}
               >
                 Cancel
               </button>
@@ -440,11 +517,15 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
           <ClientEmailRecipientsBubble
             clientId={trip.client_id}
             value={emailSel}
-            onChange={setEmailSel}
+            onChange={(next) => {
+              setEmailSel(next)
+              setClientQuotePreview(false)
+            }}
+            embedded
           />
           {picked.length > 0 ? (
-            <div className="space-y-2 rounded border border-border/60 bg-ink/30 p-2">
-              <div className="text-xs text-gold">
+            <div className="space-y-2">
+              <div className="text-xs text-muted">
                 Confirm aircraft type before send
               </div>
               {picked.map((oid) => {
@@ -456,66 +537,69 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                     label={`${o.operator_name || 'Option'} · ${o.tail || 'TBD'}`}
                     draft={o.type_name}
                     value={confirmedTypes[oid] ?? ''}
-                    onChange={(v) =>
+                    onChange={(v) => {
                       setConfirmedTypes((m) => ({ ...m, [oid]: v }))
-                    }
+                      setClientQuotePreview(false)
+                    }}
                   />
                 )
               })}
             </div>
           ) : null}
-          <button
-            type="button"
-            disabled={
-              picked.length === 0 ||
-              emailSel.to.length === 0 ||
-              picked.some((oid) => !(confirmedTypes[oid] ?? '').trim())
-            }
-            className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
-            onClick={() => {
-              const totals: Record<string, number> = {}
-              const typeNamesByOffer: Record<string, string> = {}
-              for (const oid of picked) {
-                const o = trip.offers.find((x) => x.id === oid)!
-                const p = offerQuotePreviewFor(
-                  o,
-                  trip,
-                  0,
-                  clientEdits[oid] ?? null,
-                  marginPct,
-                )
-                totals[oid] = clientEdits[oid] ?? p.client_total
-                typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
-              }
-              if (trip.client_id) {
-                rememberEmailsOnClient(
-                  trip.client_id,
-                  emailSel.to[0] ?? '',
-                  [...emailSel.cc, ...emailSel.bcc],
-                )
-              }
-              void selectOffersAndHardQuote(
-                trip.id,
-                picked,
-                totals,
-                emailSel.to,
-                {
-                  ccEmails: emailSel.cc,
-                  bccEmails: emailSel.bcc,
-                  marginPct,
-                  typeNamesByOffer,
-                },
-              )
-                .then(() => {
-                  setComposeAnotherQuote(false)
-                  setError(null)
-                })
-                .catch((e) => setError(String(e)))
-            }}
-          >
-            {trip.hard_quote ? 'Send another quote' : 'Send hard quote'} (
-            {picked.length || 0})
-          </button>
+
+          {clientQuotePreview && clientPreviewOptions.length > 0 ? (
+            <div className="space-y-3">
+              <div className="text-xs text-muted">
+                To: {emailSel.to.join(', ') || '—'}
+                {emailSel.cc.length ? ` · CC: ${emailSel.cc.join(', ')}` : ''}
+                {emailSel.bcc.length ? ` · BCC: ${emailSel.bcc.join(', ')}` : ''}
+              </div>
+              <ClientLogisticsQuotePreview
+                title={logisticsQuoteTitle(trip.lane)}
+                options={clientPreviewOptions}
+                previewBanner="Client preview — what they get in email / accept link (no operator names or margins)"
+                disclosureText={
+                  showPaxDisclosure ? DISCLOSURE_295_24_TEMPLATE : null
+                }
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={sendBusy}
+                  className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
+                  onClick={sendHardQuoteNow}
+                >
+                  {sendBusy
+                    ? 'Sending…'
+                    : trip.hard_quote
+                      ? `Confirm & send another (${picked.length})`
+                      : `Confirm & send hard quote (${picked.length})`}
+                </button>
+                <button
+                  type="button"
+                  disabled={sendBusy}
+                  className="rounded border border-border px-3 py-2 text-sm text-muted hover:text-cream disabled:opacity-40"
+                  onClick={() => setClientQuotePreview(false)}
+                >
+                  Back to edit
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={!canPreviewClientQuote}
+              className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
+              onClick={() => {
+                setError(null)
+                setClientQuotePreview(true)
+              }}
+            >
+              {trip.hard_quote
+                ? `Preview client quote (${picked.length || 0})`
+                : `Preview client quote (${picked.length || 0})`}
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -547,15 +631,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   },
                 ]
             return (
-              <div
-                className={`rounded-md border p-3 ${
-                  clientStatus === 'accepted'
-                    ? 'border-onplan/50 bg-onplan/10'
-                    : clientStatus === 'declined'
-                      ? 'border-border/50 bg-ink/30'
-                      : 'border-gold/40 bg-gold/10'
-                }`}
-              >
+              <div className="space-y-2 border-t border-border/50 pt-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div
                     className={`text-sm ${
@@ -569,7 +645,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                     {statusLabel}
                   </div>
                 </div>
-                <ul className="mt-2 space-y-2">
+                <ul className="space-y-3">
                   {options.map((opt) => {
                     const offer = trip.offers.find((x) => x.id === opt.offer_id)
                     const operator =
@@ -593,26 +669,12 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                       optLabel = 'Declined (No)'
                       optCls = 'text-muted'
                     }
-                    // Pending: status shown once on the hard-quote header only.
+                    const facts = offer ? offerQuoteFacts(offer) : null
                     return (
-                      <li
-                        key={opt.offer_id}
-                        className="rounded border border-border/40 bg-ink/40 px-2.5 py-2"
-                      >
+                      <li key={opt.offer_id} className="space-y-1">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                           <div className="text-sm font-medium text-cream">
                             {operator}
-                            {typeName ? (
-                              <span className="font-normal text-cream/80">
-                                {' '}
-                                · {typeName}
-                              </span>
-                            ) : null}
-                            {tail ? (
-                              <span className="avionic ml-1 text-xs text-cream/70">
-                                {tail}
-                              </span>
-                            ) : null}
                           </div>
                           {optLabel ? (
                             <div className={`text-xs font-medium ${optCls}`}>
@@ -620,15 +682,24 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                             </div>
                           ) : null}
                         </div>
-                        <div className="mt-1 avionic text-sm text-gold">
-                          ${opt.client_total.toFixed(0)}
-                        </div>
+                        {facts ? (
+                          <OfferQuoteFactsBlock
+                            facts={facts}
+                            clientTotal={opt.client_total}
+                          />
+                        ) : (
+                          <div className="avionic text-sm text-gold">
+                            ${opt.client_total.toFixed(0)}
+                            {typeName ? ` · ${typeName}` : ''}
+                            {tail ? ` · ${tail}` : ''}
+                          </div>
+                        )}
                       </li>
                     )
                   })}
                 </ul>
                 {canSendAnotherQuote && !showQuoteComposer ? (
-                  <div className="mt-2">
+                  <div className="pt-1">
                     <button
                       type="button"
                       className="rounded border border-gold/50 bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold"

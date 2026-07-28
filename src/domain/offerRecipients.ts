@@ -247,19 +247,62 @@ export function formatOfferAge(
 export function formatOfferQuoteSummary(o: {
   price_net?: number | null
   time_to_position_min?: number | null
+  quick_turn_min?: number | null
   live_leg_min?: number | null
   fee_scope?: string | null
   type_name?: string | null
   tail?: string | null
 }): string | null {
-  if (o.price_net == null) return null
+  const facts = offerQuoteFacts(o)
+  if (!facts) return null
   const bits: string[] = []
-  if (o.type_name?.trim()) bits.push(o.type_name.trim())
-  bits.push(`NET $${Math.round(o.price_net)}`)
-  if (o.time_to_position_min != null) bits.push(`TTP ${o.time_to_position_min}m`)
-  if (o.live_leg_min != null) bits.push(`live ${o.live_leg_min}m`)
-  if (o.fee_scope === 'aircraft_only') bits.push('aircraft only')
-  else if (o.fee_scope === 'aircraft_and_fees') bits.push('fees included')
-  if (o.tail && o.tail !== 'TBD') bits.push(o.tail)
+  if (facts.type_name) bits.push(facts.type_name)
+  bits.push(`NET $${Math.round(facts.price_net)}`)
+  if (facts.time_to_position_min != null) {
+    bits.push(`TTP ${facts.time_to_position_min}m`)
+  }
+  if (facts.quick_turn_min != null) bits.push(`turn ${facts.quick_turn_min}m`)
+  if (facts.live_leg_min != null) bits.push(`live ${facts.live_leg_min}m`)
+  if (facts.fee_label) bits.push(facts.fee_label)
+  if (facts.tail) bits.push(facts.tail)
   return bits.join(' · ')
+}
+
+/** Structured operator quote fields for desk cards (not a dense mono line). */
+export type OfferQuoteFacts = {
+  type_name: string | null
+  tail: string | null
+  price_net: number
+  time_to_position_min: number | null
+  quick_turn_min: number | null
+  live_leg_min: number | null
+  fee_label: string | null
+}
+
+export function offerQuoteFacts(o: {
+  price_net?: number | null
+  time_to_position_min?: number | null
+  quick_turn_min?: number | null
+  live_leg_min?: number | null
+  fee_scope?: string | null
+  type_name?: string | null
+  tail?: string | null
+}): OfferQuoteFacts | null {
+  if (o.price_net == null) return null
+  const fee_label =
+    o.fee_scope === 'aircraft_only'
+      ? 'aircraft only'
+      : o.fee_scope === 'aircraft_and_fees'
+        ? 'fees included'
+        : null
+  const tail = o.tail?.trim() && o.tail !== 'TBD' ? o.tail.trim() : null
+  return {
+    type_name: o.type_name?.trim() || null,
+    tail,
+    price_net: o.price_net,
+    time_to_position_min: o.time_to_position_min ?? null,
+    quick_turn_min: o.quick_turn_min ?? null,
+    live_leg_min: o.live_leg_min ?? null,
+    fee_label,
+  }
 }
