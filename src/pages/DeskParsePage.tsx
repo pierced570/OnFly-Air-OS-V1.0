@@ -827,7 +827,7 @@ export default function DeskParsePage() {
                     </button>
                   )}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 sm:[&>*]:min-w-0">
                   <EndpointEditor
                     title="Origin"
                     kind={leg.origin_kind}
