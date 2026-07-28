@@ -11,7 +11,7 @@ import {
 } from '@/lib/tripStore'
 
 vi.mock('@/lib/db/persistTrip', () => ({
-  deleteTripFromDb: vi.fn(async () => {}),
+  deleteTripFromDb: vi.fn(async () => true),
   persistTripSnapshot: vi.fn(async () => {}),
 }))
 

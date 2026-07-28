@@ -506,10 +506,39 @@ export async function persistPortalTrackToken(opts: {
   )
 }
 
-/** Hard-delete a trip row (children cascade). No-op when offline / unconfigured. */
-export async function deleteTripFromDb(tripId: string): Promise<void> {
-  if (!canPersist() || !isUuid(tripId)) return
-  await safeQuery('trips.delete', () =>
-    db().from('trips').delete().eq('id', tripId),
+/** Soft-delete a trip (desk queue remove). Never hard-DELETE — trip_events are append-only. */
+export async function deleteTripFromDb(tripId: string): Promise<boolean> {
+  if (!canPersist() || !isUuid(tripId)) return false
+  const at = new Date().toISOString()
+  await safeQuery('trip_events.discard', () =>
+    db().from('trip_events').insert({
+      trip_id: tripId,
+      at,
+      actor: 'dispatcher',
+      kind: 'trip_discarded',
+      payload: { reason: 'desk_delete' },
+    }),
   )
+  const updated = await safeQuery<{ id: string }[]>(
+    'trips.discard',
+    () =>
+      db()
+        .from('trips')
+        .update({ discarded_at: at })
+        .eq('id', tripId)
+        .select('id'),
+  )
+  if (Array.isArray(updated) && updated.length > 0) return true
+  // Already discarded or missing — treat as done so hydrate stops retrying.
+  const row = await safeQuery<{ discarded_at: string | null }>(
+    'trips.discard_check',
+    () =>
+      db()
+        .from('trips')
+        .select('discarded_at')
+        .eq('id', tripId)
+        .maybeSingle(),
+  )
+  if (!row) return true
+  return row.discarded_at != null
 }
