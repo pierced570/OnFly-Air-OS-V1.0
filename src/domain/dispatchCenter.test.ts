@@ -76,6 +76,7 @@ describe('dispatchCenter', () => {
               time_to_position_min: 60,
               live_leg_min: 90,
               fee_scope: 'aircraft_and_fees',
+              type_name: 'Citation CJ3',
               tail: 'N9ZZ',
             },
             {
@@ -145,8 +146,11 @@ describe('dispatchCenter', () => {
         declined_acked: false,
       })
     expect(buckets.submitted_quotes).toHaveLength(1)
-    expect(buckets.submitted_quotes[0]?.title).toContain('Charlie Jets')
-    expect(buckets.submitted_quotes[0]?.title).toContain('Quote submitted')
+    expect(buckets.submitted_quotes[0]?.title).toBe('Charlie Jets')
+    expect(buckets.submitted_quotes[0]?.subtitle).toContain('KCAK→KMDW')
+    expect(buckets.submitted_quotes[0]?.quote_facts?.type_name).toBe('Citation CJ3')
+    expect(buckets.submitted_quotes[0]?.quote_facts?.tail).toBe('N9ZZ')
+    expect(buckets.submitted_quotes[0]?.quote_facts?.price_net).toBe(5000)
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
     expect(buckets.tracking[0]?.href).toContain('/trips/')
@@ -203,6 +207,8 @@ describe('dispatchCenter', () => {
     expect(buckets.offers[0]?.subtitle).toBe('RF836')
     expect(buckets.offers[0]?.approvable).toBe(false)
     expect(buckets.submitted_quotes[0]?.approvable).toBe(true)
+    expect(buckets.submitted_quotes[0]?.title).toBe('Alpha')
+    expect(buckets.submitted_quotes[0]?.quote_facts?.price_net).toBe(4500)
   })
 
   it('collapses acknowledged declines to unavailable', () => {

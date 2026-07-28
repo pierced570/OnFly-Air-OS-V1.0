@@ -156,18 +156,28 @@ function CardList({
     <ul className="space-y-2">
       {cards.map((c) => {
         const tripId = c.trip_id ?? (c.kind === 'trip' ? c.id : undefined)
+        const isSubmittedQuote = c.kind === 'offer_quote'
         return (
         <li
           key={`${c.kind}-${c.id}`}
           className="rounded-md border border-border/70 bg-ink px-3 py-3"
         >
           <div className="flex items-stretch gap-2">
-            <Link
-              to={c.href}
-              className="min-w-0 flex-1 hover:opacity-90"
-            >
-              <div className="font-medium text-cream">{c.title}</div>
-              <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+            <div className="min-w-0 flex-1">
+              <Link to={c.href} className="block hover:opacity-90">
+                <div className="font-medium text-cream">
+                  {c.title}
+                  {isSubmittedQuote ? (
+                    <span className="ml-2 text-xs font-medium text-onplan">
+                      Quote submitted
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+              </Link>
+              {isSubmittedQuote && c.quote_facts ? (
+                <OfferQuoteFactsBlock facts={c.quote_facts} />
+              ) : null}
               {c.chips?.length ? (
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {c.chips.map((chip) => (
@@ -187,7 +197,7 @@ function CardList({
                   ))}
                 </div>
               ) : null}
-            </Link>
+            </div>
             <div className="flex shrink-0 flex-col justify-center gap-1">
               {c.approvable ? (
                 <button
