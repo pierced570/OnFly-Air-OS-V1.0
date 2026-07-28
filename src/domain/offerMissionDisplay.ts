@@ -59,9 +59,32 @@ function airportLine(icao: string): OfferAirportLine {
   }
 }
 
+/** Service-pattern / desk ops chips — not cargo for the air operator. */
+const OPS_NOISE_RE =
+  /\b(?:A2A|D2D|A2D|D2A|ground\s+courier|forklift\s+(?:required|recommended))\b/gi
+
+/** Strip A2A/D2D/etc and forklift/courier chips from a mission fragment. */
+export function scrubOpsNoiseFromCargo(text: string): string {
+  return text
+    .replace(OPS_NOISE_RE, '')
+    .replace(/^[·+\s|,./-]+|[·+\s|,./-]+$/g, '')
+    .replace(/\s*[·+]\s*/g, ' · ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function isEmptyCargo(cargo: string): boolean {
+  if (!cargo) return true
+  if (/^pax$/i.test(cargo)) return true
+  // Placeholder from operatorMissionSummary when pieces were blank.
+  if (/^cargo(?:\s+only)?$/i.test(cargo)) return true
+  return false
+}
+
 /**
  * Pull pax count and cargo description from operator mission summaries
  * like "2 pax + standard tooling (12×12×12 @ 50 lb)".
+ * Service pattern (A2A) and ground/forklift chips are not cargo.
  */
 export function parsePayloadSummary(summary: string): {
   passengers: string
@@ -69,7 +92,7 @@ export function parsePayloadSummary(summary: string): {
 } {
   const raw = summary.trim()
   if (!raw) {
-    return { passengers: 'None listed', cargo: 'None listed' }
+    return { passengers: 'None listed', cargo: 'No cargo submitted' }
   }
 
   const paxMatch = raw.match(
@@ -89,12 +112,14 @@ export function parsePayloadSummary(summary: string): {
       .replace(/\s*\+\s*$/, '')
       .trim()
   }
-  if (!cargo || /^pax$/i.test(cargo)) {
-    cargo = paxMatch && !/cargo|tool|lb|kg|piece|box|dim/i.test(raw)
-      ? 'None listed'
-      : cargo || 'None listed'
+  cargo = scrubOpsNoiseFromCargo(cargo)
+  // Drop leading "cargo only" / lone "cargo" placeholder when real dims follow.
+  cargo = cargo
+    .replace(/^cargo(?:\s+only)?\s*[·+\-–,]*\s*/i, '')
+    .trim()
+  if (isEmptyCargo(cargo)) {
+    cargo = 'No cargo submitted'
   }
-  if (!cargo) cargo = 'None listed'
 
   return { passengers, cargo }
 }

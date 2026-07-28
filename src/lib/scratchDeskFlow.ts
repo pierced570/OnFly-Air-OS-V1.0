@@ -608,7 +608,10 @@ export async function sendDeskTripOffers(opts: {
     pax_count: draft.pax_count,
     cargo_only: draft.cargo_only,
   })
-  const opsBits = draft.ops.chips.join(' · ')
+  // Forklift only — never stuff A2A/D2D/ground-courier into operator payload.
+  const opsBits = draft.ops.chips
+    .filter((c) => /forklift/i.test(c))
+    .join(' · ')
   const trip = createTripFromCandidates({
     lane,
     payload_summary: [mission || payload, opsBits].filter(Boolean).join(' · '),

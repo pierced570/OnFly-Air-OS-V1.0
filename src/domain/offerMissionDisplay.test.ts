@@ -32,6 +32,36 @@ describe('offerMissionDisplay', () => {
     })
     expect(parsePayloadSummary('cargo only · 3 boxes')).toMatchObject({
       passengers: 'None (cargo only)',
+      cargo: '3 boxes',
+    })
+  })
+
+  it('shows No cargo submitted when cargo empty; strips A2A ops noise', () => {
+    expect(parsePayloadSummary('2 pax · A2A')).toEqual({
+      passengers: '2 passengers',
+      cargo: 'No cargo submitted',
+    })
+    expect(parsePayloadSummary('2 passengers · A2A')).toEqual({
+      passengers: '2 passengers',
+      cargo: 'No cargo submitted',
+    })
+    expect(parsePayloadSummary('A2A')).toEqual({
+      passengers: 'None listed',
+      cargo: 'No cargo submitted',
+    })
+    expect(parsePayloadSummary('')).toEqual({
+      passengers: 'None listed',
+      cargo: 'No cargo submitted',
+    })
+    expect(parsePayloadSummary('2 pax')).toEqual({
+      passengers: '2 passengers',
+      cargo: 'No cargo submitted',
+    })
+    expect(
+      parsePayloadSummary('2 pax · A2A · forklift required · ground courier'),
+    ).toEqual({
+      passengers: '2 passengers',
+      cargo: 'No cargo submitted',
     })
   })
 
