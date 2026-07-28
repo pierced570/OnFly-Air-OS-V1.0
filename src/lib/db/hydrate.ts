@@ -71,6 +71,7 @@ export async function hydrateOperatingData(): Promise<{
       const rulesRaw = (r.client_rules as Array<Record<string, unknown>>)?.[0]
       return {
         id: String(r.legacy_key || r.id),
+        supabase_id: String(r.id),
         name: String(r.name ?? ''),
         email: '',
         invoice_email: String(r.invoice_email ?? ''),

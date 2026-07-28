@@ -124,6 +124,11 @@ export type ClientExtendedProfile = {
 
 export type ClientProfile = {
   id: string
+  /**
+   * Supabase `clients.id` when `id` is a legacy_key (e.g. client-xxxxxxxx).
+   * Trip hydrate stores the UUID on trips.client_id — getClient must resolve both.
+   */
+  supabase_id?: string | null
   name: string
   /** Fallback / primary ops email */
   email: string
@@ -143,6 +148,8 @@ export type ClientProfile = {
 const STORAGE_KEY = 'onfly.clients.v1'
 
 const clients = new Map<string, ClientProfile>()
+/** Supabase UUID → directory primary id (legacy_key or uuid). */
+const clientIdAliases = new Map<string, string>()
 const listeners = new Set<() => void>()
 let snapshot: ClientProfile[] = []
 
@@ -172,6 +179,9 @@ function loadLocal(): void {
       if (!row.profile) row.profile = {}
       if (!Array.isArray(row.contacts)) row.contacts = []
       clients.set(row.id, row)
+      if (row.supabase_id && row.supabase_id !== row.id) {
+        clientIdAliases.set(row.supabase_id, row.id)
+      }
     }
   } catch {
     /* ignore */
@@ -195,7 +205,13 @@ rebuild()
 export function replaceClientsFromDb(rows: ClientProfile[]): void {
   if (!rows.length) return
   clients.clear()
-  for (const r of rows) clients.set(r.id, r)
+  clientIdAliases.clear()
+  for (const r of rows) {
+    clients.set(r.id, r)
+    if (r.supabase_id && r.supabase_id !== r.id) {
+      clientIdAliases.set(r.supabase_id, r.id)
+    }
+  }
   rebuild()
   persistLocal()
   for (const l of listeners) l()
@@ -262,6 +278,7 @@ export async function ensureClientsDirectorySeeded(): Promise<number> {
 /** Test-only: wipe in-memory + localStorage directory. */
 export function __resetClientsForTests(): void {
   clients.clear()
+  clientIdAliases.clear()
   if (typeof localStorage !== 'undefined') {
     try {
       localStorage.removeItem(STORAGE_KEY)
@@ -295,7 +312,10 @@ export function listClients(): ClientProfile[] {
 }
 
 export function getClient(id: string): ClientProfile | undefined {
-  return clients.get(id)
+  const direct = clients.get(id)
+  if (direct) return direct
+  const aliased = clientIdAliases.get(id)
+  return aliased ? clients.get(aliased) : undefined
 }
 
 export function addClient(opts: {
