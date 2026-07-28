@@ -76,6 +76,7 @@ describe('dispatchCenter', () => {
               time_to_position_min: 60,
               live_leg_min: 90,
               fee_scope: 'aircraft_and_fees',
+              type_name: 'Citation CJ3',
               tail: 'N9ZZ',
             },
             {
@@ -115,6 +116,7 @@ describe('dispatchCenter', () => {
     expect(buckets.offers[0]?.title).toBe('PSA Airlines · KCAK→KMDW')
     expect(buckets.offers[0]?.subtitle).toBe('PS001')
     expect(buckets.offers[0]?.subtitle).not.toMatch(/yes|awaiting|quoted/)
+    expect(buckets.offers[0]?.approvable).toBe(false)
     expect(buckets.offers[0]?.recipients).toHaveLength(4)
     expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air'))
       .toMatchObject({
@@ -144,8 +146,11 @@ describe('dispatchCenter', () => {
         declined_acked: false,
       })
     expect(buckets.submitted_quotes).toHaveLength(1)
-    expect(buckets.submitted_quotes[0]?.title).toContain('Charlie Jets')
-    expect(buckets.submitted_quotes[0]?.title).toContain('Quote submitted')
+    expect(buckets.submitted_quotes[0]?.title).toBe('Charlie Jets')
+    expect(buckets.submitted_quotes[0]?.subtitle).toContain('KCAK→KMDW')
+    expect(buckets.submitted_quotes[0]?.quote_facts?.type_name).toBe('Citation CJ3')
+    expect(buckets.submitted_quotes[0]?.quote_facts?.tail).toBe('N9ZZ')
+    expect(buckets.submitted_quotes[0]?.quote_facts?.price_net).toBe(5000)
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
     expect(buckets.tracking[0]?.href).toContain('/trips/')
@@ -168,6 +173,42 @@ describe('dispatchCenter', () => {
     })
     expect(buckets.offers[0]?.title).toBe('Client TBD · KCAK→KHPN')
     expect(buckets.offers[0]?.subtitle).toBe('ZZ007')
+  })
+
+  it('puts cargo/pax on offers cards and keeps approve off that drawer', () => {
+    const buckets = buildDispatchDrawers({
+      requests: [],
+      trips: [
+        {
+          id: 't-mission',
+          ref: 5,
+          code: 'RF836',
+          lane: 'KCAK→KHPN',
+          state: 'offers_out',
+          client_name: 'Tester',
+          payload_summary: '2 skids · ASAP cargo',
+          ready_label: 'ASAP',
+          legs: [],
+          offers: [
+            {
+              id: 'o1',
+              operator_name: 'Alpha',
+              state: 'quoted',
+              price_net: 4500,
+              magic_token: 'tok',
+            },
+          ],
+        },
+      ],
+    })
+    expect(buckets.offers[0]?.title).toBe('Tester · KCAK→KHPN')
+    expect(buckets.offers[0]?.payload_summary).toBe('2 skids · ASAP cargo')
+    expect(buckets.offers[0]?.ready_label).toBe('ASAP')
+    expect(buckets.offers[0]?.subtitle).toBe('RF836')
+    expect(buckets.offers[0]?.approvable).toBe(false)
+    expect(buckets.submitted_quotes[0]?.approvable).toBe(true)
+    expect(buckets.submitted_quotes[0]?.title).toBe('Alpha')
+    expect(buckets.submitted_quotes[0]?.quote_facts?.price_net).toBe(4500)
   })
 
   it('collapses acknowledged declines to unavailable', () => {
