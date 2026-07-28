@@ -35,9 +35,13 @@ describe('offerQuotePreview', () => {
     expect(p.operator_name).toBe('Pmoney')
   })
 
-  it('formats minutes for client layout', () => {
+  it('formats minutes as hours and minutes', () => {
+    expect(formatMinutes(120)).toBe('2h 0m')
     expect(formatMinutes(90)).toBe('1h 30m')
-    expect(formatMinutes(40)).toBe('40m')
+    expect(formatMinutes(75)).toBe('1h 15m')
+    expect(formatMinutes(45)).toBe('0h 45m')
+    expect(formatMinutes(40)).toBe('0h 40m')
+    expect(formatMinutes(0)).toBe('0h 0m')
     expect(formatMinutes(null)).toBe('—')
   })
 

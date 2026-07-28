@@ -4,6 +4,7 @@
  */
 
 import { DateTime } from 'luxon'
+import { formatMinutes } from '@/domain/offerQuotePreview'
 import {
   channelIncludesEmail,
   channelIncludesSms,
@@ -259,10 +260,14 @@ export function formatOfferQuoteSummary(o: {
   if (facts.type_name) bits.push(facts.type_name)
   bits.push(`NET $${Math.round(facts.price_net)}`)
   if (facts.time_to_position_min != null) {
-    bits.push(`TTP ${facts.time_to_position_min}m`)
+    bits.push(`TTP ${formatMinutes(facts.time_to_position_min)}`)
   }
-  if (facts.quick_turn_min != null) bits.push(`turn ${facts.quick_turn_min}m`)
-  if (facts.live_leg_min != null) bits.push(`live ${facts.live_leg_min}m`)
+  if (facts.quick_turn_min != null) {
+    bits.push(`turn ${formatMinutes(facts.quick_turn_min)}`)
+  }
+  if (facts.live_leg_min != null) {
+    bits.push(`live ${formatMinutes(facts.live_leg_min)}`)
+  }
   if (facts.fee_label) bits.push(facts.fee_label)
   if (facts.tail) bits.push(facts.tail)
   return bits.join(' · ')
