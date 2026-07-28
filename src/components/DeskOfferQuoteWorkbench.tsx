@@ -14,13 +14,20 @@ import {
   emptyClientEmailSelection,
   type ClientEmailSelection,
 } from '@/components/ClientEmailRecipientsBubble'
+import { ClientLogisticsQuotePreview } from '@/components/ClientLogisticsQuotePreview'
 import { OfferQuoteFactsBlock } from '@/components/OfferQuoteFactsBlock'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
+import {
+  buildLogisticsQuoteOption,
+  logisticsQuoteTitle,
+} from '@/domain/clientLogisticsQuote'
 import {
   hardQuoteClientStatus,
   hardQuoteClientStatusLabel,
 } from '@/domain/hardQuoteClientStatus'
+import { DISCLOSURE_295_24_TEMPLATE } from '@/domain/offers'
 import { DEFAULT_OFFER_MARGIN_PCT } from '@/domain/offerQuotePreview'
+import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
 import {
   offerQuoteFacts,
   offerRecipientStatus,
@@ -40,6 +47,7 @@ import {
 import {
   getTrip,
   listTripsStable,
+  payloadKindOf,
   subscribeTrips,
 } from '@/lib/tripStore'
 
@@ -59,6 +67,8 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
     emptyClientEmailSelection,
   )
   const [composeAnotherQuote, setComposeAnotherQuote] = useState(false)
+  const [clientQuotePreview, setClientQuotePreview] = useState(false)
+  const [sendBusy, setSendBusy] = useState(false)
   const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
     null,
   )
@@ -129,13 +139,88 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
     )
   }
 
+  const liveTrip = trip
+
   const picked = quoteableIds.filter((oid) => selected[oid])
   // Margin is applied later when building client totals — not edited on this
   // early waterfall stage (operator quotes → hard quote).
   const marginPct =
-    trip.offer_margin_pct != null && Number.isFinite(trip.offer_margin_pct)
-      ? trip.offer_margin_pct
+    liveTrip.offer_margin_pct != null &&
+    Number.isFinite(liveTrip.offer_margin_pct)
+      ? liveTrip.offer_margin_pct
       : DEFAULT_OFFER_MARGIN_PCT
+
+  const canPreviewClientQuote =
+    picked.length > 0 &&
+    emailSel.to.length > 0 &&
+    picked.every((oid) => (confirmedTypes[oid] ?? '').trim())
+
+  const clientPreviewOptions =
+    clientQuotePreview && canPreviewClientQuote
+      ? picked.map((oid, i) => {
+          const o = liveTrip.offers.find((x) => x.id === oid)!
+          const p = offerQuotePreviewFor(
+            o,
+            liveTrip,
+            0,
+            clientEdits[oid] ?? null,
+            marginPct,
+          )
+          const typeName = confirmedTypes[oid]!.trim()
+          return buildLogisticsQuoteOption({
+            offer_id: oid,
+            label: `Option ${String.fromCharCode(65 + i)}`,
+            type_name: typeName,
+            time_to_position_min: o.time_to_position_min,
+            quick_turn_min: o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
+            live_leg_min: o.live_leg_min,
+            client_total: clientEdits[oid] ?? p.client_total,
+            lane: liveTrip.lane,
+            goAtIso: new Date().toISOString(),
+          })
+        })
+      : []
+
+  const kind = payloadKindOf(liveTrip)
+  const showPaxDisclosure = kind === 'pax' || kind === 'both'
+
+  function sendHardQuoteNow() {
+    const totals: Record<string, number> = {}
+    const typeNamesByOffer: Record<string, string> = {}
+    for (const oid of picked) {
+      const o = liveTrip.offers.find((x) => x.id === oid)!
+      const p = offerQuotePreviewFor(
+        o,
+        liveTrip,
+        0,
+        clientEdits[oid] ?? null,
+        marginPct,
+      )
+      totals[oid] = clientEdits[oid] ?? p.client_total
+      typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
+    }
+    if (liveTrip.client_id) {
+      rememberEmailsOnClient(
+        liveTrip.client_id,
+        emailSel.to[0] ?? '',
+        [...emailSel.cc, ...emailSel.bcc],
+      )
+    }
+    setSendBusy(true)
+    void selectOffersAndHardQuote(liveTrip.id, picked, totals, emailSel.to, {
+      ccEmails: emailSel.cc,
+      bccEmails: emailSel.bcc,
+      marginPct,
+      typeNamesByOffer,
+    })
+      .then(() => {
+        setComposeAnotherQuote(false)
+        setClientQuotePreview(false)
+        setError(null)
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setSendBusy(false))
+  }
 
   return (
     <div className="mt-3 space-y-4 border-t border-gold/30 pt-3">
@@ -157,7 +242,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
       {error ? <p className="text-sm text-late">{error}</p> : null}
 
       <ul className="space-y-4">
-        {trip.offers.map((o) => {
+        {liveTrip.offers.map((o) => {
           const status = offerRecipientStatus(o.state)
           if (status === 'no' && o.declined_acked_at) return null
           if (status === 'stood_down' || status === 'expired') return null
@@ -420,7 +505,10 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               <button
                 type="button"
                 className="text-xs text-muted hover:text-cream"
-                onClick={() => setComposeAnotherQuote(false)}
+                onClick={() => {
+                  setComposeAnotherQuote(false)
+                  setClientQuotePreview(false)
+                }}
               >
                 Cancel
               </button>
@@ -429,7 +517,10 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
           <ClientEmailRecipientsBubble
             clientId={trip.client_id}
             value={emailSel}
-            onChange={setEmailSel}
+            onChange={(next) => {
+              setEmailSel(next)
+              setClientQuotePreview(false)
+            }}
             embedded
           />
           {picked.length > 0 ? (
@@ -446,66 +537,69 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                     label={`${o.operator_name || 'Option'} · ${o.tail || 'TBD'}`}
                     draft={o.type_name}
                     value={confirmedTypes[oid] ?? ''}
-                    onChange={(v) =>
+                    onChange={(v) => {
                       setConfirmedTypes((m) => ({ ...m, [oid]: v }))
-                    }
+                      setClientQuotePreview(false)
+                    }}
                   />
                 )
               })}
             </div>
           ) : null}
-          <button
-            type="button"
-            disabled={
-              picked.length === 0 ||
-              emailSel.to.length === 0 ||
-              picked.some((oid) => !(confirmedTypes[oid] ?? '').trim())
-            }
-            className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
-            onClick={() => {
-              const totals: Record<string, number> = {}
-              const typeNamesByOffer: Record<string, string> = {}
-              for (const oid of picked) {
-                const o = trip.offers.find((x) => x.id === oid)!
-                const p = offerQuotePreviewFor(
-                  o,
-                  trip,
-                  0,
-                  clientEdits[oid] ?? null,
-                  marginPct,
-                )
-                totals[oid] = clientEdits[oid] ?? p.client_total
-                typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
-              }
-              if (trip.client_id) {
-                rememberEmailsOnClient(
-                  trip.client_id,
-                  emailSel.to[0] ?? '',
-                  [...emailSel.cc, ...emailSel.bcc],
-                )
-              }
-              void selectOffersAndHardQuote(
-                trip.id,
-                picked,
-                totals,
-                emailSel.to,
-                {
-                  ccEmails: emailSel.cc,
-                  bccEmails: emailSel.bcc,
-                  marginPct,
-                  typeNamesByOffer,
-                },
-              )
-                .then(() => {
-                  setComposeAnotherQuote(false)
-                  setError(null)
-                })
-                .catch((e) => setError(String(e)))
-            }}
-          >
-            {trip.hard_quote ? 'Send another quote' : 'Send hard quote'} (
-            {picked.length || 0})
-          </button>
+
+          {clientQuotePreview && clientPreviewOptions.length > 0 ? (
+            <div className="space-y-3">
+              <div className="text-xs text-muted">
+                To: {emailSel.to.join(', ') || '—'}
+                {emailSel.cc.length ? ` · CC: ${emailSel.cc.join(', ')}` : ''}
+                {emailSel.bcc.length ? ` · BCC: ${emailSel.bcc.join(', ')}` : ''}
+              </div>
+              <ClientLogisticsQuotePreview
+                title={logisticsQuoteTitle(trip.lane)}
+                options={clientPreviewOptions}
+                previewBanner="Client preview — what they get in email / accept link (no operator names or margins)"
+                disclosureText={
+                  showPaxDisclosure ? DISCLOSURE_295_24_TEMPLATE : null
+                }
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={sendBusy}
+                  className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
+                  onClick={sendHardQuoteNow}
+                >
+                  {sendBusy
+                    ? 'Sending…'
+                    : trip.hard_quote
+                      ? `Confirm & send another (${picked.length})`
+                      : `Confirm & send hard quote (${picked.length})`}
+                </button>
+                <button
+                  type="button"
+                  disabled={sendBusy}
+                  className="rounded border border-border px-3 py-2 text-sm text-muted hover:text-cream disabled:opacity-40"
+                  onClick={() => setClientQuotePreview(false)}
+                >
+                  Back to edit
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={!canPreviewClientQuote}
+              className="rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40"
+              onClick={() => {
+                setError(null)
+                setClientQuotePreview(true)
+              }}
+            >
+              {trip.hard_quote
+                ? `Preview client quote (${picked.length || 0})`
+                : `Preview client quote (${picked.length || 0})`}
+            </button>
+          )}
         </div>
       ) : null}
 
