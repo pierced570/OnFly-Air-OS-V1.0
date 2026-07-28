@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from 'react'
 import { Link } from 'react-router-dom'
 import { isRealAdsbEnabled } from '@/adapters/adsb'
 import { createWxAdapter, type WxBrief } from '@/adapters/wx'
@@ -6,8 +12,6 @@ import { D085ReviewPanel } from '@/components/D085ReviewPanel'
 import { FlightCatBadge } from '@/components/FlightCatBadge'
 import type { D085ReviewRow } from '@/domain/d085Match'
 import { trackingSummary } from '@/domain/radarTracking'
-import { loadFleetStatuses } from '@/lib/fleetRadar'
-import { loadNetwork } from '@/lib/networkData'
 import type { FleetStatus } from '@/domain/fleetStatus'
 import { FlightChip } from '@/components/FlightChip'
 import { RadarMap } from '@/components/RadarMap'
@@ -15,9 +19,14 @@ import {
   acceptD085Review,
   parseAndMatchD085,
 } from '@/lib/d085Review'
+import { loadFleetStatuses } from '@/lib/fleetRadar'
+import { loadNetwork, type LoadedNetwork } from '@/lib/networkData'
 import {
-  seedRadarLastKnown,
+  addTailToTracking,
+  lookupRadarTail,
+  normalizeLookupTail,
   setRadarMovementAlert,
+  type LookupRadarTailResult,
 } from '@/lib/radarSeedFlow'
 import {
   listRadarTracks,
@@ -28,15 +37,24 @@ import {
   subscribeWatchedTails,
 } from '@/lib/watchedTailsStore'
 
-type Filter = 'all' | 'airborne' | 'on_ground' | 'no_data' | 'd085' | 'alert'
-
-function fmtWhen(iso: string | null): string {
+function fmtWhen(iso: string | null | undefined): string {
   if (!iso) return '—'
   try {
     return new Date(iso).toISOString().replace('.000Z', 'Z')
   } catch {
     return '—'
   }
+}
+
+type OpHit = {
+  id: string
+  name: string
+  base_icao: string | null
+  tails: Array<{
+    tail: string
+    type_name: string | null
+    base_icao: string | null
+  }>
 }
 
 export default function RadarPage({
@@ -56,39 +74,91 @@ export default function RadarPage({
   )
   const [statuses, setStatuses] = useState<FleetStatus[]>([])
   const [wx, setWx] = useState<WxBrief | null>(null)
-  const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<string | null>(null)
-  const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
-  const [seedBusy, setSeedBusy] = useState(false)
-  const [seedNote, setSeedNote] = useState<string | null>(null)
+  const [network, setNetwork] = useState<LoadedNetwork | null>(null)
+
+  const [tailQ, setTailQ] = useState('')
+  const [lookupBusy, setLookupBusy] = useState(false)
+  const [lookup, setLookup] = useState<LookupRadarTailResult | null>(null)
+  const [lookupStatus, setLookupStatus] = useState<FleetStatus | null>(null)
+
+  const [opQ, setOpQ] = useState('')
+  const [pickedOpId, setPickedOpId] = useState<string | null>(null)
+
   const [alertBusyTail, setAlertBusyTail] = useState<string | null>(null)
   const [alertError, setAlertError] = useState<string | null>(null)
+  const [actionNote, setActionNote] = useState<string | null>(null)
+
   const [d085Busy, setD085Busy] = useState(false)
   const [d085Error, setD085Error] = useState<string | null>(null)
   const [d085Note, setD085Note] = useState<string | undefined>()
   const [d085Source, setD085Source] = useState<string | undefined>()
   const [d085Rows, setD085Rows] = useState<D085ReviewRow[] | null>(null)
   const [d085OperatorId, setD085OperatorId] = useState('')
-  const [operators, setOperators] = useState<
-    Array<{ id: string; name: string; base_icao: string | null }>
-  >([])
 
   const adsbLive = isRealAdsbEnabled()
   const trackSummary = trackingSummary(tracks)
+  const tracking = useMemo(
+    () => tracks.filter((t) => t.alertEnabled),
+    [tracks],
+  )
+
+  const operators: OpHit[] = useMemo(() => {
+    if (!network) return []
+    return network.operators
+      .map((o) => ({
+        id: o.id,
+        name: o.name,
+        base_icao: o.base_icao,
+        tails: network.aircraft
+          .filter(
+            (a) =>
+              a.operator_id === o.id &&
+              a.tail &&
+              !String(a.tail).toUpperCase().startsWith('TBD'),
+          )
+          .map((a) => ({
+            tail: String(a.tail).toUpperCase(),
+            type_name: a.type_name,
+            base_icao: a.base_icao,
+          }))
+          .sort((a, b) => a.tail.localeCompare(b.tail)),
+      }))
+      .filter((o) => o.tails.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [network])
+
+  const opHits = useMemo(() => {
+    const needle = opQ.trim().toLowerCase()
+    if (!needle) return operators.slice(0, 12)
+    return operators
+      .filter(
+        (o) =>
+          o.name.toLowerCase().includes(needle) ||
+          o.tails.some((t) => t.tail.toLowerCase().includes(needle)),
+      )
+      .slice(0, 20)
+  }, [operators, opQ])
+
+  const pickedOp = operators.find((o) => o.id === pickedOpId) ?? null
+
+  const mapStatuses = useMemo(() => {
+    const byTail = new Map(statuses.map((s) => [s.tail.toUpperCase(), s]))
+    if (lookupStatus) byTail.set(lookupStatus.tail.toUpperCase(), lookupStatus)
+    return [...byTail.values()]
+  }, [statuses, lookupStatus])
+
+  const selectedStatus =
+    mapStatuses.find((s) => s.tail === selected) ??
+    (lookupStatus?.tail === selected ? lookupStatus : null)
 
   async function refresh() {
     setBusy(true)
     try {
       const net = await loadNetwork()
-      setOperators(
-        net.operators.map((o) => ({
-          id: o.id,
-          name: o.name,
-          base_icao: o.base_icao,
-        })),
-      )
-      setStatuses(await loadFleetStatuses())
+      setNetwork(net)
+      setStatuses(await loadFleetStatuses(500, { scope: 'tracked' }))
       setWx(await createWxAdapter().brief('KCAK'))
     } finally {
       setBusy(false)
@@ -97,59 +167,113 @@ export default function RadarPage({
 
   useEffect(() => {
     void refresh()
-  }, [watched.length, tracks.length, trackSummary.alertOn])
+  }, [tracking.length])
 
-  const filtered = useMemo(() => {
-    return statuses.filter((s) => {
-      if (q) {
-        const needle = q.toLowerCase()
-        const hit =
-          s.tail.toLowerCase().includes(needle) ||
-          (s.operator_name ?? '').toLowerCase().includes(needle) ||
-          (s.type_name ?? '').toLowerCase().includes(needle)
-        if (!hit) return false
-      }
-      if (filter === 'airborne') return s.phase === 'airborne'
-      if (filter === 'on_ground') return s.phase === 'on_ground'
-      if (filter === 'no_data') return s.phase === 'no_data' || s.laddBlocked
-      if (filter === 'd085') return s.source === 'd085'
-      if (filter === 'alert') return Boolean(s.alertTracked)
-      return true
-    })
-  }, [statuses, filter, q])
-
-  const selectedStatus = statuses.find((s) => s.tail === selected) ?? null
-  const d085Count = watched.filter((w) => w.source === 'd085').length
-
-  async function onSeed() {
-    setSeedBusy(true)
-    setSeedNote(null)
+  async function onLookupTail(e?: FormEvent) {
+    e?.preventDefault()
+    const tail = normalizeLookupTail(tailQ)
+    if (!tail) {
+      setLookup({
+        tail: '',
+        known: null,
+        alertEnabled: false,
+        inNetwork: false,
+        operator_name: null,
+        type_name: null,
+        base_icao: null,
+        error: 'Enter a tail number (e.g. N159FM)',
+      })
+      setLookupStatus(null)
+      return
+    }
+    setLookupBusy(true)
+    setAlertError(null)
+    setActionNote(null)
     try {
-      const result = await seedRadarLastKnown()
-      setSeedNote(
-        `Seeded ${result.seeded} of ${result.requested}` +
-          (result.noData ? ` · ${result.noData} still no ADS-B` : '') +
-          ` · ${result.summary.alertOn} on alerts`,
-      )
+      const hit = await lookupRadarTail(tail)
+      setLookup(hit)
+      setSelected(hit.tail || null)
+      // Build a FleetStatus-shaped row for the map from lookup
+      const known = hit.known
+      if (known) {
+        setLookupStatus({
+          tail: hit.tail,
+          lat: known.lat,
+          lon: known.lon,
+          alt: known.alt,
+          gs: known.gs,
+          seenAt: known.seenAt,
+          phase: known.phase,
+          inPositionOfBase: false,
+          nmFromBase: null,
+          laddBlocked: known.laddBlocked,
+          lastTakeoffAt: known.lastTakeoffAt,
+          lastLandingAt: known.lastLandingAt,
+          operator_name: hit.operator_name ?? undefined,
+          type_name: hit.type_name,
+          base_icao: hit.base_icao,
+          source: hit.inNetwork ? 'network' : 'manual',
+          alertTracked: hit.alertEnabled,
+        })
+      } else {
+        setLookupStatus(null)
+      }
       await refresh()
-    } catch (e) {
-      setSeedNote(e instanceof Error ? e.message : String(e))
+    } catch (err) {
+      setLookup({
+        tail,
+        known: null,
+        alertEnabled: false,
+        inNetwork: false,
+        operator_name: null,
+        type_name: null,
+        base_icao: null,
+        error: err instanceof Error ? err.message : String(err),
+      })
     } finally {
-      setSeedBusy(false)
+      setLookupBusy(false)
     }
   }
 
-  async function onToggleAlert(tail: string, enabled: boolean) {
+  async function onAddTracking(opts: {
+    tail: string
+    type_name?: string | null
+    operator_name?: string
+    operator_id?: string | null
+    base_icao?: string | null
+  }) {
+    setAlertBusyTail(opts.tail)
+    setAlertError(null)
+    setActionNote(null)
+    try {
+      const res = await addTailToTracking(opts)
+      if (!res.ok) {
+        setAlertError(res.error ?? 'Could not add tracking')
+        return
+      }
+      setActionNote(`${res.tail} added to tracking`)
+      setSelected(res.tail)
+      if (lookup?.tail === res.tail) {
+        setLookup({ ...lookup, alertEnabled: true })
+      }
+      await refresh()
+    } catch (err) {
+      setAlertError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAlertBusyTail(null)
+    }
+  }
+
+  async function onRemoveTracking(tail: string) {
     setAlertBusyTail(tail)
     setAlertError(null)
     try {
-      const res = await setRadarMovementAlert(tail, enabled)
-      if (!res.ok) {
-        setAlertError(res.error ?? 'Could not update alert')
-      }
+      const res = await setRadarMovementAlert(tail, false)
+      if (!res.ok) setAlertError(res.error ?? 'Could not remove tracking')
+      else setActionNote(`${tail} removed from tracking`)
       await refresh()
-    } catch (e) {
-      setAlertError(e instanceof Error ? e.message : String(e))
+    } catch (err) {
+      setAlertError(err instanceof Error ? err.message : String(err))
     } finally {
       setAlertBusyTail(null)
     }
@@ -180,6 +304,25 @@ export default function RadarPage({
     setD085Source(undefined)
   }
 
+  const trackedRows = useMemo(() => {
+    const watchedBy = new Map(watched.map((w) => [w.tail.toUpperCase(), w]))
+    return tracking.map((t) => {
+      const st = statuses.find((s) => s.tail.toUpperCase() === t.tail)
+      const w = watchedBy.get(t.tail)
+      return {
+        tail: t.tail,
+        type_name: w?.type_name ?? st?.type_name ?? null,
+        operator_name: w?.operator_name ?? st?.operator_name ?? '—',
+        phase: st?.phase ?? t.lastKnown?.phase ?? 'no_data',
+        laddBlocked: st?.laddBlocked ?? t.lastKnown?.laddBlocked ?? true,
+        inPosition: st?.inPositionOfBase ?? false,
+        gs: st?.gs ?? t.lastKnown?.gs ?? 0,
+        lastTakeoffAt: st?.lastTakeoffAt ?? t.lastKnown?.lastTakeoffAt ?? null,
+        lastLandingAt: st?.lastLandingAt ?? t.lastKnown?.lastLandingAt ?? null,
+      }
+    })
+  }, [tracking, statuses, watched])
+
   return (
     <div
       className={
@@ -200,23 +343,14 @@ export default function RadarPage({
             Fleet Radar
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {watched.length} watched tails
-            {d085Count ? ` · ${d085Count} from D085 uploads` : ''}
-            {` · ${trackSummary.seeded} seeded`}
-            {` · ${trackSummary.alertOn} alert-tracked`}
+            {trackSummary.alertOn} tracking
+            {` · ${trackSummary.seeded} with last-known`}
             {adsbLive
-              ? ' · FlightAware seed + movement alerts'
-              : ' · ADS-B API not connected yet (mock seed uses base)'}
+              ? ' · FlightAware lookup + movement alerts'
+              : ' · ADS-B pending (mock lookup uses base)'}
           </p>
-          {!adsbLive && (
-            <p className="mt-2 text-xs text-gold">
-              Seed last-known, then toggle Alert on the tails you want movement
-              updates for. Connect AeroAPI (`VITE_ADSB_ADAPTER=real` + edge
-              key) when ready.
-            </p>
-          )}
-          {seedNote && (
-            <p className="mt-2 text-xs text-gold/90">{seedNote}</p>
+          {actionNote && (
+            <p className="mt-2 text-xs text-gold/90">{actionNote}</p>
           )}
           {alertError && (
             <p className="mt-2 text-xs text-late">{alertError}</p>
@@ -237,29 +371,15 @@ export default function RadarPage({
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            className="rounded-md border border-gold/40 px-3 py-2 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
-            disabled={seedBusy || !watched.length}
-            onClick={() => void onSeed()}
-            title="One-shot last-known for watched tails (cheap). Then enable alerts per tail."
-          >
-            {seedBusy ? 'Seeding…' : 'Seed last-known'}
-          </button>
-          <button
-            type="button"
             className="text-sm text-gold disabled:opacity-50"
             disabled={busy || trackSummary.alertOn === 0}
             onClick={() => void refresh()}
-            title={
-              trackSummary.alertOn
-                ? 'Refresh live positions for alert-tracked tails'
-                : 'Enable Alert on at least one tail first'
-            }
           >
             {busy
               ? 'Refreshing…'
               : trackSummary.alertOn
-                ? 'Refresh alert-tracked'
-                : 'No alerts yet'}
+                ? 'Refresh tracked'
+                : 'Nothing tracked yet'}
           </button>
           <label className="cursor-pointer text-sm text-gold hover:text-gold-lt">
             {d085Busy ? 'Parsing D085…' : 'Upload D085'}
@@ -346,44 +466,204 @@ export default function RadarPage({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-2">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Filter tail / operator…"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-cream sm:max-w-xs sm:py-2"
-        />
-        <div className="board-rail flex gap-2 overflow-x-auto pb-1">
-          {(
-            [
-              ['all', 'All'],
-              ['alert', 'Alert on'],
-              ['airborne', 'Airborne'],
-              ['on_ground', 'On ground'],
-              ['no_data', 'No ADS-B'],
-              ['d085', 'D085 watch'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setFilter(id)}
-              className={[
-                'shrink-0 rounded-md px-3 py-2.5 text-xs sm:py-2',
-                filter === id ? 'bg-gold text-ink' : 'bg-surface text-muted',
-              ].join(' ')}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* FlightAware-style tail lookup */}
+      <form
+        onSubmit={(e) => void onLookupTail(e)}
+        className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 sm:flex-row sm:items-end"
+      >
+        <label className="block flex-1 text-xs text-muted">
+          Look up tail
+          <input
+            value={tailQ}
+            onChange={(e) => setTailQ(e.target.value.toUpperCase())}
+            placeholder="N159FM"
+            className="avionic mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-gold tracking-wide"
+            autoCapitalize="characters"
+            spellCheck={false}
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={lookupBusy}
+          className="rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
+        >
+          {lookupBusy ? 'Looking up…' : 'Lookup'}
+        </button>
+      </form>
 
-      <RadarMap statuses={filtered} onSelect={setSelected} />
+      {lookup && (
+        <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-3 text-sm">
+          {lookup.error ? (
+            <p className="text-late">{lookup.error}</p>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span className="avionic text-lg text-gold">{lookup.tail}</span>
+                <span className="ml-2 text-muted">
+                  {[lookup.type_name, lookup.operator_name]
+                    .filter(Boolean)
+                    .join(' · ') ||
+                    (lookup.inNetwork ? 'Network' : 'Not in network')}
+                </span>
+                <div className="mt-1 text-[11px] text-muted">
+                  TO {fmtWhen(lookup.known?.lastTakeoffAt)} · LDG{' '}
+                  {fmtWhen(lookup.known?.lastLandingAt)}
+                  {lookup.known && !lookup.known.laddBlocked
+                    ? ` · ${lookup.known.phase.replace('_', ' ')}`
+                    : ' · no position'}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {lookup.alertEnabled ? (
+                  <>
+                    <span className="text-[10px] uppercase tracking-wide text-gold">
+                      Tracking
+                    </span>
+                    <button
+                      type="button"
+                      className="text-xs text-muted hover:text-late"
+                      disabled={alertBusyTail === lookup.tail}
+                      onClick={() => void onRemoveTracking(lookup.tail)}
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="rounded-md border border-gold/40 px-3 py-1.5 text-xs text-gold hover:bg-gold/10 disabled:opacity-50"
+                    disabled={alertBusyTail === lookup.tail}
+                    onClick={() =>
+                      void onAddTracking({
+                        tail: lookup.tail,
+                        type_name: lookup.type_name,
+                        operator_name: lookup.operator_name ?? undefined,
+                        base_icao: lookup.base_icao,
+                      })
+                    }
+                  >
+                    {alertBusyTail === lookup.tail
+                      ? 'Adding…'
+                      : 'Add to tracking'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <RadarMap statuses={mapStatuses} onSelect={setSelected} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">WX brief</h2>
+          <h2 className="text-xs uppercase tracking-wider text-muted">
+            Look up operator
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            Find an operator, then add individual tails to tracking.
+          </p>
+          <input
+            value={opQ}
+            onChange={(e) => {
+              setOpQ(e.target.value)
+              setPickedOpId(null)
+            }}
+            placeholder="Search operator or tail…"
+            className="mt-3 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream"
+          />
+          {!pickedOp ? (
+            <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto">
+              {opHits.map((o) => (
+                <li key={o.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between rounded border border-border px-3 py-2 text-left text-sm hover:border-gold/40"
+                    onClick={() => setPickedOpId(o.id)}
+                  >
+                    <span className="text-cream">{o.name}</span>
+                    <span className="avionic text-xs text-muted">
+                      {o.tails.length} tails
+                      {o.base_icao ? ` · ${o.base_icao}` : ''}
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {!opHits.length ? (
+                <li className="px-1 py-2 text-xs text-muted">No operators</li>
+              ) : null}
+            </ul>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm text-cream">{pickedOp.name}</div>
+                  <div className="text-[11px] text-muted">
+                    {pickedOp.tails.length} tails
+                    {pickedOp.base_icao ? ` · ${pickedOp.base_icao}` : ''}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="text-xs text-gold"
+                  onClick={() => setPickedOpId(null)}
+                >
+                  Back
+                </button>
+              </div>
+              <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+                {pickedOp.tails.map((a) => {
+                  const on = tracking.some((t) => t.tail === a.tail)
+                  return (
+                    <li
+                      key={a.tail}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded border border-border px-3 py-2 text-sm"
+                    >
+                      <div>
+                        <span className="avionic text-gold">{a.tail}</span>
+                        <span className="ml-2 text-muted">
+                          {a.type_name || '—'}
+                        </span>
+                      </div>
+                      {on ? (
+                        <span className="text-[10px] uppercase tracking-wide text-gold">
+                          Tracking
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="rounded-md border border-gold/40 px-2.5 py-1 text-xs text-gold hover:bg-gold/10 disabled:opacity-50"
+                          disabled={alertBusyTail === a.tail}
+                          onClick={() =>
+                            void onAddTracking({
+                              tail: a.tail,
+                              type_name: a.type_name,
+                              operator_name: pickedOp.name,
+                              operator_id: pickedOp.id,
+                              base_icao: a.base_icao ?? pickedOp.base_icao,
+                            })
+                          }
+                        >
+                          {alertBusyTail === a.tail
+                            ? 'Adding…'
+                            : 'Add to tracking'}
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+          <Link to="/admin" className="mt-3 inline-block text-xs text-gold">
+            Add operator / D085 wizard →
+          </Link>
+        </section>
+
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-xs uppercase tracking-wider text-muted">
+            WX brief
+          </h2>
           {wx ? (
             <div className="mt-2 space-y-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
@@ -398,19 +678,6 @@ export default function RadarPage({
               {wx.metar && (
                 <p className="avionic text-xs text-cream/90">{wx.metar}</p>
               )}
-              {wx.tafPeriods.length > 0 && (
-                <ul className="flex flex-wrap gap-1.5">
-                  {wx.tafPeriods.slice(0, 6).map((p, i) => (
-                    <li
-                      key={`${p.timeFrom}-${i}`}
-                      className="inline-flex items-center gap-1 text-[10px] text-muted"
-                    >
-                      <span className="avionic">{p.label}</span>
-                      <FlightCatBadge cat={p.flightCat} size="sm" />
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           ) : (
             <p className="mt-2 text-sm text-muted">…</p>
@@ -419,114 +686,80 @@ export default function RadarPage({
             <div className="mt-4 border-t border-border pt-3 text-sm">
               <div className="avionic text-gold">{selectedStatus.tail}</div>
               <div className="text-muted">{selectedStatus.operator_name}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="mt-2">
                 <FlightChip
                   phase={selectedStatus.phase}
                   inPosition={selectedStatus.inPositionOfBase}
                   laddBlocked={selectedStatus.laddBlocked}
                 />
-                {selectedStatus.alertTracked ? (
-                  <span className="text-[10px] uppercase tracking-wide text-gold">
-                    Alert on
-                  </span>
-                ) : null}
               </div>
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <dt className="text-muted">Last takeoff</dt>
-                  <dd className="avionic text-cream">
-                    {fmtWhen(selectedStatus.lastTakeoffAt)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted">Last landing</dt>
-                  <dd className="avionic text-cream">
-                    {fmtWhen(selectedStatus.lastLandingAt)}
-                  </dd>
-                </div>
-              </dl>
-              <button
-                type="button"
-                className="mt-3 text-xs text-gold disabled:opacity-50"
-                disabled={alertBusyTail === selectedStatus.tail}
-                onClick={() =>
-                  void onToggleAlert(
-                    selectedStatus.tail,
-                    !selectedStatus.alertTracked,
-                  )
-                }
-              >
-                {alertBusyTail === selectedStatus.tail
-                  ? 'Updating…'
-                  : selectedStatus.alertTracked
-                    ? 'Remove from alert tracking'
-                    : 'Add to alert tracking'}
-              </button>
             </div>
           )}
         </section>
-
-        <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">
-            Seed → alert watchlist
-          </h2>
-          <p className="mt-2 text-sm text-muted">
-            Network / D085 tails appear here automatically. Seed last-known
-            once, then turn <span className="text-cream">Alert</span> on only
-            for tails you want movement updates for — add or remove anytime.
-          </p>
-          <Link to="/admin" className="mt-3 inline-block text-xs text-gold">
-            Add operator / D085 wizard →
-          </Link>
-        </section>
       </div>
 
-      <ul className="space-y-2">
-        {filtered.map((p) => (
-          <li
-            key={p.tail}
-            className={[
-              'flex flex-wrap items-center justify-between gap-2 rounded border bg-surface px-3 py-2 text-sm',
-              selected === p.tail ? 'border-gold' : 'border-border',
-            ].join(' ')}
-          >
-            <button
-              type="button"
-              className="text-left"
-              onClick={() => setSelected(p.tail)}
-            >
-              <span className="avionic text-gold">{p.tail}</span>
-              <span className="ml-2 text-muted">
-                {p.type_name} · {p.operator_name}
-                {p.source === 'd085' ? ' · D085' : ''}
-              </span>
-              <div className="mt-0.5 text-[11px] text-muted">
-                TO {fmtWhen(p.lastTakeoffAt)} · LDG {fmtWhen(p.lastLandingAt)}
-              </div>
-            </button>
-            <div className="flex items-center gap-3">
-              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-muted">
-                <input
-                  type="checkbox"
-                  className="accent-[#C9A227]"
-                  checked={Boolean(p.alertTracked)}
-                  disabled={alertBusyTail === p.tail}
-                  onChange={(e) =>
-                    void onToggleAlert(p.tail, e.target.checked)
-                  }
-                />
-                Alert
-              </label>
-              <span className="avionic text-xs text-muted">{p.gs} kt</span>
-              <FlightChip
-                phase={p.phase}
-                inPosition={p.inPositionOfBase}
-                laddBlocked={p.laddBlocked}
-              />
-            </div>
-          </li>
-        ))}
-      </ul>
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-xs uppercase tracking-wider text-muted">
+              Who we&apos;re tracking
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Movement alerts on — {trackedRows.length} tail
+              {trackedRows.length === 1 ? '' : 's'}
+            </p>
+          </div>
+        </div>
+        {!trackedRows.length ? (
+          <p className="rounded border border-border bg-surface px-3 py-4 text-sm text-muted">
+            Nobody yet. Look up a tail or an operator and click{' '}
+            <span className="text-cream">Add to tracking</span>.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {trackedRows.map((p) => (
+              <li
+                key={p.tail}
+                className={[
+                  'flex flex-wrap items-center justify-between gap-2 rounded border bg-surface px-3 py-2 text-sm',
+                  selected === p.tail ? 'border-gold' : 'border-border',
+                ].join(' ')}
+              >
+                <button
+                  type="button"
+                  className="text-left"
+                  onClick={() => setSelected(p.tail)}
+                >
+                  <span className="avionic text-gold">{p.tail}</span>
+                  <span className="ml-2 text-muted">
+                    {p.type_name} · {p.operator_name}
+                  </span>
+                  <div className="mt-0.5 text-[11px] text-muted">
+                    TO {fmtWhen(p.lastTakeoffAt)} · LDG{' '}
+                    {fmtWhen(p.lastLandingAt)}
+                  </div>
+                </button>
+                <div className="flex items-center gap-3">
+                  <span className="avionic text-xs text-muted">{p.gs} kt</span>
+                  <FlightChip
+                    phase={p.phase}
+                    inPosition={p.inPosition}
+                    laddBlocked={p.laddBlocked}
+                  />
+                  <button
+                    type="button"
+                    className="text-xs text-muted hover:text-late disabled:opacity-50"
+                    disabled={alertBusyTail === p.tail}
+                    onClick={() => void onRemoveTracking(p.tail)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }
