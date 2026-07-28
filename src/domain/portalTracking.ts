@@ -56,8 +56,26 @@ export type TrackingAircraftPosition = {
   seenAt: string | null
   fromIcao: string | null
   toIcao: string | null
+  /** Air-leg endpoints for the portal map (ICAO coords only — no operator). */
+  fromLat: number | null
+  fromLon: number | null
+  toLat: number | null
+  toLon: number | null
   progressPct: number | null
   nmRemaining: number | null
+}
+
+/** True when the portal can render a little live map for this trip stage. */
+export function portalAircraftMapVisible(a: TrackingAircraftPosition): boolean {
+  if (a.lat != null && a.lon != null && !(a.lat === 0 && a.lon === 0)) {
+    return true
+  }
+  return (
+    a.fromLat != null &&
+    a.fromLon != null &&
+    a.toLat != null &&
+    a.toLon != null
+  )
 }
 
 export type PortalTrackingView = {
@@ -338,6 +356,12 @@ export function resolveAircraftPosition(
 
   const fromIcao = air?.from.icao ?? null
   const toIcao = air?.to.icao ?? null
+  const route = {
+    fromLat: air?.from.lat ?? null,
+    fromLon: air?.from.lon ?? null,
+    toLat: air?.to.lat ?? null,
+    toLon: air?.to.lon ?? null,
+  }
 
   if (adsb && !adsb.laddBlocked && adsb.phase !== 'no_data' && (adsb.lat || adsb.lon)) {
     const phase =
@@ -372,6 +396,7 @@ export function resolveAircraftPosition(
       seenAt: adsb.seenAt,
       fromIcao,
       toIcao,
+      ...route,
       progressPct,
       nmRemaining,
     }
@@ -398,6 +423,7 @@ export function resolveAircraftPosition(
         seenAt: air.actual_end ?? air.est_end,
         fromIcao,
         toIcao,
+        ...route,
         progressPct: 100,
         nmRemaining: 0,
       }
@@ -419,6 +445,7 @@ export function resolveAircraftPosition(
         seenAt: nowIso,
         fromIcao,
         toIcao,
+        ...route,
         progressPct: Math.round(frac * 100),
         nmRemaining: Math.round(rem),
       }
@@ -438,6 +465,7 @@ export function resolveAircraftPosition(
       seenAt: nowIso,
       fromIcao,
       toIcao,
+      ...route,
       progressPct: null,
       nmRemaining: Math.round(
         haversineNm(air.from.lat, air.from.lon, air.to.lat, air.to.lon),
@@ -459,6 +487,10 @@ export function resolveAircraftPosition(
     seenAt: null,
     fromIcao: null,
     toIcao: null,
+    fromLat: null,
+    fromLon: null,
+    toLat: null,
+    toLon: null,
     progressPct: null,
     nmRemaining: null,
   }
