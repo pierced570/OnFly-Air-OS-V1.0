@@ -90,6 +90,18 @@ const mockInvoices = new Map<
   { status: 'sent' | 'viewed' | 'paid'; total: number; doc: string }
 >()
 
+/** Desk / tests: mark a mock QB invoice paid so the paid→closed poller can close. */
+export function markMockInvoicePaid(qbInvoiceId: string): boolean {
+  const row = mockInvoices.get(qbInvoiceId)
+  if (!row) return false
+  row.status = 'paid'
+  return true
+}
+
+export function listMockInvoiceIds(): string[] {
+  return [...mockInvoices.keys()]
+}
+
 export class MockAccountingAdapter implements AccountingAdapter {
   async ensureCustomer(clientName: string) {
     return `mock-cust-${clientName.slice(0, 12).replace(/\s+/g, '_')}`
@@ -355,7 +367,11 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
 }
 
 export function createAccountingAdapter(): AccountingAdapter {
-  const mode = adapterMode('VITE_QB_ADAPTER', 'mock')
+  const mode =
+    adapterMode('VITE_QB_ADAPTER', 'mock') === 'real' ||
+    adapterMode('VITE_ACCOUNTING_PROVIDER', 'mock') === 'real'
+      ? 'real'
+      : 'mock'
   if (mode === 'real' && isSupabaseConfigured) {
     return new QuickBooksAccountingAdapter()
   }
@@ -366,5 +382,8 @@ export function createAccountingAdapter(): AccountingAdapter {
 }
 
 export function isRealQbEnabled(): boolean {
-  return adapterMode('VITE_QB_ADAPTER', 'mock') === 'real'
+  return (
+    adapterMode('VITE_QB_ADAPTER', 'mock') === 'real' ||
+    adapterMode('VITE_ACCOUNTING_PROVIDER', 'mock') === 'real'
+  )
 }

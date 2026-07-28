@@ -9,6 +9,7 @@ import {
   sessionCan,
   subscribeStaff,
 } from '@/lib/staffStore'
+import { startQbPaidPoller } from '@/lib/qbPaidPoller'
 
 const nav: {
   to: string
@@ -75,6 +76,11 @@ export function DispatchShell({ children }: { children: ReactNode }) {
       stop = m.startCheckpointTicker()
     })
     return () => stop?.()
+  }, [])
+
+  // QuickBooks: paid→closed poll + invoice retry flush
+  useEffect(() => {
+    startQbPaidPoller()
   }, [])
 
   // Presence heartbeat — keeps this dispatcher on the Board "Logged in" list

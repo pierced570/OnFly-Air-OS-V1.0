@@ -26,7 +26,8 @@ This is the checklist of things easy to miss when scoping OnFly OS.
 
 - RingCentral SMS/voice + inbound webhooks  
 - Resend (or similar) inbound email + outbound  
-- QuickBooks Online OAuth, customer sync, paid webhooks  
+- QuickBooks Online OAuth, customer sync, paid→closed poll — **wired** (mock default; `VITE_QB_ADAPTER=real` + edge secrets for live)
+- Wait-time adjustment UI → invoice line  
 - Telnyx robocalls  
 - Live ADS-B poller → `flight_sessions`  
 - Google/Maps Routes (drive times)  

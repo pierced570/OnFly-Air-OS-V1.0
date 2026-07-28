@@ -8,7 +8,7 @@ Updated as we convert mocks → durable/live paths.
 | 2 | Quote engine | **PARTIAL** — client rules + FBO fees wired into candidates; NM GC readout in reasoning; live airports picker | Maps drive times, pricing priors, tax_rates from DB, quote/doc rows |
 | 3 | Offers/booking | **PARTIAL** — accept → confirm + stand-down (mock SMS) + ETA sheet/track links to tracker/supply-chain; **no QB invoice on accept** | RingCentral, QBO invoice, offers table writes |
 | 4 | Execution | **PARTIAL** — trip execution UI, one-tap, thread parse, **checkpoint timers** on dispatch | Thread numbers, edge cron (client ticker for now), Storage POD |
-| 5 | Portal/money | **PARTIAL** — portal form + track; financials ledger; mock QB | Magic-link RLS, QBO OAuth, manifests/render-doc |
+| 5 | Portal/money | **PARTIAL** — portal form + track; financials ledger; **QB adapter wired (mock default)** — tax lines on trip invoice, paid→closed poller, retry queue, Connect banner | Magic-link RLS hardening; set `VITE_QB_ADAPTER=real` + Intuit secrets for live QBO |
 | 6 | Admin wizards | **PARTIAL** — operator docs (charter/D085/COI + expiry); COI expiry email; named-insurer toggle @ 3 trips; FBO CSV | D085 real parse edge; Storage upload; persist operators to DB |
 | 7 | Intelligence | **PARTIAL** — live METAR/TAF; radar watches network + D085 tails (mock ADS-B takeoff/landing); crew-rest chips removed | Live ADS-B poller, NOTAM FAA API, Telnyx, scorecard MV |
 
