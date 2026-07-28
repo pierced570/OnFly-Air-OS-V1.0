@@ -41,7 +41,12 @@ vi.mock('@/domain/airports', () => ({
       : null,
 }))
 
-import { seedRadarLastKnown, setRadarMovementAlert } from './radarSeedFlow'
+import {
+  addTailToTracking,
+  normalizeLookupTail,
+  seedRadarLastKnown,
+  setRadarMovementAlert,
+} from './radarSeedFlow'
 import {
   _resetRadarTracksForTests,
   getRadarTrack,
@@ -84,5 +89,25 @@ describe('radarSeedFlow', () => {
     const off = await setRadarMovementAlert('N123AB', false)
     expect(off.ok).toBe(true)
     expect(getRadarTrack('N123AB')?.alertEnabled).toBe(false)
+  })
+
+  it('normalizes FlightAware-style tail input', () => {
+    expect(normalizeLookupTail('159fm')).toBe('N159FM')
+    expect(normalizeLookupTail('n159fm')).toBe('N159FM')
+    expect(normalizeLookupTail('  N159FM  ')).toBe('N159FM')
+  })
+
+  it('addTailToTracking seeds and enables alert', async () => {
+    const res = await addTailToTracking({
+      tail: '123AB',
+      type_name: 'BE58',
+      operator_name: 'Test Op',
+      operator_id: 'op1',
+      base_icao: 'KCAK',
+    })
+    expect(res.ok).toBe(true)
+    expect(res.tail).toBe('N123AB')
+    expect(getRadarTrack('N123AB')?.alertEnabled).toBe(true)
+    expect(getRadarTrack('N123AB')?.lastKnown?.phase).toBe('on_ground')
   })
 })

@@ -16,7 +16,8 @@ import {
   setRadarAlertLocal,
   upsertRadarLastKnown,
 } from '@/lib/radarTrackingStore'
-import { listWatchedTails } from '@/lib/watchedTailsStore'
+import { listWatchedTails, watchTail } from '@/lib/watchedTailsStore'
+import { normalizeTail } from '@/domain/radarTracking'
 
 function positionToKnown(p: AdsbPosition): RadarLastKnown {
   return {
@@ -141,4 +142,96 @@ export async function setRadarMovementAlert(
 
 export function radarAlertEnabled(tail: string): boolean {
   return Boolean(getRadarTrack(tail)?.alertEnabled)
+}
+
+/** Normalize user tail input (FlightAware-style): trim, upper, optional leading N. */
+export function normalizeLookupTail(raw: string): string {
+  let t = normalizeTail(raw).replace(/[^A-Z0-9]/g, '')
+  if (!t) return ''
+  // Bare numeric / alphanumeric without N — assume US reg
+  if (!t.startsWith('N') && /^[0-9]/.test(t)) t = `N${t}`
+  return t
+}
+
+export type LookupRadarTailResult = {
+  tail: string
+  known: RadarLastKnown | null
+  alertEnabled: boolean
+  inNetwork: boolean
+  operator_name: string | null
+  type_name: string | null
+  base_icao: string | null
+  error?: string
+}
+
+/** One-shot FlightAware-style lookup: seed last-known for a single tail. */
+export async function lookupRadarTail(
+  rawTail: string,
+): Promise<LookupRadarTailResult> {
+  const tail = normalizeLookupTail(rawTail)
+  if (!tail) {
+    return {
+      tail: '',
+      known: null,
+      alertEnabled: false,
+      inNetwork: false,
+      operator_name: null,
+      type_name: null,
+      base_icao: null,
+      error: 'Enter a tail number (e.g. N159FM)',
+    }
+  }
+  const watched = listWatchedTails().find(
+    (w) => w.tail.toUpperCase() === tail,
+  )
+  await seedRadarLastKnown([tail])
+  const track = getRadarTrack(tail)
+  return {
+    tail,
+    known: track?.lastKnown ?? null,
+    alertEnabled: Boolean(track?.alertEnabled),
+    inNetwork: Boolean(watched),
+    operator_name: watched?.operator_name ?? null,
+    type_name: watched?.type_name ?? null,
+    base_icao: watched?.base_icao ?? null,
+  }
+}
+
+export type AddTrackingResult = {
+  ok: boolean
+  tail: string
+  error?: string
+}
+
+/**
+ * Add a tail to active tracking: ensure watch row, seed last-known, enable alert.
+ */
+export async function addTailToTracking(opts: {
+  tail: string
+  type_name?: string | null
+  operator_name?: string
+  operator_id?: string | null
+  base_icao?: string | null
+}): Promise<AddTrackingResult> {
+  const tail = normalizeLookupTail(opts.tail)
+  if (!tail) return { ok: false, tail: '', error: 'Tail required' }
+
+  watchTail({
+    tail,
+    type_name: opts.type_name ?? null,
+    operator_name: opts.operator_name ?? '—',
+    operator_id: opts.operator_id ?? null,
+    base_icao: opts.base_icao ?? null,
+    source: 'manual',
+  })
+  await seedRadarLastKnown([tail])
+  const alert = await setRadarMovementAlert(tail, true)
+  if (!alert.ok) {
+    return {
+      ok: false,
+      tail,
+      error: alert.error ?? 'Could not enable movement alert',
+    }
+  }
+  return { ok: true, tail }
 }
