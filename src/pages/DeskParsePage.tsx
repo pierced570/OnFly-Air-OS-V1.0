@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { isSmsDeliveryEnabled } from '@/adapters/comms'
 import { AirportSelect } from '@/components/AirportSelect'
+import PhoneInput from '@/components/PhoneInput'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
 import type { EndpointKind } from '@/domain/missionMode'
 import { describeOfferDestination } from '@/domain/offerRecipients'
@@ -1184,11 +1185,11 @@ export default function DeskParsePage() {
                     value={addOpEmail}
                     onChange={(e) => setAddOpEmail(e.target.value)}
                   />
-                  <input
+                  <PhoneInput
                     className={input}
-                    placeholder="Text / SMS number"
+                    placeholder="(555) 555-5555"
                     value={addOpCell}
-                    onChange={(e) => setAddOpCell(e.target.value)}
+                    onChange={setAddOpCell}
                   />
                 </div>
                 <button
@@ -1265,13 +1266,13 @@ export default function DeskParsePage() {
                         </label>
                         <label className={label}>
                           Text / SMS
-                          <input
+                          <PhoneInput
                             className={input}
                             value={ov.contact_cell}
-                            placeholder="+1…"
-                            onChange={(e) =>
+                            placeholder="(555) 555-5555"
+                            onChange={(digits) =>
                               patchOverride(c.operator_id, {
-                                contact_cell: e.target.value,
+                                contact_cell: digits,
                               })
                             }
                           />

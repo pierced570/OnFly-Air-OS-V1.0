@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isSmsDeliveryEnabled } from '@/adapters/comms'
 import { AirportSelect } from '@/components/AirportSelect'
+import PhoneInput from '@/components/PhoneInput'
 import { describeOfferDestination } from '@/domain/offerRecipients'
 import {
   DEFAULT_QUOTE_LINK_CHANNEL,
@@ -428,11 +429,11 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
                 value={addOpEmail}
                 onChange={(e) => setAddOpEmail(e.target.value)}
               />
-              <input
+              <PhoneInput
                 className={input}
-                placeholder="Text / SMS number"
+                placeholder="(555) 555-5555"
                 value={addOpCell}
-                onChange={(e) => setAddOpCell(e.target.value)}
+                onChange={setAddOpCell}
               />
             </div>
             <button
@@ -504,13 +505,13 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
                     </label>
                     <label className={label}>
                       Text / SMS
-                      <input
+                      <PhoneInput
                         className={input}
                         value={ov.contact_cell}
-                        placeholder="+1…"
-                        onChange={(e) =>
+                        placeholder="(555) 555-5555"
+                        onChange={(digits) =>
                           patchOverride(c.operator_id, {
-                            contact_cell: e.target.value,
+                            contact_cell: digits,
                           })
                         }
                       />
