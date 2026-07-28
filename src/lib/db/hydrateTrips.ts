@@ -4,6 +4,7 @@
 
 import type { TripState } from '@/domain/stateMachine'
 import type { ChainLeg, EtaDefaults, EtaSource, ServicePattern } from '@/domain/etaChain'
+import { getClient } from '@/lib/clientStore'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import {
   getTripByOfferToken,
@@ -102,6 +103,12 @@ function mapTripShellRow(
     : null
   const patternFromMeta =
     (meta.service_pattern as ServicePattern | null | undefined) ?? null
+  const metaName =
+    typeof meta.client_name === 'string' && meta.client_name.trim()
+      ? meta.client_name.trim()
+      : null
+  const clientId = r.client_id ? String(r.client_id) : undefined
+  const fromDir = !metaName && clientId ? getClient(clientId)?.name?.trim() : ''
   return {
     id: String(r.id),
     ref: Number(r.ref ?? meta.ref ?? 0),
@@ -152,11 +159,8 @@ function mapTripShellRow(
     thread: extras?.thread ?? [],
     documents: extras?.documents ?? [],
     invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
-    client_id: r.client_id ? String(r.client_id) : undefined,
-    client_name:
-      typeof meta.client_name === 'string' && meta.client_name.trim()
-        ? meta.client_name.trim()
-        : null,
+    client_id: clientId,
+    client_name: metaName || fromDir || null,
   }
 }
 
