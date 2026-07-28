@@ -2,7 +2,7 @@
  * Trip offers + booking flow — open requests (no auto-ping), hard quote, accept.
  * All trip state changes go through safeTransitionTrip.
  */
-import { createCommsAdapter } from '@/adapters/comms'
+import { createCommsAdapter, isSmsDeliveryEnabled } from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
 import {
   channelIncludesEmail,
@@ -14,6 +14,7 @@ import type { Candidate } from '@/domain/routing'
 import {
   availabilityEmailSubject,
   availabilityPingHtml,
+  availabilityPingSmsWithLink,
   availabilityPingWithLink,
   standDownBody,
   DISCLOSURE_295_24_TEMPLATE,
@@ -239,8 +240,7 @@ export async function sendAvailabilityPings(
   const filter = opts?.offerIds ? new Set(opts.offerIds) : null
   const targeted: OfferRow[] = []
   const missedNames: string[] = []
-  // RingCentral not wired — email is the live delivery path for offer links.
-  const smsLive = false
+  const smsLive = isSmsDeliveryEnabled()
 
   for (const o of fresh.offers) {
     if (filter && !filter.has(o.id)) continue
@@ -249,13 +249,14 @@ export async function sendAvailabilityPings(
     let channel = normalizeQuoteLinkChannel(o.quote_link_channel)
     // Until SMS is live, SMS-only falls back to email when an address is on file.
     if (!smsLive && channel === 'sms') channel = 'email'
-    const body = availabilityPingWithLink(
+    const emailBody = availabilityPingWithLink(
       fresh.lane,
       fresh.payload_summary,
       fresh.ready_label,
       o.magic_token,
       base,
     )
+    const smsBody = availabilityPingSmsWithLink(o.magic_token, base)
     const sent: { sms?: string; email?: string } = {}
     if (
       smsLive &&
@@ -264,14 +265,14 @@ export async function sendAvailabilityPings(
       !o.contact_cell_is_mock
     ) {
       const comms = createCommsAdapter()
-      await comms.send({ channel: 'sms', to: o.contact_cell, body })
+      await comms.send({ channel: 'sms', to: o.contact_cell, body: smsBody })
       sent.sms = o.contact_cell
     }
     if (channelIncludesEmail(channel) && o.contact_email.includes('@')) {
       await email.send({
         to: o.contact_email.trim(),
         subject: availabilityEmailSubject(fresh.lane),
-        text: body,
+        text: emailBody,
         html: availabilityPingHtml(
           fresh.lane,
           fresh.payload_summary,
@@ -308,7 +309,9 @@ export async function sendAvailabilityPings(
   if (requireDelivery && targeted.length > 0 && missedNames.length > 0) {
     throw new Error(
       `Could not deliver offer link to: ${missedNames.join(', ')}. ` +
-        'Add an email on file (SMS delivery is not connected yet).',
+        (smsLive
+          ? 'Add an email or SMS number on file for the selected channel.'
+          : 'Add an email on file (SMS delivery is not connected).'),
     )
   }
   return getTrip(tripId)!

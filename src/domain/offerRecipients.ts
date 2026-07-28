@@ -104,6 +104,7 @@ export type OfferDestinationInfo = {
 /** Where this offer link would go if notified (email / SMS / both). */
 export function describeOfferDestination(
   o: OfferDestinationLike,
+  opts?: { smsDeliveryEnabled?: boolean },
 ): OfferDestinationInfo {
   const channel = normalizeQuoteLinkChannel(o.quote_link_channel)
   const email = (o.contact_email ?? '').trim()
@@ -111,6 +112,7 @@ export function describeOfferDestination(
   const sms_is_mock = Boolean(o.contact_cell_is_mock)
   const emailOk = email.includes('@')
   const smsOk = Boolean(smsRaw) && !sms_is_mock
+  const smsLive = opts?.smsDeliveryEnabled !== false
   const will_reach: string[] = []
   const gaps: string[] = []
 
@@ -119,10 +121,24 @@ export function describeOfferDestination(
     else gaps.push('No email on file')
   }
   if (channelIncludesSms(channel)) {
-    if (smsOk) will_reach.push(`SMS ${smsRaw}`)
-    else if (sms_is_mock && smsRaw) {
+    if (!smsLive) {
+      // Transport down: SMS-only falls back to email; both/email just omit SMS.
+      if (channel === 'sms') {
+        if (emailOk) {
+          if (!will_reach.some((r) => r.startsWith('Email '))) {
+            will_reach.push(`Email ${email}`)
+          }
+        } else {
+          gaps.push('SMS not connected — add email or enable RingCentral')
+        }
+      }
+    } else if (smsOk) {
+      will_reach.push(`SMS ${smsRaw}`)
+    } else if (sms_is_mock && smsRaw) {
       gaps.push(`SMS is mock (${smsRaw}) — not a real contact`)
-    } else gaps.push('No SMS number on file')
+    } else {
+      gaps.push('No SMS number on file')
+    }
   }
 
   const summaryParts = [
@@ -142,6 +158,17 @@ export function describeOfferDestination(
     can_notify: will_reach.length > 0,
     summary: summaryParts.join(' · '),
   }
+}
+
+/**
+ * Whether we can deliver an offer link for this destination given SMS transport state.
+ * When SMS is down, SMS-only falls back to email if an address is on file.
+ */
+export function canDeliverOfferLink(
+  o: OfferDestinationLike,
+  opts?: { smsDeliveryEnabled?: boolean },
+): boolean {
+  return describeOfferDestination(o, opts).can_notify
 }
 
 /** Confirm dialog body listing exact destinations before create or notify. */

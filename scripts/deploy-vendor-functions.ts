@@ -12,6 +12,7 @@
  *   ADSB_ALERT_WEBHOOK_URL (optional — FlightAware alert callback)
  *   QB_CLIENT_ID, QB_CLIENT_SECRET (optional — QuickBooks OAuth)
  *   QB_ENVIRONMENT, QB_REDIRECT_URI, INVOICE_EMAIL_FROM (optional)
+ *   RINGCENTRAL_CLIENT_ID/SECRET/JWT + RINGCENTRAL_SMS_FROM (optional — SMS)
  *
  * Usage: npx tsx scripts/deploy-vendor-functions.ts
  */
@@ -95,6 +96,30 @@ if (process.env.QB_CLIENT_ID?.trim() && process.env.QB_CLIENT_SECRET?.trim()) {
     'OnFly Air <invoices@onflyair.com>'
   pairs.push(`INVOICE_EMAIL_FROM=${invFrom}`)
 }
+const rcId =
+  process.env.RINGCENTRAL_CLIENT_ID?.trim() ||
+  process.env.RC_CLIENT_ID?.trim()
+const rcSecret =
+  process.env.RINGCENTRAL_CLIENT_SECRET?.trim() ||
+  process.env.RC_CLIENT_SECRET?.trim()
+const rcJwt =
+  process.env.RINGCENTRAL_JWT?.trim() || process.env.RC_JWT?.trim()
+const rcFrom =
+  process.env.RINGCENTRAL_SMS_FROM?.trim() ||
+  process.env.RC_FROM_OFFERS?.trim()
+if (rcId && rcSecret && rcJwt && rcFrom) {
+  pairs.push(`RINGCENTRAL_CLIENT_ID=${rcId}`)
+  pairs.push(`RINGCENTRAL_CLIENT_SECRET=${rcSecret}`)
+  pairs.push(`RINGCENTRAL_JWT=${rcJwt}`)
+  pairs.push(`RINGCENTRAL_SMS_FROM=${rcFrom}`)
+  pairs.push(
+    `RINGCENTRAL_SERVER_URL=${(
+      process.env.RINGCENTRAL_SERVER_URL?.trim() ||
+      process.env.RC_SERVER_URL?.trim() ||
+      'https://platform.ringcentral.com'
+    )}`,
+  )
+}
 
 if (!pairs.length) {
   console.error('No vendor secrets found in .env')
@@ -119,6 +144,7 @@ const noJwt = new Set([
 ])
 for (const fn of [
   'send-email',
+  'send-sms',
   'llm-extract',
   'adsb-positions',
   'adsb-alert-webhook',
@@ -147,6 +173,7 @@ Deployed. Enable on Vercel / .env.local:
   VITE_SUPABASE_ANON_KEY=<anon>
   VITE_MAPBOX_TOKEN=<pk from CSV>
   VITE_EMAIL_ADAPTER=real
+  VITE_COMMS_ADAPTER=real   # after RingCentral secrets + send-sms deploy
   VITE_MAPS_ADAPTER=real
   VITE_LLM_ADAPTER=real
   VITE_ADSB_ADAPTER=real

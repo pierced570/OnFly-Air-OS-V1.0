@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { isSmsDeliveryEnabled } from '@/adapters/comms'
 import { AirportSelect } from '@/components/AirportSelect'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
 import type { EndpointKind } from '@/domain/missionMode'
@@ -375,20 +376,26 @@ export default function DeskParsePage() {
         contactOverrides[c.operator_id] ??
         profileContactsForOperator(c.operator_id)
     }
-    // SMS provider not live yet — every recipient needs email on the channel.
-    const missingEmail = picks.filter((c) => {
+    const smsLive = isSmsDeliveryEnabled()
+    const undeliverable = picks.filter((c) => {
       const ov = overridesForSend[c.operator_id]!
-      const dest = describeOfferDestination({
-        operator_name: c.operator_name,
-        ...ov,
-      })
-      return !dest.email
+      return !describeOfferDestination(
+        {
+          operator_name: c.operator_name,
+          ...ov,
+        },
+        { smsDeliveryEnabled: smsLive },
+      ).can_notify
     })
-    if (missingEmail.length) {
+    if (undeliverable.length) {
       setError(
-        `Add an email on file before sending (SMS not connected yet): ${missingEmail
-          .map((c) => c.operator_name)
-          .join(', ')}`,
+        smsLive
+          ? `Add email or SMS on file before sending: ${undeliverable
+              .map((c) => c.operator_name)
+              .join(', ')}`
+          : `Add an email on file before sending (SMS not connected): ${undeliverable
+              .map((c) => c.operator_name)
+              .join(', ')}`,
       )
       return
     }

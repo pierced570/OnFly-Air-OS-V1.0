@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { isSmsDeliveryEnabled } from '@/adapters/comms'
 import { AirportSelect } from '@/components/AirportSelect'
 import { describeOfferDestination } from '@/domain/offerRecipients'
 import {
@@ -256,18 +257,26 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
       overridesForSend[c.operator_id] =
         overrides[c.operator_id] ?? profileContacts(c.operator_id)
     }
-    const missingEmail = picks.filter((c) => {
+    const smsLive = isSmsDeliveryEnabled()
+    const undeliverable = picks.filter((c) => {
       const ov = overridesForSend[c.operator_id]!
-      return !describeOfferDestination({
-        operator_name: c.operator_name,
-        ...ov,
-      }).email
+      return !describeOfferDestination(
+        {
+          operator_name: c.operator_name,
+          ...ov,
+        },
+        { smsDeliveryEnabled: smsLive },
+      ).can_notify
     })
-    if (missingEmail.length) {
+    if (undeliverable.length) {
       setError(
-        `Add an email on file before sending (SMS not connected yet): ${missingEmail
-          .map((c) => c.operator_name)
-          .join(', ')}`,
+        smsLive
+          ? `Add email or SMS on file before sending: ${undeliverable
+              .map((c) => c.operator_name)
+              .join(', ')}`
+          : `Add an email on file before sending (SMS not connected): ${undeliverable
+              .map((c) => c.operator_name)
+              .join(', ')}`,
       )
       return
     }
@@ -320,8 +329,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
             Send to new operator
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            Top {recommendLimit} recommend, search, or add new. We email the
-            quote-request link on send (SMS not connected yet).
+            Top {recommendLimit} recommend, search, or add new. Quote-request
+            link goes out on the operator&apos;s channel (email and/or SMS).
           </p>
         </div>
         <button
