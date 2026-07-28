@@ -24,11 +24,11 @@ import {
 } from '@/lib/deskOperatorSearch'
 import { appendOfferToTrip } from '@/lib/offerFlow'
 import { updateSheetOperatorField } from '@/lib/networkSheetStore'
+import { BUILTIN_RECOMMEND_MATRIX } from '@/domain/recommendMatrix'
 import {
   deskDraftFromTrip,
   recommendForDeskDraft,
 } from '@/lib/scratchDeskFlow'
-import { getRecommendMatrix } from '@/lib/recommendMatrixStore'
 import { getTrip } from '@/lib/tripStore'
 
 const input =
@@ -80,7 +80,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
     [opQuery, already, overrides],
   )
 
-  const recommendLimit = getRecommendMatrix().recommend_limit
+  // Mid-trip add-operator uses builtin shortlist size — not Network Recommend.
+  const recommendLimit = BUILTIN_RECOMMEND_MATRIX.recommend_limit
 
   const recommended = useMemo(
     () =>
@@ -164,7 +165,7 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
         const rec = await recommendForDeskDraft(draft)
         if (cancelled) return
         setCandidates(
-          rec.candidates.slice(0, getRecommendMatrix().recommend_limit),
+          rec.candidates.slice(0, BUILTIN_RECOMMEND_MATRIX.recommend_limit),
         )
         setRecError(rec.error ?? null)
       })
@@ -557,7 +558,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
         </h3>
         <p className="text-xs text-muted">
           Top {recommendLimit} (cheapest / fastest / best). Already on this
-          request are hidden. Scoring comes from Network → Recommend matrix.
+          request are hidden. Uses fixed defaults — not Network → Recommend
+          (that matrix is for new-request search only).
         </p>
         {recError ? <p className="text-sm text-late">{recError}</p> : null}
         {!busy && !recommended.length && !recError ? (

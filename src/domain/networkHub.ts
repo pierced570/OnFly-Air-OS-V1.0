@@ -17,7 +17,7 @@ export const NETWORK_HUB_TABS = [
   {
     id: 'matrix',
     label: 'Recommend',
-    blurb: 'Scoring system for trip shortlists',
+    blurb: 'New-request operator search scoring',
   },
   {
     id: 'radar',

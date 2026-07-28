@@ -17,6 +17,10 @@ import {
   type MissionOpsFlags,
 } from '@/domain/missionMode'
 import { resolvePlaceToAirport } from '@/domain/resolvePlace'
+import {
+  BUILTIN_RECOMMEND_MATRIX,
+  type RecommendMatrixConfig,
+} from '@/domain/recommendMatrix'
 import { generateCandidates, type Candidate } from '@/domain/routing'
 import {
   mentionsRoundTrip,
@@ -36,7 +40,6 @@ import {
   loadPricingPriors,
   priorRatePerNm,
 } from '@/lib/pricingPriorsStore'
-import { getRecommendMatrix } from '@/lib/recommendMatrixStore'
 import { addNeedsInfoTask } from '@/lib/needsInfoStore'
 import {
   buildOffersFromCandidates,
@@ -406,6 +409,13 @@ export type DeskRecommendResult = {
 
 export async function recommendForDeskDraft(
   draftIn: DeskDraft,
+  opts?: {
+    /**
+     * Pass the editable Network Recommend matrix for new-request search only.
+     * Default = builtins (Parse & shortlist / mid-trip add-operator).
+     */
+    matrix?: RecommendMatrixConfig
+  },
 ): Promise<DeskRecommendResult> {
   const draft = syncDeskDraftDerived(draftIn)
   const client = draft.client_id ? getClient(draft.client_id) : undefined
@@ -483,7 +493,7 @@ export async function recommendForDeskDraft(
   const originFees = fboFeesForAirport(origin.icao)
   const destFees = fboFeesForAirport(destination.icao)
   const [priors] = await Promise.all([loadPricingPriors()])
-  const matrix = getRecommendMatrix()
+  const matrix = opts?.matrix ?? BUILTIN_RECOMMEND_MATRIX
 
   const shipper =
     leg0?.origin_kind === 'door' && leg0.origin_text.trim()

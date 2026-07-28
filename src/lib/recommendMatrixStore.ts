@@ -1,6 +1,6 @@
 /**
- * Recommendation matrix store — editable scoring knobs.
- * Feeds generateCandidates for Dispatch / Parse / Network Recommend.
+ * Recommendation matrix store — editable scoring knobs for new-request
+ * operator search (New trip + Network → Recommend). Other flows use builtins.
  */
 
 import {

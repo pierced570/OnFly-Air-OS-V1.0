@@ -13,7 +13,7 @@ import {
 import { generateCandidates } from '@/domain/routing'
 import { cargoPiecesFromDraft } from '@/domain/tripRequest'
 import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
-import { getRecommendMatrix } from '@/lib/recommendMatrixStore'
+import { BUILTIN_RECOMMEND_MATRIX } from '@/domain/recommendMatrix'
 import { getTaxRates, loadTaxRates } from '@/lib/taxRatesStore'
 import type { TripRequestRecord } from '@/domain/tripRequest'
 import { clientRulesForRouting, getClient } from '@/lib/clientStore'
@@ -145,7 +145,7 @@ export async function estimatePortalRequest(
           dest: destFees.fee,
           notes: [...originFees.reasoning, ...destFees.reasoning],
         },
-        matrix: getRecommendMatrix(),
+        matrix: BUILTIN_RECOMMEND_MATRIX,
         pickMode: 'all',
         priorRatePerNm: (typeName, operatorId) =>
           priorRatePerNm(typeName, operatorId, priors),

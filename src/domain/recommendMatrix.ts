@@ -1,7 +1,7 @@
 /**
- * Recommendation matrix — scoring knobs for trip operator shortlists.
- * Pure TS. Dispatch / Parse / Network Recommend all consume the same config
- * via generateCandidates — edit the matrix, don't fork ranking logic.
+ * Recommendation matrix — scoring knobs for **new-request** operator search.
+ * Pure TS. Editable Network → Recommend settings feed New trip / new-request
+ * shortlists only. Parse & shortlist and mid-trip “add operator” use builtins.
  */
 
 export type RecommendMatrixConfig = {
