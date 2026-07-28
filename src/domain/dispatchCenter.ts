@@ -34,7 +34,7 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'quotes',
     label: 'Quotes to clients',
-    blurb: 'Estimates and hard quotes with the client',
+    blurb: 'Compare operator quotes, set client price, send branded email',
   },
   {
     id: 'approved',

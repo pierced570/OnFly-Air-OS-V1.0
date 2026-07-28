@@ -349,6 +349,7 @@ function OfferUpdateForm({
 function OfferTripList({
   cards,
   focusTripId,
+  mode = 'offers',
   onAcknowledgeDeclined,
   onDeleteCard,
   onDeleteOffer,
@@ -358,6 +359,8 @@ function OfferTripList({
 }: {
   cards: DispatchCard[]
   focusTripId?: string | null
+  /** offers = send / track; quotes = compare & price for client */
+  mode?: 'offers' | 'quotes'
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
   onDeleteCard: (card: DispatchCard) => void
   onDeleteOffer: (tripId: string, offerId: string, name: string) => void
@@ -365,17 +368,18 @@ function OfferTripList({
   onApproveOffer: (tripId: string, offerId: string, name: string) => void
   approvingId?: string | null
 }) {
+  const isQuotes = mode === 'quotes'
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
   const [addingTripId, setAddingTripId] = useState<string | null>(null)
   const [searchParams] = useSearchParams()
   const [quotingTripId, setQuotingTripId] = useState<string | null>(
-    () => focusTripId ?? null,
+    () => (isQuotes ? (focusTripId ?? null) : null),
   )
   const [updateError, setUpdateError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!focusTripId) return
-    setQuotingTripId(focusTripId)
+    if (isQuotes) setQuotingTripId(focusTripId)
     if (searchParams.get('update') === '1') {
       setUpdatingTripId(focusTripId)
       setAddingTripId(null)
@@ -383,7 +387,7 @@ function OfferTripList({
       setAddingTripId(focusTripId)
       setUpdatingTripId(null)
     }
-  }, [focusTripId, searchParams])
+  }, [focusTripId, searchParams, isQuotes])
 
   // Clear inline panels when the trip disappears (delete / hydrate race).
   useEffect(() => {
@@ -600,7 +604,26 @@ function OfferTripList({
               />
             ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
-              {c.trip_id ? (
+              {isQuotes && c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md px-3 py-2 text-xs font-semibold',
+                    quoting
+                      ? 'bg-gold text-ink'
+                      : 'bg-gold text-ink hover:bg-gold-lt',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setAddingTripId(null)
+                    setUpdateError(null)
+                    setQuotingTripId(quoting ? null : c.trip_id!)
+                  }}
+                >
+                  {quoting ? 'Close compare' : 'Compare & price quotes'}
+                </button>
+              ) : null}
+              {!isQuotes && c.trip_id ? (
                 <button
                   type="button"
                   className={[
@@ -619,7 +642,7 @@ function OfferTripList({
                   {quoting ? 'Close quotes' : 'Quotes & pricing'}
                 </button>
               ) : null}
-              {c.trip_id ? (
+              {!isQuotes && c.trip_id ? (
                 <button
                   type="button"
                   className={[
@@ -649,7 +672,7 @@ function OfferTripList({
                   ].join(' ')}
                   onClick={() => {
                     setAddingTripId(null)
-                    setQuotingTripId(null)
+                    if (!isQuotes) setQuotingTripId(null)
                     setUpdateError(null)
                     setUpdatingTripId(editing ? null : c.trip_id!)
                   }}
@@ -990,6 +1013,7 @@ export default function DispatchCenterPage() {
             <OfferTripList
               cards={buckets[d.id]}
               focusTripId={focusTripId}
+              mode={d.id === 'quotes' ? 'quotes' : 'offers'}
               onAcknowledgeDeclined={(tripId, offerId) => {
                 void acknowledgeDeclinedOffer(tripId, offerId).catch((e) =>
                   console.warn('[dispatch] acknowledge declined', e),
