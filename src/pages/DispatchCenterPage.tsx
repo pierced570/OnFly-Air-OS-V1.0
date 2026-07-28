@@ -470,7 +470,7 @@ function OfferTripList({
                 ) : null}
               </div>
             </div>
-            {c.recipients && c.recipients.length > 0 ? (
+            {c.recipients && c.recipients.length > 0 && !(isQuotes && quoting) ? (
               <ul className="mt-2 space-y-3 border-t border-border/50 pt-2">
                 {c.recipients.map((r) =>
                   r.declined_acked ? (
