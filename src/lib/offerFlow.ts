@@ -2,7 +2,7 @@
  * Trip offers + booking flow — open requests (no auto-ping), hard quote, accept.
  * All trip state changes go through safeTransitionTrip.
  */
-import { createCommsAdapter } from '@/adapters/comms'
+import { createCommsAdapter, isSmsDeliveryEnabled } from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
 import {
   channelIncludesEmail,
@@ -239,8 +239,7 @@ export async function sendAvailabilityPings(
   const filter = opts?.offerIds ? new Set(opts.offerIds) : null
   const targeted: OfferRow[] = []
   const missedNames: string[] = []
-  // RingCentral not wired — email is the live delivery path for offer links.
-  const smsLive = false
+  const smsLive = isSmsDeliveryEnabled()
 
   for (const o of fresh.offers) {
     if (filter && !filter.has(o.id)) continue
@@ -308,7 +307,9 @@ export async function sendAvailabilityPings(
   if (requireDelivery && targeted.length > 0 && missedNames.length > 0) {
     throw new Error(
       `Could not deliver offer link to: ${missedNames.join(', ')}. ` +
-        'Add an email on file (SMS delivery is not connected yet).',
+        (smsLive
+          ? 'Add an email or SMS number on file for the selected channel.'
+          : 'Add an email on file (SMS delivery is not connected).'),
     )
   }
   return getTrip(tripId)!

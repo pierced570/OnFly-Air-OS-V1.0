@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canDeliverOfferLink,
   describeOfferDestination,
   formatOfferAge,
   formatOfferDestinationConfirm,
@@ -83,6 +84,24 @@ describe('offerRecipients', () => {
     )
     expect(confirm).toContain('ops@alpha.example')
     expect(confirm).toContain('Send offer links?')
+
+    const smsOnly = {
+      contact_email: '',
+      contact_cell: '+15551212',
+      quote_link_channel: 'sms' as const,
+    }
+    expect(
+      canDeliverOfferLink(smsOnly, { smsDeliveryEnabled: true }),
+    ).toBe(true)
+    expect(
+      canDeliverOfferLink(smsOnly, { smsDeliveryEnabled: false }),
+    ).toBe(false)
+    expect(
+      canDeliverOfferLink(
+        { ...smsOnly, contact_email: 'ops@alpha.example' },
+        { smsDeliveryEnabled: false },
+      ),
+    ).toBe(true)
   })
 
   it('formats quote summary for waterfall cards', () => {

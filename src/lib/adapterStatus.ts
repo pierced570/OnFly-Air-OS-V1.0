@@ -2,6 +2,10 @@
  * Which external doors are live vs still waiting on vendor wiring.
  */
 
+import {
+  isLiveCommsConfigured,
+  isRealCommsEnabled,
+} from '@/adapters/comms'
 import { isLiveEmailConfigured, isRealEmailEnabled } from '@/adapters/email'
 import { isRealLlmEnabled } from '@/adapters/llm'
 import { isRealMapsEnabled } from '@/adapters/maps'
@@ -86,8 +90,16 @@ export function listAdapterDoorStatus(): AdapterDoorStatus[] {
     {
       id: 'comms',
       label: 'SMS (RingCentral)',
-      state: 'blocked',
-      detail: 'Need RC JWT + SMS from-numbers',
+      state: isLiveCommsConfigured()
+        ? 'live'
+        : isRealCommsEnabled()
+          ? 'blocked'
+          : 'mock',
+      detail: isLiveCommsConfigured()
+        ? 'send-sms edge · RINGCENTRAL_* secrets'
+        : isRealCommsEnabled()
+          ? 'Set VITE_SUPABASE_* + deploy send-sms with RC JWT/from'
+          : 'VITE_COMMS_ADAPTER=real after RC secrets deployed',
     },
     {
       id: 'qb',

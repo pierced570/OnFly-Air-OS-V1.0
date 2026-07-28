@@ -184,7 +184,8 @@ describe('offerFlow — open vs notify', () => {
     expect(getMockSentEmails().at(-1)?.to).toBe('bravo@ops.example')
   })
 
-  it('sendAvailabilityPings fails when no email on file', async () => {
+  it('sendAvailabilityPings delivers SMS-only via mock comms', async () => {
+    const { getMockCommsLog } = await import('@/adapters/comms')
     const c = stubCandidate('Alpha Air', 'op-none')
     const trip = createTripFromCandidates({
       lane: 'KCAK→KMDW',
@@ -199,6 +200,32 @@ describe('offerFlow — open vs notify', () => {
           contact_email: '',
           contact_cell: '+15551212',
           quote_link_channel: 'sms',
+        },
+      })
+    })
+    await openTripOffers(trip.id)
+    const before = getMockCommsLog().length
+    const fresh = await sendAvailabilityPings(trip.id)
+    expect(fresh.offers[0]?.ping_sent_at).toBeTruthy()
+    expect(getMockCommsLog().length).toBeGreaterThan(before)
+    expect(getMockCommsLog().at(-1)?.to).toBe('+15551212')
+  })
+
+  it('sendAvailabilityPings fails when no email or SMS on file', async () => {
+    const c = stubCandidate('Alpha Air', 'op-none')
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KMDW',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [c],
+      payload_kind: 'cargo',
+    })
+    mutateTrip(trip.id, (t) => {
+      t.offers = buildOffersFromCandidates(trip.id, [c], {
+        [c.operator_id]: {
+          contact_email: '',
+          contact_cell: '',
+          quote_link_channel: 'both',
         },
       })
     })
