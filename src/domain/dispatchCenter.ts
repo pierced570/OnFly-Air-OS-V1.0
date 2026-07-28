@@ -44,7 +44,7 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'tracking',
     label: 'Live tracking',
-    blurb: 'In progress — execution and exceptions',
+    blurb: 'In progress — tracking portal + trip group chat',
   },
 ] as const
 
@@ -280,7 +280,8 @@ export function buildDispatchDrawers(input: {
     const stayOnDispatch =
       t.state === 'offers_out' ||
       t.state === 'quoted_hard' ||
-      t.state === 'booked'
+      t.state === 'booked' ||
+      t.state === 'in_progress'
     const selectedOffer =
       (t.offers ?? []).find((o) => o.state === 'selected') ??
       (t.offers ?? []).find((o) => o.state === 'quoted')
@@ -334,6 +335,8 @@ export function buildDispatchDrawers(input: {
             ]
               .filter(Boolean)
               .join(' · ')
+          : t.state === 'in_progress'
+            ? ['Live', tripIdLabel].filter(Boolean).join(' · ')
           : `${tripStateLabel(t.state)} · ${tripIdLabel}${
               t.quick ? ' · quick' : ''
             }${legBit}`

@@ -91,6 +91,8 @@ describe('dispatchCenter', () => {
     expect(buckets.quotes.some((c) => c.state === 'booked')).toBe(false)
     expect(buckets.quotes).toHaveLength(1)
     expect(buckets.tracking).toHaveLength(1)
+    expect(buckets.tracking[0]?.href).toContain('drawer=tracking')
+    expect(buckets.tracking[0]?.subtitle).toBe('Live · T-5')
   })
 
   it('labels Scratchpad requests distinctly and shows client name', () => {
@@ -233,7 +235,9 @@ describe('dispatchCenter', () => {
     expect(buckets.approved[0]?.state).toBe('booked')
     expect(buckets.approved[0]?.approvable).toBe(false)
     expect(buckets.approved[0]?.href).toContain('/dispatch?drawer=approved')
-    expect(buckets.tracking[0]?.href).toContain('/trips/')
+    expect(buckets.tracking[0]?.href).toContain('/dispatch?drawer=tracking')
+    expect(buckets.tracking[0]?.subtitle).toMatch(/^Live ·/)
+    expect(buckets.tracking[0]?.approvable).toBe(false)
   })
 
   it('shows Client TBD when no client name is known', () => {

@@ -15,6 +15,7 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { BookedTripActionsPanel } from '@/components/BookedTripActionsPanel'
+import { LiveTrackingCardActions } from '@/components/LiveTrackingCardActions'
 import { DeskOfferQuoteWorkbench } from '@/components/DeskOfferQuoteWorkbench'
 import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
 import { OfferQuoteFactsBlock } from '@/components/OfferQuoteFactsBlock'
@@ -141,6 +142,7 @@ function CardList({
   onApproveCard,
   approvingId,
   showBookedActions,
+  showTrackingActions,
 }: {
   cards: DispatchCard[]
   onDeleteCard: (card: DispatchCard) => void
@@ -148,6 +150,8 @@ function CardList({
   approvingId?: string | null
   /** Approved drawer — invoice + ETA sheet actions. */
   showBookedActions?: boolean
+  /** Live tracking — portal link + Access chat only. */
+  showTrackingActions?: boolean
 }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
@@ -156,6 +160,7 @@ function CardList({
     <ul className="space-y-2">
       {cards.map((c) => {
         const tripId = c.trip_id ?? (c.kind === 'trip' ? c.id : undefined)
+        const stayOnCard = Boolean(showBookedActions || showTrackingActions)
         return (
         <li
           key={`${c.kind}-${c.id}`}
@@ -164,7 +169,7 @@ function CardList({
         >
           <div className="flex items-stretch gap-2">
             <div className="min-w-0 flex-1">
-              {showBookedActions ? (
+              {stayOnCard ? (
                 <div>
                   <div className="font-medium text-cream">{c.title}</div>
                   <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
@@ -178,7 +183,7 @@ function CardList({
                   <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
                 </Link>
               )}
-              {c.chips?.length ? (
+              {c.chips?.length && !showTrackingActions ? (
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {c.chips.map((chip) => (
                     <span
@@ -247,34 +252,39 @@ function CardList({
                 </dl>
               ) : null}
             </div>
-            <div className="flex shrink-0 flex-col justify-center gap-1">
-              {c.approvable ? (
-                <button
-                  type="button"
-                  aria-label={`Approve trip ${c.title}`}
-                  title="Approve trip"
-                  disabled={approvingId === c.id}
-                  onClick={() => onApproveCard(c)}
-                  className="rounded-md bg-gold/20 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/30 disabled:opacity-40"
-                >
-                  {approvingId === c.id ? 'Approving…' : 'Approve trip'}
-                </button>
-              ) : null}
-              {c.deletable ? (
-                <button
-                  type="button"
-                  aria-label={`Delete ${c.title}`}
-                  title="Delete"
-                  onClick={() => onDeleteCard(c)}
-                  className="px-2.5 py-1 text-xs text-muted hover:text-late"
-                >
-                  Delete
-                </button>
-              ) : null}
-            </div>
+            {!showTrackingActions ? (
+              <div className="flex shrink-0 flex-col justify-center gap-1">
+                {c.approvable ? (
+                  <button
+                    type="button"
+                    aria-label={`Approve trip ${c.title}`}
+                    title="Approve trip"
+                    disabled={approvingId === c.id}
+                    onClick={() => onApproveCard(c)}
+                    className="rounded-md bg-gold/20 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/30 disabled:opacity-40"
+                  >
+                    {approvingId === c.id ? 'Approving…' : 'Approve trip'}
+                  </button>
+                ) : null}
+                {c.deletable ? (
+                  <button
+                    type="button"
+                    aria-label={`Delete ${c.title}`}
+                    title="Delete"
+                    onClick={() => onDeleteCard(c)}
+                    className="px-2.5 py-1 text-xs text-muted hover:text-late"
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {showBookedActions && tripId ? (
             <BookedTripActionsPanel tripId={tripId} />
+          ) : null}
+          {showTrackingActions && tripId ? (
+            <LiveTrackingCardActions tripId={tripId} />
           ) : null}
         </li>
         )
@@ -788,7 +798,8 @@ export default function DispatchCenterPage() {
       (openDrawer !== 'offers' &&
         openDrawer !== 'quotes' &&
         openDrawer !== 'submitted_quotes' &&
-        openDrawer !== 'approved')
+        openDrawer !== 'approved' &&
+        openDrawer !== 'tracking')
     ) {
       return
     }
@@ -1092,6 +1103,7 @@ export default function DispatchCenterPage() {
               onApproveCard={approveWaterfallCard}
               approvingId={approvingId}
               showBookedActions={d.id === 'approved'}
+              showTrackingActions={d.id === 'tracking'}
             />
           )}
         </Drawer>
