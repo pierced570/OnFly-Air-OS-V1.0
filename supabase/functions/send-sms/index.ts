@@ -109,6 +109,16 @@ Deno.serve(async (req) => {
       return json({ error: 'Missing Authorization' }, 401)
     }
 
+    // HARD KILL — no RingCentral SMS until this block is removed deliberately.
+    console.warn('[send-sms] HARD KILL — all outbound SMS blocked')
+    return json(
+      {
+        error: 'SMS hard-killed. RingCentral sends are disabled.',
+        disabled: true,
+      },
+      503,
+    )
+
     const clientId = envFirst('RINGCENTRAL_CLIENT_ID', 'RC_CLIENT_ID')
     const clientSecret = envFirst(
       'RINGCENTRAL_CLIENT_SECRET',
