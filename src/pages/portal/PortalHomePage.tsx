@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { BrandLockup } from '@/components/BrandLockup'
+import { PortalHomeTripCard } from '@/components/PortalHomeTripCard'
 import {
   clearPortalClient,
   getPortalClient,
@@ -44,7 +45,7 @@ type LiveCard = PortalTripCard & {
 
 /** Client-facing portal — request & track. Onboarding lives at /client (shareable). */
 export default function PortalHomePage() {
-  const requests = useRequests().filter((r) => r.source === 'portal')
+  const allRequests = useRequests().filter((r) => r.source === 'portal')
   const client = usePortalClient()
   const localTrips = useLocalTrips()
   const [session, setSession] = useState<PortalSession | null>(null)
@@ -68,7 +69,25 @@ export default function PortalHomePage() {
     }
   }, [])
 
+  const signedIn = Boolean(session?.clientId)
+  const clientKey = session?.clientId || null
+
+  const requests = useMemo(() => {
+    if (!signedIn || !session) return []
+    return allRequests.filter((r) => {
+      if (clientKey && r.client_id === clientKey) return true
+      if (
+        session.email &&
+        r.email?.trim().toLowerCase() === session.email.toLowerCase()
+      ) {
+        return true
+      }
+      return false
+    })
+  }, [allRequests, signedIn, session, clientKey])
+
   const liveCards: LiveCard[] = useMemo(() => {
+    if (!signedIn || !clientKey) return []
     const byId = new Map<string, LiveCard>()
 
     const enrich = (card: PortalTripCard, href: string): LiveCard => {
@@ -94,36 +113,28 @@ export default function PortalHomePage() {
       byId.set(t.id, enrich(t, `/portal/trips/${t.id}`))
     }
 
-    // Session-local trips only when we know the client — never list every
-    // dispatcher trip to an anonymous portal visitor.
-    const clientKey = client?.id || session?.clientId
-    if (clientKey) {
-      for (const t of localTrips) {
-        if (t.client_id && t.client_id !== clientKey) continue
-        if (!t.client_id) continue
-        if (['closed', 'lost', 'cancelled'].includes(t.state)) continue
-        if (byId.has(t.id)) continue
-        byId.set(
-          t.id,
-          enrich(
-            {
-              id: t.id,
-              ref: t.ref,
-              state: t.state,
-              lane: t.lane,
-              ready_label: t.ready_label,
-              payload_summary: t.payload_summary,
-            },
-            `/portal/trips/${t.id}`,
-          ),
-        )
-      }
+    for (const t of localTrips) {
+      if (t.client_id !== clientKey) continue
+      if (['closed', 'lost', 'cancelled'].includes(t.state)) continue
+      if (byId.has(t.id)) continue
+      byId.set(
+        t.id,
+        enrich(
+          {
+            id: t.id,
+            ref: t.ref,
+            state: t.state,
+            lane: t.lane,
+            ready_label: t.ready_label,
+            payload_summary: t.payload_summary,
+          },
+          `/portal/trips/${t.id}`,
+        ),
+      )
     }
 
     return [...byId.values()].sort((a, b) => b.ref - a.ref)
-  }, [remoteTrips, localTrips, client?.id, session?.clientId, session?.email])
-
-  const showTrips = Boolean(session?.clientId || client)
+  }, [remoteTrips, localTrips, clientKey, signedIn])
 
   return (
     <div className="min-h-screen bg-cream text-ink" data-theme="client">
@@ -163,76 +174,75 @@ export default function PortalHomePage() {
           <p className="text-sm text-muted">Checking session…</p>
         ) : null}
 
+        {!session ? (
+          <section className="rounded-lg border border-border bg-surface-2 p-5">
+            <h2 className="font-medium">Welcome</h2>
+            <p className="mt-1 text-sm text-muted">
+              Sign in with the email OnFly has on file to see your company&apos;s
+              trips in motion and your requests. Tracking links from ETA emails
+              still work without signing in.
+            </p>
+            <Link
+              to="/portal/login"
+              className="mt-3 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
+            >
+              Email magic link
+            </Link>
+          </section>
+        ) : null}
+
         {session && !session.clientId && (
           <section className="rounded-lg border border-[#C0392B]/40 bg-white p-5">
             <h2 className="font-medium">Email not linked</h2>
             <p className="mt-1 text-sm text-muted">
-              {session.email} isn’t on a client contact yet. Ask dispatch to add
-              you as a requester / supply-chain contact, then sign in again.
+              {session.email} isn&apos;t granted portal access yet. Ask OnFly to
+              add your email under Portal access for your company, then sign in
+              again.
             </p>
           </section>
         )}
 
-        {showTrips && (
+        {signedIn && (
           <section className="rounded-lg border border-border bg-white p-5">
-            <h2 className="font-medium">Live trips</h2>
+            <h2 className="font-medium">Trips in motion</h2>
             <p className="mt-1 text-sm text-muted">
-              Full visibility — ETAs, quote milestones, aircraft position. No
-              pricing or carrier names.
+              Date, routing, live map, and cargo for your company — no pricing or
+              carrier names.
             </p>
             {liveCards.length === 0 ? (
               <div className="mt-4 rounded-md border border-dashed border-border p-4 text-sm text-muted">
-                No active trips yet. After booking you’ll get a magic tracking
-                link by email.
+                No active trips yet. After booking you&apos;ll see them here and
+                get a magic tracking link by email.
               </div>
             ) : (
               <ul className="mt-4 space-y-3">
                 {liveCards.map((t) => (
-                  <li
+                  <PortalHomeTripCard
                     key={t.id}
-                    className="rounded-md border border-border bg-[#F7F2E3]/50 px-4 py-3"
-                  >
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-medium">T-{t.ref}</span>
-                      <span className="text-xs uppercase tracking-wider text-gold">
-                        {t.state.replace(/_/g, ' ')}
-                      </span>
-                    </div>
-                    <p className="mt-1 avionic text-sm text-ink">{t.lane || '—'}</p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {t.ready_label}
-                      {t.payload_summary ? ` · ${t.payload_summary}` : ''}
-                    </p>
-                    {t.etaHint ? (
-                      <p className="avionic mt-2 text-sm text-ink">
-                        ETA {t.etaHint}
-                        {t.nextLabel ? (
-                          <span className="ml-2 text-xs text-muted">
-                            · next {t.nextLabel}
-                          </span>
-                        ) : null}
-                      </p>
-                    ) : null}
-                    <Link
-                      to={t.trackHref}
-                      className="mt-3 inline-flex rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
-                    >
-                      Open live tracking →
-                    </Link>
-                  </li>
+                    id={t.id}
+                    tripRef={t.ref}
+                    state={t.state}
+                    lane={t.lane}
+                    ready_label={t.ready_label}
+                    payload_summary={t.payload_summary}
+                    trackHref={t.trackHref}
+                    etaHint={t.etaHint}
+                    nextLabel={t.nextLabel}
+                  />
                 ))}
               </ul>
             )}
           </section>
         )}
 
-        {client ? (
+        {signedIn && client ? (
           <section className="rounded-lg border border-border bg-surface-2 p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 className="font-medium">{client.name}</h2>
                 <p className="mt-1 text-sm text-muted">
-                  Ops {client.email || '—'} · Invoices {client.invoice_email || '—'}
+                  Ops {client.email || '—'} · Invoices{' '}
+                  {client.invoice_email || '—'}
                   {client.profile.front_desk_phone
                     ? ` · Desk ${client.profile.front_desk_phone}`
                     : ''}
@@ -247,49 +257,52 @@ export default function PortalHomePage() {
               </button>
             </div>
           </section>
-        ) : !session ? (
-          <section className="rounded-lg border border-border bg-surface-2 p-5">
-            <h2 className="font-medium">Welcome</h2>
-            <p className="mt-1 text-sm text-muted">
-              Sign in with the email OnFly has on file to see your trips, or
-              request a new trip below. Tracking links from ETA emails work
-              without signing in.
-            </p>
-            <Link
-              to="/portal/login"
-              className="mt-3 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
-            >
-              Email magic link
-            </Link>
-          </section>
         ) : null}
 
-        <section className="rounded-lg border border-border bg-surface-2 p-5">
-          <h2 className="font-medium">Your requests</h2>
-          <p className="mt-1 text-sm text-muted">
-            Trip requests you submit appear here. Live tracking unlocks after
-            booking.
-          </p>
-          {requests.length === 0 ? (
-            <div className="mt-4 rounded-md border border-dashed border-border p-4 text-sm text-muted">
-              No requests yet.
-            </div>
-          ) : (
-            <ul className="mt-4 space-y-2 text-sm">
-              {requests.map((r) => (
-                <li key={r.id} className="rounded-md border border-border px-3 py-2">
-                  #{r.ref} · {r.client_name || 'Request'}
-                </li>
-              ))}
-            </ul>
-          )}
-          <Link
-            to="/portal/request"
-            className="mt-4 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
-          >
-            Request a trip
-          </Link>
-        </section>
+        {signedIn ? (
+          <section className="rounded-lg border border-border bg-surface-2 p-5">
+            <h2 className="font-medium">Your requests</h2>
+            <p className="mt-1 text-sm text-muted">
+              Trip requests for your company. Live tracking unlocks after booking.
+            </p>
+            {requests.length === 0 ? (
+              <div className="mt-4 rounded-md border border-dashed border-border p-4 text-sm text-muted">
+                No requests yet.
+              </div>
+            ) : (
+              <ul className="mt-4 space-y-2 text-sm">
+                {requests.map((r) => (
+                  <li
+                    key={r.id}
+                    className="rounded-md border border-border px-3 py-2"
+                  >
+                    #{r.ref} · {r.client_name || 'Request'} · {r.lane}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link
+              to="/portal/request"
+              className="mt-4 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
+            >
+              Request a trip
+            </Link>
+          </section>
+        ) : (
+          <section className="rounded-lg border border-border bg-surface-2 p-5">
+            <h2 className="font-medium">Need a trip?</h2>
+            <p className="mt-1 text-sm text-muted">
+              You can submit a new request without signing in. Sign in above to
+              see trips already moving for your company.
+            </p>
+            <Link
+              to="/portal/request"
+              className="mt-4 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
+            >
+              Request a trip
+            </Link>
+          </section>
+        )}
       </main>
     </div>
   )
