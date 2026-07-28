@@ -259,6 +259,12 @@ export default function ClientsPage() {
             Same subjects as the public /client setup form. Flag who rings the phone
             vs who gets invoices.
           </p>
+          <p className="mt-2 text-xs text-muted">
+            Portal magic-link logins:{' '}
+            <Link to="/admin/portal-access" className="text-gold hover:text-gold-lt">
+              Portal access
+            </Link>
+          </p>
           {seedNote && (
             <p className="mt-2 text-[11px] text-gold/90">{seedNote}</p>
           )}

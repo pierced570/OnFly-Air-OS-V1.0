@@ -137,6 +137,10 @@ export default function AdminPage() {
             Staff access
           </Link>
           {' · '}
+          <Link to="/admin/portal-access" className="text-gold hover:text-gold-lt">
+            Portal access
+          </Link>
+          {' · '}
           <Link to="/admin/keys" className="text-gold hover:text-gold-lt">
             Logins &amp; keys
           </Link>
