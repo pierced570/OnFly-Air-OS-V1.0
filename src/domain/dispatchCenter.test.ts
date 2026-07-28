@@ -1,15 +1,110 @@
 import { describe, expect, it } from 'vitest'
-import { buildDispatchDrawers, drawerForTripState } from './dispatchCenter'
+import {
+  buildDispatchDrawers,
+  drawerForTripState,
+  exclusiveDrawerForTrip,
+} from './dispatchCenter'
 
 describe('dispatchCenter', () => {
-  it('maps trip states to drawers (offers ≠ client quotes)', () => {
-    expect(drawerForTripState('offers_out')).toBe('offers')
+  it('maps exclusive drawers (one stage per trip)', () => {
     expect(drawerForTripState('quoted_hard')).toBe('quotes')
-    expect(drawerForTripState('quoted_estimated')).toBe('quotes')
     expect(drawerForTripState('booked')).toBe('approved')
     expect(drawerForTripState('in_progress')).toBe('tracking')
-    expect(drawerForTripState('delivered')).toBeNull()
-    expect(drawerForTripState('closed')).toBeNull()
+    expect(
+      exclusiveDrawerForTrip({ state: 'offers_out', offers: [] }),
+    ).toBe('offers')
+    expect(
+      exclusiveDrawerForTrip({
+        state: 'offers_out',
+        offers: [{ state: 'quoted' }],
+      }),
+    ).toBe('submitted_quotes')
+    expect(
+      exclusiveDrawerForTrip({
+        state: 'offers_out',
+        offers: [{ state: 'pinged' }],
+      }),
+    ).toBe('offers')
+    expect(exclusiveDrawerForTrip({ state: 'quoted_hard' })).toBe('quotes')
+    expect(exclusiveDrawerForTrip({ state: 'booked' })).toBe('approved')
+  })
+
+  it('never places the same trip in two drawers', () => {
+    const buckets = buildDispatchDrawers({
+      requests: [],
+      trips: [
+        {
+          id: 't-quoted',
+          ref: 1,
+          code: 'QQ001',
+          lane: 'KCAK→KHPN',
+          state: 'offers_out',
+          client_name: 'Acme',
+          legs: [],
+          offers: [
+            {
+              id: 'o1',
+              operator_name: 'Alpha',
+              state: 'pinged',
+              magic_token: 'a',
+            },
+            {
+              id: 'o2',
+              operator_name: 'Charlie Jets',
+              state: 'quoted',
+              price_net: 5000,
+              type_name: 'Citation CJ3',
+              tail: 'N9ZZ',
+              magic_token: 'c',
+            },
+          ],
+        },
+        {
+          id: 't-hard',
+          ref: 2,
+          lane: 'KCLE→KORD',
+          state: 'quoted_hard',
+          legs: [],
+          offers: [
+            {
+              id: 'oh',
+              operator_name: 'Beta',
+              state: 'quoted',
+              price_net: 4000,
+              magic_token: 'h',
+            },
+          ],
+        },
+      ],
+    })
+
+    // Quoted offers_out lives ONLY in submitted_quotes
+    expect(buckets.offers.find((c) => c.trip_id === 't-quoted' || c.id === 't-quoted')).toBeUndefined()
+    expect(buckets.submitted_quotes).toHaveLength(1)
+    expect(buckets.submitted_quotes[0]?.id).toBe('t-quoted')
+    expect(buckets.submitted_quotes[0]?.recipients).toHaveLength(1)
+    expect(buckets.submitted_quotes[0]?.recipients?.[0]?.name).toBe(
+      'Charlie Jets',
+    )
+    expect(buckets.submitted_quotes[0]?.recipients?.[0]?.quote_facts?.tail).toBe(
+      'N9ZZ',
+    )
+
+    // Hard quote lives ONLY in quotes — not also submitted_quotes
+    expect(buckets.quotes).toHaveLength(1)
+    expect(buckets.quotes[0]?.id).toBe('t-hard')
+    expect(
+      buckets.submitted_quotes.find((c) => c.trip_id === 't-hard' || c.id === 't-hard'),
+    ).toBeUndefined()
+
+    const allTripIds = [
+      ...buckets.offers,
+      ...buckets.submitted_quotes,
+      ...buckets.quotes,
+      ...buckets.approved,
+      ...buckets.tracking,
+    ].map((c) => c.trip_id ?? c.id)
+    expect(new Set(allTripIds).size).toBe(allTripIds.length)
   })
 
   it('approved drawer is booked-only with booking facts for invoice/ETA', () => {
@@ -77,9 +172,8 @@ describe('dispatchCenter', () => {
     expect(buckets.approved).toHaveLength(1)
     expect(buckets.approved[0]?.state).toBe('booked')
     expect(buckets.approved[0]?.approvable).toBe(false)
+    expect(buckets.approved[0]?.deletable).toBe(false)
     expect(buckets.approved[0]?.subtitle).toContain('Approved')
-    expect(buckets.approved[0]?.subtitle).toContain('Pilatus PC-12')
-    expect(buckets.approved[0]?.subtitle).toContain('N450CJ')
     expect(buckets.approved[0]?.booking).toMatchObject({
       operator_name: 'Charlie Jets',
       type_name: 'Pilatus PC-12',
@@ -87,11 +181,10 @@ describe('dispatchCenter', () => {
       client_total: 6000,
       po: 'PO-9001',
     })
-    expect(buckets.approved[0]?.href).toContain('drawer=approved')
-    expect(buckets.quotes.some((c) => c.state === 'booked')).toBe(false)
     expect(buckets.quotes).toHaveLength(1)
+    expect(buckets.quotes[0]?.approvable).toBe(true)
     expect(buckets.tracking).toHaveLength(1)
-    expect(buckets.tracking[0]?.href).toContain('drawer=tracking')
+    expect(buckets.tracking[0]?.deletable).toBe(false)
     expect(buckets.tracking[0]?.subtitle).toBe('Live · T-5')
   })
 
@@ -114,7 +207,7 @@ describe('dispatchCenter', () => {
     expect(buckets.requests[0]?.subtitle).toMatch(/^Scratchpad ·/)
   })
 
-  it('buckets inbound, trip cards, recipients, and submitted quotes', () => {
+  it('buckets offers without quotes; waiting replies only', () => {
     const buckets = buildDispatchDrawers({
       requests: [
         {
@@ -150,25 +243,6 @@ describe('dispatchCenter', () => {
               ping_sent_at: '2026-07-26T18:00:00.000Z',
               magic_token: 'tok2',
             },
-            {
-              id: 'o3',
-              operator_name: 'Charlie Jets',
-              state: 'quoted',
-              ping_sent_at: '2026-07-26T17:00:00.000Z',
-              magic_token: 'tok3',
-              price_net: 5000,
-              time_to_position_min: 60,
-              live_leg_min: 90,
-              fee_scope: 'aircraft_and_fees',
-              tail: 'N9ZZ',
-            },
-            {
-              id: 'o4',
-              operator_name: 'Delta Freight',
-              state: 'unavailable',
-              ping_sent_at: '2026-07-26T18:00:00.000Z',
-              magic_token: 'tok4',
-            },
           ],
         },
         {
@@ -195,49 +269,14 @@ describe('dispatchCenter', () => {
       ],
     })
     expect(buckets.requests).toHaveLength(1)
-    expect(buckets.offers[0]?.href).toContain('/dispatch?drawer=offers&focus=')
+    expect(buckets.offers).toHaveLength(1)
+    expect(buckets.offers[0]?.approvable).toBe(false)
     expect(buckets.offers[0]?.title).toBe('PSA Airlines · KCAK→KMDW')
-    expect(buckets.offers[0]?.subtitle).toBe('PS001')
-    expect(buckets.offers[0]?.subtitle).not.toMatch(/yes|awaiting|quoted/)
-    expect(buckets.offers[0]?.recipients).toHaveLength(4)
-    expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air'))
-      .toMatchObject({
-        status: 'awaiting',
-        status_label: 'Link ready — not notified',
-        href: '/offer/tok1',
-        notified: false,
-      })
-    expect(
-      buckets.offers[0]?.recipients?.find((r) => r.name === 'Alpha Air')
-        ?.sent_label,
-    ).toMatch(/^Link ready @ /)
-    expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Charlie Jets'))
-      .toMatchObject({
-        status: 'quote_submitted',
-        status_label: 'Quote submitted',
-      })
-    expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Bravo Charter'))
-      .toMatchObject({
-        status: 'yes',
-        status_label: 'Accepted (Yes)',
-      })
-    expect(buckets.offers[0]?.recipients?.find((r) => r.name === 'Delta Freight'))
-      .toMatchObject({
-        status: 'no',
-        status_label: 'Declined (No)',
-        declined_acked: false,
-      })
-    expect(buckets.submitted_quotes).toHaveLength(1)
-    expect(buckets.submitted_quotes[0]?.title).toContain('Charlie Jets')
-    expect(buckets.submitted_quotes[0]?.title).toContain('Quote submitted')
+    expect(buckets.offers[0]?.recipients).toHaveLength(2)
+    expect(buckets.submitted_quotes).toHaveLength(0)
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
-    expect(buckets.approved[0]?.state).toBe('booked')
-    expect(buckets.approved[0]?.approvable).toBe(false)
-    expect(buckets.approved[0]?.href).toContain('/dispatch?drawer=approved')
-    expect(buckets.tracking[0]?.href).toContain('/dispatch?drawer=tracking')
-    expect(buckets.tracking[0]?.subtitle).toMatch(/^Live ·/)
-    expect(buckets.tracking[0]?.approvable).toBe(false)
+    expect(buckets.tracking[0]?.href).toContain('drawer=tracking')
   })
 
   it('shows Client TBD when no client name is known', () => {

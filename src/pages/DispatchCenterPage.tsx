@@ -428,8 +428,8 @@ function OfferTripList({
 }: {
   cards: DispatchCard[]
   focusTripId?: string | null
-  /** offers = send / track; quotes = compare & price for client */
-  mode?: 'offers' | 'quotes'
+  /** offers = send; submitted = quotes in; quotes = client price/send */
+  mode?: 'offers' | 'submitted' | 'quotes'
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
   onDeleteCard: (card: DispatchCard) => void
   onDeleteOffer: (tripId: string, offerId: string, name: string) => void
@@ -438,25 +438,27 @@ function OfferTripList({
   approvingId?: string | null
 }) {
   const isQuotes = mode === 'quotes'
+  const isOffers = mode === 'offers'
+  const isSubmitted = mode === 'submitted'
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
   const [addingTripId, setAddingTripId] = useState<string | null>(null)
   const [searchParams] = useSearchParams()
   const [quotingTripId, setQuotingTripId] = useState<string | null>(
-    () => (isQuotes ? (focusTripId ?? null) : null),
+    () => (isQuotes || isSubmitted ? (focusTripId ?? null) : null),
   )
   const [updateError, setUpdateError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!focusTripId) return
-    if (isQuotes) setQuotingTripId(focusTripId)
-    if (searchParams.get('update') === '1') {
+    if (isQuotes || isSubmitted) setQuotingTripId(focusTripId)
+    if (isOffers && searchParams.get('update') === '1') {
       setUpdatingTripId(focusTripId)
       setAddingTripId(null)
-    } else if (searchParams.get('add') === '1') {
+    } else if (isOffers && searchParams.get('add') === '1') {
       setAddingTripId(focusTripId)
       setUpdatingTripId(null)
     }
-  }, [focusTripId, searchParams, isQuotes])
+  }, [focusTripId, searchParams, isQuotes, isSubmitted, isOffers])
 
   // Clear inline panels when the trip disappears (delete / hydrate race).
   useEffect(() => {
@@ -539,108 +541,145 @@ function OfferTripList({
                 ) : null}
               </div>
             </div>
-            {c.recipients && c.recipients.length > 0 && !(isQuotes && quoting) ? (
+            {c.recipients &&
+            c.recipients.length > 0 &&
+            !((isQuotes || isSubmitted) && quoting) ? (
               <ul className="mt-2 space-y-3 border-t border-border/50 pt-2">
-                {c.recipients.map((r) =>
-                  r.declined_acked ? (
-                    <li
-                      key={r.offer_id}
-                      className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
-                    >
-                      <span className="text-cream/80">{r.name}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-muted">unavailable</span>
-                        {c.trip_id ? (
-                          <button
-                            type="button"
-                            className="text-xs text-muted hover:text-late"
-                            onClick={() =>
-                              onDeleteOffer(c.trip_id!, r.offer_id, r.name)
-                            }
-                          >
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
+                {isOffers ? (
+                  <>
+                    <li className="px-0.5 text-[11px] uppercase tracking-wider text-muted">
+                      Sent to
                     </li>
-                  ) : (
-                  <li key={r.offer_id} className="px-0.5 py-1">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-medium text-cream">{r.name}</span>
-                      <span
-                        className={`text-xs font-medium ${recipientTone(r.status)}`}
-                      >
-                        {r.status_label}
-                      </span>
-                    </div>
-                    {r.sent_label ? (
-                      <div className="mt-1 font-mono text-[11px] text-muted">
-                        {r.sent_label}
-                      </div>
-                    ) : (
-                      <div className="mt-1 text-[11px] text-muted">
-                        Link not created yet
-                      </div>
+                    {c.recipients.map((r) =>
+                      r.declined_acked ? (
+                        <li
+                          key={r.offer_id}
+                          className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
+                        >
+                          <span className="text-cream/80">{r.name}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-muted">unavailable</span>
+                            {c.trip_id ? (
+                              <button
+                                type="button"
+                                className="text-xs text-muted hover:text-late"
+                                onClick={() =>
+                                  onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                                }
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </li>
+                      ) : (
+                        <li
+                          key={r.offer_id}
+                          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-0.5 py-1 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-medium text-cream">
+                              {r.name}
+                            </span>
+                            {r.destination_summary ? (
+                              <span className="ml-2 text-xs text-muted">
+                                {r.destination_summary}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span
+                              className={`font-medium ${recipientTone(r.status)}`}
+                            >
+                              {r.status_label}
+                            </span>
+                            {r.sent_label ? (
+                              <span className="font-mono text-muted">
+                                {r.sent_label}
+                              </span>
+                            ) : null}
+                            {r.status === 'no' && c.trip_id ? (
+                              <button
+                                type="button"
+                                className="font-medium text-gold hover:text-gold-lt"
+                                onClick={() =>
+                                  onAcknowledgeDeclined(
+                                    c.trip_id!,
+                                    r.offer_id,
+                                  )
+                                }
+                              >
+                                Acknowledge
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="text-muted hover:text-cream"
+                              onClick={() => {
+                                const url = absoluteAppUrl(r.href)
+                                void navigator.clipboard?.writeText(url)
+                              }}
+                            >
+                              Copy link
+                            </button>
+                            {c.trip_id ? (
+                              <button
+                                type="button"
+                                className="text-muted hover:text-late"
+                                onClick={() =>
+                                  onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                                }
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </li>
+                      ),
                     )}
-                    {/* When Quotes & pricing is open, facts live there — avoid duplicate boxes. */}
-                    {!quoting && r.quote_facts ? (
-                      <OfferQuoteFactsBlock facts={r.quote_facts} />
-                    ) : null}
-                    <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
-                      {r.status === 'no' && c.trip_id ? (
-                        <button
-                          type="button"
-                          className="font-medium text-gold hover:text-gold-lt"
-                          onClick={() =>
-                            onAcknowledgeDeclined(c.trip_id!, r.offer_id)
-                          }
-                        >
-                          Acknowledge
-                        </button>
-                      ) : null}
-                      {(r.status === 'quote_submitted' ||
-                        r.status === 'selected') &&
-                      r.quote_facts &&
-                      c.trip_id ? (
-                        <button
-                          type="button"
-                          disabled={approvingId === r.offer_id}
-                          className="font-medium text-gold hover:text-gold-lt disabled:opacity-40"
-                          onClick={() =>
-                            onApproveOffer(c.trip_id!, r.offer_id, r.name)
-                          }
-                        >
-                          {approvingId === r.offer_id
-                            ? 'Approving…'
-                            : 'Approve trip'}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="text-muted hover:text-cream"
-                        onClick={() => {
-                          const url = absoluteAppUrl(r.href)
-                          void navigator.clipboard?.writeText(url)
-                        }}
-                      >
-                        Copy link
-                      </button>
-                      {c.trip_id ? (
-                        <button
-                          type="button"
-                          className="text-muted hover:text-late"
-                          onClick={() =>
-                            onDeleteOffer(c.trip_id!, r.offer_id, r.name)
-                          }
-                        >
-                          Delete
-                        </button>
-                      ) : null}
-                    </div>
-                  </li>
-                  ),
+                  </>
+                ) : (
+                  <>
+                    <li className="px-0.5 text-[11px] uppercase tracking-wider text-muted">
+                      {isSubmitted
+                        ? 'Operator quotes submitted'
+                        : 'Options for client'}
+                    </li>
+                    {c.recipients.map((r) => (
+                      <li key={r.offer_id} className="px-0.5 py-1">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="font-medium text-cream">{r.name}</span>
+                          {c.trip_id && r.quote_facts ? (
+                            <button
+                              type="button"
+                              disabled={approvingId === r.offer_id}
+                              className="text-xs font-medium text-gold hover:text-gold-lt disabled:opacity-40"
+                              onClick={() =>
+                                onApproveOffer(c.trip_id!, r.offer_id, r.name)
+                              }
+                            >
+                              {approvingId === r.offer_id
+                                ? 'Approving…'
+                                : 'Approve trip'}
+                            </button>
+                          ) : null}
+                        </div>
+                        {r.quote_facts ? (
+                          <OfferQuoteFactsBlock facts={r.quote_facts} />
+                        ) : (
+                          <div className="mt-1 text-[11px] text-muted">
+                            No quote facts yet
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </>
                 )}
               </ul>
+            ) : isOffers ? (
+              <p className="mt-3 text-sm text-muted">
+                Not sent to any operators yet — use Send to more operators.
+              </p>
             ) : null}
             {editing && c.trip_id ? (
               <>
@@ -665,7 +704,7 @@ function OfferTripList({
                 onClose={() => setAddingTripId(null)}
               />
             ) : null}
-            {quoting && c.trip_id ? (
+            {quoting && (isQuotes || isSubmitted) && c.trip_id ? (
               <DeskOfferQuoteWorkbench
                 key={`quote-${c.trip_id}`}
                 tripId={c.trip_id}
@@ -673,13 +712,13 @@ function OfferTripList({
               />
             ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
-              {isQuotes && c.trip_id ? (
+              {(isQuotes || isSubmitted) && c.trip_id ? (
                 <button
                   type="button"
                   className={[
                     'rounded-md px-3 py-2 text-xs font-semibold',
                     quoting
-                      ? 'bg-gold text-ink'
+                      ? 'border border-gold/50 bg-gold/10 text-gold'
                       : 'bg-gold text-ink hover:bg-gold-lt',
                   ].join(' ')}
                   onClick={() => {
@@ -689,36 +728,21 @@ function OfferTripList({
                     setQuotingTripId(quoting ? null : c.trip_id!)
                   }}
                 >
-                  {quoting ? 'Close compare' : 'Compare & price quotes'}
+                  {quoting
+                    ? 'Close compare'
+                    : isSubmitted
+                      ? 'Compare & price for client'
+                      : 'Compare & price quotes'}
                 </button>
               ) : null}
-              {!isQuotes && c.trip_id ? (
+              {isOffers && c.trip_id ? (
                 <button
                   type="button"
                   className={[
-                    'rounded-md px-2.5 py-1.5 text-xs font-medium',
-                    quoting
-                      ? 'bg-gold text-ink'
-                      : 'bg-gold/15 text-gold hover:bg-gold/25',
-                  ].join(' ')}
-                  onClick={() => {
-                    setUpdatingTripId(null)
-                    setAddingTripId(null)
-                    setUpdateError(null)
-                    setQuotingTripId(quoting ? null : c.trip_id!)
-                  }}
-                >
-                  {quoting ? 'Close quotes' : 'Quotes & pricing'}
-                </button>
-              ) : null}
-              {!isQuotes && c.trip_id ? (
-                <button
-                  type="button"
-                  className={[
-                    'rounded-md border px-2.5 py-1.5 text-xs',
+                    'rounded-md px-3 py-2 text-xs font-semibold',
                     adding
-                      ? 'border-gold/50 bg-gold/10 text-gold'
-                      : 'border-border text-cream hover:border-gold/40',
+                      ? 'border border-gold/50 bg-gold/10 text-gold'
+                      : 'bg-gold text-ink hover:bg-gold-lt',
                   ].join(' ')}
                   onClick={() => {
                     setUpdatingTripId(null)
@@ -727,10 +751,10 @@ function OfferTripList({
                     setAddingTripId(adding ? null : c.trip_id!)
                   }}
                 >
-                  {adding ? 'Close send' : 'Send to new operator'}
+                  {adding ? 'Close send' : 'Send to more operators'}
                 </button>
               ) : null}
-              {c.trip_id ? (
+              {isOffers && c.trip_id ? (
                 <button
                   type="button"
                   className={[
@@ -741,7 +765,7 @@ function OfferTripList({
                   ].join(' ')}
                   onClick={() => {
                     setAddingTripId(null)
-                    if (!isQuotes) setQuotingTripId(null)
+                    setQuotingTripId(null)
                     setUpdateError(null)
                     setUpdatingTripId(editing ? null : c.trip_id!)
                   }}
@@ -997,7 +1021,8 @@ export default function DispatchCenterPage() {
         <div className="min-w-0 space-y-1">
           <h1 className="text-2xl font-semibold text-cream">Dispatch center</h1>
           <p className="text-sm text-muted">
-            Requests → trip offers → submitted quotes → client quotes → approved
+            Requests → offers → submitted quotes → client quotes → approved →
+            live tracking. Each trip sits in only one stage.
             → live tracking. Open a drawer to work it.
           </p>
         </div>
@@ -1080,11 +1105,19 @@ export default function DispatchCenterPage() {
             (d.id === 'requests' || d.id === 'submitted_quotes')
           }
         >
-          {d.id === 'offers' || d.id === 'quotes' ? (
+          {d.id === 'offers' ||
+          d.id === 'quotes' ||
+          d.id === 'submitted_quotes' ? (
             <OfferTripList
               cards={buckets[d.id]}
               focusTripId={focusTripId}
-              mode={d.id === 'quotes' ? 'quotes' : 'offers'}
+              mode={
+                d.id === 'quotes'
+                  ? 'quotes'
+                  : d.id === 'submitted_quotes'
+                    ? 'submitted'
+                    : 'offers'
+              }
               onAcknowledgeDeclined={(tripId, offerId) => {
                 void acknowledgeDeclinedOffer(tripId, offerId).catch((e) =>
                   console.warn('[dispatch] acknowledge declined', e),
