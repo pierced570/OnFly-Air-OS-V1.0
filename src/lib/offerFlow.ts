@@ -524,6 +524,41 @@ async function applyOfferQuote(
   )
   applyOfferTtpToTrip(tripId, offerId, input.time_to_position_min)
   await flushPersistTrip(tripId)
+
+  // Operator-submitted quote (magic link from SMS or email) → alert desk RC.
+  if (meta.source === 'operator') {
+    try {
+      const { createCommsAdapter } = await import('@/adapters/comms')
+      const { BRAND_PHONE_E164 } = await import('@/domain/brand')
+      const { quoteSubmittedDeskSms } = await import('@/domain/offers')
+      const fresh = getTrip(tripId)!
+      const o = fresh.offers.find((x) => x.id === offerId)
+      const body = quoteSubmittedDeskSms(o?.operator_name || meta.actor, {
+        lane: fresh.lane,
+        tripCode: (fresh.code ?? '').trim() || `T-${fresh.ref}`,
+      })
+      await createCommsAdapter().send({
+        channel: 'sms',
+        to: BRAND_PHONE_E164,
+        body,
+      })
+      mutateTrip(tripId, (t) => {
+        t.events.push({
+          at: new Date().toISOString(),
+          actor: 'system',
+          kind: 'desk_quote_alert_sms',
+          payload: {
+            offer_id: offerId,
+            operator_name: o?.operator_name || meta.actor,
+            to: BRAND_PHONE_E164,
+          },
+        })
+      })
+    } catch (e) {
+      console.warn('[quote] desk alert SMS failed', e)
+    }
+  }
+
   return getTrip(tripId)!
 }
 

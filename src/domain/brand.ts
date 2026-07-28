@@ -6,6 +6,8 @@
 
 export const BRAND_TAGLINE = 'ASAP AIRCRAFT SOLUTIONS AND LOGISTICS'
 export const BRAND_PHONE = '(858) 529-7860'
+/** Desk / dispatch SMS alerts — RingCentral number in E.164. */
+export const BRAND_PHONE_E164 = '+18585297860'
 export const BRAND_EMAIL = 'info@onflyair.com'
 
 /** Small / mini logo — aircraft in ring */

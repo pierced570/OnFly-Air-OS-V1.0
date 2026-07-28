@@ -106,6 +106,10 @@ export function getMockCommsLog() {
   return [...log]
 }
 
+export function clearMockCommsLog() {
+  log.length = 0
+}
+
 /** True when the app will attempt live RingCentral (still needs edge secrets). */
 export function isRealCommsEnabled(): boolean {
   // Default real once RC is wired (same pattern as email); tests force mock.
