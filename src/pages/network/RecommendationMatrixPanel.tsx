@@ -1,7 +1,7 @@
 /**
- * Recommendation matrix — the scoring system for trip operator shortlists.
- * Edit knobs here; Dispatch / Parse / Send-to-new-operator all reuse them
- * via recommendForDeskDraft → generateCandidates.
+ * Recommendation matrix — scoring for **new-request** operator search only.
+ * Edit knobs here; New trip / request shortlists consume them via
+ * generateCandidates. Parse & shortlist and mid-trip add-operator do not.
  */
 
 import { useState, useSyncExternalStore } from 'react'
@@ -68,8 +68,8 @@ function MatrixSettingsPanel() {
             Scoring settings
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            Changes apply to Dispatch recommend, Parse & shortlist, and this
-            matrix — no code deploy needed.
+            Changes apply when searching operators on new requests (New trip /
+            request shortlist) and this matrix — not Parse & shortlist.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -173,7 +173,9 @@ export function RecommendationMatrixPanel() {
         origin_text: origin.trim().toUpperCase(),
         destination_text: dest.trim().toUpperCase(),
       })
-      const result = await recommendForDeskDraft(draft)
+      const result = await recommendForDeskDraft(draft, {
+        matrix: getRecommendMatrix(),
+      })
       setLane(result.lane)
       setRows(result.candidates)
       if (result.error) setError(result.error)
@@ -192,9 +194,9 @@ export function RecommendationMatrixPanel() {
           Recommendation matrix
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Internal scoring for trip operator shortlists — door fit, payload,
-          distance, cost, and radar. Dispatch “Send to new operator” and Parse
-          & shortlist use these same settings.
+          How we rank operators when searching a new request — door fit,
+          payload, distance, cost, and radar. Parse & shortlist and mid-trip
+          “Send to new operator” use fixed defaults.
         </p>
       </header>
 
@@ -348,11 +350,12 @@ export function RecommendationMatrixPanel() {
       )}
 
       <p className="text-xs text-muted">
-        To send trip offers, use{' '}
+        New-request shortlists (New trip) use these settings. To send offers on
+        an active trip, use{' '}
         <Link to="/dispatch" className="text-gold hover:text-gold-lt">
           Dispatch center
         </Link>
-        . Shortlists there are scored with this matrix.
+        .
       </p>
     </div>
   )
