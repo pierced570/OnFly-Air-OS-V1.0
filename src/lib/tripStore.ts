@@ -425,6 +425,10 @@ function syncLegsFromChain(t: TripStoreRow, chain: ChainLeg[]): void {
 }
 
 const trips = new Map<string, TripStoreRow>()
+/** Desk-deleted trip ids — block live hydrate from resurrecting until DB catches up. */
+const deletedTripIds = new Set<string>()
+/** Desk-removed offers (`tripId:offerId`) — same hydrate race guard. */
+const deletedOfferKeys = new Set<string>()
 let refSeq = 2000
 const listeners = new Set<() => void>()
 let snapshot: TripStoreRow[] = []
@@ -542,6 +546,8 @@ export function subscribeTrips(fn: () => void): () => void {
 /** Test-only — clear in-memory trips (does not wipe localStorage). */
 export function __resetTripsForTests(): void {
   trips.clear()
+  deletedTripIds.clear()
+  deletedOfferKeys.clear()
   refSeq = 2000
   rebuild()
   for (const l of listeners) l()
@@ -956,7 +962,11 @@ export function getTrip(id: string) {
  * Cascades child rows in DB via FK. Does not change trip state.
  */
 export function deleteTrip(id: string): boolean {
-  if (!trips.has(id)) return false
+  if (!trips.has(id) && !deletedTripIds.has(id)) return false
+  deletedTripIds.add(id)
+  for (const key of [...deletedOfferKeys]) {
+    if (key.startsWith(`${id}:`)) deletedOfferKeys.delete(key)
+  }
   trips.delete(id)
   bump()
   void import('@/lib/db/persistTrip')
@@ -975,6 +985,7 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
   const before = trip.offers.length
   const removed = trip.offers.find((o) => o.id === offerId)
   if (!removed) return false
+  deletedOfferKeys.add(`${tripId}:${offerId}`)
   mutateTrip(tripId, (t) => {
     t.offers = t.offers.filter((o) => o.id !== offerId)
     if (t.hard_quote?.options?.length) {
@@ -1003,8 +1014,42 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
 
 /** Merge DB rows into session (does not wipe local-only trips still syncing). */
 export function replaceTripsFromDb(rows: TripStoreRow[]): void {
+  // Empty hydrate must not clear tombstones — live poll can briefly return []
+  // while a delete is in flight; clearing would let the next tick resurrect.
   if (!rows.length) return
+
+  const dbIds = new Set(rows.map((r) => r.id))
+  const offerPersistIds = new Set<string>()
+
   for (const r of rows) {
+    if (deletedTripIds.has(r.id)) {
+      // Still present in DB after desk delete — keep out of UI and retry delete.
+      void import('@/lib/db/persistTrip')
+        .then((m) => m.deleteTripFromDb(r.id))
+        .catch((e) =>
+          console.warn('[trips] retry delete from db failed', r.id, e),
+        )
+      continue
+    }
+
+    const hydratedOffers = r.offers ?? []
+    const keptOffers = hydratedOffers.filter(
+      (o) => !deletedOfferKeys.has(`${r.id}:${o.id}`),
+    )
+    if (keptOffers.length < hydratedOffers.length) {
+      offerPersistIds.add(r.id)
+    }
+    r.offers = keptOffers
+
+    // Clear offer tombstones the DB no longer returns.
+    for (const key of [...deletedOfferKeys]) {
+      if (!key.startsWith(`${r.id}:`)) continue
+      const offerId = key.slice(r.id.length + 1)
+      if (!hydratedOffers.some((o) => o.id === offerId)) {
+        deletedOfferKeys.delete(key)
+      }
+    }
+
     const existing = trips.get(r.id)
     if (existing) {
       // Preserve richer session overlays until DB catches up.
@@ -1030,9 +1075,19 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
     trips.set(r.id, r)
     if (r.ref >= refSeq) refSeq = r.ref + 1
   }
+
+  // Trip tombstones confirmed absent from this hydrate payload.
+  for (const id of [...deletedTripIds]) {
+    if (!dbIds.has(id)) deletedTripIds.delete(id)
+  }
+
   bump()
-  // Push any local-only trips that never made it to DB
-  void flushLocalOnlyTrips(new Set(rows.map((r) => r.id)))
+  // Push any local-only trips that never made it to DB (never re-push tombstoned).
+  void flushLocalOnlyTrips(dbIds)
+
+  for (const id of offerPersistIds) {
+    void flushPersistTrip(id)
+  }
 }
 
 function mergeTripEvents(
@@ -1053,6 +1108,7 @@ function mergeTripEvents(
 
 async function flushLocalOnlyTrips(knownDbIds: Set<string>): Promise<void> {
   for (const [id] of trips) {
+    if (deletedTripIds.has(id)) continue
     if (!knownDbIds.has(id)) await flushPersistTrip(id)
   }
 }
