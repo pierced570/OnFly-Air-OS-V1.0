@@ -25,6 +25,7 @@ import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clie
 import { clientTotalForOffer } from '@/lib/offerPricing'
 import {
   buildOfferRow,
+  flushPersistTrip,
   getTrip,
   mutateTrip,
   payloadKindOf,
@@ -816,14 +817,15 @@ export async function selectOffersAndHardQuote(
 /**
  * Update client-facing totals / margin on an already-sent hard quote
  * without re-notifying the client (desk edit).
+ * Flushes to DB immediately so live hydrate cannot resurrect stale totals.
  */
-export function updateHardQuoteClientPricing(
+export async function updateHardQuoteClientPricing(
   tripId: string,
   input: {
     margin_pct: number
     options: Array<{ offer_id: string; client_total: number }>
   },
-): TripStoreRow {
+): Promise<TripStoreRow> {
   const trip = getTrip(tripId)
   if (!trip?.hard_quote?.options?.length) {
     throw new Error('no hard quote to update')
@@ -853,6 +855,7 @@ export function updateHardQuoteClientPricing(
       },
     })
   })
+  await flushPersistTrip(tripId)
   return getTrip(tripId)!
 }
 

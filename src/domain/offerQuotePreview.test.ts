@@ -67,4 +67,53 @@ describe('offerQuotePreview', () => {
     // Margin-on-sell: 4000 / (1 - 0.25) ≈ 5333
     expect(p.client_air).toBe(5333)
   })
+
+  it('works backwards from client total (taxes + effective margin)', () => {
+    const p = buildOfferQuotePreview(
+      {
+        offer_id: 'o1',
+        operator_name: 'Tester',
+        tail: 'N12345',
+        price_net: 5000,
+        time_to_position_min: 120,
+        quick_turn_min: 45,
+        live_leg_min: 75,
+        fee_scope: 'aircraft_and_fees',
+        mtow_lbs: 12500,
+        payload_kind: 'cargo',
+        margin_pct: 15,
+        client_total_override: 6250,
+      },
+      TEST_TAX_RATES_2026,
+      0,
+    )
+    expect(p.client_total).toBe(6250)
+    expect(p.client_air + Math.round(p.tax_total)).toBe(6250)
+    expect(p.margin_pct).toBeGreaterThan(0)
+    expect(p.fet_exempt).toBe(false)
+  })
+
+  it('notes FET exempt when MTOW ≤ 6000 on reverse total', () => {
+    const p = buildOfferQuotePreview(
+      {
+        offer_id: 'o1',
+        operator_name: 'Light',
+        tail: 'N310XX',
+        price_net: 4000,
+        time_to_position_min: 60,
+        quick_turn_min: 40,
+        live_leg_min: 70,
+        fee_scope: 'aircraft_and_fees',
+        mtow_lbs: 5500,
+        payload_kind: 'cargo',
+        client_total_override: 5000,
+      },
+      TEST_TAX_RATES_2026,
+      0,
+    )
+    expect(p.fet_exempt).toBe(true)
+    expect(p.client_total).toBe(5000)
+    expect(p.tax_total).toBe(0)
+    expect(p.client_air).toBe(5000)
+  })
 })
