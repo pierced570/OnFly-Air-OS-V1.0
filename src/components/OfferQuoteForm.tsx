@@ -100,9 +100,12 @@ export function OfferQuoteForm({
     initialQuickTurnMin ?? DEFAULT_QUICK_TURN_MIN,
   )
   const [live, setLive] = useState(initialLiveLegMin ?? 75)
-  const [price, setPrice] = useState(initialPriceNet ?? 4500)
+  /** String draft so operators can clear/retype without Number('') → 0 locking a leading zero. */
+  const [priceText, setPriceText] = useState(
+    String(initialPriceNet ?? 4500),
+  )
   const [waitOk, setWaitOk] = useState(true)
-  const [maxWait, setMaxWait] = useState(2)
+  const [maxWaitText, setMaxWaitText] = useState('2')
   /** Prefill: price includes all other fees. */
   const [feesIncluded, setFeesIncluded] = useState(true)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -133,6 +136,12 @@ export function OfferQuoteForm({
           setLocalError('Enter the tail you will fly')
           return
         }
+        const price = Math.round(Number(priceText.replace(/,/g, '')))
+        if (!Number.isFinite(price) || !(price > 0)) {
+          setLocalError('Enter a price greater than zero')
+          return
+        }
+        const maxWait = Math.max(0, Number(maxWaitText) || 0)
         setLocalError(null)
         onSubmit({
           type_name: type,
@@ -226,10 +235,13 @@ export function OfferQuoteForm({
             <label className={offerLabel}>
               Max wait (hrs)
               <input
-                type="number"
-                inputMode="numeric"
-                value={maxWait}
-                onChange={(e) => setMaxWait(Number(e.target.value))}
+                type="text"
+                inputMode="decimal"
+                value={maxWaitText}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === '' || /^\d*\.?\d*$/.test(v)) setMaxWaitText(v)
+                }}
                 className={offerInput}
               />
             </label>
@@ -243,10 +255,13 @@ export function OfferQuoteForm({
           OnFly adds tax on our end
         </span>
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
-          value={price}
-          onChange={(e) => setPrice(Number(e.target.value))}
+          value={priceText}
+          onChange={(e) => {
+            const v = e.target.value.replace(/,/g, '')
+            if (v === '' || /^\d*\.?\d*$/.test(v)) setPriceText(v)
+          }}
           className={offerInput}
           required
         />
