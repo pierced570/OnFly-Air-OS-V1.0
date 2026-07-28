@@ -685,6 +685,9 @@ export default function RadarPage({
           {selectedStatus && (
             <div className="mt-4 border-t border-border pt-3 text-sm">
               <div className="avionic text-gold">{selectedStatus.tail}</div>
+              <div className="text-cream">
+                {selectedStatus.type_name?.trim() || '—'}
+              </div>
               <div className="text-muted">{selectedStatus.operator_name}</div>
               <div className="mt-2">
                 <FlightChip
