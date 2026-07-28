@@ -224,4 +224,18 @@ describe('portalTracking', () => {
     const blob = JSON.stringify(view)
     expect(blob).not.toMatch(/\$|margin|vendor/i)
   })
+
+  it('builds itinerary stops with departure/arrival FBOs and flight facts', () => {
+    const view = buildPortalTrackingView(sampleD2d())
+    expect(view.flightFacts.tail).toBe('N123AB')
+    expect(view.flightFacts.aircraftType).toBe('King Air 200')
+    expect(view.flightFacts.originIcao).toBe('KCAK')
+    expect(view.flightFacts.destIcao).toBe('KMDW')
+    expect(view.flightFacts.wheelsDownDisplay).toBeTruthy()
+    const dep = view.stops.find((s) => s.role === 'departure_fbo')
+    const arr = view.stops.find((s) => s.role === 'arrival_fbo')
+    expect(dep?.icao).toBe('KCAK')
+    expect(arr?.icao).toBe('KMDW')
+    expect(arr?.etaDisplay).toBeTruthy()
+  })
 })

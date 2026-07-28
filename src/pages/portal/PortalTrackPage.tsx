@@ -23,6 +23,11 @@ import {
   tripToTrackingInput,
   type PortalTrackingView,
 } from '@/domain/portalTracking'
+import {
+  enrichTrackingStops,
+  type EnrichedTrackingStop,
+} from '@/lib/portalTrackingEnrich'
+import { listFbos, subscribeFbos } from '@/lib/fboStore'
 import { formatClientLocal } from '@/domain/timeFmt'
 import { BrandLockup } from '@/components/BrandLockup'
 import { PortalAircraftMap } from '@/components/PortalAircraftMap'
@@ -42,6 +47,202 @@ function statusChipClass(state: string): string {
   return 'border-border bg-white text-muted'
 }
 
+function stopStatusDot(status: EnrichedTrackingStop['status']): string {
+  if (status === 'done') return 'bg-[#2E7D32]'
+  if (status === 'active') return 'bg-gold'
+  return 'bg-border'
+}
+
+function FlightFactsStrip({ view }: { view: PortalTrackingView }) {
+  const f = view.flightFacts
+  const cells: Array<{ label: string; value: string; mono?: boolean }> = [
+    {
+      label: 'Tail',
+      value: f.tail || 'TBD',
+      mono: true,
+    },
+    {
+      label: 'Aircraft',
+      value: f.aircraftType || 'TBD',
+    },
+    {
+      label: 'Routing',
+      value:
+        f.originIcao && f.destIcao
+          ? `${f.originIcao} → ${f.destIcao}`
+          : view.lane || '—',
+      mono: true,
+    },
+    {
+      label: 'Cargo',
+      value: f.cargo || '—',
+    },
+    {
+      label: 'Wheels up',
+      value: f.wheelsUpDisplay || '—',
+      mono: true,
+    },
+    {
+      label: 'Wheels down',
+      value: f.wheelsDownDisplay || '—',
+      mono: true,
+    },
+  ]
+  return (
+    <section className="rounded-lg border border-border bg-white p-4">
+      <h2 className="text-xs uppercase tracking-wider text-muted">
+        Flight facts
+      </h2>
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {cells.map((c) => (
+          <div key={c.label}>
+            <dt className="text-[10px] uppercase tracking-wider text-muted">
+              {c.label}
+            </dt>
+            <dd
+              className={[
+                'mt-0.5 text-sm font-medium text-ink',
+                c.mono ? 'avionic' : '',
+              ].join(' ')}
+            >
+              {c.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {f.nextArriveLabel && f.nextArriveDisplay ? (
+        <p className="mt-4 rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-ink">
+          <span className="font-medium">{f.nextArriveLabel}</span>
+          <span className="avionic ml-2">{f.nextArriveDisplay}</span>
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
+function ItineraryStops({ stops }: { stops: EnrichedTrackingStop[] }) {
+  if (stops.length === 0) {
+    return (
+      <section className="rounded-lg border border-border bg-white p-5">
+        <h2 className="text-xs uppercase tracking-wider text-muted">
+          Where you&apos;re going
+        </h2>
+        <p className="mt-3 text-sm text-muted">
+          FBO and stop details appear once the trip is booked with an ETA chain.
+        </p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded-lg border border-border bg-white p-5">
+      <h2 className="text-xs uppercase tracking-wider text-muted">
+        Where you&apos;re going
+      </h2>
+      <p className="mt-1 text-[11px] text-muted">
+        FBOs, addresses, and arrival times — stop-local with zone
+      </p>
+      <ol className="mt-4 space-y-3">
+        {stops.map((s, i) => (
+          <li
+            key={`${s.role}-${s.icao ?? s.placeLabel}-${i}`}
+            className={[
+              'rounded-lg border px-4 py-3',
+              s.status === 'active'
+                ? 'border-gold/50 bg-gold/5'
+                : 'border-border/70 bg-[#F7F2E3]/35',
+            ].join(' ')}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <span
+                  className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${stopStatusDot(s.status)}`}
+                  aria-hidden
+                />
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-gold">
+                    {s.title}
+                  </div>
+                  <div className="mt-0.5 text-base font-semibold text-ink">
+                    {s.fboName ? (
+                      <>
+                        {s.fboName}
+                        {s.icao ? (
+                          <span className="avionic ml-2 text-sm font-normal text-muted">
+                            {s.icao}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className={s.icao ? 'avionic' : ''}>
+                        {s.icao || s.placeLabel}
+                      </span>
+                    )}
+                  </div>
+                  {s.airportCityState || s.airportName ? (
+                    <p className="mt-0.5 text-xs text-muted">
+                      {[s.airportName, s.airportCityState]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-muted">
+                  {s.etaActualDisplay ? 'Actual' : 'ETA'}
+                </div>
+                <div className="avionic text-sm font-medium text-ink">
+                  {s.etaActualDisplay || s.etaDisplay || '—'}
+                </div>
+                {s.event ? (
+                  <div className="mt-0.5 text-[10px] text-muted">{s.event}</div>
+                ) : null}
+              </div>
+            </div>
+
+            {s.displayAddress ? (
+              <p className="mt-3 text-sm text-ink">
+                <span className="text-[10px] uppercase tracking-wider text-muted">
+                  Address{' '}
+                </span>
+                {s.displayAddress}
+              </p>
+            ) : s.role === 'departure_fbo' || s.role === 'arrival_fbo' ? (
+              <p className="mt-3 text-xs text-muted">
+                FBO address pending — dispatch will confirm the handler.
+              </p>
+            ) : null}
+
+            {(s.fboPhone || s.fboAfterHours) && (
+              <p className="mt-2 avionic text-xs text-muted">
+                {s.fboPhone ? (
+                  <a href={`tel:${s.fboPhone}`} className="text-gold">
+                    {s.fboPhone}
+                  </a>
+                ) : null}
+                {s.fboIs24hr ? (
+                  <span className="ml-2 text-[10px] uppercase text-[#2E7D32]">
+                    24hr
+                  </span>
+                ) : null}
+                {s.fboAfterHours ? (
+                  <span className="ml-2">
+                    After hours{' '}
+                    <a href={`tel:${s.fboAfterHours}`} className="text-gold">
+                      {s.fboAfterHours}
+                    </a>
+                  </span>
+                ) : null}
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
 function AircraftCard({ view }: { view: PortalTrackingView }) {
   const a = view.aircraft
   const showMap = portalAircraftMapVisible(a)
@@ -49,8 +250,16 @@ function AircraftCard({ view }: { view: PortalTrackingView }) {
     <section className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="border-b border-border/60 px-5 py-3">
         <h2 className="text-xs uppercase tracking-wider text-muted">
-          Aircraft position
+          Live aircraft
         </h2>
+        <p className="mt-0.5 avionic text-sm text-ink">
+          {a.tail !== '—' ? a.tail : view.flightFacts.tail || 'Tail TBD'}
+          {view.aircraftType || view.flightFacts.aircraftType ? (
+            <span className="ml-2 text-muted">
+              {view.aircraftType || view.flightFacts.aircraftType}
+            </span>
+          ) : null}
+        </p>
       </div>
       {showMap ? (
         <div className="border-b border-border/60 bg-[#F7F2E3] px-3 pt-3 pb-2 sm:px-4">
@@ -64,7 +273,7 @@ function AircraftCard({ view }: { view: PortalTrackingView }) {
                   ? 'On the ground at this stage of the trip'
                   : 'Trip route'}
             {a.source === 'adsb'
-              ? ' · live ADS-B'
+              ? ' · FlightAware / ADS-B'
               : a.source === 'eta'
                 ? ' · from ETA chain'
                 : ''}
@@ -188,6 +397,13 @@ function MilestoneStrip({ view }: { view: PortalTrackingView }) {
 
 function TrackingBody({ view }: { view: PortalTrackingView }) {
   const delta = view.deltaMin
+  // Re-render when FBO directory hydrates so addresses fill in.
+  const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
+  const enrichedStops = useMemo(
+    () => enrichTrackingStops(view.stops),
+    [view.stops, fbos],
+  )
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <header>
@@ -245,6 +461,8 @@ function TrackingBody({ view }: { view: PortalTrackingView }) {
         </div>
       </section>
 
+      <FlightFactsStrip view={view} />
+      <ItineraryStops stops={enrichedStops} />
       <MilestoneStrip view={view} />
       <AircraftCard view={view} />
 
