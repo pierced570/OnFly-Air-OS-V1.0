@@ -903,7 +903,10 @@ export default function DispatchCenterPage() {
         <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setTool('scratchpad')}
+            onClick={() => {
+              setOpenDrawer('requests')
+              setTool('scratchpad')
+            }}
             className="rounded-md border border-gold/50 bg-gold/10 px-4 py-2.5 text-sm font-semibold text-gold hover:bg-gold/20"
           >
             Start new request
@@ -1016,7 +1019,12 @@ export default function DispatchCenterPage() {
             <button
               key={t.id}
               type="button"
-              onClick={() => setTool(t.id)}
+              onClick={() => {
+                // Scratchpad stays tied to the Trip requests waterfall —
+                // Back from the tool lands on that drawer, not a blank center.
+                if (t.id === 'scratchpad') setOpenDrawer('requests')
+                setTool(t.id)
+              }}
               className="rounded-md border border-border bg-ink px-3 py-3 text-left hover:border-gold/40"
             >
               <div className="text-sm font-semibold text-cream">{t.label}</div>
