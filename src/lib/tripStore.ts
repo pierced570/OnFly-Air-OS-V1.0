@@ -40,6 +40,7 @@ import { computeReferralShareAmount } from '@/domain/referrals'
 import { roleOnOpsThread } from '@/domain/tripThread'
 import { appPublicUrl } from '@/lib/appUrl'
 import { getCachedNetwork } from '@/lib/networkData'
+import { getClient } from '@/lib/clientStore'
 import { listOnboardSubmissions } from '@/lib/operatorOnboardStore'
 import { listOperatorDrafts } from '@/lib/operatorDraftStore'
 
@@ -848,6 +849,7 @@ export function createTripFromCandidates(opts: {
         kind: 'created_from_estimate',
         payload: {
           client_id: opts.client_id ?? null,
+          client_name: opts.client_name?.trim() || null,
           chain_legs: legs.length,
         },
       },
@@ -1065,6 +1067,22 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
         r.eta_chain = existing.eta_chain
         r.service_pattern = r.service_pattern ?? existing.service_pattern
         r.promised_delivery = r.promised_delivery ?? existing.promised_delivery
+      }
+      // Keep desk-parsed client name — live hydrate can briefly omit session_meta.
+      if (!r.client_name?.trim() && existing.client_name?.trim()) {
+        r.client_name = existing.client_name
+      }
+      if (!r.client_id && existing.client_id) {
+        r.client_id = existing.client_id
+      } else if (
+        existing.client_id &&
+        r.client_id &&
+        existing.client_id !== r.client_id &&
+        getClient(existing.client_id) &&
+        !getClient(r.client_id)
+      ) {
+        // Directory is keyed by legacy_key; hydrated trips.client_id is UUID.
+        r.client_id = existing.client_id
       }
       // Desk pricing edits race the 4s live hydrate — keep local hard_quote
       // until the DB event log includes the same pricing update.

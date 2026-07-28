@@ -630,7 +630,11 @@ export async function sendDeskTripOffers(opts: {
       opts.contactOverrides,
     )
     if (draft.client_id) t.client_id = draft.client_id
-    if (draft.client_name?.trim()) t.client_name = draft.client_name.trim()
+    if (draft.client_name?.trim()) {
+      const name = draft.client_name.trim()
+      t.client_name = name
+      if (t.quick) t.quick = { ...t.quick, client_name: name }
+    }
     t.service_pattern = draft.service_pattern
     t.forklift_required = draft.ops.forklift.level === 'required'
     t.forklift_recommended =
