@@ -42,6 +42,19 @@ describe('tripRequest', () => {
     )
   })
 
+  it('skips cargo weight when dims not yet known', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_dims_status = 'not_yet'
+    d.cargo_notes = ''
+    expect(validateTripRequest(d).some((i) => i.field === 'cargo_weight')).toBe(
+      false,
+    )
+    expect(summaryFromDraft(d)).toContain('dims TBD')
+  })
+
   it('accepts weight embedded in dims text', () => {
     const d = emptyTripRequestDraft()
     d.email = 'a@b.co'

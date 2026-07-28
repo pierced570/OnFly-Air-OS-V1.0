@@ -16,6 +16,8 @@ import {
 export type TimingMode = 'asap' | 'scheduled'
 export type TripDirection = 'one_way' | 'round_trip'
 export type ServiceMode = 'a2a' | 'd2d' | 'mixed'
+/** Portal cargo dims: known now, TBD with desk, or autofill standard cargo. */
+export type CargoDimsStatus = 'known' | 'not_yet' | 'standard'
 export type { DimLengthUnit }
 
 export type PaxRow = {
@@ -65,7 +67,7 @@ export type TripRequestDraft = {
   /** Length unit for cargo_notes L×W×H (stored pieces always convert to inches). */
   dim_unit: DimLengthUnit
   notes: string
-  /** Client PO — needed for invoice / hard quote. */
+  /** Client PO — needed for invoice / hard quote (desk; optional on portal). */
   po_number: string
   /** Declared cargo value USD (optional until required by client rules). */
   declared_value_usd: number | ''
@@ -73,6 +75,13 @@ export type TripRequestDraft = {
   hard_deadline_at: string
   forklift_recommended: boolean
   forklift_required: boolean
+  /**
+   * Portal: dims known / not yet / autofill standard cargo.
+   * Dispatch leaves as `known` and edits cargo_notes directly.
+   */
+  cargo_dims_status: CargoDimsStatus
+  /** Best number to reach the team for urgent matters (portal). */
+  urgent_phone: string
 }
 
 export type TripRequestSource = 'portal' | 'dispatch' | 'scratchpad'
@@ -182,11 +191,14 @@ export function emptyTripRequestDraft(): TripRequestDraft {
     hard_deadline_at: '',
     forklift_recommended: false,
     forklift_required: false,
+    cargo_dims_status: 'known',
+    urgent_phone: '',
   }
 }
 
 /** Cargo needs weight when freight is on the request (cargo-only or notes present). */
 export function draftNeedsCargoWeight(draft: TripRequestDraft): boolean {
+  if (draft.cargo_dims_status === 'not_yet') return false
   return draft.cargo_only || Boolean(draft.cargo_notes.trim())
 }
 
@@ -278,6 +290,8 @@ export function summaryFromDraft(draft: TripRequestDraft): string {
     )
   }
   if (draft.hazmat) bits.push('hazmat')
+  if (draft.cargo_dims_status === 'not_yet') bits.push('dims TBD')
+  if (draft.cargo_dims_status === 'standard') bits.push('standard cargo')
   const lift = forkliftFromDraft(draft)
   if (lift.summary_bit) bits.push(lift.summary_bit)
   return bits.join(' · ')

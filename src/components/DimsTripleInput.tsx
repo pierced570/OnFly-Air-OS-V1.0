@@ -14,7 +14,7 @@ const xSep =
   'shrink-0 px-1 text-lg font-semibold text-gold select-none sm:px-1.5'
 
 type Props = {
-  /** Composed free-text line(s) — `;` separates skids (kept for parsers / cargo_notes). */
+  /** Composed free-text line(s) — `;` separates pieces (kept for parsers / cargo_notes). */
   value: string
   onChange: (composed: string) => void
   unit: DimLengthUnit
@@ -36,8 +36,8 @@ function rowsEqual(a: DimsTripleRow[], b: DimsTripleRow[]): boolean {
 }
 
 /**
- * Cargo L × W × H entry — one or more skid rows with gold X separators.
- * Still emits a parseable dims string (`skid; skid; …`).
+ * Cargo L × W × H entry — one or more cargo rows with gold X separators.
+ * Still emits a parseable dims string (`piece; piece; …`).
  */
 export function DimsTripleInput({
   value,
@@ -49,7 +49,7 @@ export function DimsTripleInput({
   const [rows, setRows] = useState<DimsTripleRow[]>(() => parseDimsLines(value))
 
   // Re-hydrate from parent (clear / load request). Keep trailing empty rows
-  // the user just added via "+ Add skid".
+  // the user just added via "+ Add cargo".
   useEffect(() => {
     if (!value.trim()) {
       setRows((prev) => {
@@ -81,7 +81,7 @@ export function DimsTripleInput({
     emit(rows.map((r, i) => (i === index ? { ...r, ...patch } : r)))
   }
 
-  function addSkid(prefill?: Partial<DimsTripleRow>) {
+  function addCargo(prefill?: Partial<DimsTripleRow>) {
     // Local row first — empty lines are omitted from cargo_notes until typed.
     setRows((prev) => [...prev, { ...emptyDimsTripleRow(), ...prefill }])
   }
@@ -102,28 +102,13 @@ export function DimsTripleInput({
         <div className="text-xs font-medium text-muted">
           Cargo dims (L × W × H)
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              addSkid(
-                unit === 'ft'
-                  ? { l: '4', w: '3.33' }
-                  : { l: '48', w: '40' },
-              )
-            }
-            className="rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-[var(--text)] hover:border-gold/50"
-          >
-            + 48×40 skid
-          </button>
-          <button
-            type="button"
-            onClick={() => addSkid()}
-            className="rounded-md bg-gold/15 px-2.5 py-1 text-[11px] font-semibold text-gold hover:bg-gold/25"
-          >
-            + Add skid
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => addCargo()}
+          className="rounded-md bg-gold/15 px-2.5 py-1 text-[11px] font-semibold text-gold hover:bg-gold/25"
+        >
+          + Add cargo
+        </button>
       </div>
 
       <div className="space-y-3">
@@ -134,7 +119,7 @@ export function DimsTripleInput({
           >
             <div className="flex items-center justify-between gap-2">
               <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
-                Skid {index + 1}
+                Cargo {index + 1}
                 {rows.length > 1 ? ` of ${rows.length}` : ''}
               </div>
               {rows.length > 1 && (
@@ -142,7 +127,7 @@ export function DimsTripleInput({
                   type="button"
                   onClick={() => removeRow(index)}
                   className="text-[11px] text-muted hover:text-late"
-                  aria-label={`Remove skid ${index + 1}`}
+                  aria-label={`Remove cargo ${index + 1}`}
                 >
                   Remove
                 </button>
@@ -161,7 +146,7 @@ export function DimsTripleInput({
                       patchRow(index, { count: e.target.value })
                     }
                     className={box}
-                    aria-label={`Skid ${index + 1} piece count`}
+                    aria-label={`Cargo ${index + 1} piece count`}
                   />
                 </label>
               )}
@@ -177,7 +162,7 @@ export function DimsTripleInput({
                     onChange={(e) => patchRow(index, { l: e.target.value })}
                     placeholder={unit === 'ft' ? '4' : '48'}
                     className={box}
-                    aria-label={`Skid ${index + 1} length in ${unitLabel}`}
+                    aria-label={`Cargo ${index + 1} length in ${unitLabel}`}
                   />
                 </label>
                 <span className={xSep} aria-hidden>
@@ -194,7 +179,7 @@ export function DimsTripleInput({
                     onChange={(e) => patchRow(index, { w: e.target.value })}
                     placeholder={unit === 'ft' ? '3.5' : '40'}
                     className={box}
-                    aria-label={`Skid ${index + 1} width in ${unitLabel}`}
+                    aria-label={`Cargo ${index + 1} width in ${unitLabel}`}
                   />
                 </label>
                 <span className={xSep} aria-hidden>
@@ -211,7 +196,7 @@ export function DimsTripleInput({
                     onChange={(e) => patchRow(index, { h: e.target.value })}
                     placeholder={unit === 'ft' ? '5' : '60'}
                     className={box}
-                    aria-label={`Skid ${index + 1} height in ${unitLabel}`}
+                    aria-label={`Cargo ${index + 1} height in ${unitLabel}`}
                   />
                 </label>
               </div>
@@ -229,7 +214,7 @@ export function DimsTripleInput({
                     }
                     placeholder="800"
                     className={box}
-                    aria-label={`Skid ${index + 1} weight pounds each`}
+                    aria-label={`Cargo ${index + 1} weight pounds each`}
                   />
                 </label>
               )}
@@ -245,7 +230,7 @@ export function DimsTripleInput({
         </span>
         . Door fit always uses inches
         {unit === 'ft' ? ' (we convert for you)' : ''}. Use{' '}
-        <span className="text-[var(--text)]">Add skid</span> for different
+        <span className="text-[var(--text)]">Add cargo</span> for different
         sizes — or raise Qty when pieces match.
       </p>
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore, type FormEvent } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
@@ -10,23 +10,37 @@ import {
   newLeg,
   syncReturnLegs,
   validateTripRequest,
+  type CargoDimsStatus,
   type TripRequestDraft,
   type TripLegDraft,
   type PaxRow,
 } from '@/domain/tripRequest'
+import {
+  STANDARD_TOOLING,
+  composeStandardCargoDims,
+  STANDARD_CARGO_DEFAULTS,
+} from '@/domain/standardTooling'
 import {
   addSessionClient,
   listSessionClients,
   subscribeClients,
 } from '@/lib/requestStore'
 
+export type PortalSubmitIntent = 'estimate' | 'hard_quote'
+
 type Variant = 'portal' | 'dispatch'
 
 type Props = {
   variant: Variant
   initial?: Partial<TripRequestDraft>
+  /** Dispatch / legacy single submit label. Ignored when portalDualActions. */
   submitLabel?: string
-  onSubmit: (draft: TripRequestDraft) => void | Promise<void>
+  /** Portal: ballpark vs quote-now dual CTAs. */
+  portalDualActions?: boolean
+  onSubmit: (
+    draft: TripRequestDraft,
+    intent?: PortalSubmitIntent,
+  ) => void | Promise<void>
 }
 
 const inputCls =
@@ -62,6 +76,7 @@ export function TripRequestForm({
   variant,
   initial,
   submitLabel,
+  portalDualActions = false,
   onSubmit,
 }: Props) {
   const [draft, setDraft] = useState<TripRequestDraft>(() => {
@@ -71,6 +86,8 @@ export function TripRequestForm({
       ...initial,
       legs: initial?.legs?.length ? initial.legs : base.legs,
       return_legs: initial?.return_legs ?? base.return_legs,
+      cargo_dims_status: initial?.cargo_dims_status ?? base.cargo_dims_status,
+      urgent_phone: initial?.urgent_phone ?? base.urgent_phone,
     }
     if (
       merged.direction === 'round_trip' &&
@@ -86,6 +103,9 @@ export function TripRequestForm({
   const [newClientEmail, setNewClientEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [issues, setIssues] = useState<string[]>([])
+  const [pendingIntent, setPendingIntent] = useState<PortalSubmitIntent | null>(
+    null,
+  )
 
   const needsAddresses =
     draft.service_mode === 'd2d' || draft.service_mode === 'mixed'
@@ -111,35 +131,76 @@ export function TripRequestForm({
     })
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function applyCargoDimsStatus(status: CargoDimsStatus) {
+    setDraft((d) => {
+      if (status === 'standard') {
+        return {
+          ...d,
+          cargo_dims_status: status,
+          cargo_only: true,
+          cargo_notes: composeStandardCargoDims(STANDARD_CARGO_DEFAULTS),
+          cargo_weight_lbs: Number(STANDARD_CARGO_DEFAULTS.weight),
+          dim_unit: 'in',
+        }
+      }
+      if (status === 'not_yet') {
+        return {
+          ...d,
+          cargo_dims_status: status,
+          cargo_notes: '',
+          cargo_weight_lbs: '',
+        }
+      }
+      return { ...d, cargo_dims_status: status }
+    })
+  }
+
+  async function handleSubmit(
+    e: FormEvent,
+    intent: PortalSubmitIntent = 'estimate',
+  ) {
     e.preventDefault()
     const next = { ...draft }
     if (variant === 'dispatch' && !next.email.trim() && next.client_id) {
       const hit = clientOptions.find((c) => c.id === next.client_id)
       if (hit) next.email = hit.email
     }
+    if (next.cargo_dims_status === 'standard' && !next.cargo_notes.trim()) {
+      next.cargo_notes = composeStandardCargoDims(STANDARD_CARGO_DEFAULTS)
+      next.cargo_weight_lbs = Number(STANDARD_CARGO_DEFAULTS.weight)
+    }
     const errs = validateTripRequest(next, {
       requireEmail: variant === 'portal',
       requireClient: variant === 'dispatch',
     })
+    if (variant === 'portal' && !next.client_name?.trim()) {
+      errs.push({ field: 'client_name', message: 'Enter your company name' })
+    }
     if (errs.length) {
       setIssues(errs.map((i) => i.message))
       return
     }
     setIssues([])
     setBusy(true)
+    setPendingIntent(intent)
     try {
-      await onSubmit(next)
+      await onSubmit(next, intent)
     } finally {
       setBusy(false)
+      setPendingIntent(null)
     }
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
+    <form
+      onSubmit={(e) =>
+        void handleSubmit(e, portalDualActions ? 'estimate' : 'estimate')
+      }
+      className="space-y-6"
+    >
       {/* Client / email */}
       {variant === 'portal' ? (
-        <section>
+        <section className="space-y-3">
           <label className={labelCls}>
             Your email
             <input
@@ -151,8 +212,35 @@ export function TripRequestForm({
               className={inputCls}
             />
           </label>
-          <p className="mt-1 text-xs text-muted">
-            We’ll send status updates and the estimate to this address.
+          <label className={labelCls}>
+            Company
+            <input
+              type="text"
+              required
+              value={draft.client_name ?? ''}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, client_name: e.target.value }))
+              }
+              placeholder="Your company name"
+              className={inputCls}
+            />
+          </label>
+          <label className={labelCls}>
+            Best number for urgent matters
+            <input
+              type="tel"
+              value={draft.urgent_phone}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, urgent_phone: e.target.value }))
+              }
+              placeholder="(555) 555-5555"
+              className={inputCls}
+              autoComplete="tel"
+            />
+          </label>
+          <p className="text-xs text-muted">
+            We’ll send status updates to your email. Use the phone for time-critical
+            reach-backs.
           </p>
         </section>
       ) : (
@@ -280,8 +368,9 @@ export function TripRequestForm({
         )}
         {draft.service_mode === 'd2d' && (
           <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
-            Door-to-door: enter full pickup and delivery addresses. Dispatch
-            assigns the nearest suitable airports from those locations.
+            Door-to-door: pickup address → optional departure airport → optional
+            destination airport → delivery address. Airports are preferred only —
+            dispatch can assign nearer fields from the addresses.
           </p>
         )}
         {draft.service_mode === 'mixed' && (
@@ -296,21 +385,28 @@ export function TripRequestForm({
       {/* Legs */}
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
-            <button
-              type="button"
-              className={segBtn(draft.timing === 'asap')}
-              onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
-            >
-              ASAP
-            </button>
-            <button
-              type="button"
-              className={segBtn(draft.timing === 'scheduled')}
-              onClick={() => setDraft((d) => ({ ...d, timing: 'scheduled' }))}
-            >
-              Scheduled
-            </button>
+          <div>
+            {variant === 'portal' && (
+              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
+                How long until it&apos;s ready?
+              </div>
+            )}
+            <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+              <button
+                type="button"
+                className={segBtn(draft.timing === 'asap')}
+                onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
+              >
+                {variant === 'portal' ? 'Within 4 hours' : 'ASAP'}
+              </button>
+              <button
+                type="button"
+                className={segBtn(draft.timing === 'scheduled')}
+                onClick={() => setDraft((d) => ({ ...d, timing: 'scheduled' }))}
+              >
+                {variant === 'portal' ? 'Pick date & time' : 'Scheduled'}
+              </button>
+            </div>
           </div>
           <button
             type="button"
@@ -367,7 +463,106 @@ export function TripRequestForm({
                   </button>
                 )}
               </div>
-              {needsAddresses && (
+              {needsAddresses && draft.service_mode === 'd2d' ? (
+                <div className="mb-3 space-y-3">
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-dashed border-border bg-cream/40 px-3 py-2 text-[10px] uppercase tracking-wider text-muted">
+                    <span className="text-[var(--text)]">Pickup</span>
+                    <span className="text-gold" aria-hidden>
+                      →
+                    </span>
+                    <span>Optional departure airport</span>
+                    <span className="text-gold" aria-hidden>
+                      →
+                    </span>
+                    <span>Optional destination airport</span>
+                    <span className="text-gold" aria-hidden>
+                      →
+                    </span>
+                    <span className="text-[var(--text)]">Delivery</span>
+                  </div>
+                  <label className={labelCls}>
+                    Pickup address
+                    <input
+                      value={leg.pickup_address}
+                      onChange={(e) =>
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, {
+                              pickup_address: e.target.value,
+                              pickup_tbd: false,
+                            }),
+                          ),
+                        )
+                      }
+                      placeholder="Street, city, state, ZIP"
+                      required
+                      className={inputCls}
+                    />
+                  </label>
+                  <div className="flex justify-center text-gold" aria-hidden>
+                    ↓
+                  </div>
+                  <div className="rounded-lg border border-border bg-ink/5 p-3">
+                    <AirportSelect
+                      label="Preferred departure airport (optional)"
+                      optional
+                      value={leg.origin_icao}
+                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      onChange={(icao) =>
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, { origin_icao: icao }),
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="flex justify-center text-gold" aria-hidden>
+                    ↓
+                  </div>
+                  <div className="rounded-lg border border-border bg-ink/5 p-3">
+                    <AirportSelect
+                      label="Preferred destination airport (optional)"
+                      optional
+                      value={leg.dest_icao}
+                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      onChange={(icao) =>
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, { dest_icao: icao }),
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="flex justify-center text-gold" aria-hidden>
+                    ↓
+                  </div>
+                  <label className={labelCls}>
+                    Delivery address
+                    <input
+                      value={leg.dropoff_address}
+                      onChange={(e) =>
+                        setDraft((d) =>
+                          withOutboundLegs(
+                            d,
+                            updateLeg(d.legs, leg.id, {
+                              dropoff_address: e.target.value,
+                              dropoff_tbd: false,
+                            }),
+                          ),
+                        )
+                      }
+                      placeholder="Street, city, state, ZIP"
+                      required
+                      className={inputCls}
+                    />
+                  </label>
+                </div>
+              ) : needsAddresses ? (
                 <div className="mb-3 grid gap-3 sm:grid-cols-2">
                   <label className={labelCls}>
                     Pickup address
@@ -416,7 +611,7 @@ export function TripRequestForm({
                     </span>
                   </label>
                 </div>
-              )}
+              ) : null}
 
               <div className="grid gap-3 sm:grid-cols-2">
                 {(draft.service_mode === 'a2a' ||
@@ -440,38 +635,6 @@ export function TripRequestForm({
                       label="Destination"
                       value={leg.dest_icao}
                       required
-                      inputClassName="bg-surface-2 text-[var(--text)]"
-                      onChange={(icao) =>
-                        setDraft((d) =>
-                          withOutboundLegs(
-                            d,
-                            updateLeg(d.legs, leg.id, { dest_icao: icao }),
-                          ),
-                        )
-                      }
-                    />
-                  </>
-                )}
-                {draft.service_mode === 'd2d' && (
-                  <>
-                    <AirportSelect
-                      label="Preferred origin airport"
-                      optional
-                      value={leg.origin_icao}
-                      inputClassName="bg-surface-2 text-[var(--text)]"
-                      onChange={(icao) =>
-                        setDraft((d) =>
-                          withOutboundLegs(
-                            d,
-                            updateLeg(d.legs, leg.id, { origin_icao: icao }),
-                          ),
-                        )
-                      }
-                    />
-                    <AirportSelect
-                      label="Preferred dest airport"
-                      optional
-                      value={leg.dest_icao}
                       inputClassName="bg-surface-2 text-[var(--text)]"
                       onChange={(icao) =>
                         setDraft((d) =>
@@ -753,35 +916,44 @@ export function TripRequestForm({
             {forkliftPreview.label}
           </p>
         )}
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <label className={labelCls}>
-            PO number
-            <input
-              value={draft.po_number}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, po_number: e.target.value }))
-              }
-              className={inputCls}
-              placeholder="Optional"
-            />
-          </label>
-          <label className={labelCls}>
-            Declared value (USD)
-            <input
-              type="number"
-              min={0}
-              value={draft.declared_value_usd}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  declared_value_usd:
-                    e.target.value === '' ? '' : Number(e.target.value),
-                }))
-              }
-              className={`${inputCls} avionic`}
-              placeholder="Optional"
-            />
-          </label>
+        <div
+          className={[
+            'mt-3 grid gap-3',
+            variant === 'portal' ? 'sm:grid-cols-1' : 'sm:grid-cols-3',
+          ].join(' ')}
+        >
+          {variant !== 'portal' && (
+            <>
+              <label className={labelCls}>
+                PO number
+                <input
+                  value={draft.po_number}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, po_number: e.target.value }))
+                  }
+                  className={inputCls}
+                  placeholder="Optional"
+                />
+              </label>
+              <label className={labelCls}>
+                Declared value (USD)
+                <input
+                  type="number"
+                  min={0}
+                  value={draft.declared_value_usd}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      declared_value_usd:
+                        e.target.value === '' ? '' : Number(e.target.value),
+                    }))
+                  }
+                  className={`${inputCls} avionic`}
+                  placeholder="Optional"
+                />
+              </label>
+            </>
+          )}
           <label className={labelCls}>
             Hard deadline
             <input
@@ -887,36 +1059,88 @@ export function TripRequestForm({
         )}
 
         {draft.cargo_only && (
-          <div className="space-y-2">
-            <DimUnitToggle
-              value={draft.dim_unit ?? 'in'}
-              onChange={(dim_unit) => setDraft((d) => ({ ...d, dim_unit }))}
-            />
-            <DimsTripleInput
-              value={draft.cargo_notes}
-              unit={draft.dim_unit ?? 'in'}
-              onChange={(cargo_notes) =>
-                setDraft((d) => {
-                  const pieces = cargoPiecesFromDraft({
-                    ...d,
-                    cargo_notes,
-                  })
-                  const weighted = pieces.filter((p) => p.weight_lbs > 0)
-                  // Keep legacy cargo_weight_lbs in sync when every skid has Lb ea
-                  // (validation accepts either field or per-piece weights).
-                  const cargo_weight_lbs =
-                    weighted.length === pieces.length && weighted.length > 0
-                      ? weighted[0]!.weight_lbs
-                      : d.cargo_weight_lbs
-                  return { ...d, cargo_notes, cargo_weight_lbs }
-                })
-              }
-            />
-            <p className="text-[11px] text-muted">
-              Weight (Lb ea) is required on every skid. Pieces 100–200 lb →
-              forklift recommended; over 200 lb → forklift required for
-              dispatch.
-            </p>
+          <div className="space-y-3">
+            {variant === 'portal' && (
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                  Cargo dims &amp; weight
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  {(
+                    [
+                      ['known', 'I have dims'],
+                      ['not_yet', 'Not yet'],
+                      ['standard', 'Autofill standard cargo'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => applyCargoDimsStatus(id)}
+                      className={segBtn(draft.cargo_dims_status === id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {draft.cargo_dims_status === 'standard' && (
+                  <p className="mt-2 text-xs text-muted">
+                    Using {STANDARD_TOOLING.ui_label}:{' '}
+                    <span className="avionic text-[var(--text)]">
+                      {STANDARD_TOOLING.summary}
+                    </span>
+                    . Change to “I have dims” to enter custom sizes.
+                  </p>
+                )}
+                {draft.cargo_dims_status === 'not_yet' && (
+                  <p className="mt-2 text-xs text-muted">
+                    We’ll size aircraft after you send dims — or choose standard
+                    cargo above for a ballpark now.
+                  </p>
+                )}
+              </div>
+            )}
+            {(variant === 'dispatch' ||
+              draft.cargo_dims_status === 'known' ||
+              draft.cargo_dims_status === 'standard') && (
+              <>
+                <DimUnitToggle
+                  value={draft.dim_unit ?? 'in'}
+                  onChange={(dim_unit) => setDraft((d) => ({ ...d, dim_unit }))}
+                />
+                <DimsTripleInput
+                  value={draft.cargo_notes}
+                  unit={draft.dim_unit ?? 'in'}
+                  onChange={(cargo_notes) =>
+                    setDraft((d) => {
+                      const pieces = cargoPiecesFromDraft({
+                        ...d,
+                        cargo_notes,
+                      })
+                      const weighted = pieces.filter((p) => p.weight_lbs > 0)
+                      const cargo_weight_lbs =
+                        weighted.length === pieces.length && weighted.length > 0
+                          ? weighted[0]!.weight_lbs
+                          : d.cargo_weight_lbs
+                      return {
+                        ...d,
+                        cargo_notes,
+                        cargo_weight_lbs,
+                        cargo_dims_status:
+                          d.cargo_dims_status === 'not_yet'
+                            ? 'known'
+                            : d.cargo_dims_status,
+                      }
+                    })
+                  }
+                />
+                <p className="text-[11px] text-muted">
+                  Weight (Lb ea) is required on every cargo piece. Pieces 100–200
+                  lb → forklift recommended; over 200 lb → forklift required for
+                  dispatch.
+                </p>
+              </>
+            )}
           </div>
         )}
       </section>
@@ -943,13 +1167,52 @@ export function TripRequestForm({
         </ul>
       )}
 
-      <button
-        type="submit"
-        disabled={busy}
-        className="w-full rounded-md bg-gold px-4 py-3 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
-      >
-        {busy ? 'Submitting…' : (submitLabel ?? 'Submit trip request')}
-      </button>
+      {portalDualActions ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-surface-2 px-4 py-4">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={(e) => void handleSubmit(e, 'estimate')}
+              className="w-full rounded-md bg-gold px-4 py-3 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
+            >
+              {busy && pendingIntent === 'estimate'
+                ? 'Estimating…'
+                : 'What could this possibly cost?'}
+            </button>
+            <p className="mt-2 text-xs text-muted">
+              Utilize our historical pricing for us to get a ballpark estimate
+              (Prices can vary drastically due to ASAP Availability,
+              repositioning time, and aircraft type required).
+            </p>
+          </div>
+          <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-4">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={(e) => void handleSubmit(e, 'hard_quote')}
+              className="w-full rounded-md bg-ink px-4 py-3 text-sm font-semibold text-cream hover:bg-ink/90 disabled:opacity-50"
+            >
+              {busy && pendingIntent === 'hard_quote'
+                ? 'Submitting…'
+                : 'Have OnFly Quote this NOW'}
+            </button>
+            <p className="mt-2 text-xs text-muted">
+              Our team will immediately begin working on this request, please
+              monitor your email for questions and next steps on this request —
+              Typical quote time takes 10–15 minutes.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="submit"
+          disabled={busy}
+          className="w-full rounded-md bg-gold px-4 py-3 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
+        >
+          {busy ? 'Submitting…' : (submitLabel ?? 'Submit trip request')}
+        </button>
+      )}
     </form>
   )
 }

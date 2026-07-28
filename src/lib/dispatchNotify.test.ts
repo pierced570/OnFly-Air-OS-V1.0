@@ -32,6 +32,7 @@ describe('dispatchNotify', () => {
       lane: 'KCAK→KMDW',
       summary: '3 skids · ASAP',
       email: 'ops@client.com',
+      urgent_phone: '',
     })
     expect(body).toContain('R-9001')
     expect(body).toContain('KCAK→KMDW')

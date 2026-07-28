@@ -1,12 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { TripRequestForm } from '@/components/TripRequestForm'
+import {
+  TripRequestForm,
+  type PortalSubmitIntent,
+} from '@/components/TripRequestForm'
 import {
   formatApproxHours,
   PORTAL_BAND_LABELS,
   type PortalEstimateOption,
 } from '@/domain/portalEstimate'
-import { emptyTripRequestDraft, type TripRequestRecord } from '@/domain/tripRequest'
+import {
+  emptyTripRequestDraft,
+  type TripRequestDraft,
+  type TripRequestRecord,
+} from '@/domain/tripRequest'
+import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 import { getPortalClient } from '@/lib/clientOnboardStore'
 import {
   estimatePortalRequest,
@@ -17,6 +25,7 @@ import { BrandLockup } from '@/components/BrandLockup'
 
 export default function PortalRequestPage() {
   const [done, setDone] = useState<TripRequestRecord | null>(null)
+  const [intent, setIntent] = useState<PortalSubmitIntent | null>(null)
   const [estimate, setEstimate] = useState<PortalRequestEstimate | null>(null)
   const [estimating, setEstimating] = useState(false)
   const [hardQuoteDone, setHardQuoteDone] = useState(false)
@@ -28,8 +37,13 @@ export default function PortalRequestPage() {
     const lane = client.profile.frequent_lanes?.[0]
     return {
       ...base,
-      email: client.email || client.contacts.find((c) => c.role === 'requester')?.email || '',
+      email:
+        client.email ||
+        client.contacts.find((c) => c.role === 'requester')?.email ||
+        '',
       client_id: client.id,
+      client_name: client.name,
+      urgent_phone: client.profile.front_desk_phone || '',
       legs: lane
         ? [
             {
@@ -47,21 +61,41 @@ export default function PortalRequestPage() {
     }
   }, [client])
 
-  async function onSubmit(draft: Parameters<typeof submitTripRequest>[0]) {
+  async function onSubmit(draft: TripRequestDraft, submitIntent?: PortalSubmitIntent) {
+    const mode: PortalSubmitIntent = submitIntent ?? 'estimate'
     const row = submitTripRequest(
       {
         ...draft,
         email: draft.email || client?.email || '',
         client_id: draft.client_id || client?.id || '',
+        client_name: draft.client_name || client?.name || draft.client_name,
+        po_number: '',
+        declared_value_usd: '',
       },
       'portal',
     )
     setDone(row)
+    setIntent(mode)
     setHardQuoteDone(false)
-    setEstimating(true)
     setEstimate(null)
+
+    if (mode === 'hard_quote') {
+      const updated = requestHardQuote(row.id)
+      if (updated) {
+        setDone({ ...updated })
+        setHardQuoteDone(true)
+      }
+      try {
+        const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
+        await createRoutedTripFromRequest(updated ?? row)
+      } catch (routeErr) {
+        console.warn('[portal] routed trip deferred', routeErr)
+      }
+      return
+    }
+
+    setEstimating(true)
     try {
-      // Phase A: create Trip on Board with banded shortlist (same spine as estimate)
       try {
         const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
         await createRoutedTripFromRequest(row)
@@ -75,15 +109,77 @@ export default function PortalRequestPage() {
     }
   }
 
+  if (done && intent === 'hard_quote') {
+    return (
+      <div className="min-h-screen bg-cream text-ink" data-theme="client">
+        <div className="mx-auto max-w-2xl space-y-5 p-4 sm:p-6">
+          <BrandLockup showTagline={false} />
+          <header>
+            <h1 className="text-2xl font-semibold">Quote request received</h1>
+            <p className="mt-1 text-sm text-muted">
+              Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
+              {done.lane}
+            </p>
+          </header>
+
+          <section className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-5">
+            <p className="text-sm text-ink">
+              Our team is working this now. Monitor{' '}
+              <span className="font-medium">{done.email || 'your email'}</span>{' '}
+              for questions and next steps — typical quote time is 10–15 minutes.
+            </p>
+            {done.urgent_phone?.trim() ? (
+              <p className="mt-3 text-sm text-muted">
+                Urgent reach-back on file:{' '}
+                <span className="avionic text-ink">{done.urgent_phone}</span>
+              </p>
+            ) : null}
+          </section>
+
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="flex w-full items-center justify-center rounded-md bg-ink px-4 py-3 text-center text-sm font-semibold text-cream hover:bg-ink/90"
+          >
+            Call our 24/7 dispatch desk if you would like to speak with someone
+            directly
+          </a>
+          <p className="text-center avionic text-sm text-muted">{BRAND_PHONE}</p>
+
+          <div className="flex flex-wrap gap-3 pt-1">
+            <Link
+              to="/portal"
+              className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
+            >
+              Back to portal
+            </Link>
+            <button
+              type="button"
+              className="rounded-md border border-border px-4 py-2 text-sm"
+              onClick={() => {
+                setDone(null)
+                setIntent(null)
+                setEstimate(null)
+                setHardQuoteDone(false)
+              }}
+            >
+              Submit another
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (done) {
     return (
       <div className="min-h-screen bg-cream text-ink" data-theme="client">
         <div className="mx-auto max-w-2xl space-y-5 p-4 sm:p-6">
           <BrandLockup showTagline={false} />
           <header>
-            <h1 className="text-2xl font-semibold">Instant estimate</h1>
+            <h1 className="text-2xl font-semibold">Ballpark estimate</h1>
             <p className="mt-1 text-sm text-muted">
-              Ref <span className="avionic text-ink">R-{done.ref}</span> · {done.lane}
+              Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
+              {done.lane}
             </p>
             {done.forklift?.level !== 'none' && done.forklift?.label && (
               <p
@@ -99,7 +195,8 @@ export default function PortalRequestPage() {
 
           {estimating && (
             <p className="rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-muted">
-              Sizing nearby piston, turboprop, and jet options that fit your cargo…
+              Sizing nearby piston, turboprop, and jet options that fit your
+              cargo…
             </p>
           )}
 
@@ -122,16 +219,31 @@ export default function PortalRequestPage() {
           )}
 
           <section className="rounded-xl border border-gold/40 bg-gold/10 px-5 py-5">
-            <h2 className="text-lg font-semibold text-ink">Want a hard quote?</h2>
+            <h2 className="text-lg font-semibold text-ink">
+              Have OnFly Quote this NOW
+            </h2>
             <p className="mt-2 text-sm text-muted">
-              If you want a hard quote with real times and numbers for this, click{' '}
-              <span className="font-semibold text-ink">HERE</span>.
+              Ready for real times and numbers? Our team will begin working
+              immediately — typical quote time takes 10–15 minutes. Monitor your
+              email for questions and next steps.
             </p>
             {hardQuoteDone || done.hard_quote_requested_at ? (
-              <p className="mt-4 text-sm text-ink">
-                Hard quote requested — dispatch is pulling live availability. We’ll
-                follow up at {done.email || 'your email'}.
-              </p>
+              <>
+                <p className="mt-4 text-sm text-ink">
+                  Hard quote requested — dispatch is pulling live availability.
+                  We’ll follow up at {done.email || 'your email'}.
+                </p>
+                <a
+                  href={`tel:${BRAND_PHONE_E164}`}
+                  className="mt-4 flex w-full items-center justify-center rounded-md bg-ink px-4 py-3 text-center text-sm font-semibold text-cream hover:bg-ink/90"
+                >
+                  Call our 24/7 dispatch desk if you would like to speak with
+                  someone directly
+                </a>
+                <p className="mt-2 text-center avionic text-sm text-muted">
+                  {BRAND_PHONE}
+                </p>
+              </>
             ) : (
               <button
                 type="button"
@@ -144,14 +256,15 @@ export default function PortalRequestPage() {
                   }
                 }}
               >
-                HERE — request hard quote
+                Have OnFly Quote this NOW
               </button>
             )}
           </section>
 
           <p className="text-sm text-muted">
             Dispatch also has your request ({done.summary}). Watch{' '}
-            {done.email || 'your inbox'} for updates from a vetted Part 135 carrier.
+            {done.email || 'your inbox'} for updates from a vetted Part 135
+            carrier.
           </p>
 
           <div className="flex flex-wrap gap-3 pt-1">
@@ -166,6 +279,7 @@ export default function PortalRequestPage() {
               className="rounded-md border border-border px-4 py-2 text-sm"
               onClick={() => {
                 setDone(null)
+                setIntent(null)
                 setEstimate(null)
                 setHardQuoteDone(false)
               }}
@@ -186,18 +300,20 @@ export default function PortalRequestPage() {
         </Link>
         {!client && (
           <p className="mt-3 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-sm text-ink">
-            You can request a trip now. Tracking and invoice contacts come from the
-            client setup link OnFly sends (not this portal).
+            You can request a trip now. Sign in on the portal home to see trips
+            already moving for your company.
           </p>
         )}
-        {client && client.profile.frequent_lanes && client.profile.frequent_lanes.length > 1 && (
-          <p className="avionic mt-3 text-xs text-muted">
-            Saved lanes:{' '}
-            {client.profile.frequent_lanes
-              .map((l) => `${l.origin}→${l.destination}`)
-              .join(' · ')}
-          </p>
-        )}
+        {client &&
+          client.profile.frequent_lanes &&
+          client.profile.frequent_lanes.length > 1 && (
+            <p className="avionic mt-3 text-xs text-muted">
+              Saved lanes:{' '}
+              {client.profile.frequent_lanes
+                .map((l) => `${l.origin}→${l.destination}`)
+                .join(' · ')}
+            </p>
+          )}
         <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-sm">
           <header className="flex items-center justify-between border-b border-border px-5 py-4">
             <h1 className="text-lg font-semibold">New Trip Request</h1>
@@ -210,9 +326,9 @@ export default function PortalRequestPage() {
               key={client?.id ?? 'anon'}
               variant="portal"
               initial={initial}
-              submitLabel="Get instant estimate"
-              onSubmit={(draft) => {
-                void onSubmit(draft)
+              portalDualActions
+              onSubmit={(draft, submitIntent) => {
+                void onSubmit(draft, submitIntent)
               }}
             />
           </div>
@@ -251,13 +367,21 @@ function EstimateCard({ option }: { option: PortalEstimateOption }) {
       <dl className="mt-4 grid gap-2 border-t border-border pt-3 text-sm sm:grid-cols-3">
         {t.to_airport_min != null && (
           <div>
-            <dt className="text-xs uppercase tracking-wider text-muted">To airport</dt>
-            <dd className="avionic mt-0.5">~{formatApproxHours(t.to_airport_min)}</dd>
+            <dt className="text-xs uppercase tracking-wider text-muted">
+              To airport
+            </dt>
+            <dd className="avionic mt-0.5">
+              ~{formatApproxHours(t.to_airport_min)}
+            </dd>
           </div>
         )}
         <div>
-          <dt className="text-xs uppercase tracking-wider text-muted">Reposition</dt>
-          <dd className="avionic mt-0.5">~{formatApproxHours(t.reposition_min)}</dd>
+          <dt className="text-xs uppercase tracking-wider text-muted">
+            Reposition
+          </dt>
+          <dd className="avionic mt-0.5">
+            ~{formatApproxHours(t.reposition_min)}
+          </dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wider text-muted">Live leg</dt>

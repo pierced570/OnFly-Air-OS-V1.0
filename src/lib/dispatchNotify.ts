@@ -47,13 +47,18 @@ export function portalRequestReviewPath(requestId: string): string {
 }
 
 export function formatPortalRequestSms(
-  row: Pick<TripRequestRecord, 'id' | 'ref' | 'lane' | 'summary' | 'email'>,
+  row: Pick<
+    TripRequestRecord,
+    'id' | 'ref' | 'lane' | 'summary' | 'email' | 'urgent_phone'
+  >,
 ): string {
   const path = portalRequestReviewPath(row.id)
   const base = appBase()
   const link = base ? `${base}${path}` : path
   const who = row.email?.trim() || 'client'
-  return `OnFly: portal request R-${row.ref} · ${row.lane} · ${row.summary} · ${who} — review ${link}`
+  const phone = row.urgent_phone?.trim()
+  const reach = phone ? ` · reach ${phone}` : ''
+  return `OnFly: portal request R-${row.ref} · ${row.lane} · ${row.summary} · ${who}${reach} — review ${link}`
 }
 
 export type DispatchNotifyResult = {
@@ -134,7 +139,10 @@ export async function notifyPortalRequest(
 ): Promise<DispatchNotifyResult> {
   const href = portalRequestReviewPath(row.id)
   const who = row.email?.trim() || row.client_name?.trim() || 'client'
-  const detail = `R-${row.ref} · ${row.lane} · ${row.summary} · ${who}`
+  const phone = row.urgent_phone?.trim()
+  const detail = `R-${row.ref} · ${row.lane} · ${row.summary} · ${who}${
+    phone ? ` · urgent ${phone}` : ''
+  }`
   return notifyDispatch({
     title: 'Portal request',
     detail,
