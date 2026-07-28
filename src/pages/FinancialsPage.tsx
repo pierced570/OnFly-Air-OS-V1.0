@@ -276,6 +276,7 @@ export default function FinancialsPage() {
         error={qb.error}
         onConnect={() => void qb.connect()}
         onRefresh={() => void qb.refresh()}
+        onMessage={setInvoiceMsg}
       />
 
       {invoiceMsg && (
@@ -548,6 +549,7 @@ function QbConnectBanner({
   error,
   onConnect,
   onRefresh,
+  onMessage,
 }: {
   connected: boolean
   environment: string | null
@@ -556,42 +558,126 @@ function QbConnectBanner({
   error: string | null
   onConnect: () => void
   onRefresh: () => void
+  onMessage?: (msg: string) => void
 }) {
+  const [simBusy, setSimBusy] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  useEffect(() => {
+    let unsub: () => void = () => undefined
+    void import('@/lib/invoiceRetryQueue').then((m) => {
+      setRetryCount(m.listInvoiceRetries().length)
+      unsub = m.subscribeInvoiceRetry(() =>
+        setRetryCount(m.listInvoiceRetries().length),
+      )
+    })
+    return () => {
+      unsub()
+    }
+  }, [])
+
+  async function simulatePaid() {
+    setSimBusy(true)
+    try {
+      const { listTripsStable } = await import('@/lib/tripStore')
+      const { markMockInvoicePaid } = await import('@/adapters/accounting')
+      const { pollQbPaidInvoices } = await import('@/lib/qbPaidPoller')
+      let marked = 0
+      for (const t of listTripsStable()) {
+        if (t.state !== 'invoiced' || !t.invoice?.qb_invoice_id) continue
+        if (markMockInvoicePaid(t.invoice.qb_invoice_id)) marked++
+      }
+      const result = await pollQbPaidInvoices()
+      onMessage?.(
+        marked
+          ? `Marked ${marked} mock invoice(s) paid · closed ${result.closed} trip(s)`
+          : 'No invoiced mock trips to mark paid',
+      )
+      onRefresh()
+    } finally {
+      setSimBusy(false)
+    }
+  }
+
+  async function flushRetries() {
+    setSimBusy(true)
+    try {
+      const m = await import('@/lib/invoiceRetryQueue')
+      const r = await m.flushInvoiceRetryQueue()
+      onMessage?.(`Invoice retry flush · ok ${r.ok} · failed ${r.failed}`)
+      setRetryCount(m.listInvoiceRetries().length)
+    } finally {
+      setSimBusy(false)
+    }
+  }
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
-      <div className="min-w-0">
-        <div className="text-xs uppercase tracking-wider text-muted">
-          QuickBooks Online
+    <div className="space-y-2 rounded-lg border border-border bg-surface px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs uppercase tracking-wider text-muted">
+            QuickBooks Online
+          </div>
+          <p className="mt-0.5 text-sm text-cream">
+            {!realMode
+              ? 'Mock mode — invoices create locally (zero API keys). Set VITE_QB_ADAPTER=real + edge QB secrets to go live.'
+              : connected
+                ? `Connected${environment ? ` · ${environment}` : ''} · OFA EmailStatus=NotSet · branded PDF via Resend`
+                : 'Not connected — Connect to create live QBO invoices'}
+          </p>
+          {error && <p className="mt-1 text-xs text-late">{error}</p>}
+          {retryCount > 0 && (
+            <p className="mt-1 text-xs text-gold">
+              {retryCount} invoice(s) waiting to retry
+            </p>
+          )}
         </div>
-        <p className="mt-0.5 text-sm text-cream">
-          {!realMode
-            ? 'QuickBooks not connected — invoices stay local until OAuth is linked'
-            : connected
-              ? `Connected${environment ? ` · ${environment}` : ''}`
-              : 'Not connected — Connect to create QBO invoices (EmailStatus=NotSet)'}
-        </p>
-        {error && <p className="mt-1 text-xs text-late">{error}</p>}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onRefresh}
-          className="rounded-md border border-border px-3 py-1.5 text-xs text-muted hover:text-cream"
-        >
-          Refresh
-        </button>
-        {realMode && !connected && (
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={busy}
-            onClick={onConnect}
-            className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
+            disabled={busy || simBusy}
+            onClick={onRefresh}
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted hover:text-cream"
           >
-            Connect QuickBooks
+            Refresh
           </button>
-        )}
+          {retryCount > 0 && (
+            <button
+              type="button"
+              disabled={simBusy}
+              onClick={() => void flushRetries()}
+              className="rounded-md border border-gold/40 px-3 py-1.5 text-xs text-gold"
+            >
+              Retry failed invoices
+            </button>
+          )}
+          {!realMode && (
+            <button
+              type="button"
+              disabled={simBusy}
+              onClick={() => void simulatePaid()}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted hover:text-cream"
+            >
+              Simulate QB paid → close
+            </button>
+          )}
+          {realMode && !connected && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onConnect}
+              className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
+            >
+              Connect QuickBooks
+            </button>
+          )}
+        </div>
       </div>
+      <ul className="grid gap-1 text-[11px] text-muted sm:grid-cols-2 lg:grid-cols-4">
+        <li>1. Intuit app → QB_CLIENT_ID / SECRET</li>
+        <li>2. Deploy quickbooks-auth + quickbooks-api</li>
+        <li>3. VITE_QB_ADAPTER=real</li>
+        <li>4. Connect here · invoice on deliver / Financials</li>
+      </ul>
     </div>
   )
 }

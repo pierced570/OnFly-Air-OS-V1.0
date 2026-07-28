@@ -32,7 +32,6 @@ import {
   materializeChainToLegs,
   type AppLeg,
 } from '@/domain/tripLegs'
-import { tripInvoiceLines } from '@/domain/qbInvoice'
 import { raiseException } from '@/lib/exceptionStore'
 import { getEtaDefaults } from '@/lib/etaDefaultsStore'
 import { getReferral } from '@/lib/referralStore'
@@ -1654,27 +1653,63 @@ export async function createInvoiceForTrip(
     if (row.quick) row.quick.po = po
   })
   const txnDate = new Date().toISOString().slice(0, 10)
-  const lines = tripInvoiceLines({
+  const { getTaxRates } = await import('@/lib/taxRatesStore')
+  const { buildTripInvoiceLines } = await import('@/domain/tripInvoiceBuild')
+  const selected =
+    t.offers.find((o) => o.state === 'selected') ??
+    t.offers.find((o) => o.state === 'quoted')
+  const mtow =
+    t.candidates.find((c) => c.aircraft_id === selected?.aircraft_id)
+      ?.mtow_lbs ??
+    t.candidates.find((c) => c.tail === selected?.tail)?.mtow_lbs ??
+    null
+  const payloadKind =
+    t.hard_quote?.payload_kind ??
+    (t.quick ? (t.quick.cargo_only ? 'cargo' : 'pax') : payloadKindOf(t))
+  const built = buildTripInvoiceLines({
     tripRef: t.ref,
     lane: t.lane,
     flightDate: t.quick?.legs[0]?.date ?? null,
-    airAmount: total,
-    aircraftType:
-      t.quick?.aircraft_type ||
-      t.offers.find((o) => o.state === 'selected')?.type_name ||
-      null,
+    clientTotal: total,
+    aircraftType: t.quick?.aircraft_type || selected?.type_name || null,
+    payloadKind,
+    mtowLbs: mtow,
+    rates: getTaxRates(),
   })
-  const created = await acct.createInvoice({
-    customerName: clientName,
-    customerId: client?.qb_customer_id ?? undefined,
-    poNumber: po,
-    txnDate,
-    payTerms: t.quick?.pay_terms ?? client?.pay_terms ?? 'Net 30',
-    tripRef: t.ref,
-    lines,
-    notes: t.quick?.notes ?? null,
-  })
+  const lines = built.lines
+  let created
+  try {
+    created = await acct.createInvoice({
+      customerName: clientName,
+      customerId: client?.qb_customer_id ?? undefined,
+      poNumber: po,
+      txnDate,
+      payTerms: t.quick?.pay_terms ?? client?.pay_terms ?? 'Net 30',
+      tripRef: t.ref,
+      lines,
+      notes: t.quick?.notes ?? null,
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn('[invoice] create failed — queued for retry', msg)
+    const { enqueueInvoiceRetry } = await import('@/lib/invoiceRetryQueue')
+    enqueueInvoiceRetry(tripId, msg)
+    mutateTrip(tripId, (row) => {
+      row.events.push({
+        at: new Date().toISOString(),
+        actor: 'system',
+        kind: 'invoice_create_failed',
+        payload: { error: msg },
+      })
+    })
+    return null
+  }
 
+  // Persist QBO customer id on the client directory when we learn it
+  if (t.client_id && created.customerId && !client?.qb_customer_id) {
+    const { updateClient } = await import('@/lib/clientStore')
+    updateClient(t.client_id, { qb_customer_id: created.customerId })
+  }
   // Branded Resend delivery (never QBO /invoice/{id}/send)
   const defaultTo = [
     ...(opts?.to ?? []),

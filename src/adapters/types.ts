@@ -8,6 +8,7 @@ export type AdapterMode = 'mock' | 'real'
 
 export function adapterMode(envKey: string, fallback: AdapterMode = 'mock'): AdapterMode {
   const v = (import.meta.env[envKey] as string | undefined)?.toLowerCase()
-  if (v === 'real' || v === 'mock') return v
+  if (v === 'real' || v === 'quickbooks' || v === 'qbo') return 'real'
+  if (v === 'mock') return 'mock'
   return fallback
 }
