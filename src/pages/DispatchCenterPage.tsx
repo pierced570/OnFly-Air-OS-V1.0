@@ -61,7 +61,7 @@ const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
 
 type ToolId = 'scratchpad' | 'parse' | 'quick' | 'chat' | 'newtrip'
 
-/** Work tools drawer — Quick Dispatch + Start new request are top-of-page. */
+/** Work tools drawer — Quick Dispatch + Start new request (scratchpad) are top-of-page. */
 const TOOLS: { id: Exclude<ToolId, 'quick'>; label: string; hint: string }[] = [
   { id: 'scratchpad', label: 'Scratchpad', hint: 'Live phone notes' },
   { id: 'parse', label: 'Parse & shortlist', hint: 'Notes → operators' },
@@ -903,10 +903,7 @@ export default function DispatchCenterPage() {
         <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              setTool('newtrip')
-              setOpenDrawer('requests')
-            }}
+            onClick={() => setTool('scratchpad')}
             className="rounded-md border border-gold/50 bg-gold/10 px-4 py-2.5 text-sm font-semibold text-gold hover:bg-gold/20"
           >
             Start new request
