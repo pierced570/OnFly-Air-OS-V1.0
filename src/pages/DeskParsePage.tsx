@@ -64,7 +64,7 @@ const input =
 const label = 'block text-xs font-medium uppercase tracking-wider text-muted'
 const seg = (on: boolean) =>
   [
-    'flex-1 rounded-md px-3 py-3 text-sm font-semibold',
+    'min-w-0 flex-1 rounded-md px-2 py-2.5 text-sm font-semibold',
     on ? 'bg-gold text-ink' : 'bg-transparent text-muted hover:text-cream',
   ].join(' ')
 
@@ -1528,27 +1528,25 @@ function EndpointEditor({
 }) {
   const activeCouriers = couriers.filter((c) => c.active)
   return (
-    <div className="space-y-2 rounded-md border border-border/60 bg-ink/40 p-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-medium uppercase tracking-wider text-muted">
-          {title}
-        </div>
-        <div className="flex rounded-md border border-border p-0.5">
-          <button
-            type="button"
-            className={seg(kind === 'airport')}
-            onClick={() => onKind('airport')}
-          >
-            Airport
-          </button>
-          <button
-            type="button"
-            className={seg(kind === 'door')}
-            onClick={() => onKind('door')}
-          >
-            Door
-          </button>
-        </div>
+    <div className="min-w-0 space-y-2 rounded-md border border-border/60 bg-ink/40 p-2.5">
+      <div className="text-xs font-medium uppercase tracking-wider text-muted">
+        {title}
+      </div>
+      <div className="flex w-full min-w-0 rounded-md border border-border p-0.5">
+        <button
+          type="button"
+          className={seg(kind === 'airport')}
+          onClick={() => onKind('airport')}
+        >
+          Airport
+        </button>
+        <button
+          type="button"
+          className={seg(kind === 'door')}
+          onClick={() => onKind('door')}
+        >
+          Door
+        </button>
       </div>
       {kind === 'door' ? (
         <label className={label}>
