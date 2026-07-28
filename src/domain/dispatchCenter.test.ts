@@ -8,7 +8,89 @@ describe('dispatchCenter', () => {
     expect(drawerForTripState('quoted_estimated')).toBe('quotes')
     expect(drawerForTripState('booked')).toBe('approved')
     expect(drawerForTripState('in_progress')).toBe('tracking')
+    expect(drawerForTripState('delivered')).toBeNull()
     expect(drawerForTripState('closed')).toBeNull()
+  })
+
+  it('approved drawer is booked-only with booking facts for invoice/ETA', () => {
+    const buckets = buildDispatchDrawers({
+      requests: [],
+      trips: [
+        {
+          id: 't-booked',
+          ref: 3,
+          code: 'AB123',
+          lane: 'KCAK→KHPN',
+          state: 'booked',
+          client_name: 'Acme Air Cargo',
+          po_number: 'PO-9001',
+          legs: [{ status: 'pending' }],
+          hard_quote: {
+            total: 6000,
+            options: [
+              {
+                offer_id: 'o-sel',
+                client_total: 6000,
+                type_name: 'Pilatus PC-12',
+                tail: 'N450CJ',
+                operator_name: 'Charlie Jets',
+              },
+            ],
+          },
+          offers: [
+            {
+              id: 'o-sel',
+              operator_name: 'Charlie Jets',
+              state: 'selected',
+              type_name: 'Pilatus PC-12',
+              tail: 'N450CJ',
+              price_net: 5000,
+              magic_token: 'tok',
+            },
+          ],
+        },
+        {
+          id: 't-hard',
+          ref: 4,
+          lane: 'KCLE→KORD',
+          state: 'quoted_hard',
+          legs: [],
+          offers: [
+            {
+              id: 'o-q',
+              operator_name: 'Alpha',
+              state: 'quoted',
+              price_net: 4000,
+              magic_token: 'tok2',
+            },
+          ],
+        },
+        {
+          id: 't-live',
+          ref: 5,
+          lane: 'KATL→KMIA',
+          state: 'in_progress',
+          legs: [{ status: 'active' }],
+        },
+      ],
+    })
+    expect(buckets.approved).toHaveLength(1)
+    expect(buckets.approved[0]?.state).toBe('booked')
+    expect(buckets.approved[0]?.approvable).toBe(false)
+    expect(buckets.approved[0]?.subtitle).toContain('Approved')
+    expect(buckets.approved[0]?.subtitle).toContain('Pilatus PC-12')
+    expect(buckets.approved[0]?.subtitle).toContain('N450CJ')
+    expect(buckets.approved[0]?.booking).toMatchObject({
+      operator_name: 'Charlie Jets',
+      type_name: 'Pilatus PC-12',
+      tail: 'N450CJ',
+      client_total: 6000,
+      po: 'PO-9001',
+    })
+    expect(buckets.approved[0]?.href).toContain('drawer=approved')
+    expect(buckets.quotes.some((c) => c.state === 'booked')).toBe(false)
+    expect(buckets.quotes).toHaveLength(1)
+    expect(buckets.tracking).toHaveLength(1)
   })
 
   it('labels Scratchpad requests distinctly and shows client name', () => {
@@ -148,6 +230,9 @@ describe('dispatchCenter', () => {
     expect(buckets.submitted_quotes[0]?.title).toContain('Quote submitted')
     expect(buckets.quotes[0]?.state).toBe('quoted_hard')
     expect(buckets.approved).toHaveLength(1)
+    expect(buckets.approved[0]?.state).toBe('booked')
+    expect(buckets.approved[0]?.approvable).toBe(false)
+    expect(buckets.approved[0]?.href).toContain('/dispatch?drawer=approved')
     expect(buckets.tracking[0]?.href).toContain('/trips/')
   })
 

@@ -159,15 +159,25 @@ function CardList({
         return (
         <li
           key={`${c.kind}-${c.id}`}
+          id={tripId ? `offer-trip-${tripId}` : undefined}
           className="rounded-md border border-border/70 bg-ink px-3 py-3"
         >
           <div className="flex items-stretch gap-2">
-            <Link
-              to={c.href}
-              className="min-w-0 flex-1 hover:opacity-90"
-            >
-              <div className="font-medium text-cream">{c.title}</div>
-              <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+            <div className="min-w-0 flex-1">
+              {showBookedActions ? (
+                <div>
+                  <div className="font-medium text-cream">{c.title}</div>
+                  <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+                </div>
+              ) : (
+                <Link
+                  to={c.href}
+                  className="block hover:opacity-90"
+                >
+                  <div className="font-medium text-cream">{c.title}</div>
+                  <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+                </Link>
+              )}
               {c.chips?.length ? (
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {c.chips.map((chip) => (
@@ -187,7 +197,56 @@ function CardList({
                   ))}
                 </div>
               ) : null}
-            </Link>
+              {showBookedActions && c.booking ? (
+                <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+                  {c.booking.operator_name ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        Operator
+                      </dt>
+                      <dd className="text-cream">{c.booking.operator_name}</dd>
+                    </div>
+                  ) : null}
+                  {c.booking.type_name ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        Aircraft
+                      </dt>
+                      <dd className="text-cream">{c.booking.type_name}</dd>
+                    </div>
+                  ) : null}
+                  {c.booking.tail ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        Tail
+                      </dt>
+                      <dd className="avionic text-cream">{c.booking.tail}</dd>
+                    </div>
+                  ) : null}
+                  {c.booking.client_total != null ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        Client total
+                      </dt>
+                      <dd className="avionic text-gold">
+                        $
+                        {Math.round(c.booking.client_total).toLocaleString(
+                          'en-US',
+                        )}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {c.booking.po ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        PO
+                      </dt>
+                      <dd className="avionic text-cream">{c.booking.po}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
+            </div>
             <div className="flex shrink-0 flex-col justify-center gap-1">
               {c.approvable ? (
                 <button
@@ -728,7 +787,8 @@ export default function DispatchCenterPage() {
       !focusTripId ||
       (openDrawer !== 'offers' &&
         openDrawer !== 'quotes' &&
-        openDrawer !== 'submitted_quotes')
+        openDrawer !== 'submitted_quotes' &&
+        openDrawer !== 'approved')
     ) {
       return
     }
