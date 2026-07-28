@@ -98,6 +98,47 @@ export type PortalTrackingView = {
   aircraft: TrackingAircraftPosition
   timeline: Array<{ at: string; label: string; detail: string }>
   documents: Array<{ id: string; kind: string; title: string; at: string; url: string }>
+  /** Client-facing itinerary stops (pickup → FBOs → delivery). */
+  stops: TrackingStop[]
+  /** Snapshot facts for the hero / aircraft panel. */
+  flightFacts: TrackingFlightFacts
+}
+
+/** One stop on the client itinerary — FBO or door address. */
+export type TrackingStopRole =
+  | 'pickup'
+  | 'departure_fbo'
+  | 'arrival_fbo'
+  | 'delivery'
+  | 'airport'
+
+export type TrackingStop = {
+  role: TrackingStopRole
+  title: string
+  icao: string | null
+  placeLabel: string
+  /** Free-text address when known (door stop or Place.label). */
+  addressHint: string | null
+  etaDisplay: string | null
+  etaActualDisplay: string | null
+  status: 'done' | 'active' | 'pending'
+  tz: string
+  /** Chain event this stop is tied to. */
+  event: string | null
+}
+
+export type TrackingFlightFacts = {
+  tail: string | null
+  aircraftType: string | null
+  originIcao: string | null
+  destIcao: string | null
+  wheelsUpDisplay: string | null
+  wheelsDownDisplay: string | null
+  nextArriveLabel: string | null
+  nextArriveDisplay: string | null
+  cargo: string
+  readyLabel: string
+  pattern: ServicePattern | null
 }
 
 export type PortalTrackingTripInput = {
@@ -335,6 +376,257 @@ export function buildEtaRows(trip: PortalTrackingTripInput): TrackingEtaRow[] {
       tz,
     }
   })
+}
+
+function placeAddressHint(p: { icao?: string; label?: string }): string | null {
+  const label = (p.label ?? '').trim()
+  if (!label) return null
+  // If label is just the ICAO, skip — not an address.
+  if (p.icao && label.toUpperCase() === p.icao.toUpperCase()) return null
+  return label
+}
+
+/**
+ * Client itinerary stops: door pickup/delivery + departure/arrival FBOs (airports).
+ * Pure from ETA chain — FBO directory enrichment happens outside domain.
+ */
+export function buildTrackingStops(
+  trip: PortalTrackingTripInput,
+): TrackingStop[] {
+  const chain = trip.eta_chain
+  const stops: TrackingStop[] = []
+  const seen = new Set<string>()
+
+  function push(stop: TrackingStop) {
+    const key = `${stop.role}:${stop.icao ?? ''}:${stop.placeLabel}`
+    if (seen.has(key)) return
+    seen.add(key)
+    stops.push(stop)
+  }
+
+  if (!chain.length) {
+    const first = trip.legs[0]
+    const last = trip.legs[trip.legs.length - 1]
+    if (first?.origin) {
+      push({
+        role: 'departure_fbo',
+        title: 'Departure airport',
+        icao: first.origin.toUpperCase(),
+        placeLabel: first.origin.toUpperCase(),
+        addressHint: null,
+        etaDisplay: first.est_start
+          ? formatClientLocal(first.est_start, 'UTC').display
+          : null,
+        etaActualDisplay: first.actual_start
+          ? formatClientLocal(first.actual_start, 'UTC').display
+          : null,
+        status:
+          first.status === 'done'
+            ? 'done'
+            : first.status === 'active'
+              ? 'active'
+              : 'pending',
+        tz: 'UTC',
+        event: first.label,
+      })
+    }
+    if (last?.dest) {
+      push({
+        role: 'arrival_fbo',
+        title: 'Arrival airport',
+        icao: last.dest.toUpperCase(),
+        placeLabel: last.dest.toUpperCase(),
+        addressHint: null,
+        etaDisplay: last.est_end
+          ? formatClientLocal(last.est_end, 'UTC').display
+          : null,
+        etaActualDisplay: last.actual_end
+          ? formatClientLocal(last.actual_end, 'UTC').display
+          : null,
+        status:
+          last.status === 'done'
+            ? 'done'
+            : last.status === 'active'
+              ? 'active'
+              : 'pending',
+        tz: 'UTC',
+        event: last.label,
+      })
+    }
+    return stops
+  }
+
+  for (const leg of chain) {
+    const status = legStatus(leg, trip.legs)
+    if (leg.type === 'truck_pickup') {
+      const tz = leg.from.tz || 'UTC'
+      push({
+        role: 'pickup',
+        title: 'Pickup',
+        icao: leg.from.icao?.toUpperCase() ?? null,
+        placeLabel: (leg.from.label || leg.from.icao || 'Pickup').trim(),
+        addressHint: placeAddressHint(leg.from),
+        etaDisplay: formatClientLocal(leg.est_start, tz).display,
+        etaActualDisplay: leg.actual_start
+          ? formatClientLocal(leg.actual_start, tz).display
+          : null,
+        status,
+        tz,
+        event: leg.event || leg.label,
+      })
+      if (leg.to.icao) {
+        const tzTo = leg.to.tz || tz
+        push({
+          role: 'departure_fbo',
+          title: 'Departure FBO / airport',
+          icao: leg.to.icao.toUpperCase(),
+          placeLabel: (leg.to.label || leg.to.icao).toUpperCase(),
+          addressHint: placeAddressHint(leg.to),
+          etaDisplay: formatClientLocal(leg.est_end, tzTo).display,
+          etaActualDisplay: leg.actual_end
+            ? formatClientLocal(leg.actual_end, tzTo).display
+            : null,
+          status,
+          tz: tzTo,
+          event: 'At departure FBO',
+        })
+      }
+    }
+
+    if (leg.type === 'air_leg') {
+      const tzFrom = leg.from.tz || 'UTC'
+      const tzTo = leg.to.tz || 'UTC'
+      if (leg.from.icao) {
+        push({
+          role: 'departure_fbo',
+          title: 'Departure FBO / airport',
+          icao: leg.from.icao.toUpperCase(),
+          placeLabel: (leg.from.label || leg.from.icao).toUpperCase(),
+          addressHint: placeAddressHint(leg.from),
+          etaDisplay: formatClientLocal(leg.est_start, tzFrom).display,
+          etaActualDisplay: leg.actual_start
+            ? formatClientLocal(leg.actual_start, tzFrom).display
+            : null,
+          status:
+            status === 'pending' && !leg.actual_start ? 'pending' : status,
+          tz: tzFrom,
+          event: 'Wheels up',
+        })
+      }
+      if (leg.to.icao) {
+        push({
+          role: 'arrival_fbo',
+          title: 'Arrival FBO / airport',
+          icao: leg.to.icao.toUpperCase(),
+          placeLabel: (leg.to.label || leg.to.icao).toUpperCase(),
+          addressHint: placeAddressHint(leg.to),
+          etaDisplay: formatClientLocal(leg.est_end, tzTo).display,
+          etaActualDisplay: leg.actual_end
+            ? formatClientLocal(leg.actual_end, tzTo).display
+            : null,
+          status,
+          tz: tzTo,
+          event: 'Wheels down',
+        })
+      }
+    }
+
+    if (leg.type === 'truck_delivery' || leg.type === 'offload') {
+      const tz = leg.to.tz || leg.from.tz || 'UTC'
+      if (leg.from.icao && leg.type === 'truck_delivery') {
+        push({
+          role: 'arrival_fbo',
+          title: 'Arrival FBO / airport',
+          icao: leg.from.icao.toUpperCase(),
+          placeLabel: (leg.from.label || leg.from.icao).toUpperCase(),
+          addressHint: placeAddressHint(leg.from),
+          etaDisplay: formatClientLocal(leg.est_start, leg.from.tz || tz).display,
+          etaActualDisplay: leg.actual_start
+            ? formatClientLocal(leg.actual_start, leg.from.tz || tz).display
+            : null,
+          status,
+          tz: leg.from.tz || tz,
+          event: 'Leave FBO for delivery',
+        })
+      }
+      push({
+        role: 'delivery',
+        title: 'Delivery',
+        icao: leg.to.icao?.toUpperCase() ?? null,
+        placeLabel: (leg.to.label || leg.to.icao || 'Delivery').trim(),
+        addressHint: placeAddressHint(leg.to),
+        etaDisplay: formatClientLocal(leg.est_end, tz).display,
+        etaActualDisplay: leg.actual_end
+          ? formatClientLocal(leg.actual_end, tz).display
+          : null,
+        status,
+        tz,
+        event: leg.event || leg.label,
+      })
+    }
+  }
+
+  return stops
+}
+
+export function buildFlightFacts(
+  trip: PortalTrackingTripInput,
+): TrackingFlightFacts {
+  const air = trip.eta_chain.find((l) => l.type === 'air_leg')
+  const originIcao =
+    air?.from.icao?.toUpperCase() ??
+    trip.legs.find((l) => l.origin)?.origin?.toUpperCase() ??
+    null
+  const destIcao =
+    air?.to.icao?.toUpperCase() ??
+    [...trip.legs].reverse().find((l) => l.dest)?.dest?.toUpperCase() ??
+    null
+
+  const wheelsUpDisplay = air
+    ? formatClientLocal(
+        air.actual_start ?? air.est_start,
+        air.from.tz || 'UTC',
+      ).display
+    : null
+  const wheelsDownDisplay = air
+    ? formatClientLocal(
+        air.actual_end ?? air.est_end,
+        air.to.tz || 'UTC',
+      ).display
+    : null
+
+  // Next arrival the client cares about: active/pending arrival FBO or delivery
+  const stops = buildTrackingStops(trip)
+  const next =
+    stops.find((s) => s.status === 'active') ??
+    stops.find(
+      (s) =>
+        s.status === 'pending' &&
+        (s.role === 'arrival_fbo' || s.role === 'delivery'),
+    ) ??
+    stops.find((s) => s.status === 'pending')
+
+  return {
+    tail: trip.tail?.trim() || null,
+    aircraftType: trip.aircraft_type?.trim() || null,
+    originIcao,
+    destIcao,
+    wheelsUpDisplay,
+    wheelsDownDisplay,
+    nextArriveLabel: next
+      ? next.role === 'arrival_fbo'
+        ? `Arrive ${next.icao ?? next.placeLabel}`
+        : next.role === 'delivery'
+          ? 'Delivery'
+          : next.role === 'departure_fbo'
+            ? `At ${next.icao ?? next.placeLabel}`
+            : next.title
+      : null,
+    nextArriveDisplay: next?.etaActualDisplay ?? next?.etaDisplay ?? null,
+    cargo: trip.payload_summary || '—',
+    readyLabel: trip.ready_label || '',
+    pattern: trip.service_pattern ?? null,
+  }
 }
 
 /**
@@ -608,6 +900,8 @@ export function buildPortalTrackingView(
       at: d.at,
       url: d.url,
     })),
+    stops: buildTrackingStops(trip),
+    flightFacts: buildFlightFacts(trip),
   }
 }
 
