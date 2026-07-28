@@ -30,6 +30,8 @@ describe('clientLogisticsQuote', () => {
     expect(opt.taxes_fees_note).toBe(CLIENT_QUOTE_TAXES_NOTE)
     expect(opt).not.toHaveProperty('tail')
     expect(opt.position_eta.duration).toBe('1h 30m')
+    expect(opt.etd.duration).toBe('0h 40m')
+    expect(opt.arrival_eta.duration).toBe('1h 15m')
     expect(opt.position_eta.clock).toMatch(/Z/)
     expect(opt.etd.clock).toMatch(/Z/)
     expect(opt.arrival_eta.clock).toMatch(/Z/)

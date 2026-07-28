@@ -117,12 +117,11 @@ export function buildOfferQuotePreview(
   }
 }
 
+/** Always Hrs + Mins (e.g. 2h 0m, 0h 45m, 1h 15m). */
 export function formatMinutes(min: number | null): string {
   if (min == null || !Number.isFinite(min)) return '—'
   const t = Math.max(0, Math.floor(min))
   const h = Math.floor(t / 60)
   const m = t % 60
-  if (h <= 0) return `${m}m`
-  if (m <= 0) return `${h}h`
   return `${h}h ${m}m`
 }

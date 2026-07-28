@@ -115,7 +115,7 @@ describe('offerRecipients', () => {
         tail: 'N123AB',
       }),
     ).toBe(
-      'Citation CJ3 · NET $4200 · TTP 90m · live 75m · fees included · N123AB',
+      'Citation CJ3 · NET $4200 · TTP 1h 30m · live 1h 15m · fees included · N123AB',
     )
     expect(formatOfferQuoteSummary({ price_net: null })).toBeNull()
   })

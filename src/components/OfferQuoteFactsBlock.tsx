@@ -3,6 +3,7 @@
  * Prefer this over a single dense mono line.
  */
 
+import { formatMinutes } from '@/domain/offerQuotePreview'
 import type { OfferQuoteFacts } from '@/domain/offerRecipients'
 
 type Props = {
@@ -41,13 +42,13 @@ export function OfferQuoteFactsBlock({
       {facts.tail ? <Row label="Tail" value={facts.tail} mono /> : null}
       <Row label="NET" value={`$${Math.round(facts.price_net)}`} mono />
       {facts.time_to_position_min != null ? (
-        <Row label="TTP" value={`${facts.time_to_position_min}m`} mono />
+        <Row label="TTP" value={formatMinutes(facts.time_to_position_min)} mono />
       ) : null}
       {facts.quick_turn_min != null ? (
-        <Row label="Turn" value={`${facts.quick_turn_min}m`} mono />
+        <Row label="Turn" value={formatMinutes(facts.quick_turn_min)} mono />
       ) : null}
       {facts.live_leg_min != null ? (
-        <Row label="Live leg" value={`${facts.live_leg_min}m`} mono />
+        <Row label="Live leg" value={formatMinutes(facts.live_leg_min)} mono />
       ) : null}
       {facts.fee_label ? <Row label="Fees" value={facts.fee_label} /> : null}
       {clientTotal != null ? (
