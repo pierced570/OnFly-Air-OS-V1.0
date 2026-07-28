@@ -3,8 +3,13 @@
  * Never expose operator name / vendor / margin on client-facing surfaces.
  */
 
-import { priceFromMargin } from '@/domain/quote'
-import { computeTax, type TaxLine, type TaxRateRow } from '@/domain/tax'
+import { marginPctFromCostAndPrice, priceFromMargin } from '@/domain/quote'
+import {
+  airSubtotalFromClientTotal,
+  computeTax,
+  type TaxLine,
+  type TaxRateRow,
+} from '@/domain/tax'
 import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
 
 /** Default margin used when building client totals from operator NET NET. */
@@ -64,32 +69,55 @@ export function buildOfferQuotePreview(
   optionIndex: number,
 ): OfferQuotePreview {
   const vendor = Math.max(0, Math.round(input.price_net ?? 0))
-  const margin_pct =
+  const margin_pct_in =
     input.margin_pct != null && Number.isFinite(input.margin_pct)
       ? Math.max(0, input.margin_pct)
       : DEFAULT_OFFER_MARGIN_PCT
-  const client_air = priceFromMargin(vendor, margin_pct)
   const segments = Math.max(1, input.segment_count ?? 1)
   const paxCount = Math.max(1, input.pax_count ?? 1)
-  const tax = computeTax({
+  const taxInputBase = {
     payloadKind: input.payload_kind,
     legs: [{ international: false, segments, paxCount }],
     aircraftMtowLbs: input.mtow_lbs,
-    airSubtotal: client_air,
     rates,
-  })
+  }
+
+  const hasOverride =
+    input.client_total_override != null &&
+    Number.isFinite(input.client_total_override)
+
+  let client_air: number
+  let margin_pct: number
+  let client_total: number
+  let tax
+
+  if (hasOverride) {
+    // Desk set the client all-in number — solve air + tax backwards from it.
+    client_total = Math.round(input.client_total_override as number)
+    let air = airSubtotalFromClientTotal(client_total, taxInputBase)
+    tax = computeTax({ ...taxInputBase, airSubtotal: air })
+    for (let i = 0; i < 4; i++) {
+      const sum = Math.round(air) + Math.round(tax.total)
+      const diff = client_total - sum
+      if (diff === 0) break
+      air = Math.max(0, air + diff)
+      tax = computeTax({ ...taxInputBase, airSubtotal: air })
+    }
+    client_air = Math.round(air)
+    margin_pct = marginPctFromCostAndPrice(vendor, client_air)
+  } else {
+    margin_pct = margin_pct_in
+    client_air = Math.round(priceFromMargin(vendor, margin_pct))
+    tax = computeTax({ ...taxInputBase, airSubtotal: client_air })
+    client_total = Math.round(client_air + tax.total)
+  }
+
   const segment_fee_total = tax.lines
     .filter((l) => l.code === 'SEG_FEE_DOM')
     .reduce((s, l) => s + l.amount, 0)
   const fet_total = tax.lines
     .filter((l) => l.code === 'FET_CARGO' || l.code === 'FET_PAX')
     .reduce((s, l) => s + l.amount, 0)
-  const computed = Math.round(client_air + tax.total)
-  const client_total =
-    input.client_total_override != null &&
-    Number.isFinite(input.client_total_override)
-      ? Math.round(input.client_total_override)
-      : computed
 
   return {
     offer_id: input.offer_id,

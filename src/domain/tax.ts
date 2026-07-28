@@ -120,7 +120,7 @@ export function computeTax(input: TaxInput): TaxResult {
       code: 'FET_EXEMPT_MTOW',
       base: aircraftMtowLbs ?? 0,
       amount: 0,
-      note: 'FET-exempt under IRC §4281.',
+      note: `FET-exempt under IRC §4281 (MTOW ≤ ${exemptThreshold} lbs).`,
     })
   }
 
@@ -140,6 +140,63 @@ export function computeTax(input: TaxInput): TaxResult {
 
   const total = round2(lines.reduce((s, l) => s + l.amount, 0))
   return { lines, total, fetExempt }
+}
+
+/**
+ * Solve air subtotal from a desired client all-in total.
+ * FET % scales with air; segment / intl head taxes are flat.
+ */
+export function airSubtotalFromClientTotal(
+  clientTotal: number,
+  input: Omit<TaxInput, 'airSubtotal'>,
+): number {
+  const target = Math.max(0, clientTotal)
+  const { payloadKind, legs, aircraftMtowLbs, rates } = input
+
+  const exemptThreshold = rateByCode(rates, 'FET_EXEMPT_MTOW')?.flat_amount ?? 6000
+  const fetExempt =
+    aircraftMtowLbs != null && aircraftMtowLbs <= exemptThreshold
+
+  const hasIntl = legs.some((l) => l.international)
+  const domesticLegs = legs.filter((l) => !l.international)
+  const intlLegs = legs.filter((l) => l.international)
+  const isCargo = payloadKind === 'cargo' || payloadKind === 'both'
+  const paxOnBoard = payloadKind === 'pax' || payloadKind === 'both'
+  const applyDomestic = domesticLegs.length > 0 || !hasIntl
+
+  let fetPct = 0
+  let flat = 0
+
+  if (applyDomestic && !fetExempt) {
+    if (paxOnBoard) {
+      fetPct = rateByCode(rates, 'FET_PAX')?.rate_pct ?? 0
+      const seg = rateByCode(rates, 'SEG_FEE_DOM')
+      const segFlat = seg?.flat_amount ?? 0
+      const segCount = domesticLegs.reduce(
+        (n, l) => n + l.segments * Math.max(0, l.paxCount),
+        0,
+      )
+      flat += segFlat * segCount
+    } else if (isCargo) {
+      fetPct = rateByCode(rates, 'FET_CARGO')?.rate_pct ?? 0
+    }
+  }
+
+  if (hasIntl) {
+    const head = rateByCode(rates, 'INTL_HEAD')?.flat_amount ?? 0
+    for (const leg of intlLegs) {
+      flat += head * leg.paxCount
+    }
+  }
+
+  const denom = 1 + fetPct / 100
+  if (denom <= 0) return round2(Math.max(0, target - flat))
+  return round2(Math.max(0, (target - flat) / denom))
+}
+
+/** FET exemption threshold from tax_rates (fallback 6000). */
+export function fetExemptMtowThreshold(rates: TaxRateRow[]): number {
+  return rateByCode(rates, 'FET_EXEMPT_MTOW')?.flat_amount ?? 6000
 }
 
 /** Seed rates matching migration 0001 (for unit tests — not runtime literals in composers). */

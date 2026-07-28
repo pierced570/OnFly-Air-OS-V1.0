@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { TEST_TAX_RATES_2026, computeTax } from './tax'
+import {
+  TEST_TAX_RATES_2026,
+  airSubtotalFromClientTotal,
+  computeTax,
+} from './tax'
 
 describe('computeTax', () => {
   it('$10,000 cargo on King Air 200 (MTOW > 6000) → $625 FET', () => {
@@ -28,6 +32,7 @@ describe('computeTax', () => {
     expect(r.lines.find((l) => l.code === 'FET_CARGO')).toBeUndefined()
     const note = r.lines.find((l) => l.code === 'FET_EXEMPT_MTOW')
     expect(note?.note).toMatch(/§4281/)
+    expect(note?.note).toMatch(/6000/)
     expect(r.total).toBe(0)
   })
 
@@ -71,5 +76,30 @@ describe('computeTax', () => {
     expect(fet?.amount).toBe(750)
     expect(fet?.note).toMatch(/7\.5%/)
     expect(r.lines.find((l) => l.code === 'SEG_FEE_DOM')?.amount).toBe(10.6)
+  })
+})
+
+describe('airSubtotalFromClientTotal', () => {
+  it('inverts cargo FET so air + tax = target', () => {
+    const input = {
+      payloadKind: 'cargo' as const,
+      legs: [{ international: false, segments: 1, paxCount: 0 }],
+      aircraftMtowLbs: 12500,
+      rates: TEST_TAX_RATES_2026,
+    }
+    const air = airSubtotalFromClientTotal(6250, input)
+    const tax = computeTax({ ...input, airSubtotal: air })
+    expect(Math.round(air + tax.total)).toBe(6250)
+  })
+
+  it('FET-exempt aircraft: air equals client total', () => {
+    const input = {
+      payloadKind: 'cargo' as const,
+      legs: [{ international: false, segments: 1, paxCount: 0 }],
+      aircraftMtowLbs: 5500,
+      rates: TEST_TAX_RATES_2026,
+    }
+    const air = airSubtotalFromClientTotal(5000, input)
+    expect(air).toBe(5000)
   })
 })

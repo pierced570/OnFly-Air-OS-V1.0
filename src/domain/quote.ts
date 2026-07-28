@@ -19,6 +19,14 @@ export function priceFromMargin(cost: number, marginPct: number): number {
   return Math.round((cost / (1 - marginPct / 100)) * 100) / 100
 }
 
+/** Effective margin % given vendor NET and client air (before tax). */
+export function marginPctFromCostAndPrice(cost: number, price: number): number {
+  if (!(price > 0) || !(cost >= 0)) return 0
+  const raw = (1 - cost / price) * 100
+  if (!Number.isFinite(raw)) return 0
+  return Math.round(Math.max(0, raw) * 100) / 100
+}
+
 export function buildQuoteTotals(
   candidate: Candidate,
   opts: {

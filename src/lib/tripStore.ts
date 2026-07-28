@@ -1066,6 +1066,24 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
         r.service_pattern = r.service_pattern ?? existing.service_pattern
         r.promised_delivery = r.promised_delivery ?? existing.promised_delivery
       }
+      // Desk pricing edits race the 4s live hydrate — keep local hard_quote
+      // until the DB event log includes the same pricing update.
+      if (existing.hard_quote) {
+        const localPricing = [...existing.events]
+          .reverse()
+          .find((e) => e.kind === 'hard_quote_pricing_updated')
+        const dbHasPricing =
+          localPricing != null &&
+          r.events.some(
+            (e) =>
+              e.kind === 'hard_quote_pricing_updated' &&
+              e.at === localPricing.at,
+          )
+        if (localPricing && !dbHasPricing) {
+          r.hard_quote = existing.hard_quote
+          r.offer_margin_pct = existing.offer_margin_pct
+        }
+      }
     }
     if (!r.code || !isValidTripCode(r.code)) {
       r.code = allocateTripCode(r.id)
