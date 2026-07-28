@@ -24,7 +24,7 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'offers',
     label: 'Trip offers to operators',
-    blurb: 'Operator trip offers and replies',
+    blurb: 'Who got the offer — send to more operators',
   },
   {
     id: 'submitted_quotes',
@@ -80,6 +80,9 @@ export type DispatchCard = {
   /** Per-operator rows for trip-offer cards. */
   recipients?: DispatchRecipient[]
   trip_id?: string
+  /** Cargo / pax / mission line for offers waterfall. */
+  payload_summary?: string | null
+  ready_label?: string | null
   /**
    * Dynamic queue data can be deleted from the waterfall.
    * Hardcoded chrome (tools, drawer labels) never becomes a card.
@@ -152,6 +155,8 @@ export function buildDispatchDrawers(input: {
     state: TripState
     /** Who this trip is for — preferred in card titles over T-####. */
     client_name?: string | null
+    payload_summary?: string | null
+    ready_label?: string | null
     service_pattern?: string | null
     forklift_required?: boolean
     forklift_recommended?: boolean
@@ -249,6 +254,8 @@ export function buildDispatchDrawers(input: {
     })
     const stayOnDispatch =
       t.state === 'offers_out' || t.state === 'quoted_hard'
+    const payload = (t.payload_summary ?? '').trim()
+    const ready = (t.ready_label ?? '').trim()
     const offerSubtitle =
       t.state === 'offers_out' || t.state === 'quoted_hard'
         ? tripIdLabel
@@ -260,10 +267,10 @@ export function buildDispatchDrawers(input: {
         (o.state === 'quoted' || o.state === 'selected') &&
         o.price_net != null,
     )
+    // Approve lives on Submitted quotes / Quotes to clients — not Offers.
     const tripApprovable =
       quoteableOffers.length > 0 &&
-      (t.state === 'offers_out' ||
-        t.state === 'quoted_hard' ||
+      (t.state === 'quoted_hard' ||
         t.state === 'quoted_estimated' ||
         t.state === 'lost')
     const chips: string[] = []
@@ -292,6 +299,8 @@ export function buildDispatchDrawers(input: {
           ? recipients
           : undefined,
       trip_id: t.id,
+      payload_summary: payload || null,
+      ready_label: ready || null,
       deletable: true,
       approvable: tripApprovable,
       approve_offer_id: quoteableOffers.find((o) => o.state === 'selected')?.id,
@@ -300,8 +309,6 @@ export function buildDispatchDrawers(input: {
 
     // Submitted quotes waterfall — each quoted operator as its own card.
     if (t.state === 'offers_out' || t.state === 'quoted_hard') {
-      const focusDrawer =
-        t.state === 'quoted_hard' ? 'quotes' : 'offers'
       for (const o of t.offers ?? []) {
         if (o.state !== 'quoted' && o.state !== 'selected') continue
         const summary = formatOfferQuoteSummary(o)
@@ -311,7 +318,7 @@ export function buildDispatchDrawers(input: {
           id: o.id,
           title: `${o.operator_name} · Quote submitted`,
           subtitle: `${who} · ${t.lane}${summary ? ` · ${summary}` : ''}`,
-          href: `/dispatch?drawer=${focusDrawer}&focus=${t.id}`,
+          href: `/dispatch?drawer=submitted_quotes&focus=${t.id}`,
           ref: t.ref,
           trip_id: t.id,
           deletable: true,

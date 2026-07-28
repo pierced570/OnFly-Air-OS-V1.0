@@ -348,6 +348,7 @@ function OfferUpdateForm({
 
 function OfferTripList({
   cards,
+  variant = 'quotes',
   focusTripId,
   onAcknowledgeDeclined,
   onDeleteCard,
@@ -357,6 +358,8 @@ function OfferTripList({
   approvingId,
 }: {
   cards: DispatchCard[]
+  /** Offers = sent-to list; quotes = pricing / approve workbench. */
+  variant?: 'offers' | 'quotes'
   focusTripId?: string | null
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
   onDeleteCard: (card: DispatchCard) => void
@@ -365,17 +368,18 @@ function OfferTripList({
   onApproveOffer: (tripId: string, offerId: string, name: string) => void
   approvingId?: string | null
 }) {
+  const isOffers = variant === 'offers'
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
   const [addingTripId, setAddingTripId] = useState<string | null>(null)
   const [searchParams] = useSearchParams()
   const [quotingTripId, setQuotingTripId] = useState<string | null>(
-    () => focusTripId ?? null,
+    () => (!isOffers ? focusTripId ?? null : null),
   )
   const [updateError, setUpdateError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!focusTripId) return
-    setQuotingTripId(focusTripId)
+    if (!isOffers) setQuotingTripId(focusTripId)
     if (searchParams.get('update') === '1') {
       setUpdatingTripId(focusTripId)
       setAddingTripId(null)
@@ -383,7 +387,7 @@ function OfferTripList({
       setAddingTripId(focusTripId)
       setUpdatingTripId(null)
     }
-  }, [focusTripId, searchParams])
+  }, [focusTripId, searchParams, isOffers])
 
   // Clear inline panels when the trip disappears (delete / hydrate race).
   useEffect(() => {
@@ -405,7 +409,9 @@ function OfferTripList({
         const focused = Boolean(focusTripId && c.trip_id === focusTripId)
         const editing = Boolean(c.trip_id && updatingTripId === c.trip_id)
         const adding = Boolean(c.trip_id && addingTripId === c.trip_id)
-        const quoting = Boolean(c.trip_id && quotingTripId === c.trip_id)
+        const quoting = Boolean(
+          !isOffers && c.trip_id && quotingTripId === c.trip_id,
+        )
         return (
           <li
             key={`${c.kind}-${c.id}`}
@@ -420,8 +426,17 @@ function OfferTripList({
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-medium text-cream">{c.title}</div>
+                {isOffers && c.payload_summary?.trim() ? (
+                  <div className="mt-0.5 text-sm text-cream/85">
+                    {c.payload_summary.trim()}
+                  </div>
+                ) : null}
                 <div className="mt-0.5 font-mono text-sm text-gold/90">
-                  {c.subtitle}
+                  {isOffers
+                    ? [c.ready_label?.trim(), c.subtitle]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : c.subtitle}
                 </div>
                 {c.chips?.length ? (
                   <div className="mt-1.5 flex flex-wrap gap-1">
@@ -445,7 +460,7 @@ function OfferTripList({
                 ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {c.approvable ? (
+                {!isOffers && c.approvable ? (
                   <button
                     type="button"
                     disabled={approvingId === c.id}
@@ -466,109 +481,183 @@ function OfferTripList({
                 ) : null}
               </div>
             </div>
+
             {c.recipients && c.recipients.length > 0 ? (
-              <ul className="mt-2 space-y-3 border-t border-border/50 pt-2">
-                {c.recipients.map((r) =>
-                  r.declined_acked ? (
-                    <li
-                      key={r.offer_id}
-                      className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
-                    >
-                      <span className="text-cream/80">{r.name}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-muted">unavailable</span>
-                        {c.trip_id ? (
+              <div className="mt-3 border-t border-border/50 pt-2">
+                {isOffers ? (
+                  <div className="mb-1.5 text-[11px] uppercase tracking-wider text-muted">
+                    Sent to
+                  </div>
+                ) : null}
+                <ul className={isOffers ? 'space-y-1.5' : 'space-y-3'}>
+                  {c.recipients.map((r) =>
+                    r.declined_acked ? (
+                      <li
+                        key={r.offer_id}
+                        className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
+                      >
+                        <span className="text-cream/80">{r.name}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-muted">unavailable</span>
+                          {c.trip_id ? (
+                            <button
+                              type="button"
+                              className="text-xs text-muted hover:text-late"
+                              onClick={() =>
+                                onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                              }
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </div>
+                      </li>
+                    ) : isOffers ? (
+                      <li
+                        key={r.offer_id}
+                        className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-0.5 py-1 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-medium text-cream">{r.name}</span>
+                          {r.destination_summary ? (
+                            <span className="ml-2 text-xs text-muted">
+                              {r.destination_summary}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span
+                            className={`font-medium ${recipientTone(r.status)}`}
+                          >
+                            {r.status_label}
+                          </span>
+                          {r.sent_label ? (
+                            <span className="font-mono text-muted">
+                              {r.sent_label}
+                            </span>
+                          ) : null}
+                          {r.status === 'no' && c.trip_id ? (
+                            <button
+                              type="button"
+                              className="font-medium text-gold hover:text-gold-lt"
+                              onClick={() =>
+                                onAcknowledgeDeclined(c.trip_id!, r.offer_id)
+                              }
+                            >
+                              Acknowledge
+                            </button>
+                          ) : null}
                           <button
                             type="button"
-                            className="text-xs text-muted hover:text-late"
-                            onClick={() =>
-                              onDeleteOffer(c.trip_id!, r.offer_id, r.name)
-                            }
+                            className="text-muted hover:text-cream"
+                            onClick={() => {
+                              const url = absoluteAppUrl(r.href)
+                              void navigator.clipboard?.writeText(url)
+                            }}
                           >
-                            Delete
+                            Copy link
                           </button>
-                        ) : null}
-                      </div>
-                    </li>
-                  ) : (
-                  <li key={r.offer_id} className="px-0.5 py-1">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-medium text-cream">{r.name}</span>
-                      <span
-                        className={`text-xs font-medium ${recipientTone(r.status)}`}
-                      >
-                        {r.status_label}
-                      </span>
-                    </div>
-                    {r.sent_label ? (
-                      <div className="mt-1 font-mono text-[11px] text-muted">
-                        {r.sent_label}
-                      </div>
+                          {c.trip_id ? (
+                            <button
+                              type="button"
+                              className="text-muted hover:text-late"
+                              onClick={() =>
+                                onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                              }
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </div>
+                      </li>
                     ) : (
-                      <div className="mt-1 text-[11px] text-muted">
-                        Link not created yet
-                      </div>
-                    )}
-                    {/* When Quotes & pricing is open, facts live there — avoid duplicate boxes. */}
-                    {!quoting && r.quote_facts ? (
-                      <OfferQuoteFactsBlock facts={r.quote_facts} />
-                    ) : null}
-                    <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
-                      {r.status === 'no' && c.trip_id ? (
-                        <button
-                          type="button"
-                          className="font-medium text-gold hover:text-gold-lt"
-                          onClick={() =>
-                            onAcknowledgeDeclined(c.trip_id!, r.offer_id)
-                          }
-                        >
-                          Acknowledge
-                        </button>
-                      ) : null}
-                      {(r.status === 'quote_submitted' ||
-                        r.status === 'selected') &&
-                      r.quote_facts &&
-                      c.trip_id ? (
-                        <button
-                          type="button"
-                          disabled={approvingId === r.offer_id}
-                          className="font-medium text-gold hover:text-gold-lt disabled:opacity-40"
-                          onClick={() =>
-                            onApproveOffer(c.trip_id!, r.offer_id, r.name)
-                          }
-                        >
-                          {approvingId === r.offer_id
-                            ? 'Approving…'
-                            : 'Approve trip'}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="text-muted hover:text-cream"
-                        onClick={() => {
-                          const url = absoluteAppUrl(r.href)
-                          void navigator.clipboard?.writeText(url)
-                        }}
-                      >
-                        Copy link
-                      </button>
-                      {c.trip_id ? (
-                        <button
-                          type="button"
-                          className="text-muted hover:text-late"
-                          onClick={() =>
-                            onDeleteOffer(c.trip_id!, r.offer_id, r.name)
-                          }
-                        >
-                          Delete
-                        </button>
-                      ) : null}
-                    </div>
-                  </li>
-                  ),
-                )}
-              </ul>
+                      <li key={r.offer_id} className="px-0.5 py-1">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="font-medium text-cream">{r.name}</span>
+                          <span
+                            className={`text-xs font-medium ${recipientTone(r.status)}`}
+                          >
+                            {r.status_label}
+                          </span>
+                        </div>
+                        {r.sent_label ? (
+                          <div className="mt-1 font-mono text-[11px] text-muted">
+                            {r.sent_label}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-[11px] text-muted">
+                            Link not created yet
+                          </div>
+                        )}
+                        {!quoting && r.quote_facts ? (
+                          <OfferQuoteFactsBlock facts={r.quote_facts} />
+                        ) : null}
+                        <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
+                          {r.status === 'no' && c.trip_id ? (
+                            <button
+                              type="button"
+                              className="font-medium text-gold hover:text-gold-lt"
+                              onClick={() =>
+                                onAcknowledgeDeclined(c.trip_id!, r.offer_id)
+                              }
+                            >
+                              Acknowledge
+                            </button>
+                          ) : null}
+                          {(r.status === 'quote_submitted' ||
+                            r.status === 'selected') &&
+                          r.quote_facts &&
+                          c.trip_id ? (
+                            <button
+                              type="button"
+                              disabled={approvingId === r.offer_id}
+                              className="font-medium text-gold hover:text-gold-lt disabled:opacity-40"
+                              onClick={() =>
+                                onApproveOffer(
+                                  c.trip_id!,
+                                  r.offer_id,
+                                  r.name,
+                                )
+                              }
+                            >
+                              {approvingId === r.offer_id
+                                ? 'Approving…'
+                                : 'Approve trip'}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="text-muted hover:text-cream"
+                            onClick={() => {
+                              const url = absoluteAppUrl(r.href)
+                              void navigator.clipboard?.writeText(url)
+                            }}
+                          >
+                            Copy link
+                          </button>
+                          {c.trip_id ? (
+                            <button
+                              type="button"
+                              className="text-muted hover:text-late"
+                              onClick={() =>
+                                onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                              }
+                            >
+                              Delete
+                            </button>
+                          ) : null}
+                        </div>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            ) : isOffers ? (
+              <p className="mt-3 text-sm text-muted">
+                Not sent to any operators yet.
+              </p>
             ) : null}
+
             {editing && c.trip_id ? (
               <>
                 {updateError ? (
@@ -599,8 +688,28 @@ function OfferTripList({
                 onClose={() => setQuotingTripId(null)}
               />
             ) : null}
+
             <div className="mt-3 flex flex-wrap gap-2">
-              {c.trip_id ? (
+              {isOffers && c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md px-3 py-2 text-xs font-semibold',
+                    adding
+                      ? 'border border-gold/50 bg-gold/10 text-gold'
+                      : 'bg-gold text-ink hover:bg-gold-lt',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setQuotingTripId(null)
+                    setUpdateError(null)
+                    setAddingTripId(adding ? null : c.trip_id!)
+                  }}
+                >
+                  {adding ? 'Close send' : 'Send to more operators'}
+                </button>
+              ) : null}
+              {!isOffers && c.trip_id ? (
                 <button
                   type="button"
                   className={[
@@ -619,7 +728,7 @@ function OfferTripList({
                   {quoting ? 'Close quotes' : 'Quotes & pricing'}
                 </button>
               ) : null}
-              {c.trip_id ? (
+              {!isOffers && c.trip_id ? (
                 <button
                   type="button"
                   className={[
@@ -814,6 +923,8 @@ export default function DispatchCenterPage() {
             lane: t.lane,
             state: t.state,
             client_name,
+            payload_summary: t.payload_summary,
+            ready_label: t.ready_label,
             service_pattern: t.service_pattern,
             forklift_required: t.forklift_required,
             forklift_recommended: t.forklift_recommended,
@@ -989,6 +1100,7 @@ export default function DispatchCenterPage() {
           {d.id === 'offers' || d.id === 'quotes' ? (
             <OfferTripList
               cards={buckets[d.id]}
+              variant={d.id === 'offers' ? 'offers' : 'quotes'}
               focusTripId={focusTripId}
               onAcknowledgeDeclined={(tripId, offerId) => {
                 void acknowledgeDeclinedOffer(tripId, offerId).catch((e) =>
