@@ -14,6 +14,7 @@ import type { Candidate } from '@/domain/routing'
 import {
   availabilityEmailSubject,
   availabilityPingHtml,
+  availabilityPingSmsWithLink,
   availabilityPingWithLink,
   standDownBody,
   DISCLOSURE_295_24_TEMPLATE,
@@ -248,13 +249,14 @@ export async function sendAvailabilityPings(
     let channel = normalizeQuoteLinkChannel(o.quote_link_channel)
     // Until SMS is live, SMS-only falls back to email when an address is on file.
     if (!smsLive && channel === 'sms') channel = 'email'
-    const body = availabilityPingWithLink(
+    const emailBody = availabilityPingWithLink(
       fresh.lane,
       fresh.payload_summary,
       fresh.ready_label,
       o.magic_token,
       base,
     )
+    const smsBody = availabilityPingSmsWithLink(o.magic_token, base)
     const sent: { sms?: string; email?: string } = {}
     if (
       smsLive &&
@@ -263,14 +265,14 @@ export async function sendAvailabilityPings(
       !o.contact_cell_is_mock
     ) {
       const comms = createCommsAdapter()
-      await comms.send({ channel: 'sms', to: o.contact_cell, body })
+      await comms.send({ channel: 'sms', to: o.contact_cell, body: smsBody })
       sent.sms = o.contact_cell
     }
     if (channelIncludesEmail(channel) && o.contact_email.includes('@')) {
       await email.send({
         to: o.contact_email.trim(),
         subject: availabilityEmailSubject(fresh.lane),
-        text: body,
+        text: emailBody,
         html: availabilityPingHtml(
           fresh.lane,
           fresh.payload_summary,

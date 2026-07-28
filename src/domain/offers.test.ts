@@ -3,6 +3,7 @@ import {
   availabilityEmailSubject,
   availabilityPingBody,
   availabilityPingHtml,
+  availabilityPingSmsWithLink,
   availabilityPingWithLink,
   parseAvailabilityReply,
 } from './offers'
@@ -27,6 +28,18 @@ describe('offers language', () => {
     expect(body).not.toContain('800 lbs')
     expect(body).not.toContain('14:00E')
     expect(body).not.toMatch(/reply 1/i)
+  })
+
+  it('SMS body is short and includes the offer link', () => {
+    const sms = availabilityPingSmsWithLink(
+      'tok123',
+      'https://ofaops.onflyair.com',
+    )
+    expect(sms).toContain('OnFly charter quote request')
+    expect(sms).toContain('https://ofaops.onflyair.com/offer/tok123')
+    expect(sms.toLowerCase()).toContain('yes or no')
+    expect(sms.toLowerCase()).not.toContain('bid')
+    expect(sms.toLowerCase()).not.toContain('email')
   })
 
   it('link body and html point at the offer page without details line', () => {

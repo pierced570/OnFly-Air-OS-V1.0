@@ -99,7 +99,7 @@ export function listAdapterDoorStatus(): AdapterDoorStatus[] {
         ? 'send-sms edge · RINGCENTRAL_* secrets'
         : isRealCommsEnabled()
           ? 'Set VITE_SUPABASE_* + deploy send-sms with RC JWT/from'
-          : 'VITE_COMMS_ADAPTER=real after RC secrets deployed',
+          : 'Deploy send-sms + RINGCENTRAL_* secrets; set VITE_COMMS_ADAPTER=real',
     },
     {
       id: 'qb',

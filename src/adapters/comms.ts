@@ -108,7 +108,8 @@ export function getMockCommsLog() {
 
 /** True when the app will attempt live RingCentral (still needs edge secrets). */
 export function isRealCommsEnabled(): boolean {
-  return adapterMode('VITE_COMMS_ADAPTER', 'mock') === 'real'
+  // Default real once RC is wired (same pattern as email); tests force mock.
+  return adapterMode('VITE_COMMS_ADAPTER', 'real') === 'real'
 }
 
 /** Ready to call the edge function (adapter=real + Supabase public URL/key). */
@@ -121,7 +122,7 @@ export function isLiveCommsConfigured(): boolean {
  * Mock adapter "sends" into the phone simulator; real needs Supabase + edge.
  */
 export function isSmsDeliveryEnabled(): boolean {
-  const mode = adapterMode('VITE_COMMS_ADAPTER', 'mock')
+  const mode = adapterMode('VITE_COMMS_ADAPTER', 'real')
   if (mode === 'mock') return true
   return isLiveCommsConfigured()
 }

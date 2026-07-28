@@ -13,7 +13,7 @@ export function offerLinkUrl(token: string, appBase = ''): string {
 }
 
 /**
- * Plain-text body for email / SMS.
+ * Plain-text body for email.
  * No route / payload / ready details here — those live on the offer page.
  * Params kept for call-site compatibility.
  */
@@ -31,7 +31,20 @@ export function availabilityPingBody(
   ].join('\n')
 }
 
-/** SMS / email body with magic link (desk + pings). */
+/** Short SMS body + magic link to the public offer / quote page. */
+export function availabilityPingSmsWithLink(
+  token: string,
+  appBase = '',
+): string {
+  const url = offerLinkUrl(token, appBase)
+  return [
+    'OnFly charter quote request',
+    'Tap to open and answer Yes or No (under a minute):',
+    url,
+  ].join('\n')
+}
+
+/** Email/SMS plain body with magic link (desk + pings). */
 export function availabilityPingWithLink(
   lane: string,
   payload: string,
