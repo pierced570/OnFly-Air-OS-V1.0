@@ -29,17 +29,17 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'submitted_quotes',
     label: 'Submitted quotes',
-    blurb: 'Operator quotes in — compare, price for client, or approve',
+    blurb: 'Operator quotes in — compare, price, send hard quote to client',
   },
   {
     id: 'quotes',
     label: 'Quotes to clients',
-    blurb: 'Set client price / markup and send the branded quote email',
+    blurb: 'Hard quote out — revise / send another, or wait for client Yes',
   },
   {
     id: 'approved',
     label: 'Approved trips',
-    blurb: 'Booked — send invoice, ETA sheet, then start live tracking',
+    blurb: 'Client accepted — send invoice, ETA sheet, then start live tracking',
   },
   {
     id: 'tracking',
@@ -349,8 +349,9 @@ export function buildDispatchDrawers(input: {
         recipients: quotedRecipients,
         trip_id: t.id,
         deletable: true,
-        approvable: quoteableOffers.length > 0,
-        approve_offer_id: quoteableOffers.find((o) => o.state === 'selected')?.id,
+        // Booking waits for client accept — desk does not Approve here.
+        approvable: false,
+        approve_offer_id: undefined,
         chips,
       })
       continue
@@ -435,9 +436,9 @@ export function buildDispatchDrawers(input: {
       trip_id: t.id,
       // Delete only while still shaping the mission — not after book / live.
       deletable: drawer === 'offers' || drawer === 'quotes',
-      // Approve from Submitted quotes or Quotes to clients — never Offers / Approved / Tracking.
-      approvable: drawer === 'quotes' && quoteableOffers.length > 0,
-      approve_offer_id: quoteableOffers.find((o) => o.state === 'selected')?.id,
+      // Never desk-approve — client Yes books the trip into Approved.
+      approvable: false,
+      approve_offer_id: undefined,
       chips: drawer === 'tracking' ? undefined : chips,
       booking,
     })

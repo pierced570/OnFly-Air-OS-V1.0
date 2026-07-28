@@ -35,7 +35,6 @@ import {
 import { formatTaxLineDesk, fetExemptMtowThreshold } from '@/domain/tax'
 import { rememberEmailsOnClient } from '@/lib/clientStore'
 import {
-  deskApproveTrip,
   selectOffersAndHardQuote,
   submitDeskManualQuote,
   updateHardQuoteClientPricing,
@@ -78,7 +77,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   )
   const [manualQuoteBusy, setManualQuoteBusy] = useState(false)
   const [pricingBusy, setPricingBusy] = useState(false)
-  const [approveBusy, setApproveBusy] = useState(false)
   /** Confirmed aircraft types for hard-quote send (offerId → label). */
   const [confirmedTypes, setConfirmedTypes] = useState<Record<string, string>>(
     {},
@@ -154,14 +152,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const showQuoteComposer =
     quoteableIds.length > 0 &&
     (!trip?.hard_quote || composeAnotherQuote || hardQuoteStatus === 'declined')
-
-  const canApproveTrip =
-    quoteableIds.length > 0 &&
-    hardQuoteStatus !== 'accepted' &&
-    trip != null &&
-    !['booked', 'in_progress', 'delivered', 'invoiced', 'closed'].includes(
-      trip.state,
-    )
 
   if (!trip) {
     return (
@@ -597,32 +587,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
         )
       })()}
 
-      {canApproveTrip ? (
-        <button
-          type="button"
-          disabled={approveBusy}
-          className="w-full rounded-md bg-gold px-3 py-2 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
-          onClick={() => {
-            const prefer =
-              picked[0] ??
-              quoteableIds.find((id) => {
-                const o = trip.offers.find((x) => x.id === id)
-                return o?.state === 'selected'
-              }) ??
-              quoteableIds[0]
-            setApproveBusy(true)
-            void deskApproveTrip(trip.id, prefer)
-              .then(() => setError(null))
-              .catch((e) =>
-                setError(e instanceof Error ? e.message : String(e)),
-              )
-              .finally(() => setApproveBusy(false))
-          }}
-        >
-          {approveBusy ? 'Approving…' : 'Approve trip'}
-        </button>
-      ) : null}
-
       {showQuoteComposer ? (
         <div className="space-y-3 border-t border-gold/30 pt-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -819,7 +783,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   <div className="pt-1">
                     <button
                       type="button"
-                      className="rounded border border-gold/50 bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold"
+                      className="rounded-md bg-gold px-3 py-2 text-sm font-semibold text-ink hover:bg-gold-lt"
                       onClick={() => {
                         const pre: Record<string, boolean> = {}
                         for (const o of trip.offers) {
@@ -836,7 +800,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                         setComposeAnotherQuote(true)
                       }}
                     >
-                      Send another quote
+                      Revise — send another quote
                     </button>
                   </div>
                 ) : null}

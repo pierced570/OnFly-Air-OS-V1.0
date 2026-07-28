@@ -41,7 +41,6 @@ import {
 import { getClient, listClients, subscribeClients } from '@/lib/clientStore'
 import {
   acknowledgeDeclinedOffer,
-  deskApproveTrip,
   updateTripOfferRequest,
 } from '@/lib/offerFlow'
 import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
@@ -139,15 +138,11 @@ function Drawer({
 function CardList({
   cards,
   onDeleteCard,
-  onApproveCard,
-  approvingId,
   showBookedActions,
   showTrackingActions,
 }: {
   cards: DispatchCard[]
   onDeleteCard: (card: DispatchCard) => void
-  onApproveCard: (card: DispatchCard) => void
-  approvingId?: string | null
   /** Approved drawer — invoice + ETA sheet actions. */
   showBookedActions?: boolean
   /** Live tracking — portal link + Access chat only. */
@@ -254,18 +249,6 @@ function CardList({
             </div>
             {!showTrackingActions ? (
               <div className="flex shrink-0 flex-col justify-center gap-1">
-                {c.approvable ? (
-                  <button
-                    type="button"
-                    aria-label={`Approve trip ${c.title}`}
-                    title="Approve trip"
-                    disabled={approvingId === c.id}
-                    onClick={() => onApproveCard(c)}
-                    className="rounded-md bg-gold/20 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/30 disabled:opacity-40"
-                  >
-                    {approvingId === c.id ? 'Approving…' : 'Approve trip'}
-                  </button>
-                ) : null}
                 {c.deletable ? (
                   <button
                     type="button"
@@ -422,9 +405,6 @@ function OfferTripList({
   onAcknowledgeDeclined,
   onDeleteCard,
   onDeleteOffer,
-  onApproveCard,
-  onApproveOffer,
-  approvingId,
 }: {
   cards: DispatchCard[]
   focusTripId?: string | null
@@ -433,9 +413,6 @@ function OfferTripList({
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
   onDeleteCard: (card: DispatchCard) => void
   onDeleteOffer: (tripId: string, offerId: string, name: string) => void
-  onApproveCard: (card: DispatchCard) => void
-  onApproveOffer: (tripId: string, offerId: string, name: string) => void
-  approvingId?: string | null
 }) {
   const isQuotes = mode === 'quotes'
   const isOffers = mode === 'offers'
@@ -520,16 +497,6 @@ function OfferTripList({
                 ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {c.approvable ? (
-                  <button
-                    type="button"
-                    disabled={approvingId === c.id}
-                    className="rounded-md bg-gold px-2.5 py-1 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
-                    onClick={() => onApproveCard(c)}
-                  >
-                    {approvingId === c.id ? 'Approving…' : 'Approve trip'}
-                  </button>
-                ) : null}
                 {c.deletable ? (
                   <button
                     type="button"
@@ -649,20 +616,6 @@ function OfferTripList({
                       <li key={r.offer_id} className="px-0.5 py-1">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                           <span className="font-medium text-cream">{r.name}</span>
-                          {c.trip_id && r.quote_facts ? (
-                            <button
-                              type="button"
-                              disabled={approvingId === r.offer_id}
-                              className="text-xs font-medium text-gold hover:text-gold-lt disabled:opacity-40"
-                              onClick={() =>
-                                onApproveOffer(c.trip_id!, r.offer_id, r.name)
-                              }
-                            >
-                              {approvingId === r.offer_id
-                                ? 'Approving…'
-                                : 'Approve trip'}
-                            </button>
-                          ) : null}
                         </div>
                         {r.quote_facts ? (
                           <OfferQuoteFactsBlock facts={r.quote_facts} />
@@ -871,51 +824,6 @@ export default function DispatchCenterPage() {
     void removeOfferFromTrip(tripId, offerId)
   }
 
-  const [approvingId, setApprovingId] = useState<string | null>(null)
-  const [approveError, setApproveError] = useState<string | null>(null)
-
-  function approveWaterfallCard(card: DispatchCard) {
-    const tripId = card.trip_id ?? (card.kind === 'trip' ? card.id : null)
-    if (!tripId || !card.approvable) return
-    if (
-      !window.confirm(
-        `Approve trip?\n\n${card.title}\n\nBooks the trip with the selected / quoted operator and moves it to Approved.`,
-      )
-    ) {
-      return
-    }
-    setApproveError(null)
-    setApprovingId(card.id)
-    void deskApproveTrip(tripId, card.approve_offer_id)
-      .then(() => {
-        setOpenDrawer('approved')
-      })
-      .catch((e) =>
-        setApproveError(e instanceof Error ? e.message : String(e)),
-      )
-      .finally(() => setApprovingId(null))
-  }
-
-  function approveOfferRow(tripId: string, offerId: string, name: string) {
-    if (
-      !window.confirm(
-        `Approve trip with ${name}?\n\nBooks the trip and stands other operators down.`,
-      )
-    ) {
-      return
-    }
-    setApproveError(null)
-    setApprovingId(offerId)
-    void deskApproveTrip(tripId, offerId)
-      .then(() => {
-        setOpenDrawer('approved')
-      })
-      .catch((e) =>
-        setApproveError(e instanceof Error ? e.message : String(e)),
-      )
-      .finally(() => setApprovingId(null))
-  }
-
   const buckets = useMemo(
     () =>
       buildDispatchDrawers({
@@ -1085,12 +993,6 @@ export default function DispatchCenterPage() {
         </div>
       ) : null}
 
-      {approveError ? (
-        <p className="rounded-md border border-late/40 bg-late/10 px-3 py-2 text-sm text-late">
-          {approveError}
-        </p>
-      ) : null}
-
       {DISPATCH_DRAWERS.map((d) => (
         <Drawer
           key={d.id}
@@ -1125,16 +1027,11 @@ export default function DispatchCenterPage() {
               }}
               onDeleteCard={removeWaterfallCard}
               onDeleteOffer={removeOfferRow}
-              onApproveCard={approveWaterfallCard}
-              onApproveOffer={approveOfferRow}
-              approvingId={approvingId}
             />
           ) : (
             <CardList
               cards={buckets[d.id]}
               onDeleteCard={removeWaterfallCard}
-              onApproveCard={approveWaterfallCard}
-              approvingId={approvingId}
               showBookedActions={d.id === 'approved'}
               showTrackingActions={d.id === 'tracking'}
             />
