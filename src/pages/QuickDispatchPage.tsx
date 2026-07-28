@@ -1,6 +1,7 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
+import { OperatorSelect } from '@/components/OperatorSelect'
 import {
   addClient,
   addClientContact,
@@ -22,6 +23,7 @@ import {
   subscribeReferrals,
 } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
+import { ensureDeskOperatorsLoaded } from '@/lib/deskOperatorSearch'
 
 type Leg = {
   id: string
@@ -86,6 +88,10 @@ export default function QuickDispatchPage() {
   const [operator, setOperator] = useState('')
   const [aircraftType, setAircraftType] = useState('')
   const [tail, setTail] = useState('')
+
+  useEffect(() => {
+    void ensureDeskOperatorsLoaded()
+  }, [])
 
   const [vendorCost, setVendorCost] = useState('')
   const [clientPrice, setClientPrice] = useState('')
@@ -562,15 +568,19 @@ export default function QuickDispatchPage() {
         <div className="text-xs font-medium uppercase tracking-wider text-muted">
           Operator &amp; aircraft
         </div>
-        <label className={label}>
-          Operator / Vendor
-          <input
-            className={input}
-            value={operator}
-            onChange={(e) => setOperator(e.target.value)}
-            placeholder="Search operator name…"
-          />
-        </label>
+        <OperatorSelect
+          value={operator}
+          required
+          onChange={(name, hit) => {
+            setOperator(name)
+            if (hit?.type_name && !aircraftType.trim()) {
+              setAircraftType(unifyAircraftType(hit.type_name) || hit.type_name)
+            }
+            if (hit?.tail && hit.tail !== 'TBD' && !tail.trim()) {
+              setTail(hit.tail)
+            }
+          }}
+        />
         <div className="grid grid-cols-2 gap-2">
           <label className={label}>
             Aircraft type
