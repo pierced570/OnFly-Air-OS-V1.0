@@ -17,8 +17,11 @@ import {
 
 export default function ScratchPadPage({
   embedded = false,
+  onParse,
 }: {
   embedded?: boolean
+  /** When set (Dispatch center), parse stays on the waterfall instead of /desk. */
+  onParse?: () => void
 }) {
   const pad = useSyncExternalStore(
     subscribeScratchPad,
@@ -29,6 +32,10 @@ export default function ScratchPadPage({
   const nav = useNavigate()
 
   function goParse() {
+    if (onParse) {
+      onParse()
+      return
+    }
     if (session) {
       nav('/desk')
       return

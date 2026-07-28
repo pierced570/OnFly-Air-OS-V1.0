@@ -883,7 +883,14 @@ export default function DispatchCenterPage() {
               <p className="p-6 text-sm text-muted">Loading tool…</p>
             }
           >
-            {tool === 'scratchpad' ? <ScratchPadPage embedded /> : <Tool />}
+            {tool === 'scratchpad' ? (
+              <ScratchPadPage
+                embedded
+                onParse={() => setTool('parse')}
+              />
+            ) : (
+              <Tool />
+            )}
           </Suspense>
         </div>
       </div>
