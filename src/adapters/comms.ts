@@ -1,10 +1,12 @@
 /**
- * Comms adapter — mock only (RingCentral SMS hard-killed).
+ * Comms adapter — mock (default) or RingCentral via Supabase edge `send-sms`.
  * Never put RINGCENTRAL_* secrets in VITE_* — they live in edge function secrets.
+ *
+ * Live SMS: VITE_COMMS_ADAPTER=real + edge secrets + SMS_DISABLED≠true.
  */
 
 import { adapterMode } from '@/adapters/types'
-import { isSupabaseConfigured } from '@/lib/supabase'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 export type CommsMessage = {
   channel: 'sms' | 'voice'
@@ -35,13 +37,71 @@ export class MockCommsAdapter implements CommsAdapter {
 }
 
 /**
- * @deprecated Live RingCentral path hard-killed — always use MockCommsAdapter.
+ * Calls supabase/functions/send-sms (RingCentral JWT → SMS).
+ * Requires VITE_COMMS_ADAPTER=real + deployed function + RC secrets.
  */
 export class RingCentralCommsAdapter implements CommsAdapter {
-  async send(_msg: CommsMessage): Promise<{ id: string }> {
-    throw new Error(
-      'RingCentral SMS hard-killed — set createCommsAdapter back to live only after intentional restore',
+  async send(msg: CommsMessage) {
+    if (msg.channel === 'voice') {
+      throw new Error(
+        'Voice not available on RingCentral adapter — Telnyx arrives later',
+      )
+    }
+    if (!supabase || !isSupabaseConfigured) {
+      throw new Error(
+        'RingCentral SMS requires Supabase — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY',
+      )
+    }
+    const to = msg.to.trim()
+    const body = msg.body.trim()
+    if (!to) throw new Error('SMS to required')
+    if (!body) throw new Error('SMS body required')
+
+    const { data, error } = await supabase.functions.invoke('send-sms', {
+      body: {
+        to,
+        body,
+        from: msg.from?.trim() || undefined,
+      },
+    })
+
+    const result = data as {
+      id?: string
+      error?: string
+      detail?: unknown
+      disabled?: boolean
+    } | null
+
+    if (error) {
+      const detail =
+        result?.error &&
+        (typeof result.detail === 'string'
+          ? `${result.error}: ${result.detail}`
+          : result.error)
+      throw new Error(detail || error.message || 'send-sms edge function failed')
+    }
+
+    const id = result?.id
+    if (!id) {
+      throw new Error(
+        result?.error
+          ? `RingCentral: ${result.error}${
+              typeof result.detail === 'string' ? ` — ${result.detail}` : ''
+            }`
+          : 'send-sms returned no id — check RINGCENTRAL_* secrets',
+      )
+    }
+
+    log.push(msg)
+    console.info('[RingCentralSMS]', to, id)
+    void import('@/lib/db/persist').then((m) =>
+      m.persistCommsMessage({
+        channel: 'sms',
+        to_addr: to,
+        body,
+      }),
     )
+    return { id }
   }
 }
 
@@ -53,27 +113,33 @@ export function clearMockCommsLog() {
   log.length = 0
 }
 
-/** Live RingCentral is hard-killed. Always false. */
+/** True when the app will attempt live RingCentral (still needs edge secrets). */
 export function isRealCommsEnabled(): boolean {
-  void adapterMode // keep import used; live path disabled
-  return false
+  // Default mock — opt in with VITE_COMMS_ADAPTER=real.
+  return adapterMode('VITE_COMMS_ADAPTER', 'mock') === 'real'
 }
 
-/** Ready to call the edge function — always false while SMS is killed. */
+/** Ready to call the edge function (adapter=real + Supabase public URL/key). */
 export function isLiveCommsConfigured(): boolean {
-  return false
+  return isRealCommsEnabled() && isSupabaseConfigured
 }
 
 /**
  * Whether availability pings / stand-downs may use SMS.
- * Mock adapter only — never hits RingCentral.
+ * Mock adapter "sends" into the phone simulator; real needs Supabase + edge.
  */
 export function isSmsDeliveryEnabled(): boolean {
-  return true
+  const mode = adapterMode('VITE_COMMS_ADAPTER', 'mock')
+  if (mode === 'mock') return true
+  return isLiveCommsConfigured()
 }
 
-/** Always mock — no live RingCentral. */
 export function createCommsAdapter(): CommsAdapter {
-  void isSupabaseConfigured
+  if (isLiveCommsConfigured()) return new RingCentralCommsAdapter()
+  if (isRealCommsEnabled() && !isSupabaseConfigured) {
+    console.warn(
+      '[comms] VITE_COMMS_ADAPTER=real needs Supabase — using mock SMS',
+    )
+  }
   return new MockCommsAdapter()
 }
