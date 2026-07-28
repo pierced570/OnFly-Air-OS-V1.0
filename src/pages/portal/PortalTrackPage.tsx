@@ -19,11 +19,13 @@ import { canPersist, db, safeQuery } from '@/lib/db/client'
 import { createAdsbAdapter, type AdsbPosition } from '@/adapters/adsb'
 import {
   buildPortalTrackingView,
+  portalAircraftMapVisible,
   tripToTrackingInput,
   type PortalTrackingView,
 } from '@/domain/portalTracking'
 import { formatClientLocal } from '@/domain/timeFmt'
 import { BrandLockup } from '@/components/BrandLockup'
+import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 
 const REFRESH_MS = 30_000
 
@@ -42,6 +44,7 @@ function statusChipClass(state: string): string {
 
 function AircraftCard({ view }: { view: PortalTrackingView }) {
   const a = view.aircraft
+  const showMap = portalAircraftMapVisible(a)
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="border-b border-border/60 px-5 py-3">
@@ -49,7 +52,26 @@ function AircraftCard({ view }: { view: PortalTrackingView }) {
           Aircraft position
         </h2>
       </div>
-      <div className="relative min-h-[140px] bg-gradient-to-br from-[#1a1a1c] via-[#0C0C0E] to-[#2a2418] px-5 py-6 text-[#F7F2E3]">
+      {showMap ? (
+        <div className="border-b border-border/60 bg-[#F7F2E3] px-3 pt-3 pb-2 sm:px-4">
+          <PortalAircraftMap aircraft={a} />
+          <p className="mt-1.5 text-[10px] text-muted">
+            {a.phase === 'airborne'
+              ? 'Live track along the air leg'
+              : a.phase === 'positioning'
+                ? 'Aircraft positioning toward departure'
+                : a.phase === 'on_ground'
+                  ? 'On the ground at this stage of the trip'
+                  : 'Trip route'}
+            {a.source === 'adsb'
+              ? ' · live ADS-B'
+              : a.source === 'eta'
+                ? ' · from ETA chain'
+                : ''}
+          </p>
+        </div>
+      ) : null}
+      <div className="relative min-h-[120px] bg-gradient-to-br from-[#1a1a1c] via-[#0C0C0E] to-[#2a2418] px-5 py-5 text-[#F7F2E3]">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.12]"
           style={{

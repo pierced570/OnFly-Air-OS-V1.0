@@ -3,6 +3,7 @@ import {
   buildMilestones,
   buildPortalTrackingView,
   interpolateGc,
+  portalAircraftMapVisible,
   resolveAircraftPosition,
   type PortalTrackingTripInput,
 } from './portalTracking'
@@ -196,6 +197,22 @@ describe('portalTracking', () => {
     expect(pos.source).toBe('adsb')
     expect(pos.summary).toMatch(/Airborne/)
     expect(pos.altFt).toBe(18000)
+    expect(pos.fromLat).not.toBeNull()
+    expect(pos.toLat).not.toBeNull()
+    expect(portalAircraftMapVisible(pos)).toBe(true)
+  })
+
+  it('shows map-ready coords while positioning before wheels-up', () => {
+    const trip = sampleD2d({ state: 'booked' })
+    const pos = resolveAircraftPosition(
+      trip,
+      null,
+      '2026-07-15T14:00:00.000Z',
+    )
+    expect(pos.phase).toBe('positioning')
+    expect(pos.lat).not.toBeNull()
+    expect(pos.fromIcao).toBeTruthy()
+    expect(portalAircraftMapVisible(pos)).toBe(true)
   })
 
   it('buildPortalTrackingView never exposes money or carrier name', () => {
