@@ -384,6 +384,17 @@ function OfferTripList({
     }
   }, [focusTripId, searchParams])
 
+  // Clear inline panels when the trip disappears (delete / hydrate race).
+  useEffect(() => {
+    const stillHere = (tripId: string | null) =>
+      Boolean(
+        tripId && cards.some((c) => c.trip_id === tripId || c.id === tripId),
+      )
+    if (quotingTripId && !stillHere(quotingTripId)) setQuotingTripId(null)
+    if (updatingTripId && !stillHere(updatingTripId)) setUpdatingTripId(null)
+    if (addingTripId && !stillHere(addingTripId)) setAddingTripId(null)
+  }, [cards, quotingTripId, updatingTripId, addingTripId])
+
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
@@ -699,6 +710,7 @@ export default function DispatchCenterPage() {
   // Pull operator Yes/No / quotes into this browser without a manual refresh.
   useEffect(() => startLiveTripRefresh(4000), [])
 
+  // Scroll only on focus/drawer change — not on every live trip hydrate (jumpy deletes).
   useEffect(() => {
     if (
       !focusTripId ||
@@ -710,7 +722,7 @@ export default function DispatchCenterPage() {
     }
     const el = document.getElementById(`offer-trip-${focusTripId}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [focusTripId, openDrawer, trips])
+  }, [focusTripId, openDrawer])
 
   function removeWaterfallCard(card: DispatchCard) {
     if (!card.deletable) return
@@ -727,7 +739,7 @@ export default function DispatchCenterPage() {
       ) {
         return
       }
-      removeOfferFromTrip(card.trip_id, card.id)
+      void removeOfferFromTrip(card.trip_id, card.id)
       return
     }
     const tripId = card.trip_id ?? card.id
@@ -738,7 +750,7 @@ export default function DispatchCenterPage() {
     ) {
       return
     }
-    deleteTrip(tripId)
+    void deleteTrip(tripId)
   }
 
   function removeOfferRow(tripId: string, offerId: string, name: string) {
@@ -749,7 +761,7 @@ export default function DispatchCenterPage() {
     ) {
       return
     }
-    removeOfferFromTrip(tripId, offerId)
+    void removeOfferFromTrip(tripId, offerId)
   }
 
   const [approvingId, setApprovingId] = useState<string | null>(null)
