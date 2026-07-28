@@ -6,6 +6,7 @@ import {
   availabilityPingSmsWithLink,
   availabilityPingWithLink,
   parseAvailabilityReply,
+  quoteSubmittedDeskSms,
 } from './offers'
 
 describe('offers language', () => {
@@ -72,5 +73,19 @@ describe('offers language', () => {
     expect(availabilityEmailSubject('KCAK→KHPN')).toBe(
       'Charter flight quote request',
     )
+  })
+
+  it('desk quote-submitted SMS names the operator', () => {
+    expect(quoteSubmittedDeskSms('Charlie Jets')).toBe(
+      'OnFly: quote submitted by Charlie Jets',
+    )
+    expect(
+      quoteSubmittedDeskSms('Alpha Air', {
+        lane: 'KCAK→KHPN',
+        tripCode: 'UZ300',
+      }),
+    ).toBe('OnFly: quote submitted by Alpha Air · KCAK→KHPN · UZ300')
+    expect(quoteSubmittedDeskSms('  ')).toContain('an operator')
+    expect(quoteSubmittedDeskSms('Tester').toLowerCase()).not.toContain('bid')
   })
 })

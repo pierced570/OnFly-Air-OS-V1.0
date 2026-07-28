@@ -25,6 +25,7 @@ import {
 import {
   getTrip,
   listTripsStable,
+  safeTransitionTrip,
   sendTripInvoiceEmail,
   subscribeTrips,
 } from '@/lib/tripStore'
@@ -42,7 +43,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
   const [etaSel, setEtaSel] = useState<ClientEmailSelection>(
     emptyClientEmailSelection,
   )
-  const [busy, setBusy] = useState<'invoice' | 'eta' | null>(null)
+  const [busy, setBusy] = useState<'invoice' | 'eta' | 'start' | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const draftType =
@@ -79,13 +80,20 @@ export function BookedTripActionsPanel({ tripId }: Props) {
   const trackUrl = portalTrackingUrlForTrip(trip.id)
 
   return (
-    <div className="mt-2 space-y-3 border-t border-border/50 pt-3">
+    <div className="mt-3 space-y-3 border-t border-gold/30 pt-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-wider text-gold">
-          Booked actions
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-gold">
+            Invoice &amp; ETA sheet
+          </div>
+          <p className="mt-0.5 text-xs text-muted">
+            Send from the approved booking — invoice first, then ETA sheet with
+            tail and times.
+          </p>
         </div>
         <div className="font-mono text-xs text-cream/85">
-          PO {po} · Tail {tail}
+          {po !== '—' ? `PO ${po}` : 'PO pending'} · Tail {tail}
+          {confirmedType.trim() ? ` · ${confirmedType.trim()}` : ''}
         </div>
       </div>
 
@@ -93,7 +101,14 @@ export function BookedTripActionsPanel({ tripId }: Props) {
       {msg ? <p className="text-xs text-onplan">{msg}</p> : null}
 
       <div className="space-y-2 rounded-md border border-border/50 bg-ink/40 p-2.5">
-        <div className="text-sm font-medium text-cream">1. QuickBooks invoice</div>
+        <div className="text-sm font-medium text-cream">1. Send invoice</div>
+        <p className="text-[11px] text-muted">
+          QuickBooks invoice using the approved client total
+          {trip.hard_quote?.total != null
+            ? ` ($${Math.round(trip.hard_quote.total).toLocaleString('en-US')})`
+            : ''}
+          .
+        </p>
         <AircraftTypeSelect
           draft={draftType}
           value={confirmedType}
@@ -138,12 +153,16 @@ export function BookedTripActionsPanel({ tripId }: Props) {
       </div>
 
       <div className="space-y-2 rounded-md border border-border/50 bg-ink/40 p-2.5">
-        <div className="text-sm font-medium text-cream">2. ETA sheet + tracking</div>
+        <div className="text-sm font-medium text-cream">2. Send ETA sheet</div>
+        <p className="text-[11px] text-muted">
+          Timing + tracking link from the approved trip — no payment details.
+        </p>
         {sheet ? (
           <div className="font-mono text-[11px] text-cream/80 space-y-0.5">
             <div>
               Tail {sheet.tail || 'TBD'}
               {sheet.aircraft_type ? ` · ${sheet.aircraft_type}` : ''}
+              {sheet.operator_name ? ` · ${sheet.operator_name}` : ''}
             </div>
             {sheet.lines.slice(0, 4).map((l) => (
               <div key={l.seq}>
@@ -219,6 +238,40 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           </button>
         </div>
       </div>
+
+      {trip.state === 'booked' ? (
+        <div className="space-y-2 rounded-md border border-gold/40 bg-gold/5 p-2.5">
+          <div className="text-sm font-medium text-cream">
+            3. Start live tracking
+          </div>
+          <p className="text-[11px] text-muted">
+            Moves this trip to Live tracking — portal link + Access chat for the
+            ops group.
+          </p>
+          <button
+            type="button"
+            disabled={busy !== null}
+            className="rounded-md border border-gold/50 bg-gold/15 px-3 py-2 text-xs font-semibold text-gold hover:bg-gold/25 disabled:opacity-40"
+            onClick={() => {
+              setBusy('start')
+              setErr(null)
+              setMsg(null)
+              try {
+                safeTransitionTrip(trip.id, 'in_progress', 'dispatcher', {
+                  reason: 'desk_start_live_tracking',
+                })
+                setMsg('Moved to Live tracking')
+              } catch (e) {
+                setErr(e instanceof Error ? e.message : String(e))
+              } finally {
+                setBusy(null)
+              }
+            }}
+          >
+            {busy === 'start' ? 'Starting…' : 'Start live tracking'}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

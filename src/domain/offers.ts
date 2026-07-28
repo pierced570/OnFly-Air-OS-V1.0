@@ -90,6 +90,20 @@ export function standDownBody(lane: string): string {
 export const DISCLOSURE_295_24_TEMPLATE =
   'Part 295.24 disclosure: The air carrier providing this charter is a certificated Part 135 operator. OnFly Air acts as broker and is not the air carrier.'
 
+/** Desk SMS when an operator submits a trip offer quote (magic link / form). */
+export function quoteSubmittedDeskSms(
+  operatorName: string,
+  opts?: { lane?: string | null; tripCode?: string | null },
+): string {
+  const who = operatorName.trim() || 'an operator'
+  const bits = [`OnFly: quote submitted by ${who}`]
+  const lane = opts?.lane?.trim()
+  const code = opts?.tripCode?.trim()
+  if (lane) bits.push(lane)
+  if (code) bits.push(code)
+  return bits.join(' · ')
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

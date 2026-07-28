@@ -1,13 +1,12 @@
 /**
  * Dispatch Center waterfall drawers — derived view over Trip + inbound.
+ * Rule: one trip appears in exactly one stage at a time.
  * Labels for operators: "trip offers" (never "bid").
  */
 
 import type { TripState } from '@/domain/stateMachine'
-import { tripStateLabel } from '@/domain/pipelineStages'
 import {
   describeOfferDestination,
-  formatOfferQuoteSummary,
   formatOfferSentAt,
   offerQuoteFacts,
   offerRecipientStatus,
@@ -15,36 +14,37 @@ import {
   type OfferQuoteFacts,
   type OfferRecipientStatus,
 } from '@/domain/offerRecipients'
+
 export const DISPATCH_DRAWERS = [
   {
     id: 'requests',
     label: 'Trip requests',
-    blurb: 'Scratchpad, portal requests, and open requests',
+    blurb: 'New work — open or delete a request',
   },
   {
     id: 'offers',
     label: 'Trip offers to operators',
-    blurb: 'Who got the offer — send to more operators',
+    blurb: 'Send offers and wait for replies — no quotes in yet',
   },
   {
     id: 'submitted_quotes',
     label: 'Submitted quotes',
-    blurb: 'Operator quotes in — open to compare',
+    blurb: 'Operator quotes in — compare, price for client, or approve',
   },
   {
     id: 'quotes',
     label: 'Quotes to clients',
-    blurb: 'Estimates and hard quotes with the client',
+    blurb: 'Set client price / markup and send the branded quote email',
   },
   {
     id: 'approved',
     label: 'Approved trips',
-    blurb: 'Booked — send invoice + ETA sheet',
+    blurb: 'Booked — send invoice, ETA sheet, then start live tracking',
   },
   {
     id: 'tracking',
     label: 'Live tracking',
-    blurb: 'In progress — execution and exceptions',
+    blurb: 'In progress — tracking portal + trip group chat only',
   },
 ] as const
 
@@ -59,11 +59,9 @@ export type DispatchRecipient = {
   quote_facts: OfferQuoteFacts | null
   sent_at: string | null
   sent_label: string | null
-  /** Channel + email/SMS on file for this offer. */
   destination_summary: string
   destination_gaps: string[]
   notified: boolean
-  /** Declined (No) collapsed after desk Acknowledge. */
   declined_acked: boolean
   magic_token: string
   href: string
@@ -77,25 +75,21 @@ export type DispatchCard = {
   kind: 'request' | 'trip' | 'offer_quote'
   state?: TripState
   ref?: number
-  /** Per-operator rows for trip-offer cards. */
   recipients?: DispatchRecipient[]
   trip_id?: string
-  /** Cargo / pax / mission line for offers waterfall. */
-  payload_summary?: string | null
-  ready_label?: string | null
-  /** Structured operator quote for Submitted quotes cards. */
-  quote_facts?: OfferQuoteFacts | null
-  /**
-   * Dynamic queue data can be deleted from the waterfall.
-   * Hardcoded chrome (tools, drawer labels) never becomes a card.
-   */
   deletable: boolean
-  /** Desk can book this card (quoted operator ready). */
   approvable: boolean
-  /** Preferred offer when approving a submitted-quote card. */
   approve_offer_id?: string
-  /** Mission / ops chips (D2D, forklift required, ground courier). */
   chips?: string[]
+  booking?: {
+    operator_name: string | null
+    type_name: string | null
+    tail: string | null
+    client_total: number | null
+    po: string | null
+  } | null
+  /** Structured quote facts (submitted quotes stage). */
+  quote_facts?: OfferQuoteFacts | null
 }
 
 function requestSourceLabel(source: string): string {
@@ -117,7 +111,40 @@ function emptyBuckets(): DispatchDrawerBucket {
   }
 }
 
-/** Split quote-path trip states into offers vs client quotes. */
+function hasOperatorQuote(
+  offers?: Array<{ state: string }>,
+): boolean {
+  return (offers ?? []).some(
+    (o) => o.state === 'quoted' || o.state === 'selected',
+  )
+}
+
+/**
+ * Exclusive stage for a trip — never two drawers at once.
+ * offers_out with quotes → submitted_quotes (leaves Trip offers).
+ */
+export function exclusiveDrawerForTrip(input: {
+  state: TripState
+  offers?: Array<{ state: string }>
+}): DispatchDrawerId | null {
+  switch (input.state) {
+    case 'booked':
+      return 'approved'
+    case 'in_progress':
+      return 'tracking'
+    case 'quoted_hard':
+    case 'quoted_estimated':
+    case 'draft':
+    case 'routed':
+      return 'quotes'
+    case 'offers_out':
+      return hasOperatorQuote(input.offers) ? 'submitted_quotes' : 'offers'
+    default:
+      return null
+  }
+}
+
+/** @deprecated Prefer exclusiveDrawerForTrip — state alone is not enough for offers_out. */
 export function drawerForTripState(state: TripState): DispatchDrawerId | null {
   switch (state) {
     case 'offers_out':
@@ -136,6 +163,119 @@ export function drawerForTripState(state: TripState): DispatchDrawerId | null {
   }
 }
 
+type TripInput = {
+  id: string
+  ref: number
+  code?: string | null
+  lane: string
+  state: TripState
+  client_name?: string | null
+  service_pattern?: string | null
+  forklift_required?: boolean
+  forklift_recommended?: boolean
+  quick?: {
+    po?: string
+    client_name?: string
+    tail?: string
+    aircraft_type?: string
+    operator_name?: string
+  } | null
+  po_number?: string | null
+  hard_quote?: {
+    total?: number
+    options?: Array<{
+      offer_id: string
+      client_total: number
+      type_name?: string | null
+      tail?: string | null
+      operator_name?: string | null
+    }>
+  } | null
+  legs: Array<{ status: string }>
+  offers?: Array<{
+    id: string
+    operator_name: string
+    state: string
+    ping_sent_at?: string | null
+    notified_at?: string | null
+    declined_acked_at?: string | null
+    replied_at?: string | null
+    magic_token?: string
+    price_net?: number | null
+    time_to_position_min?: number | null
+    quick_turn_min?: number | null
+    live_leg_min?: number | null
+    fee_scope?: string | null
+    type_name?: string | null
+    tail?: string | null
+    contact_email?: string | null
+    contact_cell?: string | null
+    contact_cell_is_mock?: boolean
+    quote_link_channel?: string | null
+  }>
+}
+
+function missionChips(t: TripInput): string[] | undefined {
+  const chips: string[] = []
+  if (t.service_pattern) chips.push(t.service_pattern)
+  if (t.forklift_required) chips.push('forklift required')
+  else if (t.forklift_recommended) chips.push('forklift recommended')
+  if (
+    t.service_pattern === 'D2D' ||
+    t.service_pattern === 'D2A' ||
+    t.service_pattern === 'A2D'
+  ) {
+    chips.push('ground courier')
+  }
+  return chips.length ? chips : undefined
+}
+
+function mapRecipients(
+  t: TripInput,
+  drawer: DispatchDrawerId,
+  opts?: { quotedOnly?: boolean },
+): DispatchRecipient[] {
+  return (t.offers ?? [])
+    .filter((o) => {
+      if (!opts?.quotedOnly) return true
+      return o.state === 'quoted' || o.state === 'selected'
+    })
+    .map((o) => {
+      const status = offerRecipientStatus(o.state)
+      const token = o.magic_token ?? ''
+      const notified = Boolean(o.notified_at)
+      const declined_acked =
+        status === 'no' && Boolean(o.declined_acked_at)
+      const dest = describeOfferDestination(o)
+      const atIso = notified ? o.notified_at : o.ping_sent_at
+      const sent = formatOfferSentAt(
+        atIso,
+        Date.now(),
+        notified ? 'notified' : 'link',
+      )
+      return {
+        offer_id: o.id,
+        name: o.operator_name,
+        status,
+        status_label: declined_acked
+          ? 'unavailable'
+          : offerRecipientStatusLabel(status, { notified }),
+        quote_summary: null,
+        quote_facts: offerQuoteFacts(o),
+        sent_at: atIso ?? null,
+        sent_label: sent?.display ?? null,
+        destination_summary: dest.summary,
+        destination_gaps: dest.gaps,
+        notified,
+        declined_acked,
+        magic_token: token,
+        href: token
+          ? `/offer/${token}`
+          : `/dispatch?drawer=${drawer}&focus=${t.id}`,
+      }
+    })
+}
+
 export function buildDispatchDrawers(input: {
   requests: Array<{
     id: string
@@ -148,44 +288,7 @@ export function buildDispatchDrawers(input: {
     client_name?: string | null
     hard_quote_requested_at?: string | null
   }>
-  trips: Array<{
-    id: string
-    ref: number
-    /** Unique internal code (2 letters + 3 digits), e.g. AB123. */
-    code?: string | null
-    lane: string
-    state: TripState
-    /** Who this trip is for — preferred in card titles over T-####. */
-    client_name?: string | null
-    payload_summary?: string | null
-    ready_label?: string | null
-    service_pattern?: string | null
-    forklift_required?: boolean
-    forklift_recommended?: boolean
-    quick?: { po?: string; client_name?: string } | null
-    legs: Array<{ status: string }>
-    offers?: Array<{
-      id: string
-      operator_name: string
-      state: string
-      ping_sent_at?: string | null
-      notified_at?: string | null
-      declined_acked_at?: string | null
-      replied_at?: string | null
-      magic_token?: string
-      price_net?: number | null
-      time_to_position_min?: number | null
-      quick_turn_min?: number | null
-      live_leg_min?: number | null
-      fee_scope?: string | null
-      type_name?: string | null
-      tail?: string | null
-      contact_email?: string | null
-      contact_cell?: string | null
-      contact_cell_is_mock?: boolean
-      quote_link_channel?: string | null
-    }>
-  }>
+  trips: TripInput[]
 }): DispatchDrawerBucket {
   const out = emptyBuckets()
 
@@ -209,11 +312,9 @@ export function buildDispatchDrawers(input: {
   }
 
   for (const t of input.trips) {
-    const drawer = drawerForTripState(t.state)
+    const drawer = exclusiveDrawerForTrip(t)
     if (!drawer) continue
-    const legsDone = t.legs.filter((l) => l.status === 'done').length
-    const legBit = t.legs.length ? ` · ${legsDone}/${t.legs.length} legs` : ''
-    const po = t.quick?.po ? ` · PO ${t.quick.po}` : ''
+
     const client = (
       t.client_name ||
       t.quick?.client_name ||
@@ -222,123 +323,124 @@ export function buildDispatchDrawers(input: {
     const code = (t.code ?? '').trim().toUpperCase()
     const tripIdLabel = code || `T-${t.ref}`
     const tripTitle = client
-      ? `${client} · ${t.lane}${po}`
-      : `Client TBD · ${t.lane}${po}`
-    const recipients: DispatchRecipient[] = (t.offers ?? []).map((o) => {
-      const status = offerRecipientStatus(o.state)
-      const token = o.magic_token ?? ''
-      const notified = Boolean(o.notified_at)
-      const declined_acked =
-        status === 'no' && Boolean(o.declined_acked_at)
-      const dest = describeOfferDestination(o)
-      const atIso = notified ? o.notified_at : o.ping_sent_at
-      const sent = formatOfferSentAt(atIso, Date.now(), notified ? 'notified' : 'link')
-      return {
-        offer_id: o.id,
-        name: o.operator_name,
-        status,
-        status_label: declined_acked
-          ? 'unavailable'
-          : offerRecipientStatusLabel(status, { notified }),
-        quote_summary: formatOfferQuoteSummary(o),
-        quote_facts: offerQuoteFacts(o),
-        sent_at: atIso ?? null,
-        sent_label: sent?.display ?? null,
-        destination_summary: dest.summary,
-        destination_gaps: dest.gaps,
-        notified,
-        declined_acked,
-        magic_token: token,
-        href: token
-          ? `/offer/${token}`
-          : `/dispatch?drawer=${drawer ?? 'offers'}&focus=${t.id}`,
-      }
-    })
-    const stayOnDispatch =
-      t.state === 'offers_out' || t.state === 'quoted_hard'
-    const payload = (t.payload_summary ?? '').trim()
-    const ready = (t.ready_label ?? '').trim()
-    const offerSubtitle =
-      t.state === 'offers_out' || t.state === 'quoted_hard'
-        ? tripIdLabel
-        : `${tripStateLabel(t.state)} · ${tripIdLabel}${
-            t.quick ? ' · quick' : ''
-          }${legBit}`
+      ? `${client} · ${t.lane}`
+      : `Client TBD · ${t.lane}`
+    const chips = missionChips(t)
     const quoteableOffers = (t.offers ?? []).filter(
       (o) =>
         (o.state === 'quoted' || o.state === 'selected') &&
         o.price_net != null,
     )
-    // Approve lives on Submitted quotes / Quotes to clients — not Offers.
-    const tripApprovable =
-      quoteableOffers.length > 0 &&
-      (t.state === 'quoted_hard' ||
-        t.state === 'quoted_estimated' ||
-        t.state === 'lost')
-    const chips: string[] = []
-    if (t.service_pattern) chips.push(t.service_pattern)
-    if (t.forklift_required) chips.push('forklift required')
-    else if (t.forklift_recommended) chips.push('forklift recommended')
-    if (
-      t.service_pattern === 'D2D' ||
-      t.service_pattern === 'D2A' ||
-      t.service_pattern === 'A2D'
-    ) {
-      chips.push('ground courier')
+
+    // —— Submitted quotes: trip leaves Offers; show quoted operators only ——
+    if (drawer === 'submitted_quotes') {
+      const quotedRecipients = mapRecipients(t, drawer, { quotedOnly: true })
+      out.submitted_quotes.push({
+        kind: 'trip',
+        id: t.id,
+        title: tripTitle,
+        subtitle: [
+          tripIdLabel,
+          `${quoteableOffers.length} quote${quoteableOffers.length === 1 ? '' : 's'}`,
+        ].join(' · '),
+        href: `/dispatch?drawer=submitted_quotes&focus=${t.id}`,
+        ref: t.ref,
+        state: t.state,
+        recipients: quotedRecipients,
+        trip_id: t.id,
+        deletable: true,
+        approvable: quoteableOffers.length > 0,
+        approve_offer_id: quoteableOffers.find((o) => o.state === 'selected')?.id,
+        chips,
+      })
+      continue
     }
+
+    const selectedOffer =
+      (t.offers ?? []).find((o) => o.state === 'selected') ??
+      (t.offers ?? []).find((o) => o.state === 'quoted')
+    const hqOpt =
+      t.hard_quote?.options?.find((o) => o.offer_id === selectedOffer?.id) ??
+      t.hard_quote?.options?.[0]
+
+    const booking =
+      drawer === 'approved'
+        ? {
+            operator_name:
+              selectedOffer?.operator_name?.trim() ||
+              hqOpt?.operator_name?.trim() ||
+              t.quick?.operator_name?.trim() ||
+              null,
+            type_name:
+              selectedOffer?.type_name?.trim() ||
+              hqOpt?.type_name?.trim() ||
+              t.quick?.aircraft_type?.trim() ||
+              null,
+            tail:
+              (selectedOffer?.tail?.trim() && selectedOffer.tail !== 'TBD'
+                ? selectedOffer.tail.trim()
+                : null) ||
+              (hqOpt?.tail?.trim() && hqOpt.tail !== 'TBD'
+                ? hqOpt.tail.trim()
+                : null) ||
+              t.quick?.tail?.trim() ||
+              null,
+            client_total: hqOpt?.client_total ?? t.hard_quote?.total ?? null,
+            po: t.po_number?.trim() || t.quick?.po?.trim() || null,
+          }
+        : null
+
+    let subtitle = tripIdLabel
+    if (drawer === 'approved') {
+      subtitle = [
+        'Approved',
+        tripIdLabel,
+        booking?.type_name,
+        booking?.tail,
+        booking?.client_total != null
+          ? `$${Math.round(booking.client_total).toLocaleString('en-US')}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    } else if (drawer === 'tracking') {
+      subtitle = ['Live', tripIdLabel].join(' · ')
+    } else if (drawer === 'quotes') {
+      subtitle = [
+        tripIdLabel,
+        quoteableOffers.length
+          ? `${quoteableOffers.length} option${quoteableOffers.length === 1 ? '' : 's'}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    }
+
+    const recipients =
+      drawer === 'offers'
+        ? mapRecipients(t, drawer)
+        : drawer === 'quotes'
+          ? mapRecipients(t, drawer, { quotedOnly: true })
+          : undefined
+
     out[drawer].push({
       kind: 'trip',
       id: t.id,
       title: tripTitle,
-      subtitle: offerSubtitle,
-      href: stayOnDispatch
-        ? `/dispatch?drawer=${drawer}&focus=${t.id}`
-        : `/trips/${t.id}`,
+      subtitle,
+      href: `/dispatch?drawer=${drawer}&focus=${t.id}`,
       ref: t.ref,
       state: t.state,
-      recipients:
-        t.state === 'offers_out' || t.state === 'quoted_hard'
-          ? recipients
-          : undefined,
+      recipients,
       trip_id: t.id,
-      payload_summary: payload || null,
-      ready_label: ready || null,
-      deletable: true,
-      approvable: tripApprovable,
+      // Delete only while still shaping the mission — not after book / live.
+      deletable: drawer === 'offers' || drawer === 'quotes',
+      // Approve from Submitted quotes or Quotes to clients — never Offers / Approved / Tracking.
+      approvable: drawer === 'quotes' && quoteableOffers.length > 0,
       approve_offer_id: quoteableOffers.find((o) => o.state === 'selected')?.id,
-      chips: chips.length ? chips : undefined,
+      chips: drawer === 'tracking' ? undefined : chips,
+      booking,
     })
-
-    // Submitted quotes waterfall — each quoted operator as its own card.
-    if (t.state === 'offers_out' || t.state === 'quoted_hard') {
-      for (const o of t.offers ?? []) {
-        if (o.state !== 'quoted' && o.state !== 'selected') continue
-        const facts = offerQuoteFacts(o)
-        const tripBits = [
-          client || null,
-          t.lane,
-          payload || null,
-          ready || null,
-          tripIdLabel,
-        ].filter(Boolean)
-        out.submitted_quotes.push({
-          kind: 'offer_quote',
-          id: o.id,
-          title: o.operator_name,
-          subtitle: tripBits.join(' · '),
-          href: `/dispatch?drawer=quotes&focus=${t.id}`,
-          ref: t.ref,
-          trip_id: t.id,
-          payload_summary: payload || null,
-          ready_label: ready || null,
-          quote_facts: facts,
-          deletable: true,
-          approvable: o.price_net != null,
-          approve_offer_id: o.id,
-          chips: chips.length ? chips : undefined,
-        })
-      }
-    }
   }
 
   return out

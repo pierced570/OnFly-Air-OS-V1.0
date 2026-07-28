@@ -19,7 +19,7 @@ import {
   standDownBody,
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
-import { appPublicUrl } from '@/lib/appUrl'
+import { absoluteAppUrl, appPublicUrl } from '@/lib/appUrl'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
 import { clientTotalForOffer } from '@/lib/offerPricing'
@@ -524,6 +524,41 @@ async function applyOfferQuote(
   )
   applyOfferTtpToTrip(tripId, offerId, input.time_to_position_min)
   await flushPersistTrip(tripId)
+
+  // Operator-submitted quote (magic link from SMS or email) → alert desk RC.
+  if (meta.source === 'operator') {
+    try {
+      const { createCommsAdapter } = await import('@/adapters/comms')
+      const { BRAND_PHONE_E164 } = await import('@/domain/brand')
+      const { quoteSubmittedDeskSms } = await import('@/domain/offers')
+      const fresh = getTrip(tripId)!
+      const o = fresh.offers.find((x) => x.id === offerId)
+      const body = quoteSubmittedDeskSms(o?.operator_name || meta.actor, {
+        lane: fresh.lane,
+        tripCode: (fresh.code ?? '').trim() || `T-${fresh.ref}`,
+      })
+      await createCommsAdapter().send({
+        channel: 'sms',
+        to: BRAND_PHONE_E164,
+        body,
+      })
+      mutateTrip(tripId, (t) => {
+        t.events.push({
+          at: new Date().toISOString(),
+          actor: 'system',
+          kind: 'desk_quote_alert_sms',
+          payload: {
+            offer_id: offerId,
+            operator_name: o?.operator_name || meta.actor,
+            to: BRAND_PHONE_E164,
+          },
+        })
+      })
+    } catch (e) {
+      console.warn('[quote] desk alert SMS failed', e)
+    }
+  }
+
   return getTrip(tripId)!
 }
 
@@ -727,82 +762,79 @@ export async function selectOffersAndHardQuote(
   if (notifyClient) {
     const comms = createCommsAdapter()
     const email = createEmailAdapter()
-    const { logisticsQuoteTitle } = await import('@/domain/clientLogisticsQuote')
-    const { formatMinutes } = await import('@/domain/offerQuotePreview')
-    const title = logisticsQuoteTitle(trip.lane)
-    const optionLines = options
-      .map((o) => {
-        const type = o.type_name?.trim() || 'Aircraft'
-        return [
-          `${o.label}: ${type}`,
-          `Time to position from Go: ${formatMinutes(o.time_to_position_min ?? null)}`,
-          `Loading + turn around: ${formatMinutes(o.quick_turn_min ?? null)}`,
-          `Live leg: ${formatMinutes(o.live_leg_min ?? null)}`,
-          `Price: $${o.client_total.toFixed(0)} (all taxes and fees included)`,
-        ].join('\n')
-      })
+    const {
+      buildLogisticsQuoteOption,
+      laneEndpoints,
+      logisticsQuoteTitle,
+    } = await import('@/domain/clientLogisticsQuote')
+    const {
+      logisticsQuoteEmailSubject,
+      renderLogisticsQuoteEmailHtml,
+      renderLogisticsQuoteEmailText,
+    } = await import('@/domain/logisticsQuoteEmail')
+    const { resolveBrandLogoUrl } = await import('@/lib/clientInviteEmail')
+    const { DEFAULT_QUICK_TURN_MIN } = await import('@/domain/offerQuoteTiming')
+    const ends = laneEndpoints(trip.lane)
+    const emailTitle = 'Charter Quote'
+    const smsTitle = logisticsQuoteTitle(trip.lane)
+    const logisticsOptions = options.map((o) =>
+      buildLogisticsQuoteOption({
+        offer_id: o.offer_id,
+        label: o.label,
+        type_name: o.type_name,
+        time_to_position_min: o.time_to_position_min,
+        quick_turn_min: o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
+        live_leg_min: o.live_leg_min,
+        client_total: o.client_total,
+        lane: trip.lane,
+        goAtIso: sentAt,
+      }),
+    )
+    const acceptPath = `/accept/${accept_token}`
+    const acceptUrl = absoluteAppUrl(acceptPath)
+    const optionLines = logisticsOptions
+      .map((o) =>
+        [
+          `${o.label}: ${o.aircraft_type}`,
+          `Ready at ${o.departure_label}: ${o.position_eta.duration}`,
+          `Live leg: ${o.arrival_eta.duration}`,
+          `Price: $${o.price.toLocaleString('en-US')} (all taxes and fees included)`,
+        ].join('\n'),
+      )
       .join('\n\n')
 
     for (const cell of recipientCells(trip)) {
       await comms.send({
         channel: 'sms',
         to: cell,
-        body: `OnFly ${title}\n\n${optionLines}\n\nAccept: /accept/${accept_token}`,
+        body: `OnFly ${smsTitle}\n\n${optionLines}\n\nAccept: ${acceptPath}`,
       })
     }
 
-    const primaryOffer = selectedOffers[0]!
-    const selectedCand =
-      trip.candidates.find((c) => c.aircraft_id === primaryOffer.aircraft_id) ??
-      trip.candidates.find((c) => c.tail === primaryOffer.tail) ??
-      trip.candidates[0]
-    let brandedSent = false
-    if (selectedCand?.chain?.length && recipients.length) {
-      try {
-        const { sendEstimatedQuote } = await import('@/lib/sendEstimatedQuote')
-        const { laneEndpoints } = await import('@/domain/clientLogisticsQuote')
-        const ends = laneEndpoints(trip.lane)
-        await sendEstimatedQuote({
-          originLabel: ends.originLabel,
-          destLabel: ends.destLabel,
-          readyLabel: trip.ready_label,
-          payloadKind: kind,
-          candidates: trip.candidates,
-          selected: selectedCand,
-          airSubtotal: primaryTotal,
-          total: primaryTotal,
-          taxLines: [],
-          clientId: trip.client_id,
-          kind: 'hard',
-          acceptUrl: `/accept/${accept_token}`,
-          tripId,
-          to: recipients,
-          cc: ccEmails,
-          bcc: bccEmails,
-        })
-        brandedSent = true
-      } catch (e) {
-        console.warn('[hard quote] branded email skipped', e)
+    if (recipients.length) {
+      const emailPayload = {
+        title: emailTitle,
+        originLabel: ends.originLabel,
+        destLabel: ends.destLabel,
+        options: logisticsOptions,
+        acceptUrl,
+        logoUrl: resolveBrandLogoUrl(),
+        disclosureText:
+          kind === 'pax' || kind === 'both'
+            ? DISCLOSURE_295_24_TEMPLATE
+            : null,
+        refLabel: (trip.code ?? '').trim() || `T-${trip.ref}`,
       }
-    }
-
-    if (recipients.length && !brandedSent) {
       const [primary, ...restTo] = recipients
       await email.send({
         to: primary!,
         cc: [...restTo, ...ccEmails],
         bcc: bccEmails,
-        subject: `OnFly Air — ${title}`,
+        subject: logisticsQuoteEmailSubject(emailPayload),
+        html: renderLogisticsQuoteEmailHtml(emailPayload),
         text: [
-          title,
-          'Operated by a vetted Part 135 carrier',
-          '',
-          optionLines,
-          '',
-          `Review & respond: /accept/${accept_token}`,
+          renderLogisticsQuoteEmailText(emailPayload),
           trip.po_number ? `PO: ${trip.po_number}` : '',
-          '',
-          'Questions? Reply or call 858-529-7860.',
         ]
           .filter(Boolean)
           .join('\n'),

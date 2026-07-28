@@ -146,6 +146,7 @@ export function hasSection(
 export function sectionForPath(pathname: string): StaffSectionId | null {
   if (pathname.startsWith('/admin/keys')) return 'vault_keys'
   if (pathname.startsWith('/admin/staff')) return 'staff_access'
+  if (pathname.startsWith('/admin/portal-access')) return 'clients'
   if (pathname.startsWith('/admin/tasks')) return 'tasks'
   if (pathname.startsWith('/admin')) return 'admin'
   if (pathname.startsWith('/quick-dispatch')) return 'quick_dispatch'

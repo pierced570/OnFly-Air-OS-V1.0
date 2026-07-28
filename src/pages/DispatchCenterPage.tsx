@@ -15,6 +15,7 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { BookedTripActionsPanel } from '@/components/BookedTripActionsPanel'
+import { LiveTrackingCardActions } from '@/components/LiveTrackingCardActions'
 import { DeskOfferQuoteWorkbench } from '@/components/DeskOfferQuoteWorkbench'
 import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
 import { OfferQuoteFactsBlock } from '@/components/OfferQuoteFactsBlock'
@@ -141,6 +142,7 @@ function CardList({
   onApproveCard,
   approvingId,
   showBookedActions,
+  showTrackingActions,
 }: {
   cards: DispatchCard[]
   onDeleteCard: (card: DispatchCard) => void
@@ -148,6 +150,8 @@ function CardList({
   approvingId?: string | null
   /** Approved drawer — invoice + ETA sheet actions. */
   showBookedActions?: boolean
+  /** Live tracking — portal link + Access chat only. */
+  showTrackingActions?: boolean
 }) {
   if (!cards.length) {
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
@@ -156,29 +160,30 @@ function CardList({
     <ul className="space-y-2">
       {cards.map((c) => {
         const tripId = c.trip_id ?? (c.kind === 'trip' ? c.id : undefined)
-        const isSubmittedQuote = c.kind === 'offer_quote'
+        const stayOnCard = Boolean(showBookedActions || showTrackingActions)
         return (
         <li
           key={`${c.kind}-${c.id}`}
+          id={tripId ? `offer-trip-${tripId}` : undefined}
           className="rounded-md border border-border/70 bg-ink px-3 py-3"
         >
           <div className="flex items-stretch gap-2">
             <div className="min-w-0 flex-1">
-              <Link to={c.href} className="block hover:opacity-90">
-                <div className="font-medium text-cream">
-                  {c.title}
-                  {isSubmittedQuote ? (
-                    <span className="ml-2 text-xs font-medium text-onplan">
-                      Quote submitted
-                    </span>
-                  ) : null}
+              {stayOnCard ? (
+                <div>
+                  <div className="font-medium text-cream">{c.title}</div>
+                  <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
                 </div>
-                <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-              </Link>
-              {isSubmittedQuote && c.quote_facts ? (
-                <OfferQuoteFactsBlock facts={c.quote_facts} />
-              ) : null}
-              {c.chips?.length ? (
+              ) : (
+                <Link
+                  to={c.href}
+                  className="block hover:opacity-90"
+                >
+                  <div className="font-medium text-cream">{c.title}</div>
+                  <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
+                </Link>
+              )}
+              {c.chips?.length && !showTrackingActions ? (
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {c.chips.map((chip) => (
                     <span
@@ -197,35 +202,89 @@ function CardList({
                   ))}
                 </div>
               ) : null}
-            </div>
-            <div className="flex shrink-0 flex-col justify-center gap-1">
-              {c.approvable ? (
-                <button
-                  type="button"
-                  aria-label={`Approve trip ${c.title}`}
-                  title="Approve trip"
-                  disabled={approvingId === c.id}
-                  onClick={() => onApproveCard(c)}
-                  className="rounded-md bg-gold/20 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/30 disabled:opacity-40"
-                >
-                  {approvingId === c.id ? 'Approving…' : 'Approve trip'}
-                </button>
+              {showBookedActions && c.booking ? (
+                <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+                  {c.booking.operator_name ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        Operator
+                      </dt>
+                      <dd className="text-cream">{c.booking.operator_name}</dd>
+                    </div>
+                  ) : null}
+                  {c.booking.type_name ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        Aircraft
+                      </dt>
+                      <dd className="text-cream">{c.booking.type_name}</dd>
+                    </div>
+                  ) : null}
+                  {c.booking.tail ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        Tail
+                      </dt>
+                      <dd className="avionic text-cream">{c.booking.tail}</dd>
+                    </div>
+                  ) : null}
+                  {c.booking.client_total != null ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        Client total
+                      </dt>
+                      <dd className="avionic text-gold">
+                        $
+                        {Math.round(c.booking.client_total).toLocaleString(
+                          'en-US',
+                        )}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {c.booking.po ? (
+                    <div>
+                      <dt className="text-[11px] uppercase tracking-wider text-muted">
+                        PO
+                      </dt>
+                      <dd className="avionic text-cream">{c.booking.po}</dd>
+                    </div>
+                  ) : null}
+                </dl>
               ) : null}
-              {c.deletable ? (
-                <button
-                  type="button"
-                  aria-label={`Delete ${c.title}`}
-                  title="Delete"
-                  onClick={() => onDeleteCard(c)}
-                  className="px-2.5 py-1 text-xs text-muted hover:text-late"
-                >
-                  Delete
-                </button>
-              ) : null}
             </div>
+            {!showTrackingActions ? (
+              <div className="flex shrink-0 flex-col justify-center gap-1">
+                {c.approvable ? (
+                  <button
+                    type="button"
+                    aria-label={`Approve trip ${c.title}`}
+                    title="Approve trip"
+                    disabled={approvingId === c.id}
+                    onClick={() => onApproveCard(c)}
+                    className="rounded-md bg-gold/20 px-2.5 py-1.5 text-xs font-medium text-gold hover:bg-gold/30 disabled:opacity-40"
+                  >
+                    {approvingId === c.id ? 'Approving…' : 'Approve trip'}
+                  </button>
+                ) : null}
+                {c.deletable ? (
+                  <button
+                    type="button"
+                    aria-label={`Delete ${c.title}`}
+                    title="Delete"
+                    onClick={() => onDeleteCard(c)}
+                    className="px-2.5 py-1 text-xs text-muted hover:text-late"
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {showBookedActions && tripId ? (
             <BookedTripActionsPanel tripId={tripId} />
+          ) : null}
+          {showTrackingActions && tripId ? (
+            <LiveTrackingCardActions tripId={tripId} />
           ) : null}
         </li>
         )
@@ -358,8 +417,8 @@ function OfferUpdateForm({
 
 function OfferTripList({
   cards,
-  variant = 'quotes',
   focusTripId,
+  mode = 'offers',
   onAcknowledgeDeclined,
   onDeleteCard,
   onDeleteOffer,
@@ -368,9 +427,9 @@ function OfferTripList({
   approvingId,
 }: {
   cards: DispatchCard[]
-  /** Offers = sent-to list; quotes = pricing / approve workbench. */
-  variant?: 'offers' | 'quotes'
   focusTripId?: string | null
+  /** offers = send; submitted = quotes in; quotes = client price/send */
+  mode?: 'offers' | 'submitted' | 'quotes'
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
   onDeleteCard: (card: DispatchCard) => void
   onDeleteOffer: (tripId: string, offerId: string, name: string) => void
@@ -378,26 +437,28 @@ function OfferTripList({
   onApproveOffer: (tripId: string, offerId: string, name: string) => void
   approvingId?: string | null
 }) {
-  const isOffers = variant === 'offers'
+  const isQuotes = mode === 'quotes'
+  const isOffers = mode === 'offers'
+  const isSubmitted = mode === 'submitted'
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null)
   const [addingTripId, setAddingTripId] = useState<string | null>(null)
   const [searchParams] = useSearchParams()
   const [quotingTripId, setQuotingTripId] = useState<string | null>(
-    () => (!isOffers ? focusTripId ?? null : null),
+    () => (isQuotes || isSubmitted ? (focusTripId ?? null) : null),
   )
   const [updateError, setUpdateError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!focusTripId) return
-    if (!isOffers) setQuotingTripId(focusTripId)
-    if (searchParams.get('update') === '1') {
+    if (isQuotes || isSubmitted) setQuotingTripId(focusTripId)
+    if (isOffers && searchParams.get('update') === '1') {
       setUpdatingTripId(focusTripId)
       setAddingTripId(null)
-    } else if (searchParams.get('add') === '1') {
+    } else if (isOffers && searchParams.get('add') === '1') {
       setAddingTripId(focusTripId)
       setUpdatingTripId(null)
     }
-  }, [focusTripId, searchParams, isOffers])
+  }, [focusTripId, searchParams, isQuotes, isSubmitted, isOffers])
 
   // Clear inline panels when the trip disappears (delete / hydrate race).
   useEffect(() => {
@@ -419,9 +480,7 @@ function OfferTripList({
         const focused = Boolean(focusTripId && c.trip_id === focusTripId)
         const editing = Boolean(c.trip_id && updatingTripId === c.trip_id)
         const adding = Boolean(c.trip_id && addingTripId === c.trip_id)
-        const quoting = Boolean(
-          !isOffers && c.trip_id && quotingTripId === c.trip_id,
-        )
+        const quoting = Boolean(c.trip_id && quotingTripId === c.trip_id)
         return (
           <li
             key={`${c.kind}-${c.id}`}
@@ -436,17 +495,8 @@ function OfferTripList({
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-medium text-cream">{c.title}</div>
-                {isOffers && c.payload_summary?.trim() ? (
-                  <div className="mt-0.5 text-sm text-cream/85">
-                    {c.payload_summary.trim()}
-                  </div>
-                ) : null}
                 <div className="mt-0.5 font-mono text-sm text-gold/90">
-                  {isOffers
-                    ? [c.ready_label?.trim(), c.subtitle]
-                        .filter(Boolean)
-                        .join(' · ')
-                    : c.subtitle}
+                  {c.subtitle}
                 </div>
                 {c.chips?.length ? (
                   <div className="mt-1.5 flex flex-wrap gap-1">
@@ -470,7 +520,7 @@ function OfferTripList({
                 ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {!isOffers && c.approvable ? (
+                {c.approvable ? (
                   <button
                     type="button"
                     disabled={approvingId === c.id}
@@ -491,143 +541,121 @@ function OfferTripList({
                 ) : null}
               </div>
             </div>
-
-            {c.recipients && c.recipients.length > 0 ? (
-              <div className="mt-3 border-t border-border/50 pt-2">
+            {c.recipients &&
+            c.recipients.length > 0 &&
+            !((isQuotes || isSubmitted) && quoting) ? (
+              <ul className="mt-2 space-y-3 border-t border-border/50 pt-2">
                 {isOffers ? (
-                  <div className="mb-1.5 text-[11px] uppercase tracking-wider text-muted">
-                    Sent to
-                  </div>
-                ) : null}
-                <ul className={isOffers ? 'space-y-1.5' : 'space-y-3'}>
-                  {c.recipients.map((r) =>
-                    r.declined_acked ? (
-                      <li
-                        key={r.offer_id}
-                        className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
-                      >
-                        <span className="text-cream/80">{r.name}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-muted">unavailable</span>
-                          {c.trip_id ? (
-                            <button
-                              type="button"
-                              className="text-xs text-muted hover:text-late"
-                              onClick={() =>
-                                onDeleteOffer(c.trip_id!, r.offer_id, r.name)
-                              }
-                            >
-                              Remove
-                            </button>
-                          ) : null}
-                        </div>
-                      </li>
-                    ) : isOffers ? (
-                      <li
-                        key={r.offer_id}
-                        className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-0.5 py-1 text-sm"
-                      >
-                        <div className="min-w-0">
-                          <span className="font-medium text-cream">{r.name}</span>
-                          {r.destination_summary ? (
-                            <span className="ml-2 text-xs text-muted">
-                              {r.destination_summary}
+                  <>
+                    <li className="px-0.5 text-[11px] uppercase tracking-wider text-muted">
+                      Sent to
+                    </li>
+                    {c.recipients.map((r) =>
+                      r.declined_acked ? (
+                        <li
+                          key={r.offer_id}
+                          className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
+                        >
+                          <span className="text-cream/80">{r.name}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-muted">unavailable</span>
+                            {c.trip_id ? (
+                              <button
+                                type="button"
+                                className="text-xs text-muted hover:text-late"
+                                onClick={() =>
+                                  onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                                }
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </li>
+                      ) : (
+                        <li
+                          key={r.offer_id}
+                          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-0.5 py-1 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-medium text-cream">
+                              {r.name}
                             </span>
-                          ) : null}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span
-                            className={`font-medium ${recipientTone(r.status)}`}
-                          >
-                            {r.status_label}
-                          </span>
-                          {r.sent_label ? (
-                            <span className="font-mono text-muted">
-                              {r.sent_label}
+                            {r.destination_summary ? (
+                              <span className="ml-2 text-xs text-muted">
+                                {r.destination_summary}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span
+                              className={`font-medium ${recipientTone(r.status)}`}
+                            >
+                              {r.status_label}
                             </span>
-                          ) : null}
-                          {r.status === 'no' && c.trip_id ? (
+                            {r.sent_label ? (
+                              <span className="font-mono text-muted">
+                                {r.sent_label}
+                              </span>
+                            ) : null}
+                            {r.status === 'no' && c.trip_id ? (
+                              <button
+                                type="button"
+                                className="font-medium text-gold hover:text-gold-lt"
+                                onClick={() =>
+                                  onAcknowledgeDeclined(
+                                    c.trip_id!,
+                                    r.offer_id,
+                                  )
+                                }
+                              >
+                                Acknowledge
+                              </button>
+                            ) : null}
                             <button
                               type="button"
-                              className="font-medium text-gold hover:text-gold-lt"
-                              onClick={() =>
-                                onAcknowledgeDeclined(c.trip_id!, r.offer_id)
-                              }
+                              className="text-muted hover:text-cream"
+                              onClick={() => {
+                                const url = absoluteAppUrl(r.href)
+                                void navigator.clipboard?.writeText(url)
+                              }}
                             >
-                              Acknowledge
+                              Copy link
                             </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            className="text-muted hover:text-cream"
-                            onClick={() => {
-                              const url = absoluteAppUrl(r.href)
-                              void navigator.clipboard?.writeText(url)
-                            }}
-                          >
-                            Copy link
-                          </button>
-                          {c.trip_id ? (
-                            <button
-                              type="button"
-                              className="text-muted hover:text-late"
-                              onClick={() =>
-                                onDeleteOffer(c.trip_id!, r.offer_id, r.name)
-                              }
-                            >
-                              Remove
-                            </button>
-                          ) : null}
-                        </div>
-                      </li>
-                    ) : (
+                            {c.trip_id ? (
+                              <button
+                                type="button"
+                                className="text-muted hover:text-late"
+                                onClick={() =>
+                                  onDeleteOffer(c.trip_id!, r.offer_id, r.name)
+                                }
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </li>
+                      ),
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <li className="px-0.5 text-[11px] uppercase tracking-wider text-muted">
+                      {isSubmitted
+                        ? 'Operator quotes submitted'
+                        : 'Options for client'}
+                    </li>
+                    {c.recipients.map((r) => (
                       <li key={r.offer_id} className="px-0.5 py-1">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                           <span className="font-medium text-cream">{r.name}</span>
-                          <span
-                            className={`text-xs font-medium ${recipientTone(r.status)}`}
-                          >
-                            {r.status_label}
-                          </span>
-                        </div>
-                        {r.sent_label ? (
-                          <div className="mt-1 font-mono text-[11px] text-muted">
-                            {r.sent_label}
-                          </div>
-                        ) : (
-                          <div className="mt-1 text-[11px] text-muted">
-                            Link not created yet
-                          </div>
-                        )}
-                        {!quoting && r.quote_facts ? (
-                          <OfferQuoteFactsBlock facts={r.quote_facts} />
-                        ) : null}
-                        <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
-                          {r.status === 'no' && c.trip_id ? (
-                            <button
-                              type="button"
-                              className="font-medium text-gold hover:text-gold-lt"
-                              onClick={() =>
-                                onAcknowledgeDeclined(c.trip_id!, r.offer_id)
-                              }
-                            >
-                              Acknowledge
-                            </button>
-                          ) : null}
-                          {(r.status === 'quote_submitted' ||
-                            r.status === 'selected') &&
-                          r.quote_facts &&
-                          c.trip_id ? (
+                          {c.trip_id && r.quote_facts ? (
                             <button
                               type="button"
                               disabled={approvingId === r.offer_id}
-                              className="font-medium text-gold hover:text-gold-lt disabled:opacity-40"
+                              className="text-xs font-medium text-gold hover:text-gold-lt disabled:opacity-40"
                               onClick={() =>
-                                onApproveOffer(
-                                  c.trip_id!,
-                                  r.offer_id,
-                                  r.name,
-                                )
+                                onApproveOffer(c.trip_id!, r.offer_id, r.name)
                               }
                             >
                               {approvingId === r.offer_id
@@ -635,39 +663,24 @@ function OfferTripList({
                                 : 'Approve trip'}
                             </button>
                           ) : null}
-                          <button
-                            type="button"
-                            className="text-muted hover:text-cream"
-                            onClick={() => {
-                              const url = absoluteAppUrl(r.href)
-                              void navigator.clipboard?.writeText(url)
-                            }}
-                          >
-                            Copy link
-                          </button>
-                          {c.trip_id ? (
-                            <button
-                              type="button"
-                              className="text-muted hover:text-late"
-                              onClick={() =>
-                                onDeleteOffer(c.trip_id!, r.offer_id, r.name)
-                              }
-                            >
-                              Delete
-                            </button>
-                          ) : null}
                         </div>
+                        {r.quote_facts ? (
+                          <OfferQuoteFactsBlock facts={r.quote_facts} />
+                        ) : (
+                          <div className="mt-1 text-[11px] text-muted">
+                            No quote facts yet
+                          </div>
+                        )}
                       </li>
-                    ),
-                  )}
-                </ul>
-              </div>
+                    ))}
+                  </>
+                )}
+              </ul>
             ) : isOffers ? (
               <p className="mt-3 text-sm text-muted">
-                Not sent to any operators yet.
+                Not sent to any operators yet — use Send to more operators.
               </p>
             ) : null}
-
             {editing && c.trip_id ? (
               <>
                 {updateError ? (
@@ -691,15 +704,37 @@ function OfferTripList({
                 onClose={() => setAddingTripId(null)}
               />
             ) : null}
-            {quoting && c.trip_id ? (
+            {quoting && (isQuotes || isSubmitted) && c.trip_id ? (
               <DeskOfferQuoteWorkbench
                 key={`quote-${c.trip_id}`}
                 tripId={c.trip_id}
                 onClose={() => setQuotingTripId(null)}
               />
             ) : null}
-
             <div className="mt-3 flex flex-wrap gap-2">
+              {(isQuotes || isSubmitted) && c.trip_id ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md px-3 py-2 text-xs font-semibold',
+                    quoting
+                      ? 'border border-gold/50 bg-gold/10 text-gold'
+                      : 'bg-gold text-ink hover:bg-gold-lt',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setAddingTripId(null)
+                    setUpdateError(null)
+                    setQuotingTripId(quoting ? null : c.trip_id!)
+                  }}
+                >
+                  {quoting
+                    ? 'Close compare'
+                    : isSubmitted
+                      ? 'Compare & price for client'
+                      : 'Compare & price quotes'}
+                </button>
+              ) : null}
               {isOffers && c.trip_id ? (
                 <button
                   type="button"
@@ -719,45 +754,7 @@ function OfferTripList({
                   {adding ? 'Close send' : 'Send to more operators'}
                 </button>
               ) : null}
-              {!isOffers && c.trip_id ? (
-                <button
-                  type="button"
-                  className={[
-                    'rounded-md px-2.5 py-1.5 text-xs font-medium',
-                    quoting
-                      ? 'bg-gold text-ink'
-                      : 'bg-gold/15 text-gold hover:bg-gold/25',
-                  ].join(' ')}
-                  onClick={() => {
-                    setUpdatingTripId(null)
-                    setAddingTripId(null)
-                    setUpdateError(null)
-                    setQuotingTripId(quoting ? null : c.trip_id!)
-                  }}
-                >
-                  {quoting ? 'Close quotes' : 'Quotes & pricing'}
-                </button>
-              ) : null}
-              {!isOffers && c.trip_id ? (
-                <button
-                  type="button"
-                  className={[
-                    'rounded-md border px-2.5 py-1.5 text-xs',
-                    adding
-                      ? 'border-gold/50 bg-gold/10 text-gold'
-                      : 'border-border text-cream hover:border-gold/40',
-                  ].join(' ')}
-                  onClick={() => {
-                    setUpdatingTripId(null)
-                    setQuotingTripId(null)
-                    setUpdateError(null)
-                    setAddingTripId(adding ? null : c.trip_id!)
-                  }}
-                >
-                  {adding ? 'Close send' : 'Send to new operator'}
-                </button>
-              ) : null}
-              {c.trip_id ? (
+              {isOffers && c.trip_id ? (
                 <button
                   type="button"
                   className={[
@@ -824,7 +821,9 @@ export default function DispatchCenterPage() {
       !focusTripId ||
       (openDrawer !== 'offers' &&
         openDrawer !== 'quotes' &&
-        openDrawer !== 'submitted_quotes')
+        openDrawer !== 'submitted_quotes' &&
+        openDrawer !== 'approved' &&
+        openDrawer !== 'tracking')
     ) {
       return
     }
@@ -933,8 +932,6 @@ export default function DispatchCenterPage() {
             lane: t.lane,
             state: t.state,
             client_name,
-            payload_summary: t.payload_summary,
-            ready_label: t.ready_label,
             service_pattern: t.service_pattern,
             forklift_required: t.forklift_required,
             forklift_recommended: t.forklift_recommended,
@@ -1024,7 +1021,8 @@ export default function DispatchCenterPage() {
         <div className="min-w-0 space-y-1">
           <h1 className="text-2xl font-semibold text-cream">Dispatch center</h1>
           <p className="text-sm text-muted">
-            Requests → trip offers → submitted quotes → client quotes → approved
+            Requests → offers → submitted quotes → client quotes → approved →
+            live tracking. Each trip sits in only one stage.
             → live tracking. Open a drawer to work it.
           </p>
         </div>
@@ -1107,11 +1105,19 @@ export default function DispatchCenterPage() {
             (d.id === 'requests' || d.id === 'submitted_quotes')
           }
         >
-          {d.id === 'offers' || d.id === 'quotes' ? (
+          {d.id === 'offers' ||
+          d.id === 'quotes' ||
+          d.id === 'submitted_quotes' ? (
             <OfferTripList
               cards={buckets[d.id]}
-              variant={d.id === 'offers' ? 'offers' : 'quotes'}
               focusTripId={focusTripId}
+              mode={
+                d.id === 'quotes'
+                  ? 'quotes'
+                  : d.id === 'submitted_quotes'
+                    ? 'submitted'
+                    : 'offers'
+              }
               onAcknowledgeDeclined={(tripId, offerId) => {
                 void acknowledgeDeclinedOffer(tripId, offerId).catch((e) =>
                   console.warn('[dispatch] acknowledge declined', e),
@@ -1130,6 +1136,7 @@ export default function DispatchCenterPage() {
               onApproveCard={approveWaterfallCard}
               approvingId={approvingId}
               showBookedActions={d.id === 'approved'}
+              showTrackingActions={d.id === 'tracking'}
             />
           )}
         </Drawer>

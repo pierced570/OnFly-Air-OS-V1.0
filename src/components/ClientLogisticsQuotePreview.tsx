@@ -73,7 +73,7 @@ export function ClientLogisticsQuotePreview({
               <dl className="mt-3 space-y-3 text-sm">
                 <div>
                   <dt className="text-muted">
-                    Time to be in ({opt.departure_label}) from Go
+                    Aircraft ready for pickup at {opt.departure_label}
                   </dt>
                   <dd className="mt-0.5">
                     <div className="avionic text-base font-medium">
@@ -88,8 +88,21 @@ export function ClientLogisticsQuotePreview({
                 </div>
                 <div>
                   <dt className="text-muted">
-                    Estimated loading and turn around time
+                    Leg: {opt.departure_label} → {opt.destination_label}
                   </dt>
+                  <dd className="mt-0.5">
+                    <div className="avionic text-base font-medium">
+                      {opt.arrival_eta.duration}
+                    </div>
+                    {opt.arrival_eta.clock ? (
+                      <div className="avionic mt-0.5 text-sm text-muted">
+                        Est. arrival ~ {opt.arrival_eta.clock}
+                      </div>
+                    ) : null}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Loading / turn around</dt>
                   <dd className="mt-0.5">
                     <div className="avionic text-base font-medium">
                       {opt.etd.duration}
@@ -97,27 +110,6 @@ export function ClientLogisticsQuotePreview({
                     {opt.etd.clock ? (
                       <div className="avionic mt-0.5 text-sm text-muted">
                         ETD {opt.etd.clock}
-                      </div>
-                    ) : null}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted">
-                    Live leg time ({opt.departure_label} to{' '}
-                    {opt.destination_label})
-                  </dt>
-                  <dd className="mt-0.5">
-                    <div className="avionic text-base font-medium">
-                      {opt.arrival_eta.duration}
-                    </div>
-                    {opt.etd.clock ? (
-                      <div className="avionic mt-0.5 text-sm text-muted">
-                        ETD {opt.etd.clock}
-                      </div>
-                    ) : null}
-                    {opt.arrival_eta.clock ? (
-                      <div className="avionic mt-0.5 text-sm text-muted">
-                        ETA {opt.arrival_eta.clock}
                       </div>
                     ) : null}
                   </dd>

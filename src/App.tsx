@@ -9,6 +9,7 @@ const TripPage = lazy(() => import('@/pages/TripPage'))
 const AdminPage = lazy(() => import('@/pages/AdminPage'))
 const AdminTasksPage = lazy(() => import('@/pages/AdminTasksPage'))
 const StaffAccessPage = lazy(() => import('@/pages/StaffAccessPage'))
+const PortalAccessPage = lazy(() => import('@/pages/PortalAccessPage'))
 const VaultKeysPage = lazy(() => import('@/pages/VaultKeysPage'))
 const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
 const QuotePreviewPage = lazy(() => import('@/pages/QuotePreviewPage'))
@@ -131,6 +132,7 @@ export function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/tasks" element={<AdminTasksPage />} />
         <Route path="/admin/staff" element={<StaffAccessPage />} />
+        <Route path="/admin/portal-access" element={<PortalAccessPage />} />
         <Route path="/admin/keys" element={<VaultKeysPage />} />
         <Route path="/offer/:token" element={<OfferPublicPage />} />
         <Route path="/accept/:token" element={<AcceptPage />} />
