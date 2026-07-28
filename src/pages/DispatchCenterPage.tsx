@@ -993,27 +993,6 @@ export default function DispatchCenterPage() {
               onApproveOffer={approveOfferRow}
               approvingId={approvingId}
             />
-          ) : d.id === 'requests' ? (
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setTool('newtrip')}
-                className="w-full rounded-md border border-gold/40 bg-gold/10 px-3 py-2.5 text-left hover:bg-gold/15"
-              >
-                <div className="text-sm font-semibold text-gold">
-                  Start new request
-                </div>
-                <div className="mt-0.5 text-xs text-muted">
-                  Same form as the client portal — save into Trip requests, then quote
-                </div>
-              </button>
-              <CardList
-                cards={buckets[d.id]}
-                onDeleteCard={removeWaterfallCard}
-                onApproveCard={approveWaterfallCard}
-                approvingId={approvingId}
-              />
-            </div>
           ) : (
             <CardList
               cards={buckets[d.id]}
