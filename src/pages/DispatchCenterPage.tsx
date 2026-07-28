@@ -17,6 +17,7 @@ import { AirportSelect } from '@/components/AirportSelect'
 import { BookedTripActionsPanel } from '@/components/BookedTripActionsPanel'
 import { DeskOfferQuoteWorkbench } from '@/components/DeskOfferQuoteWorkbench'
 import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
+import { OfferQuoteFactsBlock } from '@/components/OfferQuoteFactsBlock'
 import {
   DISPATCH_DRAWERS,
   buildDispatchDrawers,
@@ -455,7 +456,7 @@ function OfferTripList({
               </div>
             </div>
             {c.recipients && c.recipients.length > 0 ? (
-              <ul className="mt-2 space-y-2 border-t border-border/50 pt-2">
+              <ul className="mt-2 space-y-3 border-t border-border/50 pt-2">
                 {c.recipients.map((r) =>
                   r.declined_acked ? (
                     <li
@@ -479,10 +480,7 @@ function OfferTripList({
                       </div>
                     </li>
                   ) : (
-                  <li
-                    key={r.offer_id}
-                    className="rounded-md border border-border/40 bg-surface/40 px-2.5 py-2"
-                  >
+                  <li key={r.offer_id} className="px-0.5 py-1">
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <span className="font-medium text-cream">{r.name}</span>
                       <span
@@ -500,10 +498,9 @@ function OfferTripList({
                         Link not created yet
                       </div>
                     )}
-                    {r.quote_summary ? (
-                      <div className="mt-1 font-mono text-xs text-cream/90">
-                        {r.quote_summary}
-                      </div>
+                    {/* When Quotes & pricing is open, facts live there — avoid duplicate boxes. */}
+                    {!quoting && r.quote_facts ? (
+                      <OfferQuoteFactsBlock facts={r.quote_facts} />
                     ) : null}
                     <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
                       {r.status === 'no' && c.trip_id ? (
@@ -519,7 +516,7 @@ function OfferTripList({
                       ) : null}
                       {(r.status === 'quote_submitted' ||
                         r.status === 'selected') &&
-                      r.quote_summary &&
+                      r.quote_facts &&
                       c.trip_id ? (
                         <button
                           type="button"
@@ -534,14 +531,6 @@ function OfferTripList({
                             : 'Approve trip'}
                         </button>
                       ) : null}
-                      <Link
-                        className="text-gold hover:text-gold-lt"
-                        to={r.href}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open offer link
-                      </Link>
                       <button
                         type="button"
                         className="text-muted hover:text-cream"

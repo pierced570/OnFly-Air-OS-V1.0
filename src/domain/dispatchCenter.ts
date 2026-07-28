@@ -9,8 +9,10 @@ import {
   describeOfferDestination,
   formatOfferQuoteSummary,
   formatOfferSentAt,
+  offerQuoteFacts,
   offerRecipientStatus,
   offerRecipientStatusLabel,
+  type OfferQuoteFacts,
   type OfferRecipientStatus,
 } from '@/domain/offerRecipients'
 export const DISPATCH_DRAWERS = [
@@ -54,6 +56,7 @@ export type DispatchRecipient = {
   status: OfferRecipientStatus
   status_label: string
   quote_summary: string | null
+  quote_facts: OfferQuoteFacts | null
   sent_at: string | null
   sent_label: string | null
   /** Channel + email/SMS on file for this offer. */
@@ -165,6 +168,7 @@ export function buildDispatchDrawers(input: {
       magic_token?: string
       price_net?: number | null
       time_to_position_min?: number | null
+      quick_turn_min?: number | null
       live_leg_min?: number | null
       fee_scope?: string | null
       type_name?: string | null
@@ -230,6 +234,7 @@ export function buildDispatchDrawers(input: {
           ? 'unavailable'
           : offerRecipientStatusLabel(status, { notified }),
         quote_summary: formatOfferQuoteSummary(o),
+        quote_facts: offerQuoteFacts(o),
         sent_at: atIso ?? null,
         sent_label: sent?.display ?? null,
         destination_summary: dest.summary,
