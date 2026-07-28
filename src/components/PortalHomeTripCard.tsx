@@ -71,8 +71,9 @@ export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
 
   const dateLabel = (() => {
     if (props.ready_label?.trim()) return props.ready_label
-    if (trip?.created_at) {
-      return formatClientLocal(trip.created_at, 'UTC').local
+    const firstEvent = trip?.events?.[0]?.at
+    if (firstEvent) {
+      return formatClientLocal(firstEvent, 'UTC').local
     }
     return 'Date TBD'
   })()

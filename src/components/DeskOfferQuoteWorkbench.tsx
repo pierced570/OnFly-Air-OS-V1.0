@@ -315,7 +315,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
         ) {
           const status = offerRecipientStatus(o.state)
           const facts = offerQuoteFacts(o)
-          const hqOpt = trip.hard_quote?.options?.find(
+          const hqOpt = liveTrip.hard_quote?.options?.find(
             (opt) => opt.offer_id === o.id,
           )
           const lock =
@@ -327,15 +327,15 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
             o.price_net != null
               ? offerQuotePreviewFor(
                   o,
-                  trip,
+                  liveTrip,
                   0,
                   lock === 'total' ? draftTotal : null,
                   draftMargin,
                 )
               : null
           const cand =
-            trip.candidates.find((c) => c.aircraft_id === o.aircraft_id) ??
-            trip.candidates.find((c) => c.tail === o.tail)
+            liveTrip.candidates.find((c) => c.aircraft_id === o.aircraft_id) ??
+            liveTrip.candidates.find((c) => c.tail === o.tail)
           const mtowLbs = cand?.mtow_lbs ?? null
           const exemptThresh = fetExemptMtowThreshold(getTaxRates())
           const canManual =
@@ -353,7 +353,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               ].join(' ')}
             >
               {selectable &&
-              (showQuoteComposer || !trip.hard_quote) ? (
+              (showQuoteComposer || !liveTrip.hard_quote) ? (
                 <label className="flex cursor-pointer items-start gap-2">
                   <input
                     type="checkbox"
@@ -478,7 +478,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                       className="rounded border border-gold/50 bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold disabled:opacity-40"
                       onClick={() => {
                         setPricingBusy(true)
-                        const opts = (trip.hard_quote?.options ?? []).map(
+                        const opts = (liveTrip.hard_quote?.options ?? []).map(
                           (opt) => ({
                             offer_id: opt.offer_id,
                             client_total:
@@ -487,7 +487,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                                 : opt.client_total,
                           }),
                         )
-                        void updateHardQuoteClientPricing(trip.id, {
+                        void updateHardQuoteClientPricing(liveTrip.id, {
                           margin_pct: preview.margin_pct,
                           options: opts,
                         })
@@ -540,7 +540,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
 
               {manualQuoteOfferId === o.id ? (
                 <OfferQuoteForm
-                  lane={trip.lane}
+                  lane={liveTrip.lane}
                   busy={manualQuoteBusy}
                   submitLabel={
                     o.price_net != null ? 'Update quote' : 'Save quote'
@@ -554,7 +554,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   initialLiveLegMin={o.live_leg_min ?? undefined}
                   onSubmit={(values) => {
                     setManualQuoteBusy(true)
-                    void submitDeskManualQuote(trip.id, o.id, values)
+                    void submitDeskManualQuote(liveTrip.id, o.id, values)
                       .then(() => {
                         setManualQuoteOfferId(null)
                         setSelected((s) => ({ ...s, [o.id]: true }))

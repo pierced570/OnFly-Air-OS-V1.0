@@ -65,7 +65,6 @@ describe('operator quote → desk SMS alert', () => {
       payload_kind: 'cargo',
     })
     safeTransitionTrip(trip.id, 'offers_out', 'dispatcher', {})
-    const offer = trip.offers[0]!
     mutateTrip(trip.id, (t) => {
       const o = t.offers[0]!
       o.magic_token = 'tok-quote-alert'
