@@ -959,8 +959,8 @@ export function getTrip(id: string) {
 }
 
 /**
- * Remove a trip from the desk queue (local + best-effort Supabase delete).
- * Cascades child rows in DB via FK. Does not change trip state.
+ * Remove a trip from the desk queue (local + soft-delete in Supabase).
+ * Does not hard-DELETE — trip_events are append-only. Sets trips.discarded_at.
  */
 export function deleteTrip(id: string): boolean {
   if (!trips.has(id) && !deletedTripIds.has(id)) return false
@@ -971,8 +971,15 @@ export function deleteTrip(id: string): boolean {
   trips.delete(id)
   bump()
   void import('@/lib/db/persistTrip')
-    .then((m) => m.deleteTripFromDb(id))
-    .catch((e) => console.warn('[trips] delete from db failed', id, e))
+    .then(async (m) => {
+      const ok = await m.deleteTripFromDb(id)
+      if (ok) {
+        // Confirmed discarded — stop retrying even before next hydrate.
+        deletedTripIds.delete(id)
+        bump()
+      }
+    })
+    .catch((e) => console.warn('[trips] discard in db failed', id, e))
   return true
 }
 
@@ -1024,11 +1031,14 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
 
   for (const r of rows) {
     if (deletedTripIds.has(r.id)) {
-      // Still present in DB after desk delete — keep out of UI and retry delete.
+      // Still present in DB after desk delete — keep out of UI and retry soft-delete.
       void import('@/lib/db/persistTrip')
-        .then((m) => m.deleteTripFromDb(r.id))
+        .then(async (m) => {
+          const ok = await m.deleteTripFromDb(r.id)
+          if (ok) deletedTripIds.delete(r.id)
+        })
         .catch((e) =>
-          console.warn('[trips] retry delete from db failed', r.id, e),
+          console.warn('[trips] retry discard from db failed', r.id, e),
         )
       continue
     }

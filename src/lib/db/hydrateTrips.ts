@@ -190,6 +190,7 @@ export async function resolveOfferByToken(token: string): Promise<{
       .from('trips')
       .select(TRIP_PUBLIC_SELECT)
       .eq('id', tripId)
+      .is('discarded_at', null)
       .limit(1),
   )
   const tripDb = Array.isArray(tripRows) ? tripRows[0] : null
@@ -214,6 +215,7 @@ export async function hydrateTrips(): Promise<number> {
     db()
       .from('trips')
       .select(TRIP_PUBLIC_SELECT)
+      .is('discarded_at', null)
       .not('state', 'in', '("closed","lost","cancelled")')
       .order('ref', { ascending: false })
       .limit(200),
