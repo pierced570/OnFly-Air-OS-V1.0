@@ -182,7 +182,7 @@ describe('dispatchCenter', () => {
       po: 'PO-9001',
     })
     expect(buckets.quotes).toHaveLength(1)
-    expect(buckets.quotes[0]?.approvable).toBe(true)
+    expect(buckets.quotes[0]?.approvable).toBe(false)
     expect(buckets.tracking).toHaveLength(1)
     expect(buckets.tracking[0]?.deletable).toBe(false)
     expect(buckets.tracking[0]?.subtitle).toBe('Live · T-5')
