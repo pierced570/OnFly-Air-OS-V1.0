@@ -37,6 +37,11 @@ type Props = {
   submitLabel?: string
   /** Portal: ballpark vs quote-now dual CTAs. */
   portalDualActions?: boolean
+  /**
+   * Portal three-step wizard (Contact & service → Route & timing → Cargo & notes).
+   * Implies portalDualActions on the last step.
+   */
+  portalWizard?: boolean
   onSubmit: (
     draft: TripRequestDraft,
     intent?: PortalSubmitIntent,
@@ -77,6 +82,7 @@ export function TripRequestForm({
   initial,
   submitLabel,
   portalDualActions = false,
+  portalWizard = false,
   onSubmit,
 }: Props) {
   const [draft, setDraft] = useState<TripRequestDraft>(() => {
@@ -106,6 +112,10 @@ export function TripRequestForm({
   const [pendingIntent, setPendingIntent] = useState<PortalSubmitIntent | null>(
     null,
   )
+  const wizard = portalWizard && variant === 'portal'
+  const dualActions = portalDualActions || wizard
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1)
+  const showStep = (s: 1 | 2 | 3) => !wizard || wizardStep === s
 
   const needsAddresses =
     draft.service_mode === 'd2d' || draft.service_mode === 'mixed'
@@ -191,59 +201,147 @@ export function TripRequestForm({
     }
   }
 
+  function goNextWizard() {
+    setIssues([])
+    if (wizardStep === 1) {
+      if (!draft.email.trim().includes('@')) {
+        setIssues(['Enter a work email'])
+        return
+      }
+      if (!draft.client_name?.trim()) {
+        setIssues(['Enter your company name'])
+        return
+      }
+      setWizardStep(2)
+      return
+    }
+    if (wizardStep === 2) {
+      const hasRoute = draft.legs.some(
+        (l) =>
+          l.origin_icao.trim() ||
+          l.dest_icao.trim() ||
+          l.pickup_address.trim() ||
+          l.dropoff_address.trim(),
+      )
+      if (!hasRoute) {
+        setIssues(['Add at least an origin / destination or addresses'])
+        return
+      }
+      setWizardStep(3)
+    }
+  }
+
   return (
     <form
       onSubmit={(e) =>
-        void handleSubmit(e, portalDualActions ? 'estimate' : 'estimate')
+        void handleSubmit(e, dualActions ? 'estimate' : 'estimate')
       }
       className="space-y-6"
     >
+      {wizard ? (
+        <nav className="flex flex-wrap gap-0 border-b border-border pb-3">
+          {(
+            [
+              [1, 'Contact & service'],
+              [2, 'Route & timing'],
+              [3, 'Cargo & notes'],
+            ] as const
+          ).map(([n, label]) => {
+            const on = wizardStep === n
+            const done = wizardStep > n
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => {
+                  if (done || on) setWizardStep(n)
+                }}
+                className={[
+                  'flex flex-1 items-center gap-2 border-b-2 px-1 pb-2 text-left text-sm',
+                  on
+                    ? 'border-gold font-semibold text-ink'
+                    : done
+                      ? 'border-transparent text-ink/70'
+                      : 'border-transparent text-muted',
+                ].join(' ')}
+              >
+                <span
+                  className={[
+                    'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                    on
+                      ? 'bg-ink text-cream'
+                      : done
+                        ? 'bg-gold/30 text-ink'
+                        : 'bg-[#efe9d8] text-muted',
+                  ].join(' ')}
+                >
+                  {n}
+                </span>
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            )
+          })}
+        </nav>
+      ) : null}
+
       {/* Client / email */}
-      {variant === 'portal' ? (
+      {variant === 'portal' && showStep(1) ? (
         <section className="space-y-3">
-          <label className={labelCls}>
-            Your email
-            <input
-              type="email"
-              required
-              value={draft.email}
-              onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
-              placeholder="you@company.com"
-              className={inputCls}
-            />
-          </label>
-          <label className={labelCls}>
-            Company
-            <input
-              type="text"
-              required
-              value={draft.client_name ?? ''}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, client_name: e.target.value }))
-              }
-              placeholder="Your company name"
-              className={inputCls}
-            />
-          </label>
-          <label className={labelCls}>
-            Best number for urgent matters
-            <input
-              type="tel"
-              value={draft.urgent_phone}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, urgent_phone: e.target.value }))
-              }
-              placeholder="(555) 555-5555"
-              className={inputCls}
-              autoComplete="tel"
-            />
-          </label>
-          <p className="text-xs text-muted">
-            We’ll send status updates to your email. Use the phone for time-critical
-            reach-backs.
-          </p>
+          {wizard ? (
+            <h2 className="text-base font-semibold text-ink">
+              Who should we talk to?
+            </h2>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={labelCls}>
+              Your email
+              <input
+                type="email"
+                required={!wizard}
+                value={draft.email}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, email: e.target.value }))
+                }
+                placeholder="you@company.com"
+                className={inputCls}
+              />
+            </label>
+            <label className={labelCls}>
+              Company
+              <input
+                type="text"
+                required={!wizard}
+                value={draft.client_name ?? ''}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, client_name: e.target.value }))
+                }
+                placeholder="Your company name"
+                className={inputCls}
+              />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={labelCls}>
+              Best number for urgent matters
+              <input
+                type="tel"
+                value={draft.urgent_phone}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, urgent_phone: e.target.value }))
+                }
+                placeholder="(555) 555-5555"
+                className={inputCls}
+                autoComplete="tel"
+              />
+            </label>
+            <div className="rounded-lg border border-gold/35 bg-gold/10 px-3 py-2 text-xs text-ink/80 sm:mt-5">
+              Status updates go to your email. We use the phone only for
+              time-critical reach-backs.
+            </div>
+          </div>
         </section>
-      ) : (
+      ) : null}
+      {variant === 'dispatch' ? (
         <section>
           <div className="flex items-end gap-2">
             <label className={`${labelCls} flex-1`}>
@@ -335,28 +433,55 @@ export function TripRequestForm({
             />
           </label>
         </section>
-      )}
+      ) : null}
 
-      {/* Service mode */}
+      {/* Service mode — step 1 */}
+      {showStep(1) ? (
       <section>
-        <div className="text-xs font-medium uppercase tracking-wider text-muted">
-          Service type
-        </div>
+        {wizard ? (
+          <h2 className="mb-2 text-base font-semibold text-ink">
+            What kind of move is it?
+          </h2>
+        ) : (
+          <div className="text-xs font-medium uppercase tracking-wider text-muted">
+            Service type
+          </div>
+        )}
         <div className="mt-2 grid gap-2 sm:grid-cols-3">
           {(
             [
-              ['a2a', 'Airport → Airport'],
-              ['d2d', 'Door → Door'],
-              ['mixed', 'Combination'],
+              [
+                'a2a',
+                'Airport → Airport',
+                'You handle both ends. Pick by ICAO or city/state; FBO selection happens with dispatch.',
+              ],
+              [
+                'd2d',
+                'Door → Door',
+                'Give us two addresses. We arrange ground pickup and final delivery.',
+              ],
+              [
+                'mixed',
+                'Combination',
+                'Ground on one end, your team or an FBO handoff on the other.',
+              ],
             ] as const
-          ).map(([id, label]) => (
+          ).map(([id, label, blurb]) => (
             <button
               key={id}
               type="button"
               onClick={() => setDraft((d) => ({ ...d, service_mode: id }))}
-              className={segBtn(draft.service_mode === id)}
+              className={[
+                'rounded-xl border px-3 py-3 text-left transition-colors',
+                draft.service_mode === id
+                  ? 'border-gold bg-gold/15 text-ink'
+                  : 'border-border bg-white text-ink hover:border-gold/50',
+              ].join(' ')}
             >
-              {label}
+              <div className="text-sm font-semibold">{label}</div>
+              {wizard ? (
+                <p className="mt-1 text-xs text-muted">{blurb}</p>
+              ) : null}
             </button>
           ))}
         </div>
@@ -373,40 +498,89 @@ export function TripRequestForm({
             dispatch can assign nearer fields from the addresses.
           </p>
         )}
-        {draft.service_mode === 'mixed' && (
+        {draft.service_mode === 'mixed' && !wizard && (
           <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
             Combination: provide ICAOs for the air segment plus pickup and
             delivery addresses for ground legs so we can assign airports and
             routing.
           </p>
         )}
-      </section>
 
-      {/* Legs */}
+        {/* Ready timing lives on step 1 in the portal wizard */}
+        {variant === 'portal' ? (
+          <div className="mt-6">
+            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
+              How long until it&apos;s ready?
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={[
+                  'rounded-xl border px-4 py-3 text-sm font-semibold',
+                  draft.timing === 'asap'
+                    ? 'border-gold bg-gold/15 text-ink'
+                    : 'border-border bg-white text-ink',
+                ].join(' ')}
+                onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
+              >
+                Within 4 hours
+              </button>
+              <button
+                type="button"
+                className={[
+                  'rounded-xl border px-4 py-3 text-sm font-semibold',
+                  draft.timing === 'scheduled'
+                    ? 'border-gold bg-gold/15 text-ink'
+                    : 'border-border bg-white text-ink',
+                ].join(' ')}
+                onClick={() =>
+                  setDraft((d) => ({ ...d, timing: 'scheduled' }))
+                }
+              >
+                Pick date &amp; time
+              </button>
+              {draft.timing === 'asap' ? (
+                <p className="flex items-center text-xs text-muted sm:max-w-xs">
+                  ASAP means ready within {ASAP_MAX_HOURS} hours — we target the
+                  next available aircraft.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </section>
+      ) : null}
+
+      {/* Legs — step 2 */}
+      {showStep(2) ? (
+      <>
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            {variant === 'portal' && (
-              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
-                How long until it&apos;s ready?
+            {variant !== 'portal' ? (
+              <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+                <button
+                  type="button"
+                  className={segBtn(draft.timing === 'asap')}
+                  onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
+                >
+                  ASAP
+                </button>
+                <button
+                  type="button"
+                  className={segBtn(draft.timing === 'scheduled')}
+                  onClick={() =>
+                    setDraft((d) => ({ ...d, timing: 'scheduled' }))
+                  }
+                >
+                  Scheduled
+                </button>
               </div>
-            )}
-            <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
-              <button
-                type="button"
-                className={segBtn(draft.timing === 'asap')}
-                onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
-              >
-                {variant === 'portal' ? 'Within 4 hours' : 'ASAP'}
-              </button>
-              <button
-                type="button"
-                className={segBtn(draft.timing === 'scheduled')}
-                onClick={() => setDraft((d) => ({ ...d, timing: 'scheduled' }))}
-              >
-                {variant === 'portal' ? 'Pick date & time' : 'Scheduled'}
-              </button>
-            </div>
+            ) : wizard ? (
+              <h2 className="text-base font-semibold text-ink">
+                Outbound route
+              </h2>
+            ) : null}
           </div>
           <button
             type="button"
@@ -425,12 +599,6 @@ export function TripRequestForm({
             + Add Stop
           </button>
         </div>
-        {draft.timing === 'asap' && (
-          <p className="mb-3 text-xs text-muted">
-            ASAP means ready within {ASAP_MAX_HOURS} hours. We’ll target the next
-            available aircraft.
-          </p>
-        )}
 
         <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
           Outbound
@@ -966,10 +1134,36 @@ export function TripRequestForm({
             />
           </label>
         </div>
+        {wizard ? (
+          <label className="mt-3 flex items-center gap-2 text-sm text-[var(--text)]">
+            <input
+              type="checkbox"
+              checked={draft.cargo_only}
+              onChange={(e) => {
+                const cargo_only = e.target.checked
+                setDraft((d) => ({
+                  ...d,
+                  cargo_only,
+                  pax: cargo_only
+                    ? []
+                    : d.pax.length
+                      ? d.pax
+                      : [{ name: '', weight_lbs: '', dob: '' }],
+                }))
+              }}
+            />
+            Cargo only (no passengers)
+          </label>
+        ) : null}
       </section>
+      </>
+      ) : null}
 
-      {/* Cargo / pax */}
+      {/* Cargo / pax — step 3 */}
+      {showStep(3) ? (
+      <>
       <section className="space-y-3">
+        {!wizard ? (
         <label className="flex items-center gap-2 text-sm text-[var(--text)]">
           <input
             type="checkbox"
@@ -985,6 +1179,7 @@ export function TripRequestForm({
           />
           Cargo only (no passengers)
         </label>
+        ) : null}
 
         {!draft.cargo_only && (
           <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
@@ -1159,48 +1354,46 @@ export function TripRequestForm({
         </label>
       </section>
 
-      {issues.length > 0 && (
+      {issues.length > 0 ? (
         <ul className="rounded-md border border-late/40 bg-late/10 px-3 py-2 text-sm text-late">
           {issues.map((m) => (
             <li key={m}>· {m}</li>
           ))}
         </ul>
-      )}
+      ) : null}
 
-      {portalDualActions ? (
+      {dualActions ? (
         <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-surface-2 px-4 py-4">
+          <div className="rounded-xl border border-gold/50 bg-white px-4 py-4">
             <button
               type="button"
               disabled={busy}
               onClick={(e) => void handleSubmit(e, 'estimate')}
-              className="w-full rounded-md bg-gold px-4 py-3 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
+              className="w-full rounded-lg border border-gold bg-white px-4 py-3 text-sm font-semibold text-gold hover:bg-gold/10 disabled:opacity-50"
             >
               {busy && pendingIntent === 'estimate'
                 ? 'Estimating…'
                 : 'What could this possibly cost?'}
             </button>
             <p className="mt-2 text-xs text-muted">
-              Utilize our historical pricing for us to get a ballpark estimate
-              (Prices can vary drastically due to ASAP Availability,
-              repositioning time, and aircraft type required).
+              A ballpark from our historical pricing. Real prices vary with ASAP
+              availability, repositioning time and aircraft type required.
             </p>
           </div>
-          <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-4">
+          <div>
             <button
               type="button"
               disabled={busy}
               onClick={(e) => void handleSubmit(e, 'hard_quote')}
-              className="w-full rounded-md bg-ink px-4 py-3 text-sm font-semibold text-cream hover:bg-ink/90 disabled:opacity-50"
+              className="w-full rounded-lg bg-ink px-4 py-3 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
             >
               {busy && pendingIntent === 'hard_quote'
                 ? 'Submitting…'
-                : 'Have OnFly Quote this NOW'}
+                : 'Have OnFly quote this NOW'}
             </button>
             <p className="mt-2 text-xs text-muted">
-              Our team will immediately begin working on this request, please
-              monitor your email for questions and next steps on this request —
-              Typical quote time takes 10–15 minutes.
+              Our team starts on this immediately. Typical quote time 10–15
+              minutes — watch your email for questions and next steps.
             </p>
           </div>
         </div>
@@ -1213,6 +1406,53 @@ export function TripRequestForm({
           {busy ? 'Submitting…' : (submitLabel ?? 'Submit trip request')}
         </button>
       )}
+      </>
+      ) : null}
+
+      {wizard && wizardStep < 3 ? (
+        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+          {wizardStep > 1 ? (
+            <button
+              type="button"
+              className="rounded-lg border border-border px-4 py-2.5 text-sm"
+              onClick={() =>
+                setWizardStep((s) => (s === 3 ? 2 : 1) as 1 | 2 | 3)
+              }
+            >
+              Back
+            </button>
+          ) : (
+            <span />
+          )}
+          <button
+            type="button"
+            className="rounded-full bg-ink px-8 py-2.5 text-sm font-semibold text-gold hover:bg-[#1a1a1a]"
+            onClick={goNextWizard}
+          >
+            Continue
+          </button>
+          <span className="text-xs text-muted">
+            {wizardStep === 1
+              ? 'Next: route & timing'
+              : 'Review cargo, then send it to dispatch.'}
+          </span>
+        </div>
+      ) : null}
+
+      {wizard && wizardStep === 3 ? (
+        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-2">
+          <button
+            type="button"
+            className="rounded-lg border border-border px-4 py-2.5 text-sm"
+            onClick={() => setWizardStep(2)}
+          >
+            Back
+          </button>
+          <span className="text-xs text-muted">
+            Review above, then send it to dispatch.
+          </span>
+        </div>
+      ) : null}
     </form>
   )
 }
