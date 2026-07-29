@@ -6,6 +6,7 @@
  */
 
 import { adapterMode } from '@/adapters/types'
+import { messageFromEdgeInvoke } from '@/lib/edgeFunctionError'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 export type CommsMessage = {
@@ -73,22 +74,22 @@ export class RingCentralCommsAdapter implements CommsAdapter {
     } | null
 
     if (error) {
-      const detail =
-        result?.error &&
-        (typeof result.detail === 'string'
-          ? `${result.error}: ${result.detail}`
-          : result.error)
-      throw new Error(detail || error.message || 'send-sms edge function failed')
+      const detail = await messageFromEdgeInvoke({
+        data: result,
+        error,
+        fallback: 'SMS send failed (send-sms)',
+      })
+      throw new Error(detail)
     }
 
     const id = result?.id
     if (!id) {
       throw new Error(
-        result?.error
-          ? `RingCentral: ${result.error}${
-              typeof result.detail === 'string' ? ` — ${result.detail}` : ''
-            }`
-          : 'send-sms returned no id — check RINGCENTRAL_* secrets',
+        (await messageFromEdgeInvoke({
+          data: result,
+          error: null,
+          fallback: 'send-sms returned no id — check RINGCENTRAL_* secrets',
+        })) || 'send-sms returned no id — check RINGCENTRAL_* secrets',
       )
     }
 

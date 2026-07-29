@@ -143,8 +143,7 @@ export async function appendOfferToTrip(
     override ? { [candidate.operator_id]: override } : undefined,
   )[0]!
   const now = new Date().toISOString()
-  row.ping_sent_at = now
-  row.state = 'pinged'
+  // Link is ready; notified_at / pinged only after sendAvailabilityPings succeeds.
   mutateTrip(tripId, (t) => {
     t.offers.push(row)
     t.events.push({
@@ -241,6 +240,7 @@ export async function sendAvailabilityPings(
   const filter = opts?.offerIds ? new Set(opts.offerIds) : null
   const targeted: OfferRow[] = []
   const missedNames: string[] = []
+  const channelErrors: string[] = []
   const smsLive = isSmsDeliveryEnabled()
 
   for (const o of fresh.offers) {
@@ -259,33 +259,49 @@ export async function sendAvailabilityPings(
     )
     const smsBody = availabilityPingSmsWithLink(o.magic_token, base)
     const sent: { sms?: string; email?: string } = {}
+    const deliveryNotes: string[] = []
     if (
       smsLive &&
       channelIncludesSms(channel) &&
       o.contact_cell.trim() &&
       !o.contact_cell_is_mock
     ) {
-      const comms = createCommsAdapter()
-      await comms.send({ channel: 'sms', to: o.contact_cell, body: smsBody })
-      sent.sms = o.contact_cell
+      try {
+        const comms = createCommsAdapter()
+        await comms.send({ channel: 'sms', to: o.contact_cell, body: smsBody })
+        sent.sms = o.contact_cell
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        deliveryNotes.push(`SMS failed: ${msg}`)
+        console.warn('[offers] SMS ping failed', o.operator_name, msg)
+      }
     }
     if (channelIncludesEmail(channel) && o.contact_email.includes('@')) {
-      await email.send({
-        to: o.contact_email.trim(),
-        subject: availabilityEmailSubject(fresh.lane),
-        text: emailBody,
-        html: availabilityPingHtml(
-          fresh.lane,
-          fresh.payload_summary,
-          fresh.ready_label,
-          o.magic_token,
-          base,
-        ),
-      })
-      sent.email = o.contact_email.trim()
+      try {
+        await email.send({
+          to: o.contact_email.trim(),
+          subject: availabilityEmailSubject(fresh.lane),
+          text: emailBody,
+          html: availabilityPingHtml(
+            fresh.lane,
+            fresh.payload_summary,
+            fresh.ready_label,
+            o.magic_token,
+            base,
+          ),
+        })
+        sent.email = o.contact_email.trim()
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        deliveryNotes.push(`Email failed: ${msg}`)
+        console.warn('[offers] email ping failed', o.operator_name, msg)
+      }
     }
     if (!sent.sms && !sent.email) {
       missedNames.push(o.operator_name)
+      if (deliveryNotes.length) {
+        channelErrors.push(`${o.operator_name}: ${deliveryNotes.join('; ')}`)
+      }
       continue
     }
     mutateTrip(tripId, (t) => {
@@ -301,18 +317,30 @@ export async function sendAvailabilityPings(
           offer_id: o.id,
           channel,
           to: sent,
+          warnings: deliveryNotes.length ? deliveryNotes : undefined,
         },
       })
     })
+    if (deliveryNotes.length) {
+      channelErrors.push(`${o.operator_name}: ${deliveryNotes.join('; ')}`)
+    }
   }
   await persistOffersTrip(tripId)
   const requireDelivery = opts?.requireDelivery !== false
   if (requireDelivery && targeted.length > 0 && missedNames.length > 0) {
     throw new Error(
       `Could not deliver offer link to: ${missedNames.join(', ')}. ` +
-        (smsLive
-          ? 'Add an email or SMS number on file for the selected channel.'
-          : 'Add an email on file (SMS delivery is not connected).'),
+        (channelErrors.length
+          ? channelErrors.join(' · ')
+          : smsLive
+            ? 'Add an email or SMS number on file for the selected channel.'
+            : 'Add an email on file (SMS delivery is not connected).'),
+    )
+  }
+  // Partial success (e.g. email ok, SMS blocked by RingCentral permission).
+  if (channelErrors.length && missedNames.length === 0) {
+    throw new Error(
+      `Offer link sent, but some channels failed: ${channelErrors.join(' · ')}`,
     )
   }
   return getTrip(tripId)!
