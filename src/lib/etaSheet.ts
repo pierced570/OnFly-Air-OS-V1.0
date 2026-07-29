@@ -11,6 +11,7 @@ import {
   type MileageBlock,
 } from '@/domain/etaChain'
 import { formatClientLocal, formatZuluLocal } from '@/domain/timeFmt'
+import { parseLooseDurationMinutes } from '@/domain/quickDispatchChain'
 import type { QuickDispatchMeta, TripStoreRow } from '@/lib/tripStore'
 
 export type EtaSheetLine = {
@@ -108,8 +109,8 @@ export function computeEtaSheetLinesFromQuick(
   const lines: EtaSheetLine[] = []
   let cursor = now.toISOString()
   for (const [idx, leg] of quick.legs.entries()) {
-    const repo = parseLooseDuration(leg.repo_time) ?? 0
-    const live = parseLooseDuration(leg.live_leg_time) ?? 0
+    const repo = parseLooseDurationMinutes(leg.repo_time) ?? 0
+    const live = parseLooseDurationMinutes(leg.live_leg_time) ?? 0
     const depart = addIsoMin(cursor, repo)
     const arrive = addIsoMin(depart, live)
     lines.push({
@@ -130,26 +131,6 @@ export function computeEtaSheetLinesFromQuick(
     cursor = arrive
   }
   return lines
-}
-
-function parseLooseDuration(input: string): number | null {
-  const s = input.trim().toLowerCase()
-  if (!s) return null
-  const re = /(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)/g
-  let total = 0
-  let matched = false
-  for (;;) {
-    const m = re.exec(s)
-    if (!m) break
-    matched = true
-    const value = Number(m[1])
-    const unit = m[2]!
-    if (!Number.isFinite(value)) continue
-    if (unit.startsWith('h')) total += value * 60
-    else total += value
-  }
-  if (!matched || !Number.isFinite(total)) return null
-  return Math.round(total)
 }
 
 function addIsoMin(iso: string, min: number): string {

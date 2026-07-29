@@ -36,6 +36,7 @@ import { raiseException } from '@/lib/exceptionStore'
 import { getEtaDefaults } from '@/lib/etaDefaultsStore'
 import { getReferral } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
+import { buildQuickDispatchChain } from '@/domain/quickDispatchChain'
 import { roleOnOpsThread } from '@/domain/tripThread'
 import { appPublicUrl } from '@/lib/appUrl'
 import { getCachedNetwork } from '@/lib/networkData'
@@ -871,6 +872,13 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   const lane = meta.legs
     .map((l) => `${l.origin_icao || '?'}→${l.dest_icao || '?'}`)
     .join(' · ')
+  // Materialize ETA spine from desk repo/live times so Tracking + ETA sheet work.
+  const chain = copyChainToTrip(
+    buildQuickDispatchChain(meta.legs, { timing: meta.timing }),
+  )
+  const legs = chain.length
+    ? asTripLegs(materializeChainToLegs(chain))
+    : buildQuickLegs(meta)
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
@@ -886,13 +894,13 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
     quick: structuredClone(meta),
     client_id: meta.client_id,
     client_name: meta.client_name?.trim() || null,
-    eta_chain: [],
+    eta_chain: chain,
     service_pattern: 'A2A',
-    promised_delivery: null,
+    promised_delivery: projectedDeliveryUtc(chain),
     eta_defaults_snapshot: { ...getEtaDefaults() },
     thread_number: null,
     thread_disbanded_at: null,
-    legs: buildQuickLegs(meta),
+    legs,
     participants: buildQuickParticipants(meta),
     thread: [],
     documents: [
@@ -943,6 +951,16 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
         kind: 'payload_kind',
         payload: { payload_kind: meta.cargo_only ? 'cargo' : 'pax' },
       },
+      ...(chain.length
+        ? [
+            {
+              at: new Date().toISOString(),
+              actor: 'system' as const,
+              kind: 'eta_chain_copied_to_trip',
+              payload: { count: chain.length, pattern: 'A2A', via: 'quick_dispatch' },
+            },
+          ]
+        : []),
     ],
   }
   trips.set(id, row)
@@ -1076,6 +1094,10 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
         r.eta_chain = existing.eta_chain
         r.service_pattern = r.service_pattern ?? existing.service_pattern
         r.promised_delivery = r.promised_delivery ?? existing.promised_delivery
+      }
+      // Live hydrate can briefly return empty legs before trip_legs upserts land.
+      if (!r.legs.length && existing.legs.length) {
+        r.legs = existing.legs
       }
       // Keep desk-parsed client name — live hydrate can briefly omit session_meta.
       if (!r.client_name?.trim() && existing.client_name?.trim()) {
