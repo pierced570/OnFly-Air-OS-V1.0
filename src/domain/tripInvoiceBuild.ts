@@ -17,6 +17,7 @@ export type TripInvoiceBuildInput = {
   /** Client all-in total (hard quote / QD client price). */
   clientTotal: number
   aircraftType?: string | null
+  tail?: string | null
   payloadKind?: 'cargo' | 'pax' | 'both'
   mtowLbs?: number | null
   segmentCount?: number
@@ -65,6 +66,7 @@ export function buildTripInvoiceLines(
     flightDate: input.flightDate,
     airAmount,
     aircraftType: input.aircraftType,
+    tail: input.tail,
     taxLines: tax.lines.map((l) => ({
       code: l.code,
       amount: l.amount,

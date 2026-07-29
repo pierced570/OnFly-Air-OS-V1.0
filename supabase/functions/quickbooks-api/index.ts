@@ -1,9 +1,12 @@
 /**
- * QuickBooks Online API router — OFA-aligned.
+ * QuickBooks Online API router — OnFly invoices.
  * Secrets: QB_CLIENT_ID, QB_CLIENT_SECRET, SUPABASE_SERVICE_ROLE_KEY
  *
- * Actions: connection_status, ensure_customer, create_invoice, get_invoices,
- * get_dashboard_stats, get_last_po, get_invoice_pdf, invoice_status
+ * Actions: connection_status, ensure_customer, create_invoice, send_invoice,
+ * get_invoices, get_dashboard_stats, get_last_po, get_invoice_pdf, invoice_status
+ *
+ * create_invoice: DocNumber=PO, ACH View & pay on.
+ * send_invoice: native QBO payment-request email (branded PDF + ACH link).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
@@ -57,6 +60,8 @@ Deno.serve(async (req) => {
         )
       case 'create_invoice':
         return json(await createInvoice(cfg, body))
+      case 'send_invoice':
+        return json(await sendInvoice(cfg, body))
       case 'get_dashboard_stats':
         return json(await getDashboardStats(cfg))
       case 'get_last_po':
@@ -261,6 +266,23 @@ async function ensureCustomer(cfg: QbConfig, name: string) {
 }
 
 async function defaultItem(cfg: QbConfig) {
+  // Prefer the live OFA brokerage item when present.
+  for (const name of [
+    'Brokerage Services - AOG',
+    'Brokerage Services',
+    'Brokerage',
+  ]) {
+    const q = encodeURIComponent(
+      `select * from Item where Name = '${escapeQl(name)}' and Active = true MAXRESULTS 1`,
+    )
+    const data = (await qbFetch(cfg, `/query?query=${q}`)) as {
+      QueryResponse?: { Item?: unknown }
+    }
+    const item = toArray(
+      data.QueryResponse?.Item as { Id?: string; Name?: string },
+    )[0]
+    if (item?.Id) return { id: item.Id, name: item.Name ?? name }
+  }
   const q = encodeURIComponent(
     `select * from Item where Type = 'Service' and Active = true MAXRESULTS 1`,
   )
@@ -299,6 +321,9 @@ async function createInvoice(cfg: QbConfig, body: Record<string, unknown>) {
   const txnDate = String(body.txn_date ?? new Date().toISOString().slice(0, 10))
   const payTerms = body.pay_terms != null ? String(body.pay_terms) : 'Net 30'
   const notes = body.notes != null ? String(body.notes) : ''
+  const billEmail = String(body.bill_email ?? '').trim().toLowerCase()
+  const allowAch = body.allow_online_ach !== false
+  const allowCard = body.allow_online_card === true
 
   const Line = linesIn
     .map((l) => {
@@ -322,14 +347,18 @@ async function createInvoice(cfg: QbConfig, body: Record<string, unknown>) {
 
   const payload: Record<string, unknown> = {
     CustomerRef: { value: customerId, name: customerName },
-    AllowOnlineCreditCardPayment: false,
-    AllowOnlineACHPayment: false,
+    // ACH enables "View and pay" / payment-request email like live OFA invoices.
+    AllowOnlineCreditCardPayment: allowCard,
+    AllowOnlineACHPayment: allowAch,
     Line,
     TxnDate: txnDate,
     DocNumber: docNumber,
     SalesTermRef: { value: salesTermRef(payTerms) },
     DueDate: dueDate(txnDate, payTerms),
     EmailStatus: 'NotSet',
+  }
+  if (billEmail.includes('@')) {
+    payload.BillEmail = { Address: billEmail }
   }
   if (notes.trim()) {
     payload.CustomerMemo = { value: notes.slice(0, 1000) }
@@ -348,6 +377,7 @@ async function createInvoice(cfg: QbConfig, body: Record<string, unknown>) {
       doc_number: inv.DocNumber ?? docNumber,
       customer_id: customerId,
       url: `${baseUrl(cfg)}/app/invoice?txnId=${inv.Id}`,
+      allow_online_ach: allowAch,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -367,9 +397,76 @@ async function createInvoice(cfg: QbConfig, body: Record<string, unknown>) {
         customer_id: customerId,
         url: `${baseUrl(cfg)}/app/invoice?txnId=${inv.Id}`,
         auto_doc_number: true,
+        allow_online_ach: allowAch,
       }
     }
     throw e
+  }
+}
+
+/**
+ * Native QBO payment-request email (PDF + ACH "View and pay").
+ * POST /invoice/{id}/send?sendTo=
+ */
+async function sendInvoice(cfg: QbConfig, body: Record<string, unknown>) {
+  const invoiceId = String(body.invoice_id ?? '').trim()
+  if (!invoiceId) throw new Error('invoice_id required')
+  const sendTo = String(body.send_to ?? body.bill_email ?? '')
+    .trim()
+    .toLowerCase()
+  if (!sendTo.includes('@')) throw new Error('send_to email required')
+
+  // Sparse update: BillEmail + ACH so the payment-request template has pay options.
+  const existing = (await qbFetch(cfg, `/invoice/${invoiceId}`)) as {
+    Invoice?: {
+      Id?: string
+      SyncToken?: string
+      AllowOnlineACHPayment?: boolean
+    }
+  }
+  const inv = existing.Invoice
+  if (!inv?.Id || inv.SyncToken == null) {
+    throw new Error('Could not load invoice for send')
+  }
+
+  const ccList = (
+    Array.isArray(body.cc)
+      ? body.cc
+      : String(body.cc ?? '')
+          .split(/[,;]/)
+  )
+    .map((e) => String(e).trim().toLowerCase())
+    .filter((e) => e.includes('@') && e !== sendTo)
+
+  const sparse: Record<string, unknown> = {
+    Id: inv.Id,
+    SyncToken: inv.SyncToken,
+    sparse: true,
+    BillEmail: { Address: sendTo },
+    AllowOnlineACHPayment: true,
+    AllowOnlineCreditCardPayment: body.allow_online_card === true,
+  }
+  if (ccList.length) {
+    sparse.BillEmailCc = { Address: ccList.join(', ') }
+  }
+  await qbFetch(cfg, '/invoice', {
+    method: 'POST',
+    body: JSON.stringify(sparse),
+  })
+
+  const path = `/invoice/${invoiceId}/send?sendTo=${encodeURIComponent(sendTo)}`
+  const sent = await qbFetch(cfg, path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+    },
+    body: '',
+  })
+  return {
+    invoice_id: invoiceId,
+    sent_to: sendTo,
+    cc: ccList,
+    result: sent,
   }
 }
 

@@ -1,6 +1,6 @@
 /**
  * Post-approve desk actions:
- * 1) QuickBooks invoice email (PO last+1, AP To, invoice DL CC, BCC info@)
+ * 1) QuickBooks native payment-request email (PO, ACH View & pay, QBO PDF)
  * 2) ETA sheet (tail + ETAs + tracking portal — no payment)
  */
 
@@ -103,7 +103,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
       <div className="space-y-2 rounded-md border border-border/50 bg-ink/40 p-2.5">
         <div className="text-sm font-medium text-cream">1. Send invoice</div>
         <p className="text-[11px] text-muted">
-          QuickBooks invoice using the approved client total
+          QuickBooks payment request (ACH) using the approved client total
           {trip.hard_quote?.total != null
             ? ` ($${Math.round(trip.hard_quote.total).toLocaleString('en-US')})`
             : ''}
@@ -148,7 +148,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
               .finally(() => setBusy(null))
           }}
         >
-          {busy === 'invoice' ? 'Sending invoice…' : 'Send QuickBooks invoice'}
+          {busy === 'invoice' ? 'Sending invoice…' : 'Send QuickBooks payment request'}
         </button>
       </div>
 

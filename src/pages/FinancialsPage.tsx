@@ -239,7 +239,7 @@ export default function FinancialsPage() {
           any row to fix wrong trip / money data
           {editedCount > 0 ? ` · ${editedCount} correction(s) saved in this browser` : ''}
           {' · '}
-          QBO create with EmailStatus=NotSet · branded Resend delivery
+          QBO create with ACH View &amp; pay · native QuickBooks send
         </p>
       </header>
 
@@ -621,7 +621,7 @@ function QbConnectBanner({
             {!realMode
               ? 'Mock mode — invoices create locally (zero API keys). Set VITE_QB_ADAPTER=real + edge QB secrets to go live.'
               : connected
-                ? `Connected${environment ? ` · ${environment}` : ''} · OFA EmailStatus=NotSet · branded PDF via Resend`
+                ? `Connected${environment ? ` · ${environment}` : ''} · QBO ACH View & pay · native send`
                 : 'Not connected — Connect to create live QBO invoices'}
           </p>
           {error && <p className="mt-1 text-xs text-late">{error}</p>}
@@ -976,7 +976,7 @@ function FragmentRow({
             title={
               alreadyInvoiced
                 ? `QB ${r.qb_invoice_number || r.qb_invoice_id}`
-                : 'Create QBO invoice + branded email'
+                : 'Create QBO invoice + send payment request'
             }
           >
             {invoiceBusy ? '…' : alreadyInvoiced ? 'Invoiced' : 'Send Invoice'}

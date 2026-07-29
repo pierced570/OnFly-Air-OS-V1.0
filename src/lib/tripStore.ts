@@ -1662,7 +1662,7 @@ export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvo
 export async function createInvoiceForTrip(
   tripId: string,
   opts?: {
-    /** Skip Resend — desk sends later from Approved actions. */
+    /** Skip QBO send — desk sends later from Approved actions. */
     skipEmail?: boolean
     to?: string[]
     cc?: string[]
@@ -1716,17 +1716,42 @@ export async function createInvoiceForTrip(
   const payloadKind =
     t.hard_quote?.payload_kind ??
     (t.quick ? (t.quick.cargo_only ? 'cargo' : 'pax') : payloadKindOf(t))
+  const tail =
+    t.quick?.tail ||
+    selected?.tail ||
+    null
+  const aircraftType =
+    t.quick?.aircraft_type || selected?.type_name || null
+  const flightDate = t.quick?.legs[0]?.date ?? null
+  const payTerms = t.quick?.pay_terms ?? client?.pay_terms ?? 'Net 30'
+  const { buildInvoiceCustomerMemo } = await import('@/domain/qbInvoice')
+  const memo = buildInvoiceCustomerMemo({
+    lane: t.lane,
+    flightDate,
+    aircraftType,
+    tail,
+    poNumber: po,
+    payTerms,
+    extraNotes: t.quick?.notes ?? null,
+  })
   const built = buildTripInvoiceLines({
     tripRef: t.ref,
     lane: t.lane,
-    flightDate: t.quick?.legs[0]?.date ?? null,
+    flightDate,
     clientTotal: total,
-    aircraftType: t.quick?.aircraft_type || selected?.type_name || null,
+    aircraftType,
+    tail,
     payloadKind,
     mtowLbs: mtow,
     rates: getTaxRates(),
   })
   const lines = built.lines
+  const billEmail =
+    opts?.to?.[0] ||
+    t.quick?.invoice_email ||
+    client?.invoice_email ||
+    (t.client_id ? listInvoiceEmails(t.client_id)[0] : undefined) ||
+    null
   let created
   try {
     created = await acct.createInvoice({
@@ -1734,10 +1759,12 @@ export async function createInvoiceForTrip(
       customerId: client?.qb_customer_id ?? undefined,
       poNumber: po,
       txnDate,
-      payTerms: t.quick?.pay_terms ?? client?.pay_terms ?? 'Net 30',
+      payTerms,
       tripRef: t.ref,
       lines,
-      notes: t.quick?.notes ?? null,
+      notes: memo,
+      billEmail,
+      allowOnlineAch: true,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -1760,7 +1787,7 @@ export async function createInvoiceForTrip(
     const { updateClient } = await import('@/lib/clientStore')
     updateClient(t.client_id, { qb_customer_id: created.customerId })
   }
-  // Branded Resend delivery (never QBO /invoice/{id}/send)
+  // Native QuickBooks payment-request email (PDF + ACH View & pay).
   const defaultTo = [
     ...(opts?.to ?? []),
     t.quick?.invoice_email,
@@ -1793,21 +1820,16 @@ export async function createInvoiceForTrip(
     (t.quick?.send_invoice ?? true)
   if (shouldEmail) {
     try {
-      const pdf = await acct.getInvoicePdfBase64(created.qbInvoiceId)
-      if (pdf) {
-        const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
-        await acct.sendInvoiceEmail({
-          to: uniqueTo,
-          cc: uniqueCc,
-          bcc: uniqueBcc,
-          poNumber: created.qbInvoiceNumber || po,
-          pdfBase64: pdf,
-          clientName,
-          logoUrl: invoiceEmailLogoUrl(),
-        })
-      }
+      await acct.sendInvoiceEmail({
+        to: uniqueTo,
+        cc: uniqueCc,
+        bcc: uniqueBcc,
+        poNumber: created.qbInvoiceNumber || po,
+        qbInvoiceId: created.qbInvoiceId,
+        clientName,
+      })
     } catch (e) {
-      console.warn('[invoice] email failed (invoice still created)', e)
+      console.warn('[invoice] QBO send failed (invoice still created)', e)
     }
   }
 
@@ -1863,7 +1885,7 @@ export async function createInvoiceForTrip(
 }
 
 /**
- * Send (or re-send) the QuickBooks invoice PDF via branded email.
+ * Send (or re-send) the QuickBooks invoice via native QBO payment-request email.
  * Creates the QB invoice first when missing.
  */
 export async function sendTripInvoiceEmail(
@@ -1939,14 +1961,15 @@ export async function sendTripInvoiceEmail(
     ),
   ]
   const pdf = await acct.getInvoicePdfBase64(trip.invoice.qb_invoice_id)
-  if (!pdf) throw new Error('Could not load invoice PDF from QuickBooks')
+  // PDF is optional for native QBO send — QBO attaches its own branded PDF.
   const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
   await acct.sendInvoiceEmail({
     to,
     cc,
     bcc,
     poNumber: po,
-    pdfBase64: pdf,
+    qbInvoiceId: trip.invoice.qb_invoice_id,
+    pdfBase64: pdf ?? undefined,
     clientName,
     logoUrl: invoiceEmailLogoUrl(),
   })

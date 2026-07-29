@@ -1,6 +1,7 @@
 /**
  * QuickBooks invoice payload builder — pure TS.
- * OFA rules: EmailStatus=NotSet, no BillEmail, no online pay, DocNumber=PO.
+ * DocNumber = PO. Online ACH enabled so the PDF/email include View & pay.
+ * Create with EmailStatus=NotSet; send explicitly via /invoice/{id}/send.
  */
 
 import { payTermsDays } from '@/domain/financials'
@@ -8,7 +9,9 @@ import { payTermsDays } from '@/domain/financials'
 export type QbSalesTermId = '1' | '2' | '3' | '4'
 
 /** QBO SalesTermRef value IDs (standard company file). */
-export function salesTermRefForPayTerms(payTerms: string | null | undefined): QbSalesTermId {
+export function salesTermRefForPayTerms(
+  payTerms: string | null | undefined,
+): QbSalesTermId {
   const t = (payTerms ?? '').toLowerCase()
   if (t.includes('receipt') || t.includes('due on')) return '1'
   if (/\b15\b/.test(t) || t.includes('net 15')) return '2'
@@ -33,12 +36,17 @@ export type BuildQbInvoiceInput = {
   /** QBO ItemRef for SalesItemLineDetail */
   itemId: string
   itemName?: string
+  /** Enable ACH "View and pay" on the QBO PDF / payment-request email. */
+  allowOnlineAch?: boolean
+  allowOnlineCard?: boolean
+  billEmail?: string | null
 }
 
 export type QbInvoicePayload = {
   CustomerRef: { value: string; name: string }
-  AllowOnlineCreditCardPayment: false
-  AllowOnlineACHPayment: false
+  AllowOnlineCreditCardPayment: boolean
+  AllowOnlineACHPayment: boolean
+  BillEmail?: { Address: string }
   Line: Array<{
     Amount: number
     DetailType: 'SalesItemLineDetail'
@@ -66,7 +74,10 @@ export function dueDateIso(txnDate: string, payTerms: string | null): string {
 }
 
 /** Normalize PO for DocNumber (strip "PO #" prefix noise). */
-export function normalizePoDocNumber(raw: string | null | undefined, fallback: string): string {
+export function normalizePoDocNumber(
+  raw: string | null | undefined,
+  fallback: string,
+): string {
   const s = (raw ?? '').trim()
   if (!s) return fallback
   const cleaned = s.replace(/^PO\s*#?\s*/i, '').trim()
@@ -89,6 +100,53 @@ export function extractPoNumeric(po: string | null | undefined): number | null {
   if (!po) return null
   const m = po.match(/(\d+)/)
   return m ? Number(m[1]) : null
+}
+
+/**
+ * Line description matching live OFA invoices:
+ * Charter Flight: KNQA → KDFW | 2026-07-28 | MU2 | Tail: N175CA
+ */
+export function charterFlightLineDescription(opts: {
+  lane: string
+  flightDate?: string | null
+  aircraftType?: string | null
+  tail?: string | null
+}): string {
+  const bits = [
+    `Charter Flight: ${opts.lane.trim() || 'TBD'}`,
+    opts.flightDate?.trim() || null,
+    opts.aircraftType?.trim() || null,
+    opts.tail?.trim() ? `Tail: ${opts.tail.trim().toUpperCase()}` : null,
+  ].filter(Boolean)
+  return bits.join(' | ')
+}
+
+/**
+ * Customer-facing memo on the QBO PDF ("Note to customer"), OFA style.
+ */
+export function buildInvoiceCustomerMemo(opts: {
+  lane: string
+  flightDate?: string | null
+  aircraftType?: string | null
+  tail?: string | null
+  poNumber?: string | null
+  payTerms?: string | null
+  extraNotes?: string | null
+}): string {
+  const lines = [
+    opts.tail?.trim() ? `Tail Number: ${opts.tail.trim().toUpperCase()}` : null,
+    opts.lane.trim() ? `Route: ${opts.lane.trim()}` : null,
+    opts.flightDate?.trim() ? `Date: ${opts.flightDate.trim()}` : null,
+    opts.aircraftType?.trim()
+      ? `Aircraft: ${opts.aircraftType.trim()}`
+      : null,
+    opts.poNumber?.trim()
+      ? `PO #${normalizePoDocNumber(opts.poNumber, opts.poNumber.trim())}`
+      : null,
+    opts.payTerms?.trim() ? `Terms: ${opts.payTerms.trim()}` : null,
+    opts.extraNotes?.trim() || null,
+  ].filter(Boolean) as string[]
+  return lines.join('\n').slice(0, 1000)
 }
 
 export function buildQbInvoicePayload(input: BuildQbInvoiceInput): QbInvoicePayload {
@@ -117,14 +175,18 @@ export function buildQbInvoicePayload(input: BuildQbInvoiceInput): QbInvoicePayl
       value: input.customerId,
       name: input.customerName,
     },
-    AllowOnlineCreditCardPayment: false,
-    AllowOnlineACHPayment: false,
+    AllowOnlineCreditCardPayment: input.allowOnlineCard ?? false,
+    AllowOnlineACHPayment: input.allowOnlineAch ?? true,
     Line: lines,
     TxnDate: input.txnDate,
     DocNumber: doc,
     SalesTermRef: { value: salesTermRefForPayTerms(input.payTerms) },
     DueDate: dueDateIso(input.txnDate, input.payTerms),
     EmailStatus: 'NotSet',
+  }
+  const bill = input.billEmail?.trim()
+  if (bill?.includes('@')) {
+    payload.BillEmail = { Address: bill.toLowerCase() }
   }
   const notes = input.notes?.trim()
   if (notes) {
@@ -143,12 +205,14 @@ export function tripInvoiceLines(opts: {
   taxLines?: Array<{ code: string; amount: number; note?: string }>
   /** Confirmed aircraft type — appears on the air line description. */
   aircraftType?: string | null
+  tail?: string | null
 }): QbInvoiceLineInput[] {
-  const dateBit = opts.flightDate ?? ''
-  const typeBit = (opts.aircraftType ?? '').trim()
-  const desc = [`T-${opts.tripRef}`, opts.lane, typeBit, dateBit]
-    .filter(Boolean)
-    .join(' ')
+  const desc = charterFlightLineDescription({
+    lane: opts.lane,
+    flightDate: opts.flightDate,
+    aircraftType: opts.aircraftType,
+    tail: opts.tail,
+  })
   const lines: QbInvoiceLineInput[] = [
     {
       description: desc,

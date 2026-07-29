@@ -2,8 +2,8 @@
  * Accounting / QuickBooks adapter — mock (default) or QBO via edge functions.
  * Secrets (QB_CLIENT_ID/SECRET, tokens) never in VITE_*.
  *
- * OFA rules enforced in domain + edge:
- * EmailStatus=NotSet, no BillEmail, online pay off, DocNumber=PO.
+ * Create in QBO (ACH on, DocNumber=PO). Deliver via native
+ * /invoice/{id}/send so the PDF + ACH payment request match live OFA.
  */
 
 import { adapterMode } from '@/adapters/types'
@@ -25,6 +25,10 @@ export type CreateInvoiceRequest = {
   notes?: string | null
   /** Trip ref for mock ids / logging */
   tripRef?: number
+  /** AP inbox — stored on the QBO invoice BillEmail */
+  billEmail?: string | null
+  /** Default true — enables View & pay / ACH on the QBO PDF */
+  allowOnlineAch?: boolean
 }
 
 export type CreateInvoiceResult = {
@@ -75,12 +79,15 @@ export interface AccountingAdapter {
   getDashboardStats(): Promise<QbDashboardStats>
   getLastPoNumeric(customerName: string): Promise<number | null>
   getInvoicePdfBase64(qbInvoiceId: string): Promise<string | null>
+  /** Native QBO payment-request email (preferred) or mock/Resend fallback. */
   sendInvoiceEmail(opts: {
     to: string[]
     cc?: string[]
     bcc?: string[]
     poNumber: string
-    pdfBase64: string
+    qbInvoiceId: string
+    /** Unused for native QBO send — kept for mock/Resend fallback. */
+    pdfBase64?: string
     clientName?: string
     logoUrl?: string
   }): Promise<{ id: string }>
@@ -121,7 +128,9 @@ export class MockAccountingAdapter implements AccountingAdapter {
       lines: req.lines,
       notes: req.notes,
       itemId: 'mock-item-1',
-      itemName: 'Services',
+      itemName: 'Brokerage Services - AOG',
+      billEmail: req.billEmail,
+      allowOnlineAch: req.allowOnlineAch ?? true,
     })
     const id = `mock-inv-${req.tripRef ?? payload.DocNumber}`
     mockInvoices.set(id, {
@@ -133,6 +142,7 @@ export class MockAccountingAdapter implements AccountingAdapter {
       id,
       DocNumber: payload.DocNumber,
       EmailStatus: payload.EmailStatus,
+      AllowOnlineACHPayment: payload.AllowOnlineACHPayment,
       lines: payload.Line.length,
     })
     return {
@@ -206,18 +216,22 @@ export class MockAccountingAdapter implements AccountingAdapter {
     cc?: string[]
     bcc?: string[]
     poNumber: string
-    pdfBase64: string
+    qbInvoiceId: string
+    pdfBase64?: string
     clientName?: string
     logoUrl?: string
   }) {
     console.info(
-      '[MockQB] send-invoice-email',
-      { to: opts.to, cc: opts.cc, bcc: opts.bcc, logo: opts.logoUrl },
-      opts.poNumber,
+      '[MockQB] send-invoice (native QBO path simulated)',
+      {
+        qbInvoiceId: opts.qbInvoiceId,
+        to: opts.to,
+        cc: opts.cc,
+        po: opts.poNumber,
+      },
     )
-    // When Supabase is wired, still deliver the branded template + mock PDF
-    // so Quick Dispatch / desk can verify logo formatting without live QBO.
-    if (supabase && isSupabaseConfigured) {
+    // Optional Resend fallback when a PDF is provided (local demos).
+    if (opts.pdfBase64 && supabase && isSupabaseConfigured) {
       const { data, error } = await supabase.functions.invoke(
         'send-invoice-email',
         {
@@ -234,7 +248,9 @@ export class MockAccountingAdapter implements AccountingAdapter {
       )
       if (!error) {
         const body = data as { id?: string; error?: string }
-        if (!body?.error) return { id: String(body.id ?? `mock-mail-${opts.poNumber}`) }
+        if (!body?.error) {
+          return { id: String(body.id ?? `mock-mail-${opts.poNumber}`) }
+        }
       }
       console.warn('[MockQB] branded send-invoice-email failed', error ?? data)
     }
@@ -277,6 +293,8 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
       lines: req.lines,
       notes: req.notes,
       trip_ref: req.tripRef,
+      bill_email: req.billEmail ?? null,
+      allow_online_ach: req.allowOnlineAch ?? true,
     })
     return {
       qbInvoiceId: String(data.invoice_id ?? ''),
@@ -365,31 +383,24 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
     cc?: string[]
     bcc?: string[]
     poNumber: string
-    pdfBase64: string
+    qbInvoiceId: string
+    pdfBase64?: string
     clientName?: string
     logoUrl?: string
   }) {
-    if (!supabase || !isSupabaseConfigured) {
-      throw new Error('send-invoice-email needs Supabase')
+    if (!opts.qbInvoiceId?.trim()) {
+      throw new Error('qbInvoiceId required for QuickBooks invoice send')
     }
-    const { data, error } = await supabase.functions.invoke(
-      'send-invoice-email',
-      {
-        body: {
-          to: opts.to,
-          cc: opts.cc,
-          bcc: opts.bcc,
-          po_number: opts.poNumber,
-          pdf_base64: opts.pdfBase64,
-          client_name: opts.clientName,
-          logo_url: opts.logoUrl,
-        },
-      },
-    )
-    if (error) throw new Error(error.message || 'send-invoice-email failed')
-    const body = data as { id?: string; error?: string }
-    if (body?.error) throw new Error(body.error)
-    return { id: String(body.id ?? 'sent') }
+    const sendTo = opts.to.map((e) => e.trim().toLowerCase()).find((e) => e.includes('@'))
+    if (!sendTo) throw new Error('Invoice To email required')
+    // Native QBO payment-request email — PDF + ACH "View and pay" from the company file.
+    const data = await this.invoke('send_invoice', {
+      invoice_id: opts.qbInvoiceId,
+      send_to: sendTo,
+      cc: opts.cc ?? [],
+      allow_online_ach: true,
+    })
+    return { id: String(data.invoice_id ?? opts.qbInvoiceId) }
   }
 }
 

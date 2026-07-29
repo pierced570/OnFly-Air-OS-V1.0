@@ -1,6 +1,6 @@
 /**
- * Orchestrate QB invoice create → PDF → branded Resend → ledger update.
- * Never uses QBO's native email send.
+ * Orchestrate QB invoice create → native QBO payment-request email → ledger.
+ * PDF + ACH "View and pay" come from the QuickBooks company file.
  */
 
 import {
@@ -131,19 +131,14 @@ export async function sendFinancialInvoice(
     (client ? listInvoiceEmails(client.id) : inferApEmails(clientName))
 
   if (!opts?.skipEmail && to.length) {
-    const pdf = await acct.getInvoicePdfBase64(created.qbInvoiceId)
-    if (pdf) {
-      const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
-      const mail = await acct.sendInvoiceEmail({
-        to,
-        poNumber: doc,
-        pdfBase64: pdf,
-        clientName,
-        logoUrl: invoiceEmailLogoUrl(),
-      })
-      emailed = true
-      emailId = mail.id
-    }
+    const mail = await acct.sendInvoiceEmail({
+      to,
+      poNumber: doc,
+      qbInvoiceId: created.qbInvoiceId,
+      clientName,
+    })
+    emailed = true
+    emailId = mail.id
   }
 
   return {
