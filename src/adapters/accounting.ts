@@ -82,6 +82,7 @@ export interface AccountingAdapter {
     poNumber: string
     pdfBase64: string
     clientName?: string
+    logoUrl?: string
   }): Promise<{ id: string }>
 }
 
@@ -207,12 +208,36 @@ export class MockAccountingAdapter implements AccountingAdapter {
     poNumber: string
     pdfBase64: string
     clientName?: string
+    logoUrl?: string
   }) {
     console.info(
       '[MockQB] send-invoice-email',
-      { to: opts.to, cc: opts.cc, bcc: opts.bcc },
+      { to: opts.to, cc: opts.cc, bcc: opts.bcc, logo: opts.logoUrl },
       opts.poNumber,
     )
+    // When Supabase is wired, still deliver the branded template + mock PDF
+    // so Quick Dispatch / desk can verify logo formatting without live QBO.
+    if (supabase && isSupabaseConfigured) {
+      const { data, error } = await supabase.functions.invoke(
+        'send-invoice-email',
+        {
+          body: {
+            to: opts.to,
+            cc: opts.cc,
+            bcc: opts.bcc,
+            po_number: opts.poNumber,
+            pdf_base64: opts.pdfBase64,
+            client_name: opts.clientName,
+            logo_url: opts.logoUrl,
+          },
+        },
+      )
+      if (!error) {
+        const body = data as { id?: string; error?: string }
+        if (!body?.error) return { id: String(body.id ?? `mock-mail-${opts.poNumber}`) }
+      }
+      console.warn('[MockQB] branded send-invoice-email failed', error ?? data)
+    }
     return { id: `mock-mail-${opts.poNumber}` }
   }
 }
@@ -342,6 +367,7 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
     poNumber: string
     pdfBase64: string
     clientName?: string
+    logoUrl?: string
   }) {
     if (!supabase || !isSupabaseConfigured) {
       throw new Error('send-invoice-email needs Supabase')
@@ -356,6 +382,7 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
           po_number: opts.poNumber,
           pdf_base64: opts.pdfBase64,
           client_name: opts.clientName,
+          logo_url: opts.logoUrl,
         },
       },
     )

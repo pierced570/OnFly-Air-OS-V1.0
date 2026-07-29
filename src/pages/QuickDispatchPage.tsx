@@ -19,6 +19,7 @@ import {
   createInvoiceForTrip,
   createQuickDispatchTrip,
   safeTransitionTrip,
+  sendTripInvoiceEmail,
 } from '@/lib/tripStore'
 import { sendQuickDispatchEtaSheetAndPortalLinks } from '@/lib/etaSheetSender'
 import {
@@ -225,15 +226,32 @@ export default function QuickDispatchPage() {
         })),
       })
 
-      // Invoice immediately (when checked) — same path as Approved desk Send.
+      // QuickBooks invoice PDF + branded OnFly email (logo header).
       if (sendInvoice && Number(clientPrice) > 0) {
         try {
-          await createInvoiceForTrip(trip.id, {
-            to: invoiceEmail.trim() ? [invoiceEmail.trim()] : undefined,
-            cc: ccList,
-          })
+          const { listInvoiceEmails } = await import('@/lib/clientStore')
+          const toList = invoiceEmail.trim()
+            ? [invoiceEmail.trim()]
+            : listInvoiceEmails(client.id)
+          if (toList.length) {
+            await sendTripInvoiceEmail(trip.id, {
+              to: toList,
+              cc: ccList,
+            })
+          } else {
+            await createInvoiceForTrip(trip.id, { skipEmail: true })
+          }
         } catch (e) {
           console.warn('[quick-dispatch] invoice failed', e)
+          try {
+            await createInvoiceForTrip(trip.id, {
+              skipEmail: true,
+              to: invoiceEmail.trim() ? [invoiceEmail.trim()] : undefined,
+              cc: ccList,
+            })
+          } catch (e2) {
+            console.warn('[quick-dispatch] invoice create failed', e2)
+          }
         }
       }
 

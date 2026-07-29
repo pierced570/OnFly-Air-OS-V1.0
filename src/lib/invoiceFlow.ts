@@ -133,11 +133,13 @@ export async function sendFinancialInvoice(
   if (!opts?.skipEmail && to.length) {
     const pdf = await acct.getInvoicePdfBase64(created.qbInvoiceId)
     if (pdf) {
+      const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
       const mail = await acct.sendInvoiceEmail({
         to,
         poNumber: doc,
         pdfBase64: pdf,
         clientName,
+        logoUrl: invoiceEmailLogoUrl(),
       })
       emailed = true
       emailId = mail.id

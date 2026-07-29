@@ -1795,6 +1795,7 @@ export async function createInvoiceForTrip(
     try {
       const pdf = await acct.getInvoicePdfBase64(created.qbInvoiceId)
       if (pdf) {
+        const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
         await acct.sendInvoiceEmail({
           to: uniqueTo,
           cc: uniqueCc,
@@ -1802,6 +1803,7 @@ export async function createInvoiceForTrip(
           poNumber: created.qbInvoiceNumber || po,
           pdfBase64: pdf,
           clientName,
+          logoUrl: invoiceEmailLogoUrl(),
         })
       }
     } catch (e) {
@@ -1938,6 +1940,7 @@ export async function sendTripInvoiceEmail(
   ]
   const pdf = await acct.getInvoicePdfBase64(trip.invoice.qb_invoice_id)
   if (!pdf) throw new Error('Could not load invoice PDF from QuickBooks')
+  const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
   await acct.sendInvoiceEmail({
     to,
     cc,
@@ -1945,6 +1948,7 @@ export async function sendTripInvoiceEmail(
     poNumber: po,
     pdfBase64: pdf,
     clientName,
+    logoUrl: invoiceEmailLogoUrl(),
   })
   mutateTrip(tripId, (row) => {
     if (row.invoice) row.invoice.status = 'sent'
