@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { PortalHomeTripCard } from '@/components/PortalHomeTripCard'
+import { PortalLanding } from '@/components/PortalLanding'
 import { PortalShell } from '@/components/PortalShell'
 import {
   clearPortalClient,
@@ -314,10 +315,15 @@ export default function PortalHomePage() {
       </button>
     </>
   ) : (
-    <Link to="/portal/login" className="text-gold hover:text-gold-lt">
-      Sign in
+    <Link to="/portal/request" className="text-gold hover:text-gold-lt">
+      Request a trip
     </Link>
   )
+
+  // Dark gate from PDF — magic link + request CTA (no empty Welcome wall).
+  if (!loadingAuth && !signedIn && !guest && !(session && !session.clientId)) {
+    return <PortalLanding />
+  }
 
   return (
     <PortalShell headerActions={headerActions}>
