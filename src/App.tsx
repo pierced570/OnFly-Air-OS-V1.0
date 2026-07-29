@@ -20,6 +20,12 @@ const OneTapPage = lazy(() => import('@/pages/OneTapPage'))
 const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalLoginPage = lazy(() => import('@/pages/portal/PortalLoginPage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
+const PortalDocumentsPage = lazy(
+  () => import('@/pages/portal/PortalDocumentsPage'),
+)
+const PortalSupportPage = lazy(
+  () => import('@/pages/portal/PortalSupportPage'),
+)
 const PortalTrackPage = lazy(() => import('@/pages/portal/PortalTrackPage'))
 const PortalTripTrackPage = lazy(() =>
   import('@/pages/portal/PortalTrackPage').then((m) => ({
@@ -142,6 +148,8 @@ export function App() {
         <Route path="/portal" element={<PortalHomePage />} />
         <Route path="/portal/login" element={<PortalLoginPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
+        <Route path="/portal/documents" element={<PortalDocumentsPage />} />
+        <Route path="/portal/support" element={<PortalSupportPage />} />
         <Route path="/portal/track/:token" element={<PortalTrackPage />} />
         <Route path="/portal/trips/:id" element={<PortalTripTrackPage />} />
         {/* Public client page — send this link; not part of the portal */}

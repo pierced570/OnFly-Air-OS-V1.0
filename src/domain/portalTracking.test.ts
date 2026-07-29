@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   buildMilestones,
   buildPortalTrackingView,
+  classifyPortalShipmentPhase,
   interpolateGc,
   portalAircraftMapVisible,
   resolveAircraftPosition,
+  summarizePortalShipments,
   type PortalTrackingTripInput,
 } from './portalTracking'
 import type { ChainLeg } from './etaChain'
@@ -237,5 +239,52 @@ describe('portalTracking', () => {
     expect(dep?.icao).toBe('KCAK')
     expect(arr?.icao).toBe('KMDW')
     expect(arr?.etaDisplay).toBeTruthy()
+  })
+
+  it('classifies portal shipment phases for cards', () => {
+    expect(
+      classifyPortalShipmentPhase({
+        state: 'in_progress',
+        aircraftPhase: 'airborne',
+      }),
+    ).toBe('in_flight')
+    expect(
+      classifyPortalShipmentPhase({
+        state: 'in_progress',
+        aircraftPhase: 'on_ground',
+        legs: [{ type: 'truck_delivery', status: 'active' }],
+      }),
+    ).toBe('on_truck')
+    expect(classifyPortalShipmentPhase({ state: 'delivered' })).toBe(
+      'delivered',
+    )
+    expect(classifyPortalShipmentPhase({ state: 'booked' })).toBe('booked')
+  })
+
+  it('summarizes shipment counts for the home headline', () => {
+    expect(
+      summarizePortalShipments(['in_flight', 'on_truck', 'delivered', 'booked']),
+    ).toEqual({ inMotion: 1, onGround: 2, delivered: 1 })
+  })
+
+  it('exposes PO, code, phase, and dual-time ETA rows on the view', () => {
+    const view = buildPortalTrackingView(
+      sampleD2d({
+        code: 'a3s6d',
+        po_number: '12345',
+        state: 'in_progress',
+        eta_chain: sampleD2d().eta_chain.map((l) =>
+          l.type === 'air_leg'
+            ? { ...l, actual_start: '2026-07-15T16:00:00.000Z' }
+            : l,
+        ),
+      }),
+      { nowIso: '2026-07-15T16:45:00.000Z' },
+    )
+    expect(view.poNumber).toBe('12345')
+    expect(view.code).toBe('a3s6d')
+    expect(view.phase).toBe('in_flight')
+    expect(view.etaRows[0]!.scheduledLocal).toBeTruthy()
+    expect(view.etaRows[0]!.scheduledZulu).toMatch(/Z/)
   })
 })

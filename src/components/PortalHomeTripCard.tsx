@@ -1,17 +1,17 @@
 /**
- * Signed-in portal home card — date, routing, live map, cargo (no pricing).
+ * Portal home shipment card — IN FLIGHT / ON TRUCK / DELIVERED skins.
  */
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createAdsbAdapter, type AdsbPosition } from '@/adapters/adsb'
-import { PortalAircraftMap } from '@/components/PortalAircraftMap'
+import { PortalDeltaPill } from '@/components/PortalShell'
 import {
   buildPortalTrackingView,
-  portalAircraftMapVisible,
+  formatDeltaBadge,
   tripToTrackingInput,
+  type PortalShipmentPhase,
 } from '@/domain/portalTracking'
-import { formatClientLocal } from '@/domain/timeFmt'
 import { getTrip } from '@/lib/tripStore'
 
 const REFRESH_MS = 30_000
@@ -56,6 +56,21 @@ export type PortalHomeTripCardProps = {
   nextLabel: string | null
 }
 
+function phaseLabel(phase: PortalShipmentPhase): string {
+  if (phase === 'in_flight') return 'In flight'
+  if (phase === 'on_truck') return 'On delivery truck'
+  if (phase === 'delivered') return 'Delivered'
+  if (phase === 'booked') return 'Booked'
+  return 'In progress'
+}
+
+function patternLabel(pattern: string | null | undefined): string {
+  if (pattern === 'D2D') return 'door to door'
+  if (pattern === 'D2A') return 'door to airport'
+  if (pattern === 'A2D') return 'airport to door'
+  return 'airport to airport'
+}
+
 export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
   const trip = getTrip(props.id)
   const nowIso = useMemo(() => new Date().toISOString(), [])
@@ -69,91 +84,174 @@ export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
     })
   }, [trip, adsb, nowIso])
 
-  const dateLabel = (() => {
-    if (props.ready_label?.trim()) return props.ready_label
-    const firstEvent = trip?.events?.[0]?.at
-    if (firstEvent) {
-      return formatClientLocal(firstEvent, 'UTC').local
-    }
-    return 'Date TBD'
-  })()
+  const phase: PortalShipmentPhase = view?.phase ?? 'other'
+  const dark = phase === 'in_flight'
+  const progress =
+    view?.aircraft.progressPct != null
+      ? Math.max(4, Math.min(100, view.aircraft.progressPct))
+      : phase === 'delivered'
+        ? 100
+        : phase === 'on_truck'
+          ? 78
+          : phase === 'in_flight'
+            ? 55
+            : 20
 
-  const cargo =
-    props.payload_summary?.trim() ||
-    trip?.payload_summary?.trim() ||
-    'Cargo TBD'
+  const po =
+    view?.poNumber?.trim() ||
+    trip?.po_number?.trim() ||
+    trip?.quick?.po?.trim() ||
+    `T-${props.tripRef}`
+  const lane =
+    view?.lane ||
+    props.lane ||
+    '—'
+  const tail = view?.tail || trip?.quick?.tail || null
+  const typeName = view?.aircraftType || trip?.quick?.aircraft_type || null
+  const pattern = patternLabel(view?.pattern)
+  const delta = formatDeltaBadge(view?.deltaMin)
+  const hasPod = (view?.documents ?? []).some((d) => d.kind === 'pod')
 
-  const showMap = view ? portalAircraftMapVisible(view.aircraft) : false
+  const leftTime =
+    phase === 'delivered'
+      ? view?.projectedDisplay || props.ready_label || '—'
+      : view?.flightFacts.wheelsUpDisplay
+        ? `WHEELS UP ${view.flightFacts.wheelsUpDisplay}`
+        : props.nextLabel
+          ? props.nextLabel.toUpperCase()
+          : '—'
+
+  const rightTime =
+    phase === 'delivered'
+      ? hasPod
+        ? 'POD ON FILE'
+        : 'DELIVERED'
+      : phase === 'on_truck' && (view?.projectedDisplay || props.etaHint)
+        ? `DELIVERY ${view?.projectedDisplay || props.etaHint}`
+        : view?.projectedDisplay
+          ? `ETA ${view.projectedDisplay}`
+          : props.etaHint
+            ? `ETA ${props.etaHint}`
+            : 'ETA —'
+
+  const cta =
+    phase === 'delivered'
+      ? { label: 'Documents & POD', href: props.trackHref }
+      : { label: phase === 'in_flight' ? 'View live tracking' : 'View tracking', href: props.trackHref }
 
   return (
-    <li className="overflow-hidden rounded-md border border-border bg-[#F7F2E3]/50">
-      <div className="px-4 py-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="font-medium">T-{props.tripRef}</span>
-          <span className="text-xs uppercase tracking-wider text-gold">
-            {props.state.replace(/_/g, ' ')}
+    <li
+      className={[
+        'overflow-hidden rounded-md border',
+        dark
+          ? 'border-ink bg-ink text-cream'
+          : 'border-border/80 bg-white text-ink',
+      ].join(' ')}
+    >
+      <div className="px-4 pb-3 pt-4 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
+            {phase === 'in_flight' ? (
+              <span className="h-2 w-2 rounded-full bg-[#2E7D32]" aria-hidden />
+            ) : null}
+            <span
+              className={
+                phase === 'delivered'
+                  ? 'text-[#2E7D32]'
+                  : dark
+                    ? 'text-cream'
+                    : 'text-ink'
+              }
+            >
+              {phaseLabel(phase)}
+            </span>
+          </div>
+          {phase === 'in_flight' && delta.tone === 'late' ? (
+            <span className="rounded bg-[#C0392B] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+              {delta.label}
+            </span>
+          ) : phase === 'delivered' && delta.tone === 'early' ? (
+            <PortalDeltaPill deltaMin={view?.deltaMin} />
+          ) : phase === 'on_truck' ? (
+            <span className="rounded border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+              Window
+            </span>
+          ) : view?.deltaMin != null ? (
+            <PortalDeltaPill deltaMin={view.deltaMin} />
+          ) : null}
+        </div>
+
+        <div
+          className={[
+            'mt-3 text-2xl font-semibold tracking-tight',
+            dark ? 'text-cream' : 'text-ink',
+          ].join(' ')}
+        >
+          PO #{po.replace(/^PO\s*#?\s*/i, '')}
+        </div>
+        <div className="avionic mt-1 text-sm font-medium text-gold">
+          {lane}
+          {tail ? ` · ${tail}` : ''}
+        </div>
+        <div
+          className={[
+            'mt-0.5 text-xs',
+            dark ? 'text-cream/70' : 'text-muted',
+          ].join(' ')}
+        >
+          {[typeName, pattern].filter(Boolean).join(' · ') || 'Aircraft TBD'}
+        </div>
+
+        <div
+          className={[
+            'mt-4 h-1.5 w-full overflow-hidden rounded-full',
+            dark ? 'bg-cream/15' : 'bg-border/70',
+          ].join(' ')}
+        >
+          <div
+            className={[
+              'h-full rounded-full',
+              phase === 'delivered' ? 'bg-[#2E7D32]' : 'bg-gold',
+            ].join(' ')}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-2 text-xs">
+          <span
+            className={[
+              'uppercase tracking-wider',
+              dark ? 'text-cream/65' : 'text-muted',
+            ].join(' ')}
+          >
+            {leftTime}
+          </span>
+          <span
+            className={[
+              'font-semibold',
+              phase === 'delivered'
+                ? 'text-[#2E7D32]'
+                : dark
+                  ? 'text-cream'
+                  : 'text-ink',
+            ].join(' ')}
+          >
+            {rightTime}
           </span>
         </div>
-        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-[10px] uppercase tracking-wider text-muted">
-              Date
-            </dt>
-            <dd className="avionic mt-0.5 text-ink">{dateLabel}</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-wider text-muted">
-              Routing
-            </dt>
-            <dd className="avionic mt-0.5 text-ink">{props.lane || '—'}</dd>
-          </div>
-          <div className="sm:col-span-2">
-            <dt className="text-[10px] uppercase tracking-wider text-muted">
-              Cargo
-            </dt>
-            <dd className="mt-0.5 text-ink">{cargo}</dd>
-          </div>
-        </dl>
-        {props.etaHint ? (
-          <p className="avionic mt-2 text-sm text-ink">
-            ETA {props.etaHint}
-            {props.nextLabel ? (
-              <span className="ml-2 text-xs text-muted">
-                · next {props.nextLabel}
-              </span>
-            ) : null}
-          </p>
-        ) : null}
       </div>
 
-      {showMap && view ? (
-        <div className="border-t border-border/60 bg-white px-3 pb-2 pt-3">
-          <div className="text-[10px] uppercase tracking-wider text-muted">
-            Live map
-          </div>
-          <div className="mt-1.5">
-            <PortalAircraftMap aircraft={view.aircraft} />
-          </div>
-          <p className="mt-1 text-[10px] text-muted">
-            {view.aircraft.source === 'adsb'
-              ? 'FlightAware / ADS-B live position'
-              : 'Route from live ETA chain'}
-          </p>
-        </div>
-      ) : (
-        <div className="border-t border-dashed border-border/60 px-4 py-3 text-xs text-muted">
-          Live map unlocks once the aircraft is assigned and tracking.
-        </div>
-      )}
-
-      <div className="border-t border-border/60 px-4 py-3">
-        <Link
-          to={props.trackHref}
-          className="inline-flex rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
-        >
-          Open live tracking →
-        </Link>
-      </div>
+      <Link
+        to={cta.href}
+        className={[
+          'block px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.14em] sm:px-5',
+          dark
+            ? 'bg-gold text-ink hover:bg-gold-lt'
+            : 'border-t border-border/70 text-gold hover:bg-gold/5',
+        ].join(' ')}
+      >
+        {cta.label}
+      </Link>
     </li>
   )
 }

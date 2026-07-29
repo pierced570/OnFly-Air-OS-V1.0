@@ -10,7 +10,7 @@ import {
   projectedDeliveryUtc,
 } from '@/domain/etaChain'
 import { haversineNm } from '@/domain/geo'
-import { formatClientLocal } from '@/domain/timeFmt'
+import { formatClientLocal, formatZuluLocal } from '@/domain/timeFmt'
 
 export type TrackingMilestoneKind =
   | 'request_received'
@@ -40,6 +40,106 @@ export type TrackingEtaRow = {
   actualDisplay: string | null
   status: 'done' | 'active' | 'pending'
   tz: string
+  /** Scheduled end — local (stop zone). */
+  scheduledLocal: string | null
+  /** Scheduled end — Zulu. */
+  scheduledZulu: string | null
+  /** Actual or live forecast local. */
+  actualOrForecastLocal: string | null
+  /** Minutes early (−) / late (+) vs scheduled end; null if unknown. */
+  deltaMin: number | null
+  /** True when actualOrForecast is still a forecast (not actual). */
+  isForecast: boolean
+}
+
+/** Client shipment card / list phase — portal-safe labels. */
+export type PortalShipmentPhase =
+  | 'in_flight'
+  | 'on_truck'
+  | 'delivered'
+  | 'booked'
+  | 'other'
+
+export type PortalShipmentCounts = {
+  inMotion: number
+  onGround: number
+  delivered: number
+}
+
+export function formatDeltaBadge(deltaMin: number | null | undefined): {
+  label: string
+  tone: 'early' | 'late' | 'onplan' | 'live' | 'none'
+} {
+  if (deltaMin == null || !Number.isFinite(deltaMin)) {
+    return { label: '', tone: 'none' }
+  }
+  const rounded = Math.round(deltaMin)
+  if (rounded === 0) return { label: 'ON PLAN', tone: 'onplan' }
+  if (rounded > 0) return { label: `+${rounded} MIN`, tone: 'late' }
+  return { label: `${rounded} MIN`, tone: 'early' }
+}
+
+export function classifyPortalShipmentPhase(input: {
+  state: string
+  aircraftPhase?: TrackingAircraftPosition['phase'] | null
+  legs?: Array<{ type: string; status: string }>
+}): PortalShipmentPhase {
+  const state = input.state
+  if (
+    state === 'delivered' ||
+    state === 'invoiced' ||
+    state === 'closed'
+  ) {
+    return 'delivered'
+  }
+  if (state === 'booked') return 'booked'
+  if (state === 'in_progress') {
+    if (input.aircraftPhase === 'airborne') return 'in_flight'
+    const active = (input.legs ?? []).find((l) => l.status === 'active')
+    if (
+      active &&
+      (active.type.startsWith('truck') || active.type === 'offload')
+    ) {
+      return 'on_truck'
+    }
+    if (input.aircraftPhase === 'on_ground' || input.aircraftPhase === 'positioning') {
+      return 'on_truck'
+    }
+    return 'in_flight'
+  }
+  return 'other'
+}
+
+export function summarizePortalShipments(
+  phases: PortalShipmentPhase[],
+): PortalShipmentCounts {
+  let inMotion = 0
+  let onGround = 0
+  let delivered = 0
+  for (const p of phases) {
+    if (p === 'in_flight') inMotion++
+    else if (p === 'on_truck' || p === 'booked') onGround++
+    else if (p === 'delivered') delivered++
+  }
+  return { inMotion, onGround, delivered }
+}
+
+/** ETE remaining from nm + ground speed (minutes), or null. */
+export function eteMinutesRemaining(
+  nmRemaining: number | null | undefined,
+  gsKts: number | null | undefined,
+): number | null {
+  if (nmRemaining == null || !(nmRemaining > 0)) return null
+  if (gsKts == null || !(gsKts > 20)) return null
+  return Math.max(1, Math.round((nmRemaining / gsKts) * 60))
+}
+
+export function formatEteLabel(min: number | null): string | null {
+  if (min == null) return null
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h <= 0) return `${m}M`
+  return `${h}H ${String(m).padStart(2, '0')}M`
 }
 
 export type TrackingAircraftPosition = {
@@ -80,8 +180,13 @@ export function portalAircraftMapVisible(a: TrackingAircraftPosition): boolean {
 
 export type PortalTrackingView = {
   ref: number
+  /** Trip public code when known (e.g. a3s6d). */
+  code: string | null
+  /** Client PO — never operator cost. */
+  poNumber: string | null
   lane: string
   state: string
+  phase: PortalShipmentPhase
   readyLabel: string
   payloadSummary: string
   pattern: ServicePattern | null
@@ -92,6 +197,9 @@ export type PortalTrackingView = {
   promisedDisplay: string | null
   projectedDisplay: string | null
   deltaMin: number | null
+  /** ETE remaining for live air leg (minutes). */
+  eteMin: number | null
+  eteLabel: string | null
   nextMilestoneLabel: string
   milestones: TrackingMilestone[]
   etaRows: TrackingEtaRow[]
@@ -143,6 +251,8 @@ export type TrackingFlightFacts = {
 
 export type PortalTrackingTripInput = {
   ref: number
+  code?: string | null
+  po_number?: string | null
   lane: string
   state: string
   ready_label: string
@@ -336,44 +446,66 @@ export function buildEtaRows(trip: PortalTrackingTripInput): TrackingEtaRow[] {
   if (!chain.length) {
     return trip.legs.map((l) => {
       const tz = 'UTC'
-      const est = l.est_end
-        ? formatClientLocal(l.est_end, tz).display
-        : '—'
-      const act = l.actual_end
-        ? formatClientLocal(l.actual_end, tz).display
-        : l.actual_start
-          ? formatClientLocal(l.actual_start, tz).display
+      const estIso = l.est_end
+      const actIso = l.actual_end ?? l.actual_start
+      const status: TrackingEtaRow['status'] =
+        l.status === 'done' ? 'done' : l.status === 'active' ? 'active' : 'pending'
+      const deltaMin =
+        estIso && actIso
+          ? Math.round(
+              (Date.parse(actIso) - Date.parse(estIso)) / 60_000,
+            )
           : null
+      const estFmt = estIso ? formatClientLocal(estIso, tz) : null
+      const zulu = estIso ? formatZuluLocal(estIso, tz) : null
+      const actFmt = actIso ? formatClientLocal(actIso, tz) : null
       return {
         seq: l.seq,
         event: l.label,
         fromLabel: (l.origin || '—').toUpperCase(),
         toLabel: (l.dest || '—').toUpperCase(),
-        estDisplay: est,
-        actualDisplay: act,
-        status:
-          l.status === 'done' ? 'done' : l.status === 'active' ? 'active' : 'pending',
+        estDisplay: estFmt?.display ?? '—',
+        actualDisplay: actFmt?.display ?? null,
+        status,
         tz,
+        scheduledLocal: estFmt?.local ?? null,
+        scheduledZulu: zulu?.zulu ?? null,
+        actualOrForecastLocal: actFmt?.local ?? estFmt?.local ?? null,
+        deltaMin: status === 'active' && !actIso ? null : deltaMin,
+        isForecast: !actIso,
       }
     })
   }
   return chain.map((leg) => {
     const tz = leg.to.tz || leg.from.tz || 'UTC'
+    const status = legStatus(leg, trip.legs)
+    const estIso = leg.est_end
+    const actIso = leg.actual_end ?? leg.actual_start ?? null
+    const forecastIso = !actIso ? estIso : null
+    const compareIso = actIso ?? forecastIso
+    const deltaMin =
+      estIso && compareIso && status !== 'pending'
+        ? Math.round((Date.parse(compareIso) - Date.parse(estIso)) / 60_000)
+        : estIso && compareIso && status === 'pending'
+          ? Math.round((Date.parse(compareIso) - Date.parse(estIso)) / 60_000)
+          : null
+    const estFmt = formatClientLocal(estIso, tz)
+    const zulu = formatZuluLocal(estIso, tz)
+    const actFmt = actIso ? formatClientLocal(actIso, tz) : null
     return {
       seq: leg.seq,
       event: leg.event || leg.label,
       fromLabel: (leg.from.icao || leg.from.label || '—').toUpperCase(),
       toLabel: (leg.to.icao || leg.to.label || '—').toUpperCase(),
-      estDisplay: formatClientLocal(leg.est_end, tz).display,
-      actualDisplay:
-        leg.actual_end || leg.actual_start
-          ? formatClientLocal(
-              (leg.actual_end ?? leg.actual_start)!,
-              tz,
-            ).display
-          : null,
-      status: legStatus(leg, trip.legs),
+      estDisplay: estFmt.display,
+      actualDisplay: actFmt?.display ?? null,
+      status,
       tz,
+      scheduledLocal: estFmt.local,
+      scheduledZulu: zulu.zulu,
+      actualOrForecastLocal: actFmt?.local ?? estFmt.local,
+      deltaMin: status === 'active' && !actIso ? null : deltaMin,
+      isForecast: !actIso,
     }
   })
 }
@@ -871,10 +1003,20 @@ export function buildPortalTrackingView(
       d.kind === 'manifest',
   )
 
+  const phase = classifyPortalShipmentPhase({
+    state: trip.state,
+    aircraftPhase: aircraft.phase,
+    legs: trip.legs,
+  })
+  const eteMin = eteMinutesRemaining(aircraft.nmRemaining, aircraft.gsKts)
+
   return {
     ref: trip.ref,
+    code: trip.code?.trim() || null,
+    poNumber: trip.po_number?.trim() || null,
     lane: trip.lane,
     state: trip.state,
+    phase,
     readyLabel: trip.ready_label,
     payloadSummary: trip.payload_summary,
     pattern: trip.service_pattern ?? null,
@@ -888,6 +1030,8 @@ export function buildPortalTrackingView(
       ? formatClientLocal(projected, lastTz).display
       : null,
     deltaMin: deliveryDeltaMin(projected, promised),
+    eteMin,
+    eteLabel: formatEteLabel(eteMin),
     nextMilestoneLabel: nextLabel,
     milestones,
     etaRows,
@@ -908,6 +1052,8 @@ export function buildPortalTrackingView(
 /** Map trip store row → tracking input (strips money fields by omission). */
 export function tripToTrackingInput(trip: {
   ref: number
+  code?: string | null
+  po_number?: string | null
   lane: string
   state: string
   ready_label: string
@@ -918,7 +1064,7 @@ export function tripToTrackingInput(trip: {
   legs: PortalTrackingTripInput['legs']
   events: PortalTrackingTripInput['events']
   documents?: PortalTrackingTripInput['documents']
-  quick?: { tail?: string; aircraft_type?: string } | null
+  quick?: { tail?: string; aircraft_type?: string; po?: string } | null
   offers?: Array<{ state: string; tail: string; type_name: string | null }>
   hard_quote?: { disclosure_at?: string } | null
 }): PortalTrackingTripInput {
@@ -927,6 +1073,8 @@ export function tripToTrackingInput(trip: {
     trip.offers?.find((o) => o.state === 'quoted')
   return {
     ref: trip.ref,
+    code: trip.code ?? null,
+    po_number: trip.po_number?.trim() || trip.quick?.po?.trim() || null,
     lane: trip.lane,
     state: trip.state,
     ready_label: trip.ready_label,
