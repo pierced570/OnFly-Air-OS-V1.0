@@ -12,17 +12,17 @@ const FEATURES = [
   {
     n: '1',
     title: 'Live position & ETA',
-    body: 'Tail, wheels-up, landing, and delta against plan — updated as the trip moves.',
+    body: 'Tail number, wheels-up, landing and delta against plan.',
   },
   {
     n: '2',
     title: 'Door-to-door visibility',
-    body: 'Pickup, FBO handoffs, and final delivery on a single timeline.',
+    body: 'Pickup, FBO handoffs and final delivery on one timeline.',
   },
   {
     n: '3',
     title: 'No password to lose',
-    body: 'We email a one-time magic link to the address OnFly has on file.',
+    body: 'We email a one-tap sign-in link that lasts 15 minutes.',
   },
 ] as const
 
@@ -89,8 +89,8 @@ export function PortalLanding() {
             Your freight, in the air and on the screen.
           </h1>
           <p className="mt-4 max-w-md text-base leading-relaxed text-cream/60">
-            Watch live shipments or request a new trip. Quotes typically come
-            back in 10–15 minutes.
+            Sign in to watch shipments move in real time, or request a new trip
+            without an account. Quotes typically come back in 10–15 minutes.
           </p>
           <ol className="mt-10 space-y-5">
             {FEATURES.map((f) => (
@@ -113,7 +113,8 @@ export function PortalLanding() {
               <>
                 <h2 className="text-lg font-semibold">See your shipments</h2>
                 <p className="mt-1 text-sm text-muted">
-                  We’ll email a one-time sign-in link — no password.
+                  Enter your work email and we&apos;ll send a magic sign-in link
+                  — no password needed.
                 </p>
                 <form onSubmit={sendLink} className="mt-4 space-y-3">
                   <label className="block text-xs font-medium text-muted">
@@ -139,11 +140,9 @@ export function PortalLanding() {
                   </button>
                 </form>
                 <p className="mt-3 text-[11px] text-muted">
-                  Only emails OnFly has granted can sign in.{' '}
-                  <Link to="/portal/request" className="text-gold underline">
-                    Request a trip below
-                  </Link>
-                  .
+                  Only addresses already on your company account can sign in. Not
+                  set up yet? Request a trip below and we&apos;ll take it from
+                  there.
                 </p>
               </>
             ) : (
@@ -208,7 +207,7 @@ export function PortalLanding() {
             >
               {BRAND_PHONE}
             </a>{' '}
-            and we&apos;ll build the request.
+            and we&apos;ll build the request with you.
           </div>
         </section>
       </main>

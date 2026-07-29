@@ -118,7 +118,7 @@ export function DimsTripleInput({
             className="space-y-1.5 rounded-lg border border-border/60 bg-surface-2/30 p-2.5 sm:p-3"
           >
             <div className="flex items-center justify-between gap-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gold">
                 Cargo {index + 1}
                 {rows.length > 1 ? ` of ${rows.length}` : ''}
               </div>

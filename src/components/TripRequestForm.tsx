@@ -485,19 +485,19 @@ export function TripRequestForm({
             </button>
           ))}
         </div>
-        {draft.service_mode === 'a2a' && (
+        {!wizard && draft.service_mode === 'a2a' ? (
           <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
             Airport-to-airport: pick by ICAO or city/state. FBO selection
             happens in step two with dispatch.
           </p>
-        )}
-        {draft.service_mode === 'd2d' && (
+        ) : null}
+        {!wizard && draft.service_mode === 'd2d' ? (
           <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
             Door-to-door: pickup address → optional departure airport → optional
             destination airport → delivery address. Airports are preferred only —
             dispatch can assign nearer fields from the addresses.
           </p>
-        )}
+        ) : null}
         {draft.service_mode === 'mixed' && !wizard && (
           <p className="mt-2 rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[var(--text)]">
             Combination: provide ICAOs for the air segment plus pickup and
@@ -505,55 +505,52 @@ export function TripRequestForm({
             routing.
           </p>
         )}
-
-        {/* Ready timing lives on step 1 in the portal wizard */}
-        {variant === 'portal' ? (
-          <div className="mt-6">
-            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
-              How long until it&apos;s ready?
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={[
-                  'rounded-xl border px-4 py-3 text-sm font-semibold',
-                  draft.timing === 'asap'
-                    ? 'border-gold bg-gold/15 text-ink'
-                    : 'border-border bg-white text-ink',
-                ].join(' ')}
-                onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
-              >
-                Within 4 hours
-              </button>
-              <button
-                type="button"
-                className={[
-                  'rounded-xl border px-4 py-3 text-sm font-semibold',
-                  draft.timing === 'scheduled'
-                    ? 'border-gold bg-gold/15 text-ink'
-                    : 'border-border bg-white text-ink',
-                ].join(' ')}
-                onClick={() =>
-                  setDraft((d) => ({ ...d, timing: 'scheduled' }))
-                }
-              >
-                Pick date &amp; time
-              </button>
-              {draft.timing === 'asap' ? (
-                <p className="flex items-center text-xs text-muted sm:max-w-xs">
-                  ASAP means ready within {ASAP_MAX_HOURS} hours — we target the
-                  next available aircraft.
-                </p>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
       </section>
       ) : null}
 
       {/* Legs — step 2 */}
       {showStep(2) ? (
       <>
+      {wizard ? (
+        <section>
+          <h2 className="mb-2 text-base font-semibold text-ink">
+            How long until it&apos;s ready?
+          </h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className={[
+                'rounded-full border px-5 py-2.5 text-sm font-semibold',
+                draft.timing === 'asap'
+                  ? 'border-gold bg-gold/15 text-ink'
+                  : 'border-border bg-white text-ink',
+              ].join(' ')}
+              onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
+            >
+              Within 4 hours
+            </button>
+            <button
+              type="button"
+              className={[
+                'rounded-full border px-5 py-2.5 text-sm font-semibold',
+                draft.timing === 'scheduled'
+                  ? 'border-gold bg-gold/15 text-ink'
+                  : 'border-border bg-white text-ink',
+              ].join(' ')}
+              onClick={() => setDraft((d) => ({ ...d, timing: 'scheduled' }))}
+            >
+              Pick date &amp; time
+            </button>
+            {draft.timing === 'asap' ? (
+              <p className="text-xs text-muted sm:max-w-xs">
+                ASAP means ready within {ASAP_MAX_HOURS} hours — we target the
+                next available aircraft.
+              </p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -594,24 +591,41 @@ export function TripRequestForm({
                 ]),
               )
             }
-            className="text-sm font-medium text-gold hover:text-gold-lt"
+            className={
+              wizard
+                ? 'rounded-md bg-gold/15 px-2.5 py-1 text-sm font-semibold text-gold hover:bg-gold/25'
+                : 'text-sm font-medium text-gold hover:text-gold-lt'
+            }
           >
-            + Add Stop
+            {wizard ? '+ Add stop' : '+ Add Stop'}
           </button>
         </div>
 
-        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
-          Outbound
-        </div>
+        {!wizard ? (
+          <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">
+            Outbound
+          </div>
+        ) : null}
         <div className="space-y-4">
           {draft.legs.map((leg, idx) => (
             <div
               key={leg.id}
-              className="relative rounded-lg border border-border bg-surface-2 p-4"
+              className={[
+                'relative rounded-xl border p-4',
+                wizard
+                  ? 'border-[#e5dfd0] bg-white'
+                  : 'border-border bg-surface-2',
+              ].join(' ')}
             >
               <div className="mb-3 flex items-center justify-between">
-                <div className="text-sm font-semibold text-[var(--text)]">
-                  Leg {idx + 1}
+                <div
+                  className={
+                    wizard
+                      ? 'text-[11px] font-semibold uppercase tracking-[0.14em] text-gold'
+                      : 'text-sm font-semibold text-[var(--text)]'
+                  }
+                >
+                  {wizard ? `LEG ${idx + 1}` : `Leg ${idx + 1}`}
                 </div>
                 {draft.legs.length > 1 && (
                   <button
@@ -1021,53 +1035,209 @@ export function TripRequestForm({
 
       {/* Special flags */}
       <section>
-        <div className="text-xs font-medium uppercase tracking-wider text-muted">
-          Special flags
-        </div>
-        <div className="mt-2 flex flex-wrap gap-4 text-sm text-[var(--text)]">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.hazmat}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, hazmat: e.target.checked }))
-              }
-            />
-            <span className="text-late">⚠</span> Hazmat
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.forklift_recommended}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  forklift_recommended: e.target.checked,
-                  forklift_required: e.target.checked
-                    ? d.forklift_required
-                    : false,
-                }))
-              }
-            />
-            Forklift recommended
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.forklift_required}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  forklift_required: e.target.checked,
-                  forklift_recommended: e.target.checked
-                    ? true
-                    : d.forklift_recommended,
-                }))
-              }
-            />
-            Forklift required
-          </label>
-        </div>
+        {wizard ? (
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                Special flags
+              </div>
+              <div className="mt-2 flex flex-col gap-3 text-sm text-[var(--text)]">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={draft.hazmat}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, hazmat: e.target.checked }))
+                    }
+                  />
+                  <span className="text-late">⚠</span> Hazmat
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={draft.forklift_recommended}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        forklift_recommended: e.target.checked,
+                        forklift_required: e.target.checked
+                          ? d.forklift_required
+                          : false,
+                      }))
+                    }
+                  />
+                  Forklift recommended
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={draft.forklift_required}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        forklift_required: e.target.checked,
+                        forklift_recommended: e.target.checked
+                          ? true
+                          : d.forklift_recommended,
+                      }))
+                    }
+                  />
+                  Forklift required
+                </label>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                Hard deadline
+              </div>
+              <label className={`${labelCls} mt-2`}>
+                <span className="sr-only">Hard deadline</span>
+                <input
+                  type="datetime-local"
+                  value={draft.hard_deadline_at}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      hard_deadline_at: e.target.value,
+                    }))
+                  }
+                  className={`${inputCls} avionic`}
+                />
+              </label>
+              <label
+                className={[
+                  'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
+                  draft.cargo_only
+                    ? 'border-gold bg-gold/15 text-ink'
+                    : 'border-border bg-white text-[var(--text)]',
+                ].join(' ')}
+              >
+                <input
+                  type="checkbox"
+                  checked={draft.cargo_only}
+                  onChange={(e) => {
+                    const cargo_only = e.target.checked
+                    setDraft((d) => ({
+                      ...d,
+                      cargo_only,
+                      pax: cargo_only
+                        ? []
+                        : d.pax.length
+                          ? d.pax
+                          : [{ name: '', weight_lbs: '', dob: '' }],
+                    }))
+                  }}
+                />
+                Cargo only (no passengers)
+              </label>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted">
+              Special flags
+            </div>
+            <div className="mt-2 flex flex-wrap gap-4 text-sm text-[var(--text)]">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.hazmat}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, hazmat: e.target.checked }))
+                  }
+                />
+                <span className="text-late">⚠</span> Hazmat
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.forklift_recommended}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      forklift_recommended: e.target.checked,
+                      forklift_required: e.target.checked
+                        ? d.forklift_required
+                        : false,
+                    }))
+                  }
+                />
+                Forklift recommended
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.forklift_required}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      forklift_required: e.target.checked,
+                      forklift_recommended: e.target.checked
+                        ? true
+                        : d.forklift_recommended,
+                    }))
+                  }
+                />
+                Forklift required
+              </label>
+            </div>
+            <div
+              className={[
+                'mt-3 grid gap-3',
+                variant === 'portal' ? 'sm:grid-cols-1' : 'sm:grid-cols-3',
+              ].join(' ')}
+            >
+              {variant !== 'portal' && (
+                <>
+                  <label className={labelCls}>
+                    PO number
+                    <input
+                      value={draft.po_number}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, po_number: e.target.value }))
+                      }
+                      className={inputCls}
+                      placeholder="Optional"
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    Declared value (USD)
+                    <input
+                      type="number"
+                      min={0}
+                      value={draft.declared_value_usd}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          declared_value_usd:
+                            e.target.value === ''
+                              ? ''
+                              : Number(e.target.value),
+                        }))
+                      }
+                      className={`${inputCls} avionic`}
+                      placeholder="Optional"
+                    />
+                  </label>
+                </>
+              )}
+              <label className={labelCls}>
+                Hard deadline
+                <input
+                  type="datetime-local"
+                  value={draft.hard_deadline_at}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      hard_deadline_at: e.target.value,
+                    }))
+                  }
+                  className={`${inputCls} avionic`}
+                />
+              </label>
+            </div>
+          </>
+        )}
         {draft.hazmat && (
           <p className="mt-2 text-xs text-late">
             Hazmat flagged — dangerous-goods note will be attached for dispatch
@@ -1084,77 +1254,6 @@ export function TripRequestForm({
             {forkliftPreview.label}
           </p>
         )}
-        <div
-          className={[
-            'mt-3 grid gap-3',
-            variant === 'portal' ? 'sm:grid-cols-1' : 'sm:grid-cols-3',
-          ].join(' ')}
-        >
-          {variant !== 'portal' && (
-            <>
-              <label className={labelCls}>
-                PO number
-                <input
-                  value={draft.po_number}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, po_number: e.target.value }))
-                  }
-                  className={inputCls}
-                  placeholder="Optional"
-                />
-              </label>
-              <label className={labelCls}>
-                Declared value (USD)
-                <input
-                  type="number"
-                  min={0}
-                  value={draft.declared_value_usd}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      declared_value_usd:
-                        e.target.value === '' ? '' : Number(e.target.value),
-                    }))
-                  }
-                  className={`${inputCls} avionic`}
-                  placeholder="Optional"
-                />
-              </label>
-            </>
-          )}
-          <label className={labelCls}>
-            Hard deadline
-            <input
-              type="datetime-local"
-              value={draft.hard_deadline_at}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, hard_deadline_at: e.target.value }))
-              }
-              className={`${inputCls} avionic`}
-            />
-          </label>
-        </div>
-        {wizard ? (
-          <label className="mt-3 flex items-center gap-2 text-sm text-[var(--text)]">
-            <input
-              type="checkbox"
-              checked={draft.cargo_only}
-              onChange={(e) => {
-                const cargo_only = e.target.checked
-                setDraft((d) => ({
-                  ...d,
-                  cargo_only,
-                  pax: cargo_only
-                    ? []
-                    : d.pax.length
-                      ? d.pax
-                      : [{ name: '', weight_lbs: '', dob: '' }],
-                }))
-              }}
-            />
-            Cargo only (no passengers)
-          </label>
-        ) : null}
       </section>
       </>
       ) : null}
@@ -1257,10 +1356,23 @@ export function TripRequestForm({
           <div className="space-y-3">
             {variant === 'portal' && (
               <div>
-                <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                <h2
+                  className={
+                    wizard
+                      ? 'text-base font-semibold text-ink'
+                      : 'text-xs font-medium uppercase tracking-wider text-muted'
+                  }
+                >
                   Cargo dims &amp; weight
-                </div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                </h2>
+                <div
+                  className={[
+                    'mt-2 grid gap-1 p-1 sm:grid-cols-3',
+                    wizard
+                      ? 'rounded-xl bg-[#F3EEE4]'
+                      : 'gap-2 rounded-lg border border-border bg-surface-2',
+                  ].join(' ')}
+                >
                   {(
                     [
                       ['known', 'I have dims'],
@@ -1272,7 +1384,16 @@ export function TripRequestForm({
                       key={id}
                       type="button"
                       onClick={() => applyCargoDimsStatus(id)}
-                      className={segBtn(draft.cargo_dims_status === id)}
+                      className={
+                        wizard
+                          ? [
+                              'rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                              draft.cargo_dims_status === id
+                                ? 'bg-white font-semibold text-ink shadow-sm'
+                                : 'text-muted hover:text-ink',
+                            ].join(' ')
+                          : segBtn(draft.cargo_dims_status === id)
+                      }
                     >
                       {label}
                     </button>
@@ -1299,41 +1420,69 @@ export function TripRequestForm({
               draft.cargo_dims_status === 'known' ||
               draft.cargo_dims_status === 'standard') && (
               <>
-                <DimUnitToggle
-                  value={draft.dim_unit ?? 'in'}
-                  onChange={(dim_unit) => setDraft((d) => ({ ...d, dim_unit }))}
-                />
-                <DimsTripleInput
-                  value={draft.cargo_notes}
-                  unit={draft.dim_unit ?? 'in'}
-                  onChange={(cargo_notes) =>
-                    setDraft((d) => {
-                      const pieces = cargoPiecesFromDraft({
-                        ...d,
-                        cargo_notes,
-                      })
-                      const weighted = pieces.filter((p) => p.weight_lbs > 0)
-                      const cargo_weight_lbs =
-                        weighted.length === pieces.length && weighted.length > 0
-                          ? weighted[0]!.weight_lbs
-                          : d.cargo_weight_lbs
-                      return {
-                        ...d,
-                        cargo_notes,
-                        cargo_weight_lbs,
-                        cargo_dims_status:
-                          d.cargo_dims_status === 'not_yet'
-                            ? 'known'
-                            : d.cargo_dims_status,
-                      }
-                    })
+                <div
+                  className={
+                    wizard
+                      ? 'space-y-3 rounded-xl border border-[#e5dfd0] bg-white p-4'
+                      : 'space-y-3'
                   }
-                />
-                <p className="text-[11px] text-muted">
-                  Weight (Lb ea) is required on every cargo piece. Pieces 100–200
-                  lb → forklift recommended; over 200 lb → forklift required for
-                  dispatch.
-                </p>
+                >
+                  <DimUnitToggle
+                    value={draft.dim_unit ?? 'in'}
+                    onChange={(dim_unit) =>
+                      setDraft((d) => ({ ...d, dim_unit }))
+                    }
+                    hideLabel={wizard}
+                    light={wizard}
+                  />
+                  <DimsTripleInput
+                    value={draft.cargo_notes}
+                    unit={draft.dim_unit ?? 'in'}
+                    onChange={(cargo_notes) =>
+                      setDraft((d) => {
+                        const pieces = cargoPiecesFromDraft({
+                          ...d,
+                          cargo_notes,
+                        })
+                        const weighted = pieces.filter((p) => p.weight_lbs > 0)
+                        const cargo_weight_lbs =
+                          weighted.length === pieces.length &&
+                          weighted.length > 0
+                            ? weighted[0]!.weight_lbs
+                            : d.cargo_weight_lbs
+                        return {
+                          ...d,
+                          cargo_notes,
+                          cargo_weight_lbs,
+                          cargo_dims_status:
+                            d.cargo_dims_status === 'not_yet'
+                              ? 'known'
+                              : d.cargo_dims_status,
+                        }
+                      })
+                    }
+                  />
+                  {wizard ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-lg border border-gold/25 bg-gold/10 px-3 py-2.5 text-xs text-ink/80">
+                        Enter L × W × H per piece. Use{' '}
+                        <span className="font-semibold">+ Add cargo</span> when
+                        sizes differ.
+                      </div>
+                      <div className="rounded-lg border border-gold/25 bg-gold/10 px-3 py-2.5 text-xs text-ink/80">
+                        Weight (Lb ea) is required. Pieces 100–200 lb → forklift
+                        recommended; over 200 lb → forklift required for
+                        dispatch.
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted">
+                      Weight (Lb ea) is required on every cargo piece. Pieces
+                      100–200 lb → forklift recommended; over 200 lb → forklift
+                      required for dispatch.
+                    </p>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -1354,22 +1503,14 @@ export function TripRequestForm({
         </label>
       </section>
 
-      {issues.length > 0 ? (
-        <ul className="rounded-md border border-late/40 bg-late/10 px-3 py-2 text-sm text-late">
-          {issues.map((m) => (
-            <li key={m}>· {m}</li>
-          ))}
-        </ul>
-      ) : null}
-
       {dualActions ? (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-gold/50 bg-white px-4 py-4">
+        <div className="space-y-5">
+          <div>
             <button
               type="button"
               disabled={busy}
               onClick={(e) => void handleSubmit(e, 'estimate')}
-              className="w-full rounded-lg border border-gold bg-white px-4 py-3 text-sm font-semibold text-gold hover:bg-gold/10 disabled:opacity-50"
+              className="w-full rounded-xl border-2 border-gold bg-white px-4 py-4 text-sm font-semibold text-ink hover:bg-gold/10 disabled:opacity-50"
             >
               {busy && pendingIntent === 'estimate'
                 ? 'Estimating…'
@@ -1385,7 +1526,7 @@ export function TripRequestForm({
               type="button"
               disabled={busy}
               onClick={(e) => void handleSubmit(e, 'hard_quote')}
-              className="w-full rounded-lg bg-ink px-4 py-3 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
+              className="w-full rounded-xl bg-ink px-4 py-4 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
             >
               {busy && pendingIntent === 'hard_quote'
                 ? 'Submitting…'
@@ -1409,21 +1550,26 @@ export function TripRequestForm({
       </>
       ) : null}
 
+      {issues.length > 0 ? (
+        <ul className="rounded-md border border-late/40 bg-late/10 px-3 py-2 text-sm text-late">
+          {issues.map((m) => (
+            <li key={m}>· {m}</li>
+          ))}
+        </ul>
+      ) : null}
+
       {wizard && wizardStep < 3 ? (
-        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-          {wizardStep > 1 ? (
-            <button
-              type="button"
-              className="rounded-lg border border-border px-4 py-2.5 text-sm"
-              onClick={() =>
-                setWizardStep((s) => (s === 3 ? 2 : 1) as 1 | 2 | 3)
-              }
-            >
-              Back
-            </button>
-          ) : (
-            <span />
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <button
+            type="button"
+            className="rounded-lg border border-border bg-white px-5 py-2.5 text-sm disabled:opacity-40"
+            disabled={wizardStep === 1}
+            onClick={() =>
+              setWizardStep((s) => (s === 3 ? 2 : 1) as 1 | 2 | 3)
+            }
+          >
+            Back
+          </button>
           <button
             type="button"
             className="rounded-full bg-ink px-8 py-2.5 text-sm font-semibold text-gold hover:bg-[#1a1a1a]"
@@ -1431,19 +1577,14 @@ export function TripRequestForm({
           >
             Continue
           </button>
-          <span className="text-xs text-muted">
-            {wizardStep === 1
-              ? 'Next: route & timing'
-              : 'Review cargo, then send it to dispatch.'}
-          </span>
         </div>
       ) : null}
 
       {wizard && wizardStep === 3 ? (
-        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-2">
           <button
             type="button"
-            className="rounded-lg border border-border px-4 py-2.5 text-sm"
+            className="rounded-lg border border-border bg-white px-5 py-2.5 text-sm"
             onClick={() => setWizardStep(2)}
           >
             Back
