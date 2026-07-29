@@ -44,7 +44,7 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'tracking',
     label: 'Live tracking',
-    blurb: 'In progress — tracking portal + trip group chat only',
+    blurb: 'In progress — ETA sheet, tracking portal + trip group chat (Quick Dispatch lands here)',
   },
 ] as const
 

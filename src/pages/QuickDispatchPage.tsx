@@ -15,7 +15,12 @@ import {
   type ClientProfile,
 } from '@/lib/clientStore'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
-import { createQuickDispatchTrip } from '@/lib/tripStore'
+import {
+  createInvoiceForTrip,
+  createQuickDispatchTrip,
+  safeTransitionTrip,
+  sendTripInvoiceEmail,
+} from '@/lib/tripStore'
 import { sendQuickDispatchEtaSheetAndPortalLinks } from '@/lib/etaSheetSender'
 import {
   getReferral,
@@ -221,7 +226,36 @@ export default function QuickDispatchPage() {
         })),
       })
 
-      // Manifest + checkpoint timers + ETA/track links (system of record path)
+      // QuickBooks invoice PDF + branded OnFly email (logo header).
+      if (sendInvoice && Number(clientPrice) > 0) {
+        try {
+          const { listInvoiceEmails } = await import('@/lib/clientStore')
+          const toList = invoiceEmail.trim()
+            ? [invoiceEmail.trim()]
+            : listInvoiceEmails(client.id)
+          if (toList.length) {
+            await sendTripInvoiceEmail(trip.id, {
+              to: toList,
+              cc: ccList,
+            })
+          } else {
+            await createInvoiceForTrip(trip.id, { skipEmail: true })
+          }
+        } catch (e) {
+          console.warn('[quick-dispatch] invoice failed', e)
+          try {
+            await createInvoiceForTrip(trip.id, {
+              skipEmail: true,
+              to: invoiceEmail.trim() ? [invoiceEmail.trim()] : undefined,
+              cc: ccList,
+            })
+          } catch (e2) {
+            console.warn('[quick-dispatch] invoice create failed', e2)
+          }
+        }
+      }
+
+      // Manifest + checkpoint timers + ETA sheet to trackers
       const { runOnBookedAutomations } = await import('@/lib/onBooked')
       await runOnBookedAutomations(trip.id)
 
@@ -234,10 +268,23 @@ export default function QuickDispatchPage() {
         (r) => r.trim().includes('@') && !already.has(r.trim().toLowerCase()),
       )
       if (extra.length) {
-        await sendQuickDispatchEtaSheetAndPortalLinks({ trip, recipients: extra })
+        await sendQuickDispatchEtaSheetAndPortalLinks({
+          trip: trip,
+          recipients: extra,
+        })
       }
 
-      nav(`/trips/${trip.id}`)
+      // Straight into Live tracking — no Approved holding pattern.
+      try {
+        safeTransitionTrip(trip.id, 'in_progress', 'dispatcher', {
+          reason: 'quick_dispatch',
+          via: 'quick_dispatch',
+        })
+      } catch (e) {
+        console.warn('[quick-dispatch] start tracking failed', e)
+      }
+
+      nav(`/dispatch?drawer=tracking&focus=${encodeURIComponent(trip.id)}`)
     } finally {
       setBusy(false)
     }
@@ -251,8 +298,8 @@ export default function QuickDispatchPage() {
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-cream">Quick Dispatch</h1>
           <p className="mt-1 text-sm text-muted">
-            Skip the full workflow. Enter trip details, pricing, and go straight
-            to tracking.
+            Skip offers &amp; quotes. Invoice + ETA sheet go out on submit, trip
+            lands in Live tracking.
           </p>
         </div>
         <Link
@@ -663,7 +710,7 @@ export default function QuickDispatchPage() {
             checked={sendInvoice}
             onChange={(e) => setSendInvoice(e.target.checked)}
           />
-          Send invoice email to client
+          Send invoice immediately on dispatch
         </label>
         <label className={label}>
           Invoice To (email)
@@ -807,7 +854,7 @@ export default function QuickDispatchPage() {
           disabled={busy}
           className="mx-auto flex w-full max-w-lg min-h-12 items-center justify-center gap-2 rounded-md bg-gold py-3.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-60"
         >
-          Dispatch Now
+          {busy ? 'Dispatching…' : 'Dispatch → Live tracking'}
         </button>
       </div>
     </div>

@@ -96,7 +96,7 @@ export default function TripPage() {
         <h1 className="text-xl text-cream">Trip not found</h1>
         <p className="mt-2 text-sm text-muted">
           Open a trip from Dispatch center, or create one with{' '}
-          <Link className="text-gold" to="/quick-dispatch">
+          <Link className="text-gold" to="/dispatch?tool=quick">
             Quick Dispatch
           </Link>
           .
@@ -442,7 +442,7 @@ export default function TripPage() {
             Offers →
           </Link>
         )}
-        <Link to="/quick-dispatch" className="text-muted hover:text-cream">
+        <Link to="/dispatch?tool=quick" className="text-muted hover:text-cream">
           Quick Dispatch another
         </Link>
       </div>

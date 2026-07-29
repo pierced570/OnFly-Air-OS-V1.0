@@ -749,21 +749,41 @@ export default function DispatchCenterPage() {
 
   const focusTripId = searchParams.get('focus')
   const drawerParam = searchParams.get('drawer')
+  const toolParam = searchParams.get('tool')
   const [openDrawer, setOpenDrawer] = useState<DispatchDrawerId | 'tools' | null>(
     () =>
       drawerParam && DRAWER_IDS.has(drawerParam)
         ? (drawerParam as DispatchDrawerId)
         : 'requests',
   )
-  const [tool, setTool] = useState<ToolId | null>(null)
+  const [tool, setTool] = useState<ToolId | null>(() =>
+    toolParam === 'quick' ||
+    toolParam === 'scratchpad' ||
+    toolParam === 'parse' ||
+    toolParam === 'chat' ||
+    toolParam === 'newtrip'
+      ? toolParam
+      : null,
+  )
   const [pushError, setPushError] = useState<string | null>(null)
 
   // Deep link from desk send / share: /dispatch?drawer=offers&focus=<tripId>
+  // Quick Dispatch: /dispatch?tool=quick
   useEffect(() => {
+    if (
+      toolParam === 'quick' ||
+      toolParam === 'scratchpad' ||
+      toolParam === 'parse' ||
+      toolParam === 'chat' ||
+      toolParam === 'newtrip'
+    ) {
+      setTool(toolParam)
+      return
+    }
     if (!drawerParam || !DRAWER_IDS.has(drawerParam)) return
     setTool(null)
     setOpenDrawer(drawerParam as DispatchDrawerId)
-  }, [drawerParam])
+  }, [drawerParam, toolParam])
 
   // Pull operator Yes/No / quotes into this browser without a manual refresh.
   useEffect(() => startLiveTripRefresh(4000), [])
@@ -929,9 +949,8 @@ export default function DispatchCenterPage() {
         <div className="min-w-0 space-y-1">
           <h1 className="text-2xl font-semibold text-cream">Dispatch center</h1>
           <p className="text-sm text-muted">
-            Requests → offers → submitted quotes → client quotes → approved →
-            live tracking. Each trip sits in only one stage.
-            → live tracking. Open a drawer to work it.
+            Requests → offers → quotes → approved → live tracking. Quick
+            Dispatch skips straight to tracking with invoice + ETA sheet.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">

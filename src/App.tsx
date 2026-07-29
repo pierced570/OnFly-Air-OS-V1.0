@@ -26,7 +26,6 @@ const PortalTripTrackPage = lazy(() =>
     default: m.PortalTripTrackPage,
   })),
 )
-const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
 const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
 const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
@@ -105,7 +104,10 @@ export function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:tripId" element={<ChatPage />} />
         <Route path="/trips/new" element={<NewTripPage />} />
-        <Route path="/quick-dispatch" element={<QuickDispatchPage />} />
+        <Route
+          path="/quick-dispatch"
+          element={<Navigate to="/dispatch?tool=quick" replace />}
+        />
         <Route path="/financials" element={<FinancialsPage />} />
         <Route path="/referrals" element={<ReferralsPage />} />
         <Route path="/clients" element={<ClientsPage />} />

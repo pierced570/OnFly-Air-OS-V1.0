@@ -17,7 +17,7 @@ describe('tripInvoiceBuild', () => {
     expect(r.airAmount).toBe(10000)
     expect(r.taxTotal).toBe(625)
     expect(r.fetExempt).toBe(false)
-    expect(r.lines[0]!.description).toMatch(/T-42/)
+    expect(r.lines[0]!.description).toMatch(/Charter Flight:/)
     expect(r.lines.some((l) => l.description.startsWith('FET_CARGO'))).toBe(
       true,
     )
