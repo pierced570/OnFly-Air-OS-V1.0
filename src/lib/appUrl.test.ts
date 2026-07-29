@@ -7,11 +7,11 @@ describe('appPublicUrl', () => {
   })
 
   it('prefers VITE_APP_URL over window origin', async () => {
-    vi.stubEnv('VITE_APP_URL', 'https://app.onflyair.com/')
+    vi.stubEnv('VITE_APP_URL', 'https://ofaops.onflyair.com/')
     const { appPublicUrl, absoluteAppUrl } = await import('./appUrl')
-    expect(appPublicUrl()).toBe('https://app.onflyair.com')
+    expect(appPublicUrl()).toBe('https://ofaops.onflyair.com')
     expect(absoluteAppUrl('/offer/abc')).toBe(
-      'https://app.onflyair.com/offer/abc',
+      'https://ofaops.onflyair.com/offer/abc',
     )
   })
 
