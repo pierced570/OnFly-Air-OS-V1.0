@@ -136,7 +136,7 @@ export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
 
   const cta =
     phase === 'delivered'
-      ? { label: 'Documents & POD', href: props.trackHref }
+      ? { label: 'View POD & details', href: props.trackHref }
       : { label: phase === 'in_flight' ? 'View live tracking' : 'View tracking', href: props.trackHref }
 
   return (
