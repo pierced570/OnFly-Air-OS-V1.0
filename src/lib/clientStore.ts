@@ -9,6 +9,10 @@
  * seeds directory names from financials.json (lazy) so Financials clients appear here.
  */
 
+import {
+  listBaseGeneratedEmails,
+  type ClientBaseRef,
+} from '@/domain/clientBaseEmails'
 import { hardFiltersFromPolicy, normalizeMissionPolicy } from '@/domain/clientOnboard'
 import type { ClientRules as RoutingClientRules } from '@/domain/routing'
 
@@ -89,6 +93,11 @@ export type ClientExtendedProfile = {
     destination_city?: string
   }>
   no_frequent_lanes?: boolean
+  /**
+   * Company bases (airport ICAOs) that receive ETA / tracking.
+   * Empty emails → auto `{base}@companyDomain` (see clientBaseEmails).
+   */
+  bases?: ClientBaseRef[]
   requires_po?: boolean
   /** client = they provide PO; onfly = we generate */
   po_assigned_by?: 'client' | 'onfly' | null
@@ -584,10 +593,49 @@ export function listTrackerEmails(clientId: string): string[] {
   return [...new Set(out)]
 }
 
+/**
+ * ETA / tracking recipients: tracker contacts + base mailboxes
+ * (stored or auto-generated from company domain + base ICAO).
+ * When legIcaos are provided, prefer bases that match the trip.
+ */
+export function listEtaTrackingEmails(
+  clientId: string,
+  opts?: { legIcaos?: string[] },
+): string[] {
+  const cl = getClient(clientId)
+  if (!cl) return []
+  const fromContacts = listTrackerEmails(clientId)
+  const fromBases = listBaseGeneratedEmails(
+    {
+      email: cl.email,
+      invoice_email: cl.invoice_email,
+      website: cl.profile.website,
+      contactEmails: cl.contacts.map((c) => c.email),
+      bases: cl.profile.bases,
+      frequent_lanes: cl.profile.frequent_lanes,
+    },
+    { legIcaos: opts?.legIcaos },
+  ).map((b) => b.email.toLowerCase())
+  return [...new Set([...fromContacts, ...fromBases])]
+}
+
+/** Saved contacts that are ETA/tracker (not AP-only). */
+export function listEtaTrackingContacts(clientId: string): ClientContact[] {
+  const cl = getClient(clientId)
+  if (!cl) return []
+  return cl.contacts.filter(
+    (c) =>
+      c.email &&
+      (c.notify_prefs.tracker || c.role === 'supply_chain'),
+  )
+}
+
 export function rememberEmailsOnClient(
   clientId: string,
   invoiceEmail: string,
   ccEmails: string[],
+  /** ETA / tracking extras — stored as supply_chain, not AP. */
+  etaEmails: string[] = [],
 ): void {
   const row = clients.get(clientId)
   if (!row) return
@@ -606,6 +654,21 @@ export function rememberEmailsOnClient(
     }
   }
   for (const raw of ccEmails) {
+    const email = raw.trim()
+    if (!email || !email.includes('@')) continue
+    if (row.contacts.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
+      continue
+    }
+    row.contacts.push({
+      id: crypto.randomUUID(),
+      name: email.split('@')[0] ?? email,
+      email,
+      cell: '',
+      role: 'ap',
+      notify_prefs: defaultPrefs('ap'),
+    })
+  }
+  for (const raw of etaEmails) {
     const email = raw.trim()
     if (!email || !email.includes('@')) continue
     if (row.contacts.some((c) => c.email.toLowerCase() === email.toLowerCase())) {

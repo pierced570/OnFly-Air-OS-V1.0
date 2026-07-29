@@ -72,11 +72,13 @@ export async function runOnBookedAutomations(
 
 function resolveTrackerRecipients(trip: TripStoreRow): string[] {
   const fromClient = trip.client_id ? listTrackerEmails(trip.client_id) : []
-  // Quick-dispatch CC list is ops/supply-chain by convention
-  const fromQuickCc = trip.quick?.cc_emails ?? []
-  return [...new Set([...fromClient, ...fromQuickCc].map((e) => e.trim().toLowerCase()))].filter(
-    (e) => e.includes('@'),
-  )
+  // Quick Dispatch ETA section (bases + supply chain) — not invoice CC
+  const fromQuickEta = trip.quick?.eta_emails ?? []
+  return [
+    ...new Set(
+      [...fromClient, ...fromQuickEta].map((e) => e.trim().toLowerCase()),
+    ),
+  ].filter((e) => e.includes('@'))
 }
 
 function attachManifestDocument(trip: TripStoreRow): void {
