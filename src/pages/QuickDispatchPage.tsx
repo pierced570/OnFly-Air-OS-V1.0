@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
+import { HrsMinsInput } from '@/components/HrsMinsInput'
 import { OperatorSelect } from '@/components/OperatorSelect'
+import {
+  formatLooseDurationMinutes,
+  parseLooseDurationMinutes,
+} from '@/domain/quickDispatchChain'
 import {
   addClient,
   addClientContact,
@@ -556,40 +561,41 @@ export default function QuickDispatchPage() {
                   />
                 </label>
               )}
-              <label className={label}>
-                Repo time
-                <input
-                  className={input}
-                  value={leg.repo_time}
-                  onChange={(e) =>
-                    setLegs((xs) =>
-                      xs.map((l) =>
-                        l.id === leg.id
-                          ? { ...l, repo_time: e.target.value }
-                          : l,
-                      ),
-                    )
-                  }
-                  placeholder="e.g. 1h 30m"
-                />
-              </label>
-              <label className={label}>
-                Live leg time
-                <input
-                  className={input}
-                  value={leg.live_leg_time}
-                  onChange={(e) =>
-                    setLegs((xs) =>
-                      xs.map((l) =>
-                        l.id === leg.id
-                          ? { ...l, live_leg_time: e.target.value }
-                          : l,
-                      ),
-                    )
-                  }
-                  placeholder="e.g. 2h 15m"
-                />
-              </label>
+              <HrsMinsInput
+                label="Repo time"
+                labelClassName={label}
+                inputClassName={input}
+                totalMinutes={parseLooseDurationMinutes(leg.repo_time) ?? 0}
+                onChange={(min) =>
+                  setLegs((xs) =>
+                    xs.map((l) =>
+                      l.id === leg.id
+                        ? { ...l, repo_time: formatLooseDurationMinutes(min) }
+                        : l,
+                    ),
+                  )
+                }
+              />
+              <HrsMinsInput
+                label="Live leg time"
+                labelClassName={label}
+                inputClassName={input}
+                totalMinutes={
+                  parseLooseDurationMinutes(leg.live_leg_time) ?? 0
+                }
+                onChange={(min) =>
+                  setLegs((xs) =>
+                    xs.map((l) =>
+                      l.id === leg.id
+                        ? {
+                            ...l,
+                            live_leg_time: formatLooseDurationMinutes(min),
+                          }
+                        : l,
+                    ),
+                  )
+                }
+              />
             </div>
           </div>
         ))}

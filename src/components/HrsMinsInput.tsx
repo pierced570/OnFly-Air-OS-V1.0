@@ -9,16 +9,23 @@ type Props = {
   totalMinutes: number
   onChange: (totalMinutes: number) => void
   required?: boolean
+  /** Override outer label class (e.g. Quick Dispatch uppercase muted). */
+  labelClassName?: string
+  /** Override hour/min input class. */
+  inputClassName?: string
 }
 
-/** Two boxes — Hours + Mins — for mobile quote entry. */
+/** Two boxes — Hours + Mins — for quote / Quick Dispatch entry. */
 export function HrsMinsInput({
   label,
   totalMinutes,
   onChange,
   required,
+  labelClassName,
+  inputClassName,
 }: Props) {
   const { hours, minutes } = hrsMinsFromTotal(totalMinutes)
+  const fieldClass = inputClassName ?? offerInput
 
   function emit(nextH: number, nextM: number) {
     onChange(totalMinutesFromHrsMins({ hours: nextH, minutes: nextM }))
@@ -26,32 +33,40 @@ export function HrsMinsInput({
 
   return (
     <div>
-      <div className={offerLabel}>{label}</div>
-      <div className="mt-1.5 grid grid-cols-2 gap-2">
-        <label className="text-sm text-muted">
+      <div className={labelClassName ?? offerLabel}>{label}</div>
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        <label className="text-xs text-muted">
           Hours
           <input
             type="number"
             inputMode="numeric"
             min={0}
-            className={offerInput}
-            value={hours}
+            className={fieldClass}
+            value={hours === 0 && minutes === 0 ? '' : hours}
+            placeholder="0"
             required={required}
-            onChange={(e) => emit(Number(e.target.value) || 0, minutes)}
+            onChange={(e) => {
+              const raw = e.target.value
+              emit(raw === '' ? 0 : Number(raw) || 0, minutes)
+            }}
             aria-label={`${label} hours`}
           />
         </label>
-        <label className="text-sm text-muted">
+        <label className="text-xs text-muted">
           Mins
           <input
             type="number"
             inputMode="numeric"
             min={0}
             max={59}
-            className={offerInput}
-            value={minutes}
+            className={fieldClass}
+            value={hours === 0 && minutes === 0 ? '' : minutes}
+            placeholder="0"
             required={required}
-            onChange={(e) => emit(hours, Number(e.target.value) || 0)}
+            onChange={(e) => {
+              const raw = e.target.value
+              emit(hours, raw === '' ? 0 : Number(raw) || 0)
+            }}
             aria-label={`${label} minutes`}
           />
         </label>

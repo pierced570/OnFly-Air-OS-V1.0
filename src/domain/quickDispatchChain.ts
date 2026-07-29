@@ -21,10 +21,16 @@ export type QuickDispatchLegInput = {
   live_leg_time: string
 }
 
-/** Parse "1.5h", "90m", "1h 20min" style duration strings → minutes. */
+/** Parse "1.5h", "90m", "1h 20min", bare "2" (hours) → minutes. */
 export function parseLooseDurationMinutes(input: string): number | null {
   const s = input.trim().toLowerCase()
   if (!s) return null
+  // Bare number = hours (desk habit: typing "2" for 2h).
+  if (/^\d+(?:\.\d+)?$/.test(s)) {
+    const hours = Number(s)
+    if (!Number.isFinite(hours) || hours < 0) return null
+    return Math.round(hours * 60)
+  }
   const re =
     /(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)/g
   let total = 0
@@ -41,6 +47,17 @@ export function parseLooseDurationMinutes(input: string): number | null {
   }
   if (!matched || !Number.isFinite(total)) return null
   return Math.round(total)
+}
+
+/** Format minutes → "2h", "30m", or "1h 30m" for storage / display. */
+export function formatLooseDurationMinutes(totalMin: number): string {
+  const t = Math.max(0, Math.round(totalMin) || 0)
+  if (t <= 0) return ''
+  const h = Math.floor(t / 60)
+  const m = t % 60
+  if (h > 0 && m > 0) return `${h}h ${m}m`
+  if (h > 0) return `${h}h`
+  return `${m}m`
 }
 
 function placeFromIcao(icao: string): Place {
