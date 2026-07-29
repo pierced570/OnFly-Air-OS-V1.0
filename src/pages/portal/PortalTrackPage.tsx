@@ -1,10 +1,12 @@
 /**
- * Live client tracking — ETA chain, quote milestones, aircraft position.
+ * Live client tracking — magic link + session trip routes.
  * Cream client theme. Never shows cost, margin, or operator identity.
  */
 
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { PortalTrackingBody } from '@/components/PortalTrackingBody'
+import { PortalShell } from '@/components/PortalShell'
 import {
   getTrip,
   listTripsStable,
@@ -19,565 +21,11 @@ import { canPersist, db, safeQuery } from '@/lib/db/client'
 import { createAdsbAdapter, type AdsbPosition } from '@/adapters/adsb'
 import {
   buildPortalTrackingView,
-  portalAircraftMapVisible,
   tripToTrackingInput,
   type PortalTrackingView,
 } from '@/domain/portalTracking'
-import {
-  enrichTrackingStops,
-  type EnrichedTrackingStop,
-} from '@/lib/portalTrackingEnrich'
-import { listFbos, subscribeFbos } from '@/lib/fboStore'
-import { formatClientLocal } from '@/domain/timeFmt'
-import { BrandLockup } from '@/components/BrandLockup'
-import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 
 const REFRESH_MS = 30_000
-
-function statusChipClass(state: string): string {
-  if (state === 'delivered' || state === 'invoiced' || state === 'closed') {
-    return 'border-[#2E7D32]/40 bg-[#2E7D32]/10 text-[#2E7D32]'
-  }
-  if (state === 'in_progress' || state === 'booked') {
-    return 'border-gold/50 bg-gold/10 text-[#8a7010]'
-  }
-  if (state === 'cancelled' || state === 'lost') {
-    return 'border-[#C0392B]/40 bg-[#C0392B]/10 text-[#C0392B]'
-  }
-  return 'border-border bg-white text-muted'
-}
-
-function stopStatusDot(status: EnrichedTrackingStop['status']): string {
-  if (status === 'done') return 'bg-[#2E7D32]'
-  if (status === 'active') return 'bg-gold'
-  return 'bg-border'
-}
-
-function FlightFactsStrip({ view }: { view: PortalTrackingView }) {
-  const f = view.flightFacts
-  const cells: Array<{ label: string; value: string; mono?: boolean }> = [
-    {
-      label: 'Tail',
-      value: f.tail || 'TBD',
-      mono: true,
-    },
-    {
-      label: 'Aircraft',
-      value: f.aircraftType || 'TBD',
-    },
-    {
-      label: 'Routing',
-      value:
-        f.originIcao && f.destIcao
-          ? `${f.originIcao} → ${f.destIcao}`
-          : view.lane || '—',
-      mono: true,
-    },
-    {
-      label: 'Cargo',
-      value: f.cargo || '—',
-    },
-    {
-      label: 'Wheels up',
-      value: f.wheelsUpDisplay || '—',
-      mono: true,
-    },
-    {
-      label: 'Wheels down',
-      value: f.wheelsDownDisplay || '—',
-      mono: true,
-    },
-  ]
-  return (
-    <section className="rounded-lg border border-border bg-white p-4">
-      <h2 className="text-xs uppercase tracking-wider text-muted">
-        Flight facts
-      </h2>
-      <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {cells.map((c) => (
-          <div key={c.label}>
-            <dt className="text-[10px] uppercase tracking-wider text-muted">
-              {c.label}
-            </dt>
-            <dd
-              className={[
-                'mt-0.5 text-sm font-medium text-ink',
-                c.mono ? 'avionic' : '',
-              ].join(' ')}
-            >
-              {c.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {f.nextArriveLabel && f.nextArriveDisplay ? (
-        <p className="mt-4 rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-ink">
-          <span className="font-medium">{f.nextArriveLabel}</span>
-          <span className="avionic ml-2">{f.nextArriveDisplay}</span>
-        </p>
-      ) : null}
-    </section>
-  )
-}
-
-function ItineraryStops({ stops }: { stops: EnrichedTrackingStop[] }) {
-  if (stops.length === 0) {
-    return (
-      <section className="rounded-lg border border-border bg-white p-5">
-        <h2 className="text-xs uppercase tracking-wider text-muted">
-          Where you&apos;re going
-        </h2>
-        <p className="mt-3 text-sm text-muted">
-          FBO and stop details appear once the trip is booked with an ETA chain.
-        </p>
-      </section>
-    )
-  }
-
-  return (
-    <section className="rounded-lg border border-border bg-white p-5">
-      <h2 className="text-xs uppercase tracking-wider text-muted">
-        Where you&apos;re going
-      </h2>
-      <p className="mt-1 text-[11px] text-muted">
-        FBOs, addresses, and arrival times — stop-local with zone
-      </p>
-      <ol className="mt-4 space-y-3">
-        {stops.map((s, i) => (
-          <li
-            key={`${s.role}-${s.icao ?? s.placeLabel}-${i}`}
-            className={[
-              'rounded-lg border px-4 py-3',
-              s.status === 'active'
-                ? 'border-gold/50 bg-gold/5'
-                : 'border-border/70 bg-[#F7F2E3]/35',
-            ].join(' ')}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="flex items-start gap-2">
-                <span
-                  className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${stopStatusDot(s.status)}`}
-                  aria-hidden
-                />
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-gold">
-                    {s.title}
-                  </div>
-                  <div className="mt-0.5 text-base font-semibold text-ink">
-                    {s.fboName ? (
-                      <>
-                        {s.fboName}
-                        {s.icao ? (
-                          <span className="avionic ml-2 text-sm font-normal text-muted">
-                            {s.icao}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span className={s.icao ? 'avionic' : ''}>
-                        {s.icao || s.placeLabel}
-                      </span>
-                    )}
-                  </div>
-                  {s.airportCityState || s.airportName ? (
-                    <p className="mt-0.5 text-xs text-muted">
-                      {[s.airportName, s.airportCityState]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-muted">
-                  {s.etaActualDisplay ? 'Actual' : 'ETA'}
-                </div>
-                <div className="avionic text-sm font-medium text-ink">
-                  {s.etaActualDisplay || s.etaDisplay || '—'}
-                </div>
-                {s.event ? (
-                  <div className="mt-0.5 text-[10px] text-muted">{s.event}</div>
-                ) : null}
-              </div>
-            </div>
-
-            {s.displayAddress ? (
-              <p className="mt-3 text-sm text-ink">
-                <span className="text-[10px] uppercase tracking-wider text-muted">
-                  Address{' '}
-                </span>
-                {s.displayAddress}
-              </p>
-            ) : s.role === 'departure_fbo' || s.role === 'arrival_fbo' ? (
-              <p className="mt-3 text-xs text-muted">
-                FBO address pending — dispatch will confirm the handler.
-              </p>
-            ) : null}
-
-            {(s.fboPhone || s.fboAfterHours) && (
-              <p className="mt-2 avionic text-xs text-muted">
-                {s.fboPhone ? (
-                  <a href={`tel:${s.fboPhone}`} className="text-gold">
-                    {s.fboPhone}
-                  </a>
-                ) : null}
-                {s.fboIs24hr ? (
-                  <span className="ml-2 text-[10px] uppercase text-[#2E7D32]">
-                    24hr
-                  </span>
-                ) : null}
-                {s.fboAfterHours ? (
-                  <span className="ml-2">
-                    After hours{' '}
-                    <a href={`tel:${s.fboAfterHours}`} className="text-gold">
-                      {s.fboAfterHours}
-                    </a>
-                  </span>
-                ) : null}
-              </p>
-            )}
-          </li>
-        ))}
-      </ol>
-    </section>
-  )
-}
-
-function AircraftCard({ view }: { view: PortalTrackingView }) {
-  const a = view.aircraft
-  const showMap = portalAircraftMapVisible(a)
-  return (
-    <section className="overflow-hidden rounded-lg border border-border bg-white">
-      <div className="border-b border-border/60 px-5 py-3">
-        <h2 className="text-xs uppercase tracking-wider text-muted">
-          Live aircraft
-        </h2>
-        <p className="mt-0.5 avionic text-sm text-ink">
-          {a.tail !== '—' ? a.tail : view.flightFacts.tail || 'Tail TBD'}
-          {view.aircraftType || view.flightFacts.aircraftType ? (
-            <span className="ml-2 text-muted">
-              {view.aircraftType || view.flightFacts.aircraftType}
-            </span>
-          ) : null}
-        </p>
-      </div>
-      {showMap ? (
-        <div className="border-b border-border/60 bg-[#F7F2E3] px-3 pt-3 pb-2 sm:px-4">
-          <PortalAircraftMap aircraft={a} />
-          <p className="mt-1.5 text-[10px] text-muted">
-            {a.phase === 'airborne'
-              ? 'Live track along the air leg'
-              : a.phase === 'positioning'
-                ? 'Aircraft positioning toward departure'
-                : a.phase === 'on_ground'
-                  ? 'On the ground at this stage of the trip'
-                  : 'Trip route'}
-            {a.source === 'adsb'
-              ? ' · FlightAware / ADS-B'
-              : a.source === 'eta'
-                ? ' · from ETA chain'
-                : ''}
-          </p>
-        </div>
-      ) : null}
-      <div className="relative min-h-[120px] bg-gradient-to-br from-[#1a1a1c] via-[#0C0C0E] to-[#2a2418] px-5 py-5 text-[#F7F2E3]">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.12]"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 20% 30%, #C9A227 0%, transparent 45%), radial-gradient(circle at 80% 70%, #C9A227 0%, transparent 40%)',
-          }}
-        />
-        <div className="relative">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="avionic text-lg tracking-wide">
-                {a.tail !== '—' ? a.tail : 'Tail TBD'}
-                {view.aircraftType ? (
-                  <span className="ml-2 text-sm text-[#F7F2E3]/70">
-                    {view.aircraftType}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1 text-sm text-[#F7F2E3]/85">{a.summary}</p>
-              <p className="mt-1 text-[11px] uppercase tracking-wider text-[#C9A227]/80">
-                {a.source === 'adsb'
-                  ? 'Live ADS-B'
-                  : a.source === 'eta'
-                    ? 'From live ETA chain'
-                    : 'Awaiting position'}
-                {a.seenAt
-                  ? ` · ${formatClientLocal(a.seenAt, 'UTC').zulu}`
-                  : ''}
-              </p>
-            </div>
-            <div className="text-right avionic text-xs text-[#F7F2E3]/70">
-              {a.fromIcao && a.toIcao ? (
-                <div>
-                  {a.fromIcao} → {a.toIcao}
-                </div>
-              ) : null}
-              {a.altFt != null ? <div>{a.altFt} ft</div> : null}
-              {a.gsKts != null ? <div>{a.gsKts} kts</div> : null}
-              {a.lat != null && a.lon != null ? (
-                <div>
-                  {a.lat.toFixed(2)}° / {a.lon.toFixed(2)}°
-                </div>
-              ) : null}
-            </div>
-          </div>
-          {a.progressPct != null && (
-            <div className="mt-5">
-              <div className="mb-1 flex justify-between text-[11px] text-[#F7F2E3]/60">
-                <span>{a.fromIcao || 'Origin'}</span>
-                <span>
-                  {a.progressPct}%
-                  {a.nmRemaining != null ? ` · ${a.nmRemaining} NM left` : ''}
-                </span>
-                <span>{a.toIcao || 'Dest'}</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-[#C9A227] transition-[width] duration-700"
-                  style={{ width: `${a.progressPct}%` }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      <p className="px-5 py-2 text-[11px] text-muted">
-        Operated by {view.carrierLabel}. Carrier name withheld on this link.
-      </p>
-    </section>
-  )
-}
-
-function MilestoneStrip({ view }: { view: PortalTrackingView }) {
-  return (
-    <section className="rounded-lg border border-border bg-white p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xs uppercase tracking-wider text-muted">
-          Trip progress
-        </h2>
-        <span className="text-xs text-gold">Next · {view.nextMilestoneLabel}</span>
-      </div>
-      <ol className="mt-4 flex gap-1 overflow-x-auto pb-1">
-        {view.milestones.map((m) => (
-          <li
-            key={m.kind}
-            className={[
-              'min-w-[5.5rem] flex-1 rounded-md border px-2 py-2 text-center',
-              m.done
-                ? 'border-[#2E7D32]/35 bg-[#2E7D32]/8'
-                : m.current
-                  ? 'border-gold/50 bg-gold/10'
-                  : 'border-border/70 bg-[#F7F2E3]/40',
-            ].join(' ')}
-          >
-            <div
-              className={[
-                'text-[10px] font-medium leading-tight',
-                m.done ? 'text-[#2E7D32]' : m.current ? 'text-[#8a7010]' : 'text-muted',
-              ].join(' ')}
-            >
-              {m.label}
-            </div>
-            <div className="avionic mt-1 text-[10px] text-muted">
-              {m.at
-                ? formatClientLocal(m.at, 'UTC').local.replace(/\s.*/, '')
-                : '—'}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
-  )
-}
-
-function TrackingBody({ view }: { view: PortalTrackingView }) {
-  const delta = view.deltaMin
-  // Re-render when FBO directory hydrates so addresses fill in.
-  const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
-  const enrichedStops = useMemo(
-    () => enrichTrackingStops(view.stops),
-    [view.stops, fbos],
-  )
-
-  return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <header>
-        <div className="flex items-center gap-3">
-          <BrandLockup showTagline={false} />
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">
-            Live tracking
-          </div>
-        </div>
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              T-{view.ref}
-            </h1>
-            <p className="mt-1 avionic text-sm text-muted">{view.lane}</p>
-            <p className="mt-0.5 text-sm text-muted">
-              {view.payloadSummary}
-              {view.pattern ? ` · ${view.pattern}` : ''}
-              {view.readyLabel ? ` · ready ${view.readyLabel}` : ''}
-            </p>
-          </div>
-          <div
-            className={`rounded-md border px-3 py-1.5 text-xs uppercase tracking-wider ${statusChipClass(view.state)}`}
-          >
-            {view.state.replace(/_/g, ' ')}
-          </div>
-        </div>
-      </header>
-
-      <section className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-white px-4 py-3">
-          <div className="text-[11px] uppercase tracking-wider text-muted">
-            Promised delivery
-          </div>
-          <div className="avionic mt-1 text-lg text-ink">
-            {view.promisedDisplay ?? '—'}
-          </div>
-        </div>
-        <div className="rounded-lg border border-border bg-white px-4 py-3">
-          <div className="text-[11px] uppercase tracking-wider text-muted">
-            Current ETA
-          </div>
-          <div className="avionic mt-1 text-lg text-ink">
-            {view.projectedDisplay ?? '—'}
-          </div>
-          {delta != null && delta !== 0 && (
-            <div
-              className={`mt-0.5 text-xs ${
-                delta > 0 ? 'text-[#C0392B]' : 'text-[#2E7D32]'
-              }`}
-            >
-              {delta > 0 ? `+${delta}m vs promised` : `${delta}m early`}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <FlightFactsStrip view={view} />
-      <ItineraryStops stops={enrichedStops} />
-      <MilestoneStrip view={view} />
-      <AircraftCard view={view} />
-
-      <section className="rounded-lg border border-border bg-white p-5">
-        <h2 className="text-xs uppercase tracking-wider text-muted">
-          Live ETA sheet
-        </h2>
-        <p className="mt-1 text-[11px] text-muted">
-          Stop-local times with zone · same chain dispatch uses
-        </p>
-        {view.etaRows.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">
-            Timeline appears once the trip is quoted / booked.
-          </p>
-        ) : (
-          <ol className="mt-4 space-y-0">
-            {view.etaRows.map((row) => (
-              <li
-                key={row.seq}
-                className="flex gap-3 border-b border-border/50 py-3 last:border-0"
-              >
-                <div
-                  className={[
-                    'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
-                    row.status === 'done'
-                      ? 'bg-[#2E7D32]'
-                      : row.status === 'active'
-                        ? 'bg-gold'
-                        : 'bg-border',
-                  ].join(' ')}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div className="font-medium text-ink">{row.event}</div>
-                    <span className="text-[10px] uppercase tracking-wide text-muted">
-                      {row.status}
-                    </span>
-                  </div>
-                  <div className="avionic text-xs text-muted">
-                    {row.fromLabel} → {row.toLabel}
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                    <span>
-                      <span className="text-[10px] uppercase text-muted">Est </span>
-                      <span className="avionic">{row.estDisplay}</span>
-                    </span>
-                    {row.actualDisplay ? (
-                      <span className="text-[#2E7D32]">
-                        <span className="text-[10px] uppercase">Act </span>
-                        <span className="avionic">{row.actualDisplay}</span>
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      <section className="rounded-lg border border-border bg-white p-5">
-        <h2 className="text-xs uppercase tracking-wider text-muted">
-          Activity
-        </h2>
-        {view.timeline.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">
-            Quote approval, booking, and flight updates appear here live.
-          </p>
-        ) : (
-          <ul className="mt-3 space-y-2">
-            {view.timeline.map((u, i) => (
-              <li
-                key={`${u.at}-${u.label}-${i}`}
-                className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/40 pb-2 text-sm last:border-0"
-              >
-                <div>
-                  <div className="font-medium">{u.label}</div>
-                  {u.detail ? (
-                    <div className="text-xs text-muted">{u.detail}</div>
-                  ) : null}
-                </div>
-                <div className="avionic text-xs text-muted">
-                  {formatClientLocal(u.at, 'UTC').display}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {view.documents.length > 0 && (
-        <section className="rounded-lg border border-border bg-white p-5">
-          <h2 className="text-xs uppercase tracking-wider text-muted">
-            Documents
-          </h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {view.documents.map((d) => (
-              <li
-                key={d.id}
-                className="flex flex-wrap items-baseline justify-between gap-2"
-              >
-                <span>{d.title}</span>
-                <span className="text-xs uppercase text-muted">{d.kind}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <p className="text-center text-[11px] text-muted">
-        Auto-refreshes every 30s · times shown stop-local with zone
-      </p>
-    </div>
-  )
-}
 
 function useAdsbForTail(tail: string | null | undefined): AdsbPosition | null {
   const [pos, setPos] = useState<AdsbPosition | null>(null)
@@ -624,6 +72,68 @@ function viewFromTrip(
   return buildPortalTrackingView(tripToTrackingInput(trip), { adsb, nowIso })
 }
 
+function mapPortalLegs(
+  legRows: Record<string, unknown>[] | null | undefined,
+): TripStoreRow['legs'] {
+  if (!Array.isArray(legRows)) return []
+  return legRows.map((l, i) => ({
+    id: String(l.id),
+    seq: Number(l.seq ?? i + 1),
+    label: String(l.label || l.type || `Leg ${i + 1}`),
+    status: String(l.status || 'pending') as TripStoreRow['legs'][0]['status'],
+    origin: (l.from_ref as { icao?: string } | null)?.icao,
+    dest: (l.to_ref as { icao?: string } | null)?.icao,
+    est_start: l.est_start ? String(l.est_start) : null,
+    est_end: l.est_end ? String(l.est_end) : null,
+    actual_start: l.actual_start ? String(l.actual_start) : null,
+    actual_end: l.actual_end ? String(l.actual_end) : null,
+    party: 'dispatcher',
+    type: String(l.type || ''),
+    one_tap_token: '',
+  }))
+}
+
+function stubTripFromPortalRow(
+  tripRow: Record<string, unknown>,
+  legs: TripStoreRow['legs'],
+): TripStoreRow {
+  return {
+    id: String(tripRow.id),
+    ref: Number(tripRow.ref ?? 0),
+    code: tripRow.code ? String(tripRow.code) : '',
+    state: tripRow.state as TripStoreRow['state'],
+    lane: String(tripRow.lane_label || tripRow.lane || ''),
+    payload_summary: String(tripRow.payload_summary || ''),
+    ready_label: String(tripRow.ready_label || ''),
+    candidates: [],
+    offers: [],
+    events: [],
+    eta_chain: [],
+    service_pattern:
+      (tripRow.service_pattern as TripStoreRow['service_pattern']) ?? null,
+    promised_delivery: tripRow.promised_delivery
+      ? String(tripRow.promised_delivery)
+      : null,
+    eta_defaults_snapshot: null,
+    thread_number: null,
+    thread_disbanded_at: null,
+    legs,
+    participants: [],
+    thread: [],
+    documents: [],
+    invoice: null,
+    po_number: tripRow.po_number ? String(tripRow.po_number) : null,
+  }
+}
+
+function PortalLoading() {
+  return (
+    <PortalShell>
+      <p className="text-sm text-muted">Loading live tracking…</p>
+    </PortalShell>
+  )
+}
+
 /** Magic-link tracker `/portal/track/:token` */
 export default function PortalTrackPage() {
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
@@ -657,46 +167,9 @@ export default function PortalTrackPage() {
           setResolving(false)
           return
         }
-        const legs = Array.isArray(legRows)
-          ? legRows.map((l, i) => ({
-              id: String(l.id),
-              seq: Number(l.seq ?? i + 1),
-              label: String(l.label || l.type || `Leg ${i + 1}`),
-              status: String(l.status || 'pending') as TripStoreRow['legs'][0]['status'],
-              origin: (l.from_ref as { icao?: string } | null)?.icao,
-              dest: (l.to_ref as { icao?: string } | null)?.icao,
-              est_start: l.est_start ? String(l.est_start) : null,
-              est_end: l.est_end ? String(l.est_end) : null,
-              actual_start: l.actual_start ? String(l.actual_start) : null,
-              actual_end: l.actual_end ? String(l.actual_end) : null,
-              party: 'dispatcher',
-              type: String(l.type || ''),
-              one_tap_token: '',
-            }))
-          : []
-        setRemoteTrip({
-          id: String(tripRow.id),
-          ref: Number(tripRow.ref ?? 0),
-          code: '',
-          state: tripRow.state as TripStoreRow['state'],
-          lane: String(tripRow.lane_label || ''),
-          payload_summary: String(tripRow.payload_summary || ''),
-          ready_label: String(tripRow.ready_label || ''),
-          candidates: [],
-          offers: [],
-          events: [],
-          eta_chain: [],
-          service_pattern: null,
-          promised_delivery: null,
-          eta_defaults_snapshot: null,
-          thread_number: null,
-          thread_disbanded_at: null,
-          legs,
-          participants: [],
-          thread: [],
-          documents: [],
-          invoice: null,
-        })
+        setRemoteTrip(
+          stubTripFromPortalRow(tripRow, mapPortalLegs(legRows as never)),
+        )
       }
       setResolving(false)
     })()
@@ -720,46 +193,26 @@ export default function PortalTrackPage() {
     return viewFromTrip(trip, adsb, nowIso)
   }, [trip, adsb, nowIso])
 
-  if (resolving) {
-    return (
-      <div className="min-h-screen bg-cream p-6 text-ink" data-theme="client">
-        <p className="text-sm text-muted">Loading live tracking…</p>
-      </div>
-    )
-  }
+  if (resolving) return <PortalLoading />
 
   if (!view) {
     return (
-      <div className="min-h-screen bg-cream p-6 text-ink" data-theme="client">
-        <div className="mx-auto max-w-xl space-y-3">
-          <h1 className="text-2xl font-semibold">Tracking link expired</h1>
-          <p className="text-sm text-muted">
-            This magic link isn’t recognized. Ask dispatch for a fresh link.
-          </p>
-          <Link
-            to="/portal"
-            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
-          >
-            Back to portal
-          </Link>
-        </div>
-      </div>
+      <PortalShell>
+        <h1 className="text-2xl font-semibold">Tracking link expired</h1>
+        <p className="mt-2 text-sm text-muted">
+          This magic link isn&apos;t recognized. Ask dispatch for a fresh link.
+        </p>
+        <Link
+          to="/portal"
+          className="mt-4 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
+        >
+          Back to shipments
+        </Link>
+      </PortalShell>
     )
   }
 
-  return (
-    <div className="min-h-screen bg-cream px-4 py-8 text-ink sm:px-6" data-theme="client">
-      <TrackingBody view={view} />
-      <div className="mx-auto mt-8 max-w-3xl">
-        <Link
-          to="/portal"
-          className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
-        >
-          Back to portal
-        </Link>
-      </div>
-    </div>
-  )
+  return <PortalTrackingBody view={view} />
 }
 
 /** Session tracker `/portal/trips/:id` — same live view for signed-in clients. */
@@ -785,7 +238,7 @@ export function PortalTripTrackPage() {
           db()
             .from('portal_trips')
             .select(
-              'id,ref,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern',
+              'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number',
             )
             .eq('id', id)
             .limit(1),
@@ -800,48 +253,9 @@ export function PortalTripTrackPage() {
         setLoading(false)
         return
       }
-      const legs = Array.isArray(legRows)
-        ? legRows.map((l, i) => ({
-            id: String(l.id),
-            seq: Number(l.seq ?? i + 1),
-            label: String(l.label || l.type || `Leg ${i + 1}`),
-            status: String(l.status || 'pending') as TripStoreRow['legs'][0]['status'],
-            origin: (l.from_ref as { icao?: string } | null)?.icao,
-            dest: (l.to_ref as { icao?: string } | null)?.icao,
-            est_start: l.est_start ? String(l.est_start) : null,
-            est_end: l.est_end ? String(l.est_end) : null,
-            actual_start: l.actual_start ? String(l.actual_start) : null,
-            actual_end: l.actual_end ? String(l.actual_end) : null,
-            party: 'dispatcher',
-            type: String(l.type || ''),
-            one_tap_token: '',
-          }))
-        : []
-      setRemoteTrip({
-        id: String(tripRow.id),
-        ref: Number(tripRow.ref ?? 0),
-        code: '',
-        state: tripRow.state as TripStoreRow['state'],
-        lane: String(tripRow.lane_label || ''),
-        payload_summary: String(tripRow.payload_summary || ''),
-        ready_label: String(tripRow.ready_label || ''),
-        candidates: [],
-        offers: [],
-        events: [],
-        eta_chain: [],
-        service_pattern: (tripRow.service_pattern as TripStoreRow['service_pattern']) ?? null,
-        promised_delivery: tripRow.promised_delivery
-          ? String(tripRow.promised_delivery)
-          : null,
-        eta_defaults_snapshot: null,
-        thread_number: null,
-        thread_disbanded_at: null,
-        legs,
-        participants: [],
-        thread: [],
-        documents: [],
-        invoice: null,
-      })
+      setRemoteTrip(
+        stubTripFromPortalRow(tripRow, mapPortalLegs(legRows as never)),
+      )
       setLoading(false)
     })()
     return () => {
@@ -854,40 +268,22 @@ export function PortalTripTrackPage() {
   const adsb = useAdsbForTail(input?.tail)
   const view = trip ? viewFromTrip(trip, adsb, nowIso) : null
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-cream p-6 text-ink" data-theme="client">
-        <p className="text-sm text-muted">Loading live tracking…</p>
-      </div>
-    )
-  }
+  if (loading) return <PortalLoading />
 
   if (!view) {
     return (
-      <div className="min-h-screen bg-cream p-6 text-ink" data-theme="client">
+      <PortalShell>
         <h1 className="text-xl font-semibold">Trip not found</h1>
         <p className="mt-2 text-sm text-muted">
-          Open a trip from your portal home, or use the magic tracking link from
-          email.
+          Open a trip from your shipments list, or use the magic tracking link
+          from email.
         </p>
         <Link to="/portal" className="mt-4 inline-block text-gold">
-          ← Portal
+          ← All shipments
         </Link>
-      </div>
+      </PortalShell>
     )
   }
 
-  return (
-    <div className="min-h-screen bg-cream px-4 py-8 text-ink sm:px-6" data-theme="client">
-      <TrackingBody view={view} />
-      <div className="mx-auto mt-8 max-w-3xl">
-        <Link
-          to="/portal"
-          className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-medium text-ink"
-        >
-          Back to portal
-        </Link>
-      </div>
-    </div>
-  )
+  return <PortalTrackingBody view={view} />
 }
