@@ -1,4 +1,5 @@
 import { createEmailAdapter } from '@/adapters/email'
+import { absoluteAppUrl } from '@/lib/appUrl'
 import type { TripStoreRow } from '@/lib/tripStore'
 import { mutateTrip } from '@/lib/tripStore'
 import {
@@ -8,10 +9,8 @@ import {
 import { createPortalTrackToken } from '@/lib/portalTrackStore'
 
 function makePortalTrackingLink(token: string): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}/portal/track/${token}`
-  }
-  return `/portal/track/${token}`
+  // Always VITE_APP_URL / production — never the desk's Vercel preview origin.
+  return absoluteAppUrl(`/portal/track/${token}`)
 }
 
 export function portalTrackingUrlForTrip(
