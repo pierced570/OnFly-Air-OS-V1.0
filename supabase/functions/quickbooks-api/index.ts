@@ -44,14 +44,21 @@ Deno.serve(async (req) => {
 
     if (action === 'connection_status') {
       const row = await loadConfig(companyId)
+      const stored = row?.config?.environment ?? null
+      const desired = desiredEnvironment()
       return json({
         connected: Boolean(row?.is_connected && row.config?.realm_id),
-        environment: row?.config?.environment ?? null,
+        environment: stored,
+        desired_environment: desired,
+        /** True when tokens were issued against sandbox but secrets want production (or vice versa). */
+        environment_mismatch: Boolean(stored && stored !== desired),
         realm_id: row?.config?.realm_id ?? null,
       })
     }
 
     const cfg = await ensureValidToken(companyId)
+    // Refuse to create/send against the wrong Intuit environment.
+    assertEnvironment(cfg)
 
     switch (action) {
       case 'ensure_customer':
@@ -178,7 +185,25 @@ async function ensureValidToken(companyId: string): Promise<QbConfig> {
   return cfg
 }
 
+/** Secrets target — production when QB_ENVIRONMENT=production. */
+function desiredEnvironment(): 'sandbox' | 'production' {
+  const e = (Deno.env.get('QB_ENVIRONMENT') ?? 'sandbox').toLowerCase()
+  return e === 'production' ? 'production' : 'sandbox'
+}
+
+function assertEnvironment(cfg: QbConfig) {
+  const desired = desiredEnvironment()
+  const stored = cfg.environment === 'production' ? 'production' : 'sandbox'
+  if (stored !== desired) {
+    throw new Error(
+      `reconnect QuickBooks — connected to ${stored} but QB_ENVIRONMENT=${desired}. ` +
+        `Disconnect and Connect again, then pick the live OnFly company.`,
+    )
+  }
+}
+
 function baseUrl(cfg: QbConfig) {
+  // Prefer the environment stamped at OAuth connect time.
   return cfg.environment === 'production'
     ? 'https://quickbooks.api.intuit.com'
     : 'https://sandbox-quickbooks.api.intuit.com'
