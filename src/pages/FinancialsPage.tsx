@@ -624,6 +624,13 @@ function QbConnectBanner({
                 ? `Connected${environment ? ` · ${environment}` : ''} · QBO ACH View & pay · native send`
                 : 'Not connected — Connect to create live QBO invoices'}
           </p>
+          {realMode && connected && environment === 'sandbox' ? (
+            <p className="mt-1 text-xs text-late">
+              Still on Intuit <span className="font-semibold">sandbox</span> —
+              invoices will look wrong. Disconnect/Connect and pick the live
+              OnFly Air company (QB_ENVIRONMENT=production).
+            </p>
+          ) : null}
           {error && <p className="mt-1 text-xs text-late">{error}</p>}
           {retryCount > 0 && (
             <p className="mt-1 text-xs text-gold">

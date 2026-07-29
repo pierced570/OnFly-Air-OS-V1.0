@@ -761,6 +761,75 @@ function ClientDetail({
         </div>
 
         <div className="space-y-2">
+          <div className="text-[11px] uppercase tracking-wider text-muted">
+            Bases (ETA / tracking)
+          </div>
+          <p className="text-[11px] text-muted">
+            Company locations. Leave emails blank to auto-send{' '}
+            <span className="avionic">cak@company.com</span> from the client
+            domain / website on Quick Dispatch.
+          </p>
+          <div className="space-y-2">
+            {(profile.bases?.length ? profile.bases : []).map((base, i) => (
+              <div
+                key={`base-${i}`}
+                className="grid gap-2 rounded-md border border-border/60 p-2 sm:grid-cols-[1fr_2fr_auto]"
+              >
+                <AirportSelect
+                  value={base.icao}
+                  onChange={(icao) => {
+                    const bases = [...(profile.bases ?? [])]
+                    bases[i] = { ...bases[i]!, icao }
+                    patchProfile({ bases })
+                  }}
+                  label="Base ICAO"
+                  inputClassName={input}
+                />
+                <label className="block text-xs text-muted">
+                  Emails (comma-separated, optional)
+                  <input
+                    className={input}
+                    value={(base.emails ?? []).join(', ')}
+                    onChange={(e) => {
+                      const bases = [...(profile.bases ?? [])]
+                      const emails = e.target.value
+                        .split(/[,;\s]+/)
+                        .map((s) => s.trim())
+                        .filter((s) => s.includes('@'))
+                      bases[i] = { ...bases[i]!, emails }
+                      patchProfile({ bases })
+                    }}
+                    placeholder="auto from domain if empty"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="self-end text-xs text-muted hover:text-late"
+                  onClick={() => {
+                    const bases = [...(profile.bases ?? [])]
+                    bases.splice(i, 1)
+                    patchProfile({ bases })
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="text-xs text-gold"
+              onClick={() =>
+                patchProfile({
+                  bases: [...(profile.bases ?? []), { icao: '', emails: [] }],
+                })
+              }
+            >
+              + Add base
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-[11px] uppercase tracking-wider text-muted">
               Frequent lanes

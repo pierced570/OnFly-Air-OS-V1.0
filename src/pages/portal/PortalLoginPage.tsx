@@ -7,6 +7,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { BrandLockup } from '@/components/BrandLockup'
+import { absoluteAppUrl } from '@/lib/appUrl'
 
 export default function PortalLoginPage() {
   const [email, setEmail] = useState('')
@@ -28,7 +29,8 @@ export default function PortalLoginPage() {
     }
     setBusy(true)
     try {
-      const redirectTo = `${window.location.origin}/portal`
+      // Never bounce magic-link logins through a gated *.vercel.app origin.
+      const redirectTo = absoluteAppUrl('/portal')
       const { error: err } = await supabase.auth.signInWithOtp({
         email: addr,
         options: { emailRedirectTo: redirectTo },

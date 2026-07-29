@@ -18,12 +18,22 @@ import {
   getTrip,
   listTripsStable,
   subscribeTrips,
+  type TripStoreRow,
 } from '@/lib/tripStore'
 import {
   buildPortalTrackingView,
   summarizePortalShipments,
   tripToTrackingInput,
 } from '@/domain/portalTracking'
+import {
+  readPortalGuestTrack,
+  type PortalGuestTrack,
+} from '@/lib/portalGuestTrack'
+import {
+  getPortalTrackRow,
+  resolvePortalTrackTripId,
+} from '@/lib/portalTrackStore'
+import { canPersist, db, safeQuery } from '@/lib/db/client'
 
 function useRequests() {
   return useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -71,6 +81,10 @@ export default function PortalHomePage() {
   const [remoteTrips, setRemoteTrips] = useState<PortalTripCard[]>([])
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [nowLabel, setNowLabel] = useState(() => clockLabel())
+  const [guest, setGuest] = useState<PortalGuestTrack | null>(() =>
+    readPortalGuestTrack(),
+  )
+  const [guestTrip, setGuestTrip] = useState<TripStoreRow | null>(null)
 
   useEffect(() => {
     const id = window.setInterval(() => setNowLabel(clockLabel()), 30_000)
@@ -93,6 +107,109 @@ export default function PortalHomePage() {
       cancelled = true
     }
   }, [])
+
+  // Magic-link guests: hydrate the trip they were tracking for "Your shipments".
+  useEffect(() => {
+    const g = readPortalGuestTrack()
+    setGuest(g)
+    if (!g || session?.clientId) {
+      setGuestTrip(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const local = getTrip(g.tripId)
+      if (local) {
+        if (!cancelled) setGuestTrip(local)
+        return
+      }
+      const id =
+        getPortalTrackRow(g.token)?.tripId ??
+        (await resolvePortalTrackTripId(g.token))
+      if (cancelled) return
+      if (id) {
+        const t = getTrip(id)
+        if (t) {
+          setGuestTrip(t)
+          return
+        }
+      }
+      if (!canPersist() || !id) {
+        setGuestTrip(null)
+        return
+      }
+      const [tripRows, legRows] = await Promise.all([
+        safeQuery<Record<string, unknown>[]>('portal_trips.guest', () =>
+          db()
+            .from('portal_trips')
+            .select(
+              'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number',
+            )
+            .eq('id', id)
+            .limit(1),
+        ),
+        safeQuery<Record<string, unknown>[]>('portal_legs.guest', () =>
+          db().from('portal_legs').select('*').eq('trip_id', id).order('seq'),
+        ),
+      ])
+      if (cancelled) return
+      const tripRow = Array.isArray(tripRows) ? tripRows[0] : null
+      if (!tripRow) {
+        setGuestTrip(null)
+        return
+      }
+      // Minimal stub — enough for PortalHomeTripCard via getTrip miss path…
+      // Prefer local store when desk created the trip in this browser.
+      setGuestTrip({
+        id: String(tripRow.id),
+        ref: Number(tripRow.ref ?? 0),
+        code: tripRow.code ? String(tripRow.code) : '',
+        state: tripRow.state as TripStoreRow['state'],
+        lane: String(tripRow.lane_label || tripRow.lane || ''),
+        payload_summary: String(tripRow.payload_summary || ''),
+        ready_label: String(tripRow.ready_label || ''),
+        candidates: [],
+        offers: [],
+        events: [],
+        eta_chain: [],
+        service_pattern:
+          (tripRow.service_pattern as TripStoreRow['service_pattern']) ?? null,
+        promised_delivery: tripRow.promised_delivery
+          ? String(tripRow.promised_delivery)
+          : null,
+        eta_defaults_snapshot: null,
+        thread_number: null,
+        thread_disbanded_at: null,
+        legs: Array.isArray(legRows)
+          ? legRows.map((l, i) => ({
+              id: String(l.id),
+              seq: Number(l.seq ?? i + 1),
+              label: String(l.label || l.type || `Leg ${i + 1}`),
+              status: String(
+                l.status || 'pending',
+              ) as TripStoreRow['legs'][0]['status'],
+              origin: (l.from_ref as { icao?: string } | null)?.icao,
+              dest: (l.to_ref as { icao?: string } | null)?.icao,
+              est_start: l.est_start ? String(l.est_start) : null,
+              est_end: l.est_end ? String(l.est_end) : null,
+              actual_start: l.actual_start ? String(l.actual_start) : null,
+              actual_end: l.actual_end ? String(l.actual_end) : null,
+              party: 'dispatcher',
+              type: String(l.type || ''),
+              one_tap_token: '',
+            }))
+          : [],
+        participants: [],
+        thread: [],
+        documents: [],
+        invoice: null,
+        po_number: tripRow.po_number ? String(tripRow.po_number) : null,
+      })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [session?.clientId, localTrips])
 
   const signedIn = Boolean(session?.clientId)
   const clientKey = session?.clientId || null
@@ -170,6 +287,16 @@ export default function PortalHomePage() {
 
   const summaryLine = `${counts.inMotion} in motion · ${counts.onGround} on the ground · ${counts.delivered} delivered`
 
+  const guestView = guestTrip
+    ? buildPortalTrackingView(tripToTrackingInput(guestTrip))
+    : null
+  const guestCounts = guestView
+    ? summarizePortalShipments([guestView.phase])
+    : { inMotion: 0, onGround: 0, delivered: 0 }
+  const guestSummary = guestView
+    ? `${guestCounts.inMotion} in motion · ${guestCounts.onGround} on the ground · ${guestCounts.delivered} delivered`
+    : 'Open your tracking link from email'
+
   const headerActions = session ? (
     <>
       <span className="hidden text-cream/60 md:inline">{session.email}</span>
@@ -196,23 +323,6 @@ export default function PortalHomePage() {
     <PortalShell headerActions={headerActions}>
       {loadingAuth ? (
         <p className="text-sm text-muted">Checking session…</p>
-      ) : null}
-
-      {!session ? (
-        <section className="rounded-md border border-border bg-white p-5">
-          <h2 className="font-medium">Welcome</h2>
-          <p className="mt-1 text-sm text-muted">
-            Sign in with the email OnFly has on file to see your shipments and
-            live tracking. Magic links from ETA emails still work without
-            signing in.
-          </p>
-          <Link
-            to="/portal/login"
-            className="mt-3 inline-flex rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt"
-          >
-            Email magic link
-          </Link>
-        </section>
       ) : null}
 
       {session && !session.clientId ? (
@@ -302,21 +412,92 @@ export default function PortalHomePage() {
             </div>
           ) : null}
         </section>
-      ) : (
-        <section className="mt-4 rounded-md border border-border bg-white p-5">
-          <h2 className="font-medium">Need a trip?</h2>
-          <p className="mt-1 text-sm text-muted">
-            Submit a new request without signing in. Sign in above to see
-            shipments already moving for your company.
-          </p>
-          <Link
-            to="/portal/request"
-            className="mt-4 inline-flex rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt"
-          >
-            Request a trip
-          </Link>
+      ) : null}
+
+      {/* Magic-link guest (not signed in) — same chrome, trip from last track token */}
+      {!signedIn && !loadingAuth && !(session && !session.clientId) ? (
+        <section className="space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
+                Your shipments
+              </div>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+                {guestView ? guestSummary : 'Track your shipment'}
+              </h1>
+              <p className="mt-1 text-sm text-muted">
+                {guest
+                  ? 'Showing the trip from your tracking link. Sign in to see every shipment for your company.'
+                  : 'Use the tracking link from your ETA email, or sign in with the email OnFly has on file.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="avionic text-[11px] text-muted">{nowLabel}</span>
+              <Link
+                to="/portal/login"
+                className="rounded-md bg-gold px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
+              >
+                Sign in
+              </Link>
+            </div>
+          </div>
+
+          {guest && guestTrip ? (
+            <ul className="space-y-4">
+              <li className="overflow-hidden rounded-md border border-ink bg-ink text-cream">
+                <div className="px-4 pb-3 pt-4 sm:px-5">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cream/80">
+                    {guestView?.phase === 'in_flight'
+                      ? 'In flight'
+                      : guestView?.phase === 'on_truck'
+                        ? 'On delivery truck'
+                        : guestView?.phase === 'delivered'
+                          ? 'Delivered'
+                          : 'In progress'}
+                  </div>
+                  <div className="mt-3 text-2xl font-semibold tracking-tight">
+                    PO #
+                    {(
+                      guestView?.poNumber ||
+                      guestTrip.po_number ||
+                      `T-${guestTrip.ref}`
+                    ).replace(/^PO\s*#?\s*/i, '')}
+                  </div>
+                  <div className="avionic mt-1 text-sm font-medium text-gold">
+                    {guestTrip.lane}
+                    {guestView?.tail ? ` · ${guestView.tail}` : ''}
+                  </div>
+                  <div className="mt-0.5 text-xs text-cream/70">
+                    {guestTrip.payload_summary || guestTrip.ready_label}
+                  </div>
+                </div>
+                <Link
+                  to={`/portal/track/${guest.token}`}
+                  className="block bg-gold px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.14em] text-ink hover:bg-gold-lt sm:px-5"
+                >
+                  View live tracking
+                </Link>
+              </li>
+            </ul>
+          ) : (
+            <div className="rounded-md border border-dashed border-border bg-white/60 p-6 text-sm text-muted">
+              No open tracking session in this browser.{' '}
+              <Link to="/portal/login" className="text-gold">
+                Sign in
+              </Link>{' '}
+              for your company&apos;s shipments, or open the link from your ETA
+              email.
+            </div>
+          )}
+
+          <div className="text-xs text-muted">
+            Need a new move?{' '}
+            <Link to="/portal/request" className="text-gold">
+              Request a quote
+            </Link>
+          </div>
         </section>
-      )}
+      ) : null}
     </PortalShell>
   )
 }

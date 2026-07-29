@@ -13,6 +13,7 @@ import {
   subscribeTrips,
   type TripStoreRow,
 } from '@/lib/tripStore'
+import { rememberPortalGuestTrack } from '@/lib/portalGuestTrack'
 import {
   getPortalTrackRow,
   resolvePortalTrackTripId,
@@ -153,6 +154,7 @@ export default function PortalTrackPage() {
       const id = await resolvePortalTrackTripId(token)
       if (cancelled) return
       setTripId(id)
+      if (id) rememberPortalGuestTrack({ token, tripId: id })
       if (id && !getTrip(id) && canPersist()) {
         const [tripRows, legRows] = await Promise.all([
           safeQuery<Record<string, unknown>[]>('portal_trip_by_token', () =>
@@ -212,7 +214,12 @@ export default function PortalTrackPage() {
     )
   }
 
-  return <PortalTrackingBody view={view} />
+  return (
+    <PortalTrackingBody
+      view={view}
+      backHref="/portal"
+    />
+  )
 }
 
 /** Session tracker `/portal/trips/:id` — same live view for signed-in clients. */

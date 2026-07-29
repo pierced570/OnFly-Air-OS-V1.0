@@ -175,11 +175,27 @@ function buildQuickParticipants(meta: QuickDispatchMeta): TripParticipant[] {
   for (const email of meta.cc_emails) {
     out.push({
       id: crypto.randomUUID(),
-      role: 'client_supply',
-      name: email.split('@')[0] || 'CC',
+      role: 'client_ap',
+      name: email.split('@')[0] || 'AP CC',
       company: meta.client_name || '',
       cell: '',
       email,
+      in_thread: false,
+      released_at: null,
+      invite_sent_at: null,
+    })
+  }
+  for (const email of meta.eta_emails ?? []) {
+    const e = email.trim()
+    if (!e.includes('@')) continue
+    if (out.some((p) => p.email.toLowerCase() === e.toLowerCase())) continue
+    out.push({
+      id: crypto.randomUUID(),
+      role: 'client_supply',
+      name: e.split('@')[0] || 'Ops',
+      company: meta.client_name || '',
+      cell: '',
+      email: e,
       in_thread: false,
       released_at: null,
       invite_sent_at: null,
@@ -253,7 +269,10 @@ export type QuickDispatchMeta = {
   client_price: number
   pay_terms: string
   invoice_email: string
+  /** Invoice CC (AP). Not used for ETA / tracking. */
   cc_emails: string[]
+  /** ETA sheet + portal tracking recipients (supply chain / bases). */
+  eta_emails?: string[]
   send_invoice: boolean
   referred_by: string
   /** Optional one-off profit share $ (otherwise uses referral directory default). */

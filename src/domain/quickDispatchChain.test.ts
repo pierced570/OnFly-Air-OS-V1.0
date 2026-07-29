@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildQuickDispatchChain,
+  formatLooseDurationMinutes,
   parseLooseDurationMinutes,
 } from './quickDispatchChain'
 
@@ -9,7 +10,15 @@ describe('parseLooseDurationMinutes', () => {
     expect(parseLooseDurationMinutes('1.5h')).toBe(90)
     expect(parseLooseDurationMinutes('90m')).toBe(90)
     expect(parseLooseDurationMinutes('1h 20min')).toBe(80)
+    expect(parseLooseDurationMinutes('2')).toBe(120)
     expect(parseLooseDurationMinutes('')).toBeNull()
+  })
+
+  it('formats minutes back to loose strings', () => {
+    expect(formatLooseDurationMinutes(120)).toBe('2h')
+    expect(formatLooseDurationMinutes(90)).toBe('1h 30m')
+    expect(formatLooseDurationMinutes(45)).toBe('45m')
+    expect(formatLooseDurationMinutes(0)).toBe('')
   })
 })
 

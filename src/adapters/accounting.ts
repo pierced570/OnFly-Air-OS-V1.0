@@ -62,6 +62,10 @@ export type QbDashboardStats = {
 export type QbConnectionStatus = {
   connected: boolean
   environment: 'sandbox' | 'production' | null
+  /** From QB_ENVIRONMENT secret — what invoices should use. */
+  desired_environment?: 'sandbox' | 'production' | null
+  /** Connected env ≠ desired (e.g. still on sandbox after flipping to production). */
+  environment_mismatch?: boolean
   realm_id: string | null
 }
 
@@ -317,13 +321,26 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
   async getConnectionStatus(): Promise<QbConnectionStatus> {
     try {
       const data = await this.invoke('connection_status')
+      const env =
+        (data.environment as QbConnectionStatus['environment']) ?? null
+      const desired =
+        (data.desired_environment as QbConnectionStatus['environment']) ??
+        null
       return {
         connected: Boolean(data.connected),
-        environment: (data.environment as QbConnectionStatus['environment']) ?? null,
+        environment: env,
+        desired_environment: desired,
+        environment_mismatch: Boolean(data.environment_mismatch),
         realm_id: data.realm_id ? String(data.realm_id) : null,
       }
     } catch {
-      return { connected: false, environment: null, realm_id: null }
+      return {
+        connected: false,
+        environment: null,
+        desired_environment: null,
+        environment_mismatch: false,
+        realm_id: null,
+      }
     }
   }
 

@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
+import { HrsMinsInput } from '@/components/HrsMinsInput'
 import { OperatorSelect } from '@/components/OperatorSelect'
+import {
+  formatLooseDurationMinutes,
+  parseLooseDurationMinutes,
+} from '@/domain/quickDispatchChain'
+import {
+  listBaseGeneratedEmails,
+} from '@/domain/clientBaseEmails'
 import {
   addClient,
   addClientContact,
   getClient,
   listClients,
+  listEtaTrackingContacts,
+  listEtaTrackingEmails,
   listInvoiceEmails,
   rememberEmailsOnClient,
   recordPoUsed,
@@ -104,7 +114,8 @@ export default function QuickDispatchPage() {
 
   const [sendInvoice, setSendInvoice] = useState(true)
   const [invoiceEmail, setInvoiceEmail] = useState('')
-  const [cc, setCc] = useState('')
+  const [invoiceCc, setInvoiceCc] = useState('')
+  const [etaEmails, setEtaEmails] = useState('')
   const [referredById, setReferredById] = useState('')
   const [referralShareOverride, setReferralShareOverride] = useState('')
   const [notes, setNotes] = useState('')
@@ -139,6 +150,35 @@ export default function QuickDispatchPage() {
         })
       : null
 
+  const legIcaos = useMemo(() => {
+    const out: string[] = []
+    for (const l of legs) {
+      if (l.origin_icao.trim()) out.push(l.origin_icao.trim().toUpperCase())
+      if (l.dest_icao.trim()) out.push(l.dest_icao.trim().toUpperCase())
+    }
+    return out
+  }, [legs])
+
+  const baseEmailSuggestions = useMemo(() => {
+    if (!client) return []
+    return listBaseGeneratedEmails(
+      {
+        email: client.email,
+        invoice_email: client.invoice_email,
+        website: client.profile.website,
+        contactEmails: client.contacts.map((c) => c.email),
+        bases: client.profile.bases,
+        frequent_lanes: client.profile.frequent_lanes,
+      },
+      { legIcaos },
+    )
+  }, [client, legIcaos])
+
+  function fillEtaFromClient(id: string, icaos: string[]) {
+    const emails = listEtaTrackingEmails(id, { legIcaos: icaos })
+    setEtaEmails(emails.join(', '))
+  }
+
   function selectClient(id: string) {
     setClientId(id)
     const c = getClient(id)
@@ -147,22 +187,34 @@ export default function QuickDispatchPage() {
     setPayTerms(c.pay_terms || 'Net 30')
     const invoiceTargets = listInvoiceEmails(id)
     setInvoiceEmail(invoiceTargets[0] || c.invoice_email || c.email || '')
-    const trackerCc = c.contacts
-      .filter((x) => x.notify_prefs.tracker && x.email)
-      .map((x) => x.email)
+    // Invoice CC stays AP-only — ETA goes in its own section.
+    const apCc = c.contacts
       .filter(
-        (e) =>
-          !invoiceTargets.includes(e.toLowerCase()) &&
-          e.toLowerCase() !== (invoiceTargets[0] || '').toLowerCase(),
+        (x) =>
+          x.email &&
+          x.notify_prefs.invoice &&
+          x.email.toLowerCase() !==
+            (invoiceTargets[0] || c.invoice_email || '').toLowerCase(),
       )
-    setCc(trackerCc.join(', '))
+      .map((x) => x.email)
+    setInvoiceCc([...new Set(apCc)].join(', '))
+    fillEtaFromClient(id, legIcaos)
   }
 
-  function toggleCc(email: string) {
-    const set = new Set(parseCc(cc))
-    if (set.has(email)) set.delete(email)
-    else set.add(email)
-    setCc([...set].join(', '))
+  function toggleEmailList(
+    raw: string,
+    setRaw: (next: string) => void,
+    email: string,
+  ) {
+    const key = email.trim().toLowerCase()
+    const current = parseCc(raw)
+    const has = current.some((e) => e.toLowerCase() === key)
+    setRaw(
+      (has
+        ? current.filter((e) => e.toLowerCase() !== key)
+        : [...current, email.trim()]
+      ).join(', '),
+    )
   }
 
   async function dispatchNow() {
@@ -189,8 +241,14 @@ export default function QuickDispatchPage() {
       }
 
       const poFinal = po.trim() || suggestedPo
-      const ccList = parseCc(cc)
-      rememberEmailsOnClient(client.id, invoiceEmail, ccList)
+      const invoiceCcList = parseCc(invoiceCc)
+      const etaList = parseCc(etaEmails)
+      rememberEmailsOnClient(
+        client.id,
+        invoiceEmail,
+        invoiceCcList,
+        etaList,
+      )
       recordPoUsed(client.id, poFinal)
 
       const trip = createQuickDispatchTrip({
@@ -207,7 +265,8 @@ export default function QuickDispatchPage() {
         client_price: Number(clientPrice) || 0,
         pay_terms: payTerms,
         invoice_email: invoiceEmail.trim(),
-        cc_emails: ccList,
+        cc_emails: invoiceCcList,
+        eta_emails: etaList,
         send_invoice: sendInvoice,
         referred_by: selectedReferrer?.name ?? '',
         referral_id: selectedReferrer?.id ?? null,
@@ -236,7 +295,7 @@ export default function QuickDispatchPage() {
           if (toList.length) {
             await sendTripInvoiceEmail(trip.id, {
               to: toList,
-              cc: ccList,
+              cc: invoiceCcList,
             })
           } else {
             await createInvoiceForTrip(trip.id, { skipEmail: true })
@@ -247,7 +306,7 @@ export default function QuickDispatchPage() {
             await createInvoiceForTrip(trip.id, {
               skipEmail: true,
               to: invoiceEmail.trim() ? [invoiceEmail.trim()] : undefined,
-              cc: ccList,
+              cc: invoiceCcList,
             })
           } catch (e2) {
             console.warn('[quick-dispatch] invoice create failed', e2)
@@ -255,23 +314,16 @@ export default function QuickDispatchPage() {
         }
       }
 
-      // Manifest + checkpoint timers + ETA sheet to trackers
+      // Manifest + checkpoints; ETA blast uses trip.quick.eta_emails via onBooked
       const { runOnBookedAutomations } = await import('@/lib/onBooked')
-      await runOnBookedAutomations(trip.id)
-
-      // QD also fans ETA to explicit CC list (onBooked uses client tracker emails)
-      const { listTrackerEmails } = await import('@/lib/clientStore')
-      const trackerFromClient = listTrackerEmails(client.id)
-      const recipients = [...trackerFromClient, ...ccList]
-      const already = new Set(trackerFromClient.map((e) => e.toLowerCase()))
-      const extra = recipients.filter(
-        (r) => r.trim().includes('@') && !already.has(r.trim().toLowerCase()),
-      )
-      if (extra.length) {
+      if (etaList.length) {
+        await runOnBookedAutomations(trip.id, { skipEtaEmail: true })
         await sendQuickDispatchEtaSheetAndPortalLinks({
-          trip: trip,
-          recipients: extra,
+          trip,
+          recipients: etaList,
         })
+      } else {
+        await runOnBookedAutomations(trip.id)
       }
 
       // Straight into Live tracking — no Approved holding pattern.
@@ -290,7 +342,11 @@ export default function QuickDispatchPage() {
     }
   }
 
-  const selectedCc = new Set(parseCc(cc))
+  const selectedInvoiceCc = new Set(
+    parseCc(invoiceCc).map((e) => e.toLowerCase()),
+  )
+  const selectedEta = new Set(parseCc(etaEmails).map((e) => e.toLowerCase()))
+  const etaContacts = clientId ? listEtaTrackingContacts(clientId) : []
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-5 p-4 pb-28 sm:p-6">
@@ -556,40 +612,41 @@ export default function QuickDispatchPage() {
                   />
                 </label>
               )}
-              <label className={label}>
-                Repo time
-                <input
-                  className={input}
-                  value={leg.repo_time}
-                  onChange={(e) =>
-                    setLegs((xs) =>
-                      xs.map((l) =>
-                        l.id === leg.id
-                          ? { ...l, repo_time: e.target.value }
-                          : l,
-                      ),
-                    )
-                  }
-                  placeholder="e.g. 1h 30m"
-                />
-              </label>
-              <label className={label}>
-                Live leg time
-                <input
-                  className={input}
-                  value={leg.live_leg_time}
-                  onChange={(e) =>
-                    setLegs((xs) =>
-                      xs.map((l) =>
-                        l.id === leg.id
-                          ? { ...l, live_leg_time: e.target.value }
-                          : l,
-                      ),
-                    )
-                  }
-                  placeholder="e.g. 2h 15m"
-                />
-              </label>
+              <HrsMinsInput
+                label="Repo time"
+                labelClassName={label}
+                inputClassName={input}
+                totalMinutes={parseLooseDurationMinutes(leg.repo_time) ?? 0}
+                onChange={(min) =>
+                  setLegs((xs) =>
+                    xs.map((l) =>
+                      l.id === leg.id
+                        ? { ...l, repo_time: formatLooseDurationMinutes(min) }
+                        : l,
+                    ),
+                  )
+                }
+              />
+              <HrsMinsInput
+                label="Live leg time"
+                labelClassName={label}
+                inputClassName={input}
+                totalMinutes={
+                  parseLooseDurationMinutes(leg.live_leg_time) ?? 0
+                }
+                onChange={(min) =>
+                  setLegs((xs) =>
+                    xs.map((l) =>
+                      l.id === leg.id
+                        ? {
+                            ...l,
+                            live_leg_time: formatLooseDurationMinutes(min),
+                          }
+                        : l,
+                    ),
+                  )
+                }
+              />
             </div>
           </div>
         ))}
@@ -699,7 +756,7 @@ export default function QuickDispatchPage() {
         </label>
       </section>
 
-      {/* Invoice email */}
+      {/* Invoice email — AP only */}
       <section className="space-y-2">
         <div className="text-xs font-medium uppercase tracking-wider text-muted">
           Invoice email
@@ -719,26 +776,124 @@ export default function QuickDispatchPage() {
             className={input}
             value={invoiceEmail}
             onChange={(e) => setInvoiceEmail(e.target.value)}
-            placeholder="client@company.com"
+            placeholder="ap@company.com"
           />
           {client && (
             <span className="mt-1 block text-[11px] text-muted">
-              Auto-filled from client profile. Edits save on dispatch.
+              Auto-filled from AP / invoice contacts. Edits save on dispatch.
             </span>
           )}
         </label>
 
-        {client && client.contacts.length > 0 && (
+        {client &&
+          client.contacts.some((c) => c.notify_prefs.invoice && c.email) && (
+            <div>
+              <div className="mb-2 text-xs text-muted">
+                AP contacts — click to CC invoice
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {client.contacts
+                  .filter((c) => c.notify_prefs.invoice && c.email)
+                  .map((c) => {
+                    const on = selectedInvoiceCc.has(c.email.toLowerCase())
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() =>
+                          toggleEmailList(invoiceCc, setInvoiceCc, c.email)
+                        }
+                        className={[
+                          'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
+                          on
+                            ? 'border-gold bg-gold/20 text-cream'
+                            : 'border-border bg-surface-2 text-muted hover:text-cream',
+                        ].join(' ')}
+                      >
+                        {c.name} &lt;{c.email}&gt;
+                      </button>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
+
+        <label className={label}>
+          Invoice CC (comma-separated)
+          <input
+            className={input}
+            value={invoiceCc}
+            onChange={(e) => setInvoiceCc(e.target.value)}
+            placeholder="ap2@company.com"
+          />
+        </label>
+      </section>
+
+      {/* ETA & tracking — supply chain / bases */}
+      <section className="space-y-2">
+        <div className="text-xs font-medium uppercase tracking-wider text-muted">
+          ETA &amp; tracking emails
+        </div>
+        <p className="text-[11px] text-muted">
+          Goes to people at the company who need the ETA sheet and live tracker
+          — not invoices. Bases (e.g. CAK) auto-add{' '}
+          <span className="avionic text-cream/80">cak@company.com</span> from
+          the client domain when set.
+        </p>
+
+        {baseEmailSuggestions.length > 0 && (
           <div>
-            <div className="mb-2 text-xs text-muted">Saved contacts — click to CC</div>
+            <div className="mb-2 text-xs text-muted">
+              Base mailboxes — click to include
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {client.contacts.map((c) => {
-                const on = selectedCc.has(c.email)
+              {baseEmailSuggestions.map((b) => {
+                const on = selectedEta.has(b.email.toLowerCase())
+                return (
+                  <button
+                    key={`${b.icao}-${b.email}`}
+                    type="button"
+                    onClick={() =>
+                      toggleEmailList(etaEmails, setEtaEmails, b.email)
+                    }
+                    className={[
+                      'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
+                      on
+                        ? 'border-gold bg-gold/20 text-cream'
+                        : 'border-border bg-surface-2 text-muted hover:text-cream',
+                    ].join(' ')}
+                  >
+                    <span className="avionic font-semibold text-gold">
+                      {b.icao}
+                    </span>{' '}
+                    {b.email}
+                    {b.source === 'auto' ? (
+                      <span className="ml-1 text-[10px] uppercase text-muted">
+                        auto
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {etaContacts.length > 0 && (
+          <div>
+            <div className="mb-2 text-xs text-muted">
+              Supply-chain contacts — click to include
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {etaContacts.map((c) => {
+                const on = selectedEta.has(c.email.toLowerCase())
                 return (
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => toggleCc(c.email)}
+                    onClick={() =>
+                      toggleEmailList(etaEmails, setEtaEmails, c.email)
+                    }
                     className={[
                       'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
                       on
@@ -755,16 +910,20 @@ export default function QuickDispatchPage() {
         )}
 
         <label className={label}>
-          CC (comma-separated)
+          Send ETA / tracking to
           <input
             className={input}
-            value={cc}
-            onChange={(e) => setCc(e.target.value)}
-            placeholder="ops@client.com, ap@client.com"
+            value={etaEmails}
+            onChange={(e) => setEtaEmails(e.target.value)}
+            placeholder="cak@company.com, ops@company.com"
           />
           <span className="mt-1 block text-[11px] text-muted">
-            Type any email — new addresses are saved to the client profile on
-            dispatch.
+            Auto-filled from bases + tracker contacts. Type any email — new
+            addresses save as supply-chain on dispatch. Manage bases on{' '}
+            <Link to="/clients" className="text-gold">
+              Clients
+            </Link>
+            .
           </span>
         </label>
       </section>
