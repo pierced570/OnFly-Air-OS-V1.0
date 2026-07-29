@@ -109,15 +109,18 @@ Deno.serve(async (req) => {
       return json({ error: 'Missing Authorization' }, 401)
     }
 
-    // HARD KILL — no RingCentral SMS until this block is removed deliberately.
-    console.warn('[send-sms] HARD KILL — all outbound SMS blocked')
-    return json(
-      {
-        error: 'SMS hard-killed. RingCentral sends are disabled.',
-        disabled: true,
-      },
-      503,
-    )
+    // Soft kill switch — set SMS_DISABLED=true in Supabase secrets to stop all SMS.
+    const kill = (Deno.env.get('SMS_DISABLED') ?? '').trim().toLowerCase()
+    if (kill === 'true' || kill === '1' || kill === 'yes') {
+      console.warn('[send-sms] blocked — SMS_DISABLED is on')
+      return json(
+        {
+          error: 'SMS disabled (SMS_DISABLED). Set SMS_DISABLED=false to resume.',
+          disabled: true,
+        },
+        503,
+      )
+    }
 
     const clientId = envFirst('RINGCENTRAL_CLIENT_ID', 'RC_CLIENT_ID')
     const clientSecret = envFirst(
