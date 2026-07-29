@@ -253,7 +253,7 @@ export default function PortalRequestPage() {
 function WizardShell(props: { children: React.ReactNode }) {
   return (
     <div
-      className="min-h-screen bg-[#F7F2E3] text-ink"
+      className="min-h-screen bg-[#F9F7F2] text-ink"
       data-theme="client"
     >
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
