@@ -291,7 +291,9 @@ async function upsertOfferRow(
 
 async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> {
   if (!canPersist() || !isUuid(tripId)) return
-  const keepIds = offers.map((o) => o.id).filter(isUuid)
+  // Snapshot at entry — mutateTrip mutates the live trip.offers array in place.
+  const snapshot = offers.slice()
+  const keepIds = snapshot.map((o) => o.id).filter(isUuid)
   // Drop offers removed from the desk waterfall (orphan cleanup).
   if (keepIds.length) {
     await safeQuery('offers.delete_orphans', () =>
@@ -306,7 +308,7 @@ async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> 
       db().from('offers').delete().eq('trip_id', tripId),
     )
   }
-  for (const o of offers) {
+  for (const o of snapshot) {
     if (!isUuid(o.id) || !o.magic_token?.trim()) {
       console.warn('[db] offer missing uuid/token — skip', o.operator_name)
       continue
@@ -333,6 +335,24 @@ async function persistOffers(tripId: string, offers: OfferRow[]): Promise<void> 
       }
     }
   }
+}
+
+/** Hard-delete one offer row (desk waterfall remove). */
+export async function deleteOfferFromDb(offerId: string): Promise<boolean> {
+  if (!canPersist() || !isUuid(offerId)) return false
+  const deleted = await safeQuery<{ id: string }[]>(
+    'offers.delete_one',
+    () =>
+      db().from('offers').delete().eq('id', offerId).select('id'),
+  )
+  if (Array.isArray(deleted) && deleted.length > 0) return true
+  // Already gone — treat as success so hydrate stops resurrecting via tombstone.
+  const row = await safeQuery<{ id: string }>(
+    'offers.delete_check',
+    () =>
+      db().from('offers').select('id').eq('id', offerId).maybeSingle(),
+  )
+  return row == null
 }
 
 /** True when every offer magic_token is readable via anon (public offer board). */
@@ -541,4 +561,28 @@ export async function deleteTripFromDb(tripId: string): Promise<boolean> {
   )
   if (!row) return true
   return row.discarded_at != null
+}
+
+/** Append desk offer_removed to the durable event log (best-effort). */
+export async function persistOfferRemovedEvent(opts: {
+  tripId: string
+  offerId: string
+  operatorName: string
+  previousCount: number
+  at: string
+}): Promise<void> {
+  if (!canPersist() || !isUuid(opts.tripId)) return
+  await safeQuery('trip_events.offer_removed', () =>
+    db().from('trip_events').insert({
+      trip_id: opts.tripId,
+      at: opts.at,
+      actor: 'dispatcher',
+      kind: 'offer_removed',
+      payload: {
+        offer_id: opts.offerId,
+        operator_name: opts.operatorName,
+        previous_count: opts.previousCount,
+      },
+    }),
+  )
 }

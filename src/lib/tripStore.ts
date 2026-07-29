@@ -50,18 +50,32 @@ function asTripLegs(legs: AppLeg[]): TripLegRow[] {
   return legs.map((l) => ({ ...l }))
 }
 
+/** Serialize persists per trip so a stale in-flight snapshot cannot re-upsert a just-deleted offer. */
+const persistQueues = new Map<string, Promise<void>>()
+
 function schedulePersist(tripId: string): void {
   void flushPersistTrip(tripId)
 }
 
 /** Flush one trip to Supabase (best-effort). */
 export async function flushPersistTrip(tripId: string): Promise<void> {
+  const prev = persistQueues.get(tripId) ?? Promise.resolve()
+  const next = prev
+    .catch(() => {})
+    .then(async () => {
+      try {
+        const m = await import('@/lib/db/persistTrip')
+        const row = trips.get(tripId)
+        if (row) await m.persistTripSnapshot(structuredClone(row))
+      } catch (e) {
+        console.warn('[trips] persist failed', tripId, e)
+      }
+    })
+  persistQueues.set(tripId, next)
   try {
-    const m = await import('@/lib/db/persistTrip')
-    const row = trips.get(tripId)
-    if (row) await m.persistTripSnapshot(row)
-  } catch (e) {
-    console.warn('[trips] persist failed', tripId, e)
+    await next
+  } finally {
+    if (persistQueues.get(tripId) === next) persistQueues.delete(tripId)
   }
 }
 
@@ -1022,7 +1036,7 @@ export function deleteTrip(id: string): boolean {
 
 /**
  * Remove one operator offer from a trip (waterfall cleanup).
- * Does not change trip state. Persists offer orphan deletes to DB.
+ * Does not change trip state. Hard-deletes the offer row + orphan sync.
  */
 export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
   const trip = trips.get(tripId)
@@ -1030,7 +1044,9 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
   const before = trip.offers.length
   const removed = trip.offers.find((o) => o.id === offerId)
   if (!removed) return false
-  deletedOfferKeys.add(`${tripId}:${offerId}`)
+  const tombstone = `${tripId}:${offerId}`
+  deletedOfferKeys.add(tombstone)
+  const at = new Date().toISOString()
   mutateTrip(tripId, (t) => {
     t.offers = t.offers.filter((o) => o.id !== offerId)
     if (t.hard_quote?.options?.length) {
@@ -1044,7 +1060,7 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
       }
     }
     t.events.push({
-      at: new Date().toISOString(),
+      at,
       actor: 'dispatcher',
       kind: 'offer_removed',
       payload: {
@@ -1054,6 +1070,22 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
       },
     })
   })
+  void import('@/lib/db/persistTrip')
+    .then(async (m) => {
+      const ok = await m.deleteOfferFromDb(offerId)
+      await m.persistOfferRemovedEvent({
+        tripId,
+        offerId,
+        operatorName: removed.operator_name,
+        previousCount: before,
+        at,
+      })
+      if (ok) {
+        deletedOfferKeys.delete(tombstone)
+        bump()
+      }
+    })
+    .catch((e) => console.warn('[trips] offer delete in db failed', offerId, e))
   return true
 }
 
@@ -1080,25 +1112,36 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
       continue
     }
 
+    const existing = trips.get(r.id)
     const hydratedOffers = r.offers ?? []
-    const keptOffers = hydratedOffers.filter(
-      (o) => !deletedOfferKeys.has(`${r.id}:${o.id}`),
-    )
-    if (keptOffers.length < hydratedOffers.length) {
-      offerPersistIds.add(r.id)
-    }
-    r.offers = keptOffers
 
-    // Clear offer tombstones the DB no longer returns.
-    for (const key of [...deletedOfferKeys]) {
-      if (!key.startsWith(`${r.id}:`)) continue
-      const offerId = key.slice(r.id.length + 1)
-      if (!hydratedOffers.some((o) => o.id === offerId)) {
-        deletedOfferKeys.delete(key)
+    // Live hydrate can return [] when offers.hydrate fails — do not wipe local
+    // offers or clear tombstones (that resurrected deleted waterfall rows).
+    if (!hydratedOffers.length && existing?.offers.length) {
+      r.offers = existing.offers.filter(
+        (o) => !deletedOfferKeys.has(`${r.id}:${o.id}`),
+      )
+    } else {
+      const keptOffers = hydratedOffers.filter(
+        (o) => !deletedOfferKeys.has(`${r.id}:${o.id}`),
+      )
+      if (keptOffers.length < hydratedOffers.length) {
+        offerPersistIds.add(r.id)
+      }
+      r.offers = keptOffers
+
+      // Only clear tombstones when a non-empty hydrate confirms the row is gone.
+      if (hydratedOffers.length > 0) {
+        for (const key of [...deletedOfferKeys]) {
+          if (!key.startsWith(`${r.id}:`)) continue
+          const offerId = key.slice(r.id.length + 1)
+          if (!hydratedOffers.some((o) => o.id === offerId)) {
+            deletedOfferKeys.delete(key)
+          }
+        }
       }
     }
 
-    const existing = trips.get(r.id)
     if (existing) {
       // Preserve richer session overlays until DB catches up.
       if (!r.events.length && existing.events.length) r.events = existing.events

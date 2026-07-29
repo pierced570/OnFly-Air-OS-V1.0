@@ -220,8 +220,12 @@ export async function hydrateTrips(): Promise<number> {
       .order('ref', { ascending: false })
       .limit(200),
   )
-  if (!Array.isArray(tripRows) || !tripRows.length) {
-    // Still flush anything sitting in localStorage/session
+  if (!Array.isArray(tripRows)) {
+    // Query failed — do not flush (would race desk deletes / soft-discards).
+    return 0
+  }
+  if (!tripRows.length) {
+    // Truly empty desk — still push any local-only trips that never landed.
     const { flushAllTrips } = await import('@/lib/tripStore')
     await flushAllTrips()
     return 0
