@@ -161,7 +161,6 @@ function emptyPackage(
     ready_asap: false,
     classes: [],
     door_rows: [],
-    similar_missions: [],
     fit_summary: '',
     pricing_logic_overview: '',
     math_cards: [],

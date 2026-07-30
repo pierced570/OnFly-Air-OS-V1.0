@@ -85,7 +85,6 @@ describe('softPricing', () => {
     expect(pkg.cargo_badges[0]).toMatch(/48×40×60/i)
     expect(pkg.math_cards).toHaveLength(3)
     expect(pkg.door_rows.length).toBeGreaterThanOrEqual(6)
-    expect(pkg.similar_missions.length).toBe(4)
 
     const tp = pkg.classes.find((c) => c.class_id === 'turboprop')!
     expect(tp.fit.fit).toBe('fits')

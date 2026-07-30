@@ -277,16 +277,6 @@ export type SoftClassQuote = {
   recommended: boolean
 }
 
-export type SoftSimilarMission = {
-  origin: string
-  dest: string
-  nm: number
-  type_name: string
-  cargo_blurb: string
-  month_label: string
-  price: number
-}
-
 export type SoftPricingPackage = {
   origin_icao: string
   dest_icao: string
@@ -298,7 +288,6 @@ export type SoftPricingPackage = {
   ready_asap: boolean
   classes: SoftClassQuote[]
   door_rows: SoftDoorExample[]
-  similar_missions: SoftSimilarMission[]
   fit_summary: string
   pricing_logic_overview: string
   math_cards: Array<{ title: string; body: string }>
@@ -455,52 +444,6 @@ function buildDoorRows(
   return rows
 }
 
-/** Demo / fallback similar missions when trip_history is empty (portal-safe). */
-export function defaultSimilarMissions(
-  originDisplay: string,
-  destDisplay: string,
-  liveNm: number,
-): SoftSimilarMission[] {
-  return [
-    {
-      origin: originDisplay,
-      dest: destDisplay,
-      nm: liveNm,
-      type_name: 'Cessna 310',
-      cargo_blurb: '2 pallets, 780 lb',
-      month_label: 'Jul 2026',
-      price: 10000,
-    },
-    {
-      origin: originDisplay,
-      dest: 'MDW',
-      nm: Math.max(200, liveNm - 60),
-      type_name: 'Pilatus PC-12',
-      cargo_blurb: 'crated pump, 1,150 lb',
-      month_label: 'Jun 2026',
-      price: 8400,
-    },
-    {
-      origin: 'BNA',
-      dest: 'TEB',
-      nm: 660,
-      type_name: 'PC-12',
-      cargo_blurb: 'door-to-door, 3 pieces',
-      month_label: 'Jul 2026',
-      price: 14200,
-    },
-    {
-      origin: 'SAN',
-      dest: 'PDX',
-      nm: 830,
-      type_name: 'King Air 200',
-      cargo_blurb: 'AOG parts, 420 lb',
-      month_label: 'Jul 2026',
-      price: 16900,
-    },
-  ]
-}
-
 function icaoToDisplay(icao: string): string {
   const u = icao.trim().toUpperCase()
   if (u.length === 4 && u.startsWith('K')) return u.slice(1)
@@ -528,7 +471,6 @@ export function buildSoftPricingPackage(input: {
   pieces: Piece[]
   fleet: SoftFleetRow[]
   ready_asap?: boolean
-  similar_missions?: SoftSimilarMission[]
   claude_guidelines?: string | null
 }): SoftPricingPackage {
   const live_nm = Math.max(0, Math.round(input.live_nm))
@@ -582,9 +524,6 @@ export function buildSoftPricingPackage(input: {
     ready_asap: input.ready_asap !== false,
     classes,
     door_rows: buildDoorRows(input.pieces, input.fleet),
-    similar_missions:
-      input.similar_missions ??
-      defaultSimilarMissions(origin_display, dest_display, live_nm),
     fit_summary,
     pricing_logic_overview:
       'We assume a 2.5 hr repositioning leg to reach you. Live leg uses distance and average ground speed for each class. Return home ≈ live leg + 1 hr. All-in ranges reflect typical class rates — not a bookable quote.',

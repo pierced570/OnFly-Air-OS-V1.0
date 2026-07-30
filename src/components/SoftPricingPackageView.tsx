@@ -250,38 +250,6 @@ export function SoftPricingPackageView(props: {
         </div>
       </section>
 
-      {/* Similar missions */}
-      <section className="rounded-2xl border border-border bg-white px-4 py-5 sm:px-5">
-        <h2 className="text-base font-semibold">
-          What similar missions actually cost
-        </h2>
-        <p className="mt-1 text-xs text-muted">Recent OnFly trips</p>
-        <ul className="mt-3 divide-y divide-border">
-          {pkg.similar_missions.map((m, i) => (
-            <li
-              key={`${m.origin}-${m.dest}-${i}`}
-              className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm"
-            >
-              <div>
-                <span className="avionic font-medium text-ink">
-                  {m.origin} → {m.dest} · {m.nm} NM
-                </span>
-                <span className="mt-0.5 block text-muted">
-                  {m.type_name} · {m.cargo_blurb} · {m.month_label}
-                </span>
-              </div>
-              <div className="avionic text-base font-semibold text-ink">
-                ${m.price.toLocaleString('en-US')}
-              </div>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-[11px] text-muted">
-          Historical invoices, all-in. Fuel, ASAP availability and repositioning
-          made each one different — yours will differ too.
-        </p>
-      </section>
-
       {/* The math */}
       <section>
         <h2 className="mb-3 text-base font-semibold">The math, in the open</h2>
