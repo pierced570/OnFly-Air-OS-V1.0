@@ -237,7 +237,9 @@ export default function FinancialsPage() {
         <p className="mt-1 text-sm text-muted">
           {rows.length} records · open <span className="text-gold">Edit</span> on
           any row to fix wrong trip / money data
-          {editedCount > 0 ? ` · ${editedCount} correction(s) saved in this browser` : ''}
+          {editedCount > 0
+            ? ` · ${editedCount} correction(s) saved to this workspace`
+            : ''}
           {' · '}
           QBO create with ACH View &amp; pay · native QuickBooks send
         </p>
@@ -1367,7 +1369,7 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
         OFA profit{' '}
         <span className="avionic text-cream">{usd(r.ofa_profit_per_trip)}</span>
         {' · '}
-        Edits save in this browser until Supabase ledger sync lands.
+        Edits sync to the ledger (and this browser) after you leave a field.
       </p>
     </div>
   )
@@ -1696,6 +1698,7 @@ function ClientDrawer({
         <label className="text-xs text-muted">
           Charged ($)
           <input
+            key={`chg-${r.id}-${r.client_invoiced_amount}`}
             type="number"
             className={field}
             defaultValue={r.client_invoiced_amount}
@@ -1711,6 +1714,7 @@ function ClientDrawer({
         <label className="text-xs text-muted">
           Tax total ($)
           <input
+            key={`tax-${r.id}-${r.tax_total}`}
             type="number"
             className={field}
             defaultValue={r.tax_total}
@@ -1722,6 +1726,7 @@ function ClientDrawer({
         <label className="text-xs text-muted">
           Deposited
           <select
+            key={`dep-${r.id}-${r.deposited_to ?? ''}`}
             className={field}
             defaultValue={r.deposited_to ?? ''}
             onChange={(e) =>
@@ -1737,6 +1742,7 @@ function ClientDrawer({
         <label className="text-xs text-muted">
           ACH / Check #
           <input
+            key={`ach-${r.id}-${r.check_deposit_number ?? ''}`}
             className={field}
             defaultValue={r.check_deposit_number ?? ''}
             onBlur={(e) =>
