@@ -5,7 +5,9 @@ import {
   emptyTripRequestDraft,
   forkliftFromDraft,
 } from '@/domain/tripRequest'
+import { BRAND_PHONE_E164 } from '@/domain/brand'
 import {
+  DESK_ALERT_PHONE_E164,
   dispatchAlertEmail,
   formatPortalRequestSms,
   notifyPortalRequest,
@@ -46,8 +48,10 @@ describe('dispatchNotify', () => {
     expect(resolveDispatchPhone()).toBe('+16105092031')
   })
 
-  it('SMS + Board exception + desk email on portal request notify', async () => {
+  it('portal request SMS hits hard-coded desk 858, not on-shift cell', async () => {
     startShift('Pierce', '+16105092031')
+    expect(DESK_ALERT_PHONE_E164).toBe(BRAND_PHONE_E164)
+    expect(DESK_ALERT_PHONE_E164).toBe('+18585297860')
     const beforeSms = getMockCommsLog().length
     const beforeMail = getMockSentEmails().length
     const draft = emptyTripRequestDraft()
@@ -66,12 +70,13 @@ describe('dispatchNotify', () => {
       forklift: forkliftFromDraft(draft),
     }
     const result = await notifyPortalRequest(row)
-    expect(result.phone).toBe('+16105092031')
+    expect(result.phone).toBe(BRAND_PHONE_E164)
+    expect(result.phone).not.toBe('+16105092031')
     expect(result.sms_id).toBeTruthy()
     expect(result.email_id).toBeTruthy()
     expect(result.exception_id).toBeTruthy()
     expect(getMockCommsLog().length).toBe(beforeSms + 1)
-    expect(getMockCommsLog().at(-1)?.to).toBe('+16105092031')
+    expect(getMockCommsLog().at(-1)?.to).toBe(BRAND_PHONE_E164)
     expect(getMockSentEmails().length).toBe(beforeMail + 1)
     expect(getMockSentEmails().at(-1)?.to).toBe('info@onflyair.com')
     expect(listExceptions().some((e) => e.title === 'Portal request')).toBe(
@@ -79,7 +84,7 @@ describe('dispatchNotify', () => {
     )
   })
 
-  it('submitTripRequest portal source pages the desk', async () => {
+  it('submitTripRequest portal source pages the desk line', async () => {
     startShift('Desk', '+15555550100')
     const before = getMockCommsLog().length
     submitTripRequest(
@@ -94,7 +99,9 @@ describe('dispatchNotify', () => {
     // notify is fire-and-forget
     await new Promise((r) => setTimeout(r, 20))
     expect(getMockCommsLog().length).toBeGreaterThan(before)
-    expect(getMockCommsLog().at(-1)?.body).toMatch(/portal request/i)
+    const last = getMockCommsLog().at(-1)
+    expect(last?.body).toMatch(/portal request/i)
+    expect(last?.to).toBe(BRAND_PHONE_E164)
   })
 
   it('dispatch-sourced requests do not page the desk', async () => {

@@ -19,6 +19,12 @@ import {
 import { listWatchedTails, watchTail } from '@/lib/watchedTailsStore'
 import { normalizeTail } from '@/domain/radarTracking'
 
+export type CompanyTailPick = {
+  tail: string
+  type_name?: string | null
+  base_icao?: string | null
+}
+
 function positionToKnown(p: AdsbPosition): RadarLastKnown {
   return {
     lat: p.lat,
@@ -66,6 +72,36 @@ export type SeedRadarResult = {
   seeded: number
   noData: number
   summary: ReturnType<typeof trackingSummary>
+}
+
+/**
+ * Ensure company tails are on the watch list, then seed last-known for the
+ * selected subset only (no movement-alert toggle). Used by Fleet Radar when
+ * dispatch picks individual tails from an operator's fleet.
+ */
+export async function pollOperatorTailsLastKnown(opts: {
+  operator_id: string
+  operator_name: string
+  base_icao?: string | null
+  tails: CompanyTailPick[]
+}): Promise<SeedRadarResult> {
+  const picks = opts.tails
+    .map((a) => ({
+      ...a,
+      tail: normalizeLookupTail(a.tail),
+    }))
+    .filter((a) => a.tail)
+  for (const a of picks) {
+    watchTail({
+      tail: a.tail,
+      type_name: a.type_name ?? null,
+      operator_name: opts.operator_name,
+      operator_id: opts.operator_id,
+      base_icao: a.base_icao ?? opts.base_icao ?? null,
+      source: 'manual',
+    })
+  }
+  return seedRadarLastKnown(picks.map((a) => a.tail))
 }
 
 /** Seed last-known for all watched (or provided) tails. */
