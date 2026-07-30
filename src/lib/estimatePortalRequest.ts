@@ -54,14 +54,15 @@ export async function estimatePortalRequest(
 
   const parsedPieces = cargoPiecesFromDraft(row)
   const pieces = payloadKind === 'pax' ? [] : parsedPieces
+  const dimsAssumed = row.cargo_dims_status === 'not_yet'
 
   if (payloadKind !== 'pax' && !pieces.length) {
     return emptyBundle(
       row,
-      'Add cargo dims (e.g. 1 skid 48x40x48 @ 400) so we can size piston / turboprop / jet options.',
+      'Add cargo dims (e.g. 1 skid 48x40x48 @ 400) so we can size piston / turboprop / jet options — or tap Not yet to ballpark every class.',
     )
   }
-  if (payloadKind !== 'pax' && !piecesHaveWeights(pieces)) {
+  if (payloadKind !== 'pax' && !dimsAssumed && !piecesHaveWeights(pieces)) {
     return emptyBundle(
       row,
       'Cargo weight is required on every piece (lb each) before we can estimate.',

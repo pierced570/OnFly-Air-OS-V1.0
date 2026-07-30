@@ -20,6 +20,25 @@ export type ServiceMode = 'a2a' | 'd2d' | 'mixed'
 export type CargoDimsStatus = 'known' | 'not_yet' | 'standard'
 export type { DimLengthUnit }
 
+/**
+ * When the client picks “Not yet” on dims, soft-quote / routing assume a small
+ * piece that clears every typical class door until real sizes arrive.
+ */
+export const ASSUMED_SMALL_CARGO_WHEN_DIMS_TBD: Piece = {
+  l_in: 12,
+  w_in: 12,
+  h_in: 12,
+  weight_lbs: 50,
+  count: 1,
+  stackable: true,
+}
+
+export function draftDimsAssumedSmall(draft: {
+  cargo_dims_status?: CargoDimsStatus | null
+}): boolean {
+  return draft.cargo_dims_status === 'not_yet'
+}
+
 export type PaxRow = {
   name: string
   weight_lbs: number | ''
@@ -205,8 +224,12 @@ export function draftNeedsCargoWeight(draft: TripRequestDraft): boolean {
 /**
  * Pieces for routing / forklift: parse dims, fill missing unit weights from
  * the required cargo_weight_lbs field when provided.
+ * “Not yet” dims → assumed-small piece so soft quote still runs (fits all).
  */
 export function cargoPiecesFromDraft(draft: TripRequestDraft): Piece[] {
+  if (draftDimsAssumedSmall(draft)) {
+    return [{ ...ASSUMED_SMALL_CARGO_WHEN_DIMS_TBD }]
+  }
   const parsed = parseDims(draft.cargo_notes || '', { unit: draft.dim_unit })
   const fallback =
     draft.cargo_weight_lbs === '' ? 0 : Number(draft.cargo_weight_lbs)

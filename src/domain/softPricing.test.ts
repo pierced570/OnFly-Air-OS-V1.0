@@ -105,4 +105,30 @@ describe('softPricing', () => {
     }
     expect(JSON.stringify(pkg)).not.toMatch(/\bN[0-9]{1,5}[A-Z]{0,2}\b/)
   })
+
+  it('dims assumed small → every class fits', () => {
+    const pkg = buildSoftPricingPackage({
+      origin_icao: 'KCAK',
+      dest_icao: 'KHPN',
+      live_nm: 360,
+      pieces: [
+        {
+          count: 1,
+          l_in: 12,
+          w_in: 12,
+          h_in: 12,
+          weight_lbs: 50,
+          stackable: true,
+        },
+      ],
+      fleet: [],
+      dims_assumed_small: true,
+    })
+    expect(pkg.fit_summary).toMatch(/assume the cargo is small enough/i)
+    expect(pkg.cargo_badges.some((b) => /assumed small/i.test(b))).toBe(true)
+    for (const c of pkg.classes) {
+      expect(c.fit.fit).toBe('fits')
+      expect(c.recommended).toBe(true)
+    }
+  })
 })

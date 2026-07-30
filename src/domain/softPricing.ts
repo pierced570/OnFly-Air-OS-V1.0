@@ -314,11 +314,13 @@ export function summarizeCargoFitForClass(
   profile: SoftClassProfile,
   pieces: Piece[],
   fleet: SoftFleetRow[],
+  opts?: { dimsAssumedSmall?: boolean },
 ): SoftCargoFitSummary {
   const weight = totalWeightLbs(pieces)
   const maxDims = pieces.length
     ? maxPieceDims(pieces)
     : { l_in: 0, w_in: 0, h_in: 0 }
+  const dimsAssumed = Boolean(opts?.dimsAssumedSmall)
 
   // Prefer a network door for this class when available
   let doorW = profile.typical_door_w_in
@@ -339,12 +341,17 @@ export function summarizeCargoFitForClass(
     : '—'
 
   let fit: DoorFit = 'unknown'
-  if (pieces.length) {
+  if (dimsAssumed) {
+    fit = 'fits'
+  } else if (pieces.length) {
     fit = doorFitsWithSpare(doorW, doorH, maxDims)
   }
 
   let explanation: string
-  if (!pieces.length) {
+  if (dimsAssumed) {
+    explanation =
+      'Dims not provided yet — we assume this cargo is small enough to clear this class door. Send sizes to confirm.'
+  } else if (!pieces.length) {
     explanation =
       'No cargo dims yet — we show class guidelines until pieces are entered.'
   } else if (fit === 'fits') {
@@ -356,7 +363,9 @@ export function summarizeCargoFitForClass(
   return {
     fit,
     explanation,
-    largest_piece_label: largestPieceLabel(pieces),
+    largest_piece_label: dimsAssumed
+      ? 'Dims TBD · assumed small'
+      : largestPieceLabel(pieces),
     two_smallest_label,
     weight_lbs: weight,
     door_w_in: doorW,
@@ -368,10 +377,12 @@ export function summarizeCargoFitForClass(
 function buildDoorRows(
   pieces: Piece[],
   fleet: SoftFleetRow[],
+  opts?: { dimsAssumedSmall?: boolean },
 ): SoftDoorExample[] {
   const maxDims = pieces.length
     ? maxPieceDims(pieces)
     : { l_in: 0, w_in: 0, h_in: 0 }
+  const dimsAssumed = Boolean(opts?.dimsAssumedSmall)
   const rows: SoftDoorExample[] = []
   const usedClasses = new Set<SoftPricingClass>()
 
@@ -390,9 +401,11 @@ function buildDoorRows(
     const door_h_in = hit?.door_h_in ?? profile.typical_door_h_in
     const payload_lbs =
       hit?.max_payload_lbs ?? profile.typical_payload_lbs
-    const fit = pieces.length
-      ? doorFitsWithSpare(door_w_in, door_h_in, maxDims)
-      : 'unknown'
+    const fit = dimsAssumed
+      ? 'fits'
+      : pieces.length
+        ? doorFitsWithSpare(door_w_in, door_h_in, maxDims)
+        : 'unknown'
     rows.push({
       type_name,
       class_id: id,
@@ -507,12 +520,15 @@ export function buildSoftPricingPackage(input: {
   ready_asap?: boolean
   similar_missions?: SoftSimilarMission[]
   claude_guidelines?: string | null
+  /** Client tapped “Not yet” on dims — treat cargo as small enough for every class. */
+  dims_assumed_small?: boolean
 }): SoftPricingPackage {
   const live_nm = Math.max(0, Math.round(input.live_nm))
   const origin_icao = input.origin_icao.toUpperCase()
   const dest_icao = input.dest_icao.toUpperCase()
   const origin_display = icaoToDisplay(origin_icao)
   const dest_display = icaoToDisplay(dest_icao)
+  const dimsAssumed = Boolean(input.dims_assumed_small)
 
   const classes: SoftClassQuote[] = []
   for (const id of SOFT_PRICING_CLASSES) {
@@ -523,7 +539,9 @@ export function buildSoftPricingPackage(input: {
     const price_high = Math.round(hours * profile.hourly_high)
     // Round to nearest $250 like mockup feel
     const round250 = (n: number) => Math.round(n / 250) * 250
-    const fit = summarizeCargoFitForClass(profile, input.pieces, input.fleet)
+    const fit = summarizeCargoFitForClass(profile, input.pieces, input.fleet, {
+      dimsAssumedSmall: dimsAssumed,
+    })
     classes.push({
       class_id: id,
       label: profile.label,
@@ -543,11 +561,18 @@ export function buildSoftPricingPackage(input: {
     .map((c) => c.label.toLowerCase())
   let fit_summary =
     'We show every class with door/payload guidance — priced for reference even when doors are tight.'
-  if (fitLabels.length === 1) {
+  if (dimsAssumed) {
+    fit_summary =
+      'Dims not on file yet — we assume the cargo is small enough to fit every class until you send sizes. Ranges below are ballparks for all classes.'
+  } else if (fitLabels.length === 1) {
     fit_summary = `Based on cargo dims/doors, this most clearly fits a ${fitLabels[0]}.`
   } else if (fitLabels.length > 1) {
     fit_summary = `Based on cargo dims/doors, this can fit: ${fitLabels.join(', ')}.`
   }
+
+  const cargo_badges = dimsAssumed
+    ? ['Dims TBD · assumed small (fits all)', '≤50 lb']
+    : buildCargoBadges(input.pieces)
 
   return {
     origin_icao,
@@ -555,10 +580,12 @@ export function buildSoftPricingPackage(input: {
     origin_display,
     dest_display,
     live_nm,
-    cargo_badges: buildCargoBadges(input.pieces),
+    cargo_badges,
     ready_asap: input.ready_asap !== false,
     classes,
-    door_rows: buildDoorRows(input.pieces, input.fleet),
+    door_rows: buildDoorRows(input.pieces, input.fleet, {
+      dimsAssumedSmall: dimsAssumed,
+    }),
     similar_missions:
       input.similar_missions ??
       defaultSimilarMissions(origin_display, dest_display, live_nm),
@@ -581,11 +608,17 @@ export function buildSoftPricingPackage(input: {
     ],
     disclaimer: SOFT_PRICING_DISCLAIMER,
     claude_guidelines: input.claude_guidelines ?? null,
-    ask_chips: [
-      'Why is the repo leg billed?',
-      'What if I split into 2 pieces?',
-      'Roundtrip pricing?',
-    ],
+    ask_chips: dimsAssumed
+      ? [
+          'Send cargo dims when you have them',
+          'Why is the repo leg billed?',
+          'Roundtrip pricing?',
+        ]
+      : [
+          'Why is the repo leg billed?',
+          'What if I split into 2 pieces?',
+          'Roundtrip pricing?',
+        ],
   }
 }
 
