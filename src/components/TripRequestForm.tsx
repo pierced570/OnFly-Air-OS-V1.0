@@ -1050,23 +1050,7 @@ export function TripRequestForm({
                       setDraft((d) => ({ ...d, hazmat: e.target.checked }))
                     }
                   />
-                  <span className="text-late">⚠</span> Hazmat
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={draft.forklift_recommended}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        forklift_recommended: e.target.checked,
-                        forklift_required: e.target.checked
-                          ? d.forklift_required
-                          : false,
-                      }))
-                    }
-                  />
-                  Forklift recommended
+                  Hazmat
                 </label>
                 <label className="flex items-center gap-2">
                   <input
@@ -1146,23 +1130,7 @@ export function TripRequestForm({
                     setDraft((d) => ({ ...d, hazmat: e.target.checked }))
                   }
                 />
-                <span className="text-late">⚠</span> Hazmat
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.forklift_recommended}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      forklift_recommended: e.target.checked,
-                      forklift_required: e.target.checked
-                        ? d.forklift_required
-                        : false,
-                    }))
-                  }
-                />
-                Forklift recommended
+                Hazmat
               </label>
               <label className="flex items-center gap-2">
                 <input
