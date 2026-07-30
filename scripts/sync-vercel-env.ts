@@ -34,6 +34,7 @@ const VITE_KEYS = [
   'VITE_ONBOARD_URL',
   'VITE_SKYIQ_URL',
   'VITE_DISPATCH_ALERT_EMAIL',
+  'VITE_CHARTER_CONTRACT_URL',
 ] as const
 
 const ENVIRONMENTS = ['preview', 'production'] as const
