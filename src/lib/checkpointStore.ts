@@ -1,6 +1,6 @@
 /**
  * Checkpoint schedule for dispatched trips — client-side ticker until edge cron.
- * On fire → Board exception + on-shift SMS + trip_event.
+ * On fire → Board exception + trip_event (no auto SMS — desk works the queue).
  */
 
 import {
@@ -8,9 +8,7 @@ import {
   planCheckpoints,
   type PlannedCheckpoint,
 } from '@/domain/checkpoints'
-import { createCommsAdapter } from '@/adapters/comms'
 import { raiseException } from '@/lib/exceptionStore'
-import { getOnShift } from '@/lib/shiftStore'
 import {
   getTrip,
   listTripsStable,
@@ -245,7 +243,7 @@ export function acknowledgeCheckpoint(id: string): void {
   }
 }
 
-/** Fire due checkpoints → exception queue + on-shift ping. */
+/** Fire due checkpoints → Board exception queue (no auto SMS). */
 export async function tickCheckpoints(now = new Date()): Promise<number> {
   const nowIso = now.toISOString()
   let fired = 0
@@ -313,21 +311,6 @@ export async function tickCheckpoints(now = new Date()): Promise<number> {
           },
         })
       })
-
-      // Route-to-role: on-shift dispatcher SMS
-      const shift = getOnShift()
-      if (shift?.phone) {
-        try {
-          const comms = createCommsAdapter()
-          await comms.send({
-            channel: 'sms',
-            to: shift.phone,
-            body: `OnFly check-in T-${trip.ref}: ${d.title}. ${d.detail}${tapHint}`,
-          })
-        } catch {
-          /* mock / missing */
-        }
-      }
     }
   }
 
