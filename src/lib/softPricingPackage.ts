@@ -15,7 +15,13 @@ import {
   type SoftFleetRow,
   type SoftPricingPackage,
 } from '@/domain/softPricing'
-import { cargoPiecesFromDraft, draftPayloadKind, type TripRequestRecord } from '@/domain/tripRequest'
+import {
+  cargoPiecesFromDraft,
+  draftDimsAssumedSmall,
+  draftPayloadKind,
+  foldPerLegPayloadIntoDraft,
+  type TripRequestRecord,
+} from '@/domain/tripRequest'
 import { loadNetwork } from '@/lib/networkData'
 
 export type SoftPricingPackageResult = SoftPricingPackage & {
@@ -45,13 +51,14 @@ export async function buildSoftPricingForRequest(
   const payloadKind = draftPayloadKind(row)
 
   const pieces = payloadKind === 'pax' ? [] : cargoPiecesFromDraft(row)
+  const dimsAssumed = draftDimsAssumedSmall(foldPerLegPayloadIntoDraft(row))
   if (payloadKind !== 'pax' && !pieces.length) {
     return emptyPackage(
       row,
-      'Add cargo dims (e.g. 1 skid 48x40x48 @ 400) so we can explain what fits which class.',
+      'Add cargo dims (e.g. 1 skid 48x40x48 @ 400) so we can explain what fits which class — or tap Not yet to ballpark every class.',
     )
   }
-  if (payloadKind !== 'pax' && !piecesHaveWeights(pieces)) {
+  if (payloadKind !== 'pax' && !dimsAssumed && !piecesHaveWeights(pieces)) {
     return emptyPackage(
       row,
       'Cargo weight is required on every piece (lb each) before we can estimate.',
@@ -103,6 +110,7 @@ export async function buildSoftPricingForRequest(
     pieces,
     fleet,
     ready_asap,
+    dims_assumed_small: dimsAssumed,
   })
 
   const withClaude = opts?.withClaude !== false

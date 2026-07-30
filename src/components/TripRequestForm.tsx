@@ -1104,9 +1104,7 @@ export function TripRequestForm({
                       setDraft((d) => ({
                         ...d,
                         forklift_required: e.target.checked,
-                        forklift_recommended: e.target.checked
-                          ? true
-                          : d.forklift_recommended,
+                        forklift_recommended: e.target.checked,
                       }))
                     }
                   />
@@ -1214,9 +1212,7 @@ export function TripRequestForm({
                     setDraft((d) => ({
                       ...d,
                       forklift_required: e.target.checked,
-                      forklift_recommended: e.target.checked
-                        ? true
-                        : d.forklift_recommended,
+                      forklift_recommended: e.target.checked,
                     }))
                   }
                 />
@@ -1679,8 +1675,9 @@ export function TripRequestForm({
                 )}
                 {draft.cargo_dims_status === 'not_yet' && (
                   <p className="mt-2 text-xs text-muted">
-                    We’ll size aircraft after you send dims — or choose standard
-                    cargo above for a ballpark now.
+                    Soft estimate runs now assuming the cargo is small enough to
+                    fit every aircraft class. Send real dims later and we&apos;ll
+                    refine.
                   </p>
                 )}
               </div>

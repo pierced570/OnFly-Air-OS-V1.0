@@ -138,10 +138,12 @@ export function AirportSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-surface shadow-lg"
+          className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-[var(--surface-2)] shadow-lg"
         >
           {results.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-muted">No airports match.</li>
+            <li className="px-3 py-2 text-sm text-[var(--text)] opacity-70">
+              No airports match.
+            </li>
           ) : (
             results.map((a) => (
               <li key={a.icao}>
@@ -150,23 +152,23 @@ export function AirportSelect({
                   role="option"
                   aria-selected={a.icao === value.toUpperCase()}
                   className={[
-                    'flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-surface-2',
+                    'flex w-full flex-col items-start px-3 py-2 text-left text-sm text-[var(--text)] hover:bg-gold/15',
                     a.icao === value.toUpperCase() ? 'bg-gold/10' : '',
                   ].join(' ')}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(a)}
                 >
-                  <span className="avionic text-[var(--text)]">
+                  <span className="avionic font-semibold text-[var(--text)]">
                     {a.icao}
                     {a.iata ? (
-                      <span className="text-muted"> ({a.iata})</span>
+                      <span className="font-normal opacity-80"> ({a.iata})</span>
                     ) : null}{' '}
-                    <span className="font-sans text-muted">
+                    <span className="font-sans font-medium">
                       — {a.city}
                       {a.state ? `, ${a.state}` : ''}
                     </span>
                   </span>
-                  <span className="text-xs font-medium text-[var(--text)]">
+                  <span className="text-xs text-[var(--text)] opacity-70">
                     {a.name}
                   </span>
                 </button>

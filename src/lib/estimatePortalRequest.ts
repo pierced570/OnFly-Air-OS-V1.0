@@ -11,7 +11,12 @@ import {
   type PortalEstimateBundle,
 } from '@/domain/portalEstimate'
 import { generateCandidates } from '@/domain/routing'
-import { cargoPiecesFromDraft, draftPayloadKind } from '@/domain/tripRequest'
+import {
+  cargoPiecesFromDraft,
+  draftDimsAssumedSmall,
+  draftPayloadKind,
+  foldPerLegPayloadIntoDraft,
+} from '@/domain/tripRequest'
 import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
 import { BUILTIN_RECOMMEND_MATRIX } from '@/domain/recommendMatrix'
 import { getTaxRates, loadTaxRates } from '@/lib/taxRatesStore'
@@ -48,14 +53,15 @@ export async function estimatePortalRequest(
 
   const parsedPieces = cargoPiecesFromDraft(row)
   const pieces = payloadKind === 'pax' ? [] : parsedPieces
+  const dimsAssumed = draftDimsAssumedSmall(foldPerLegPayloadIntoDraft(row))
 
   if (payloadKind !== 'pax' && !pieces.length) {
     return emptyBundle(
       row,
-      'Add cargo dims (e.g. 1 skid 48x40x48 @ 400) so we can size piston / turboprop / jet options.',
+      'Add cargo dims (e.g. 1 skid 48x40x48 @ 400) so we can size piston / turboprop / jet options — or tap Not yet to ballpark every class.',
     )
   }
-  if (payloadKind !== 'pax' && !piecesHaveWeights(pieces)) {
+  if (payloadKind !== 'pax' && !dimsAssumed && !piecesHaveWeights(pieces)) {
     return emptyBundle(
       row,
       'Cargo weight is required on every piece (lb each) before we can estimate.',

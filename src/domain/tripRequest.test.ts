@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ASAP_MAX_HOURS,
   buildReturnLegs,
+  cargoPiecesFromDraft,
   draftNeedsPerLegPayload,
   draftPayloadKind,
   emptyTripRequestDraft,
@@ -56,6 +57,10 @@ describe('tripRequest', () => {
       false,
     )
     expect(summaryFromDraft(d)).toContain('dims TBD')
+    const pieces = cargoPiecesFromDraft(d)
+    expect(pieces).toHaveLength(1)
+    expect(pieces[0]!.l_in).toBe(12)
+    expect(pieces[0]!.weight_lbs).toBe(50)
   })
 
   it('accepts weight embedded in dims text', () => {

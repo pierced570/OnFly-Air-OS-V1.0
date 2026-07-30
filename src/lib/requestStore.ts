@@ -124,6 +124,8 @@ export function submitTripRequest(
   requests.set(id, row)
   bump()
   flagForkliftForDispatchers(row)
+  // Soft portal estimates use alert: 'cost_inquiry' (email only) or 'none' —
+  // never notifyPortalRequest / desk SMS. Hard quote notifies via requestHardQuote.
   if (source === 'portal') {
     const alert = opts?.alert ?? 'desk'
     if (alert === 'cost_inquiry') void notifyCostInquiry(row)
