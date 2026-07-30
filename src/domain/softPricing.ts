@@ -154,6 +154,24 @@ export function formatHoursMinutes(min: number): string {
   return `${h}h ${String(r).padStart(2, '0')}m`
 }
 
+/**
+ * Client-facing door opening — round to feet, never publish exact inches
+ * so requesters don’t try to self-size against a specific door.
+ */
+export function roughDoorOpeningLabel(wIn: number, hIn: number): string {
+  const wFt = Math.max(1, Math.round(Math.max(0, wIn) / 12))
+  const hFt = Math.max(1, Math.round(Math.max(0, hIn) / 12))
+  if (wFt === hFt) return `about ${wFt} ft opening`
+  return `about ${Math.min(wFt, hFt)}–${Math.max(wFt, hFt)} ft opening`
+}
+
+/** Rough payload band for soft-quote cards (not a published max). */
+export function roughPayloadLabel(lbs: number): string {
+  if (!(lbs > 0)) return 'payload TBD'
+  const rounded = Math.max(100, Math.round(lbs / 100) * 100)
+  return `~${rounded.toLocaleString('en-US')} lb class`
+}
+
 export function flightMinutesFromNmGs(nm: number, gsKts: number): number {
   const gs = gsKts > 0 ? gsKts : 200
   return Math.round((Math.max(0, nm) / gs) * 60)
@@ -353,9 +371,9 @@ export function summarizeCargoFitForClass(
     explanation =
       'No cargo dims yet — we show class guidelines until pieces are entered.'
   } else if (fit === 'fits') {
-    explanation = `Your ${Math.round(maxDims.l_in)}×${Math.round(maxDims.w_in)}×${Math.round(maxDims.h_in)} in piece clears the ${doorW}×${doorH} in door on its side with room to secure.`
+    explanation = `Your cargo looks like a fit for a typical ${roughDoorOpeningLabel(doorW, doorH)} in this class — dispatch confirms the real door at hard quote.`
   } else {
-    explanation = `Two smallest sides (${two_smallest_label}) exceed the ${doorW}×${doorH} in door — this class is priced for reference only.`
+    explanation = `Your cargo looks tight for a typical ${roughDoorOpeningLabel(doorW, doorH)} in this class — priced for reference only; we confirm fit at hard quote.`
   }
 
   return {
@@ -603,7 +621,7 @@ export function softPricingClaudePrompt(pkg: SoftPricingPackage): string {
       (c) =>
         `- ${c.label}: $${c.price_low}–$${c.price_high} · live ${formatHoursMinutes(c.timing.live_min)} @ ${c.timing.avg_gs_kts} kt · fit=${c.fit.fit} · ${c.fit.explanation}`,
     ),
-    'Write short, calm client guidelines (no operator names, no margins, no “bid”). Explain what fits, why turboprop may beat a cheaper no-fit class, and that this is only an estimate.',
+    'Write short, calm client guidelines (no operator names, no margins, no “bid”). Do not publish exact door inches or invite self-sizing — use rough openings only and say dispatch confirms fit at hard quote. Explain what class looks workable and that this is only an estimate.',
   ]
   return lines.join('\n')
 }
@@ -612,7 +630,7 @@ export function mockSoftPricingGuidelines(pkg: SoftPricingPackage): string {
   const fitting = pkg.classes.filter((c) => c.fit.fit === 'fits')
   const cheapestFit = [...fitting].sort((a, b) => a.price_low - b.price_low)[0]
   if (cheapestFit) {
-    return `Your piece height/width is the constraint here. It clears a ${cheapestFit.example_types[0]}-class door on its side, which is why ${cheapestFit.label.toLowerCase()} is your cheapest fitting class even when some lower hourly classes show a lower reference price but NO FIT. If the piece can ship shorter, a smaller door class may open up and the estimate can drop. ${SOFT_PRICING_DISCLAIMER}`
+    return `Door openings vary by tail — based on a rough ${cheapestFit.label.toLowerCase()} opening, your cargo looks workable in that class (and may show NO FIT on smaller classes even when their all-in range looks cheaper). Don’t size to published inches; request a hard quote so dispatch confirms the real door. ${SOFT_PRICING_DISCLAIMER}`
   }
   return `Door fit is tight or unverified across the sample — request a hard quote so dispatch can confirm. ${SOFT_PRICING_DISCLAIMER}`
 }

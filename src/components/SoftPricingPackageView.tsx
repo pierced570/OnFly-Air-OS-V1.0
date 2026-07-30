@@ -9,6 +9,8 @@ import { createLlmAdapter } from '@/adapters/llm'
 import {
   destinationFromGoMinutes,
   formatHoursMinutes,
+  roughDoorOpeningLabel,
+  roughPayloadLabel,
   type SoftClassQuote,
   type SoftPricingPackage,
 } from '@/domain/softPricing'
@@ -149,21 +151,21 @@ export function SoftPricingPackageView(props: {
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-white px-4 py-5 sm:px-5">
           <h2 className="text-base font-semibold">
-            Will it fit? Door sizes vs your cargo
+            Will it fit? Ballpark door openings
           </h2>
           <p className="mt-1 text-sm text-muted">
             Your largest piece is {pkg.classes[0]?.fit.largest_piece_label ?? '—'}.
           </p>
           <p className="mt-2 text-xs text-muted">
-            A piece fits when its two smallest sides clear the door with ~2 in
-            to spare — length rides through the opening.
+            Door openings vary by tail — these are rough class estimates only.
+            Our team confirms the real door when you request a hard quote.
           </p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[28rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted">
                   <th className="py-2 pr-2 font-medium">Aircraft</th>
-                  <th className="py-2 pr-2 font-medium">Door</th>
+                  <th className="py-2 pr-2 font-medium">Door (approx.)</th>
                   <th className="py-2 pr-2 font-medium">Payload</th>
                   <th className="py-2 font-medium">Fit</th>
                 </tr>
@@ -181,10 +183,10 @@ export function SoftPricingPackageView(props: {
                       </div>
                     </td>
                     <td className="avionic py-2.5 pr-2 text-ink">
-                      {r.door_w_in}×{r.door_h_in} in
+                      {roughDoorOpeningLabel(r.door_w_in, r.door_h_in)}
                     </td>
                     <td className="avionic py-2.5 pr-2 text-ink">
-                      {r.payload_lbs.toLocaleString('en-US')} lb
+                      {roughPayloadLabel(r.payload_lbs)}
                     </td>
                     <td className="py-2.5">
                       <FitBadge fit={r.fit} />
@@ -195,9 +197,9 @@ export function SoftPricingPackageView(props: {
             </table>
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted">
-            Door data comes from our operator network page. Freighter
-            conversions may have larger doors. Pieces over 200 lb typically need
-            a forklift.
+            Exact door inches vary across the network and freighter conversions.
+            Don’t size to these numbers — request a hard quote for a confirmed
+            fit. Pieces over ~200 lb typically need a forklift.
           </p>
         </div>
 
@@ -364,11 +366,14 @@ function SoftClassCard({ quote }: { quote: SoftClassQuote }) {
         </p>
         <Row
           label="Door"
-          value={`${quote.fit.door_w_in}×${quote.fit.door_h_in} in`}
+          value={roughDoorOpeningLabel(
+            quote.fit.door_w_in,
+            quote.fit.door_h_in,
+          )}
         />
         <Row
           label="Payload"
-          value={`${quote.fit.payload_lbs.toLocaleString('en-US')} lb max`}
+          value={roughPayloadLabel(quote.fit.payload_lbs)}
         />
       </dl>
 

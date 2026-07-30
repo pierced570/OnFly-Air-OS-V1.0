@@ -9,6 +9,8 @@ import {
   doorFitsWithSpare,
   formatHoursMinutes,
   flightMinutesFromNmGs,
+  roughDoorOpeningLabel,
+  roughPayloadLabel,
   verticalToSoftClass,
   mockSoftPricingGuidelines,
 } from '@/domain/softPricing'
@@ -30,6 +32,12 @@ describe('softPricing', () => {
     expect(formatHoursMinutes(150)).toBe('2h 30m')
     expect(formatHoursMinutes(51)).toBe('0h 51m')
     expect(formatHoursMinutes(60)).toBe('1h 00m')
+  })
+
+  it('roughens door openings to feet bands (no exact inches)', () => {
+    expect(roughDoorOpeningLabel(44, 37)).toBe('about 3–4 ft opening')
+    expect(roughDoorOpeningLabel(53, 52)).toBe('about 4 ft opening')
+    expect(roughPayloadLabel(900)).toBe('~900 lb class')
   })
 
   it('builds timing: 2.5hr repo, live=nm/gs, return=live+1hr', () => {
@@ -87,7 +95,9 @@ describe('softPricing', () => {
 
     const se = pkg.classes.find((c) => c.class_id === 'single_engine')!
     expect(se.fit.fit).toBe('no_fit')
-    expect(se.fit.explanation).toMatch(/reference only/i)
+    expect(se.fit.explanation).toMatch(/reference only|tight/i)
+    expect(se.fit.explanation).not.toMatch(/\d+×\d+ in door/)
+    expect(tp.fit.explanation).not.toMatch(/\d+×\d+ in door/)
 
     const guide = mockSoftPricingGuidelines(pkg)
     expect(guide).toContain('not the actual price')
