@@ -248,9 +248,9 @@ export default function FinancialsPage() {
       <div className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2.5 text-sm text-cream">
         <span className="font-medium text-gold">Fix wrong data:</span> click{' '}
         <span className="avionic text-gold">Edit</span> on a trip row → change date,
-        PO, client, route, aircraft, tail, amounts, tax, funded-by, notes. Blur a
-        field to save. Margin / investor math recalculates on money edits (legacy
-        rows unlock automatically).
+        PO, client, route, aircraft, tail, amounts, tax, funded-by, notes. Leave a
+        field to save (synced to the ledger). Margin / investor math recalculates
+        on money edits (legacy rows unlock automatically).
         {editedCount > 0 && (
           <button
             type="button"
@@ -258,7 +258,7 @@ export default function FinancialsPage() {
             onClick={() => {
               if (
                 window.confirm(
-                  `Discard ${editedCount} local correction(s) and reload saved values?`,
+                  `Discard ${editedCount} local correction(s) and reload fixture defaults? DB values reload on next refresh.`,
                 )
               ) {
                 clearFinancialOverrides()
