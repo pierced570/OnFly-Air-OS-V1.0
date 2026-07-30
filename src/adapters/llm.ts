@@ -38,6 +38,8 @@ export interface LlmAdapter {
   plainEnglish(text: string, context?: string): Promise<string>
   /** Parse D085 / ops specs listing → aircraft rows for human verify */
   extractD085(rawText: string): Promise<D085ExtractRow[]>
+  /** Client soft-pricing guidelines (Claude). */
+  explainSoftPricing(briefingText: string): Promise<string>
 }
 
 /** Fill blank LLM fields from local scratch heuristics (IATA lanes, ASAP, client). */
@@ -107,6 +109,13 @@ export class MockLlmAdapter implements LlmAdapter {
         i === 0 ? 'King Air 200' : i === 1 ? 'Cessna 208' : 'Unknown Type',
     }))
   }
+
+  async explainSoftPricing(briefingText: string): Promise<string> {
+    const clipped = briefingText.trim().slice(0, 800)
+    return clipped
+      ? `Mock soft-pricing guidelines: ${clipped.slice(0, 280)}… This is not the actual price — estimate from fit and historical data; aircraft positions change.`
+      : 'Mock soft-pricing guidelines: add cargo dims and a lane for a class-by-class estimate.'
+  }
 }
 
 /** Real path → edge `llm-extract` (Claude when ANTHROPIC_API_KEY is set). */
@@ -167,6 +176,19 @@ export class ClaudeLlmAdapter implements LlmAdapter {
     }
     if (body?.error) throw new Error(body.error)
     return Array.isArray(body?.aircraft) ? body.aircraft : []
+  }
+
+  async explainSoftPricing(briefingText: string): Promise<string> {
+    if (!supabase || !isSupabaseConfigured) {
+      return new MockLlmAdapter().explainSoftPricing(briefingText)
+    }
+    const { data, error } = await supabase.functions.invoke('llm-extract', {
+      body: { mode: 'soft_pricing', text: briefingText },
+    })
+    if (error) throw new Error(error.message || 'llm-extract failed')
+    const body = data as { text?: string; error?: string }
+    if (body?.error) throw new Error(body.error)
+    return body.text ?? ''
   }
 }
 
