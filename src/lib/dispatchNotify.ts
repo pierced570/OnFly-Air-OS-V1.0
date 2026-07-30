@@ -1,10 +1,13 @@
 /**
- * Page the on-shift dispatcher when work lands from a client door
- * (portal request, email/SMS intake). Uses Comms + Email adapters — mock-safe.
+ * Page the desk when work lands from a client door (portal request, email/SMS
+ * intake). Portal / hard-quote SMS always hits the hard-coded OnFly desk line
+ * (858). Other intake may still use on-shift via resolveDispatchPhone().
+ * Uses Comms + Email adapters — mock-safe.
  */
 
 import { createCommsAdapter } from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
+import { BRAND_PHONE_E164 } from '@/domain/brand'
 import { BRAND_EMAIL } from '@/domain/clientInviteEmail'
 import type { TripRequestRecord } from '@/domain/tripRequest'
 import { raiseException } from '@/lib/exceptionStore'
@@ -12,6 +15,9 @@ import { getOnShift } from '@/lib/shiftStore'
 
 /** Demo fallback when nobody has started a shift yet. */
 export const FALLBACK_DISPATCH_PHONE = '+10000000000'
+
+/** Portal / hard-quote SMS destination — RingCentral desk, not on-shift cell. */
+export const DESK_ALERT_PHONE_E164 = BRAND_PHONE_E164
 
 export function resolveDispatchPhone(): string {
   const phone = getOnShift()?.phone?.trim()
@@ -69,7 +75,7 @@ export type DispatchNotifyResult = {
 }
 
 /**
- * SMS the on-shift phone, optionally email the desk inbox, and raise a Board
+ * SMS a desk/on-shift phone, optionally email the desk inbox, and raise a Board
  * exception card so the queue lights up even if the phone is in a pocket.
  */
 export async function notifyDispatch(opts: {
@@ -82,8 +88,13 @@ export async function notifyDispatch(opts: {
   trip_ref?: number | null
   /** Skip Board card (e.g. when another surface already owns attention). */
   raiseBoard?: boolean
+  /**
+   * SMS destination. Portal / hard-quote pass DESK_ALERT_PHONE_E164 (858).
+   * Defaults to on-shift phone (or demo fallback).
+   */
+  phone?: string
 }): Promise<DispatchNotifyResult> {
-  const phone = resolveDispatchPhone()
+  const phone = opts.phone?.trim() || resolveDispatchPhone()
   const raiseBoard = opts.raiseBoard !== false
   let sms_id: string | null = null
   let email_id: string | null = null
@@ -151,6 +162,7 @@ export async function notifyPortalRequest(
     href,
     trip_id: null,
     trip_ref: row.ref,
+    phone: DESK_ALERT_PHONE_E164,
   })
 }
 
@@ -174,6 +186,7 @@ export async function notifyHardQuoteRequest(
     href,
     trip_id: null,
     trip_ref: row.ref,
+    phone: DESK_ALERT_PHONE_E164,
   })
 }
 

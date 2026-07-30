@@ -44,6 +44,7 @@ vi.mock('@/domain/airports', () => ({
 import {
   addTailToTracking,
   normalizeLookupTail,
+  pollOperatorTailsLastKnown,
   seedRadarLastKnown,
   setRadarMovementAlert,
 } from './radarSeedFlow'
@@ -109,5 +110,27 @@ describe('radarSeedFlow', () => {
     expect(res.tail).toBe('N123AB')
     expect(getRadarTrack('N123AB')?.alertEnabled).toBe(true)
     expect(getRadarTrack('N123AB')?.lastKnown?.phase).toBe('on_ground')
+  })
+
+  it('pollOperatorTailsLastKnown seeds only selected company tails without alerts', async () => {
+    const result = await pollOperatorTailsLastKnown({
+      operator_id: 'op-acme',
+      operator_name: 'Acme Air',
+      base_icao: 'KCAK',
+      tails: [
+        { tail: 'N111AA', type_name: 'C208', base_icao: 'KCAK' },
+        { tail: '222BB', type_name: 'BE58', base_icao: 'KCAK' },
+      ],
+    })
+    expect(result.requested).toBe(2)
+    expect(result.seeded).toBe(2)
+    expect(getRadarTrack('N111AA')?.lastKnown?.phase).toBe('on_ground')
+    expect(getRadarTrack('N222BB')?.lastKnown?.lat).toBeCloseTo(40.91, 1)
+    expect(getRadarTrack('N111AA')?.alertEnabled).toBeFalsy()
+    expect(getRadarTrack('N222BB')?.alertEnabled).toBeFalsy()
+    const watched = listWatchedTails()
+    expect(watched.some((w) => w.tail === 'N111AA' && w.operator_name === 'Acme Air')).toBe(
+      true,
+    )
   })
 })

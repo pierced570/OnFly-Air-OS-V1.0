@@ -19,12 +19,13 @@ import {
   acceptD085Review,
   parseAndMatchD085,
 } from '@/lib/d085Review'
-import { loadFleetStatuses } from '@/lib/fleetRadar'
+import { fleetStatusByTail, loadFleetStatuses } from '@/lib/fleetRadar'
 import { loadNetwork, type LoadedNetwork } from '@/lib/networkData'
 import {
   addTailToTracking,
   lookupRadarTail,
   normalizeLookupTail,
+  pollOperatorTailsLastKnown,
   setRadarMovementAlert,
   type LookupRadarTailResult,
 } from '@/lib/radarSeedFlow'
@@ -85,6 +86,13 @@ export default function RadarPage({
 
   const [opQ, setOpQ] = useState('')
   const [pickedOpId, setPickedOpId] = useState<string | null>(null)
+  /** Selected tails within the picked company for last-known poll. */
+  const [selectedOpTails, setSelectedOpTails] = useState<Set<string>>(
+    () => new Set(),
+  )
+  const [pollBusy, setPollBusy] = useState(false)
+  /** Last-known statuses from company poll (shown even without alert tracking). */
+  const [polledStatuses, setPolledStatuses] = useState<FleetStatus[]>([])
 
   const [alertBusyTail, setAlertBusyTail] = useState<string | null>(null)
   const [alertError, setAlertError] = useState<string | null>(null)
@@ -145,9 +153,10 @@ export default function RadarPage({
 
   const mapStatuses = useMemo(() => {
     const byTail = new Map(statuses.map((s) => [s.tail.toUpperCase(), s]))
+    for (const s of polledStatuses) byTail.set(s.tail.toUpperCase(), s)
     if (lookupStatus) byTail.set(lookupStatus.tail.toUpperCase(), lookupStatus)
     return [...byTail.values()]
-  }, [statuses, lookupStatus])
+  }, [statuses, polledStatuses, lookupStatus])
 
   const selectedStatus =
     mapStatuses.find((s) => s.tail === selected) ??
@@ -276,6 +285,56 @@ export default function RadarPage({
       setAlertError(err instanceof Error ? err.message : String(err))
     } finally {
       setAlertBusyTail(null)
+    }
+  }
+
+  function toggleOpTail(tail: string) {
+    setSelectedOpTails((prev) => {
+      const next = new Set(prev)
+      if (next.has(tail)) next.delete(tail)
+      else next.add(tail)
+      return next
+    })
+  }
+
+  function selectAllOpTails() {
+    if (!pickedOp) return
+    setSelectedOpTails(new Set(pickedOp.tails.map((t) => t.tail)))
+  }
+
+  async function onPollSelectedLastKnown() {
+    if (!pickedOp || selectedOpTails.size === 0) return
+    setPollBusy(true)
+    setAlertError(null)
+    setActionNote(null)
+    try {
+      const picks = pickedOp.tails.filter((t) => selectedOpTails.has(t.tail))
+      const result = await pollOperatorTailsLastKnown({
+        operator_id: pickedOp.id,
+        operator_name: pickedOp.name,
+        base_icao: pickedOp.base_icao,
+        tails: picks,
+      })
+      const byTail = await fleetStatusByTail(picks.map((t) => t.tail))
+      const rows = picks
+        .map((t) => byTail.get(t.tail) ?? byTail.get(t.tail.toUpperCase()))
+        .filter((s): s is FleetStatus => Boolean(s))
+      setPolledStatuses((prev) => {
+        const map = new Map(prev.map((s) => [s.tail.toUpperCase(), s]))
+        for (const s of rows) map.set(s.tail.toUpperCase(), s)
+        return [...map.values()]
+      })
+      if (rows[0]) setSelected(rows[0].tail)
+      setActionNote(
+        `Last-known for ${result.seeded}/${result.requested} selected · ${pickedOp.name}${
+          result.noData ? ` · ${result.noData} no data` : ''
+        }`,
+      )
+      await refresh()
+    } catch (err) {
+      setAlertError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPollBusy(false)
     }
   }
 
@@ -558,16 +617,18 @@ export default function RadarPage({
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">
-            Look up operator
+            Company fleet poll
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Find an operator, then add individual tails to tracking.
+            Pick an operator, select individual tails, then pull last-known
+            locations — or add them to continuous tracking.
           </p>
           <input
             value={opQ}
             onChange={(e) => {
               setOpQ(e.target.value)
               setPickedOpId(null)
+              setSelectedOpTails(new Set())
             }}
             placeholder="Search operator or tail…"
             className="mt-3 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream"
@@ -579,7 +640,10 @@ export default function RadarPage({
                   <button
                     type="button"
                     className="flex w-full items-center justify-between rounded border border-border px-3 py-2 text-left text-sm hover:border-gold/40"
-                    onClick={() => setPickedOpId(o.id)}
+                    onClick={() => {
+                      setPickedOpId(o.id)
+                      setSelectedOpTails(new Set())
+                    }}
                   >
                     <span className="text-cream">{o.name}</span>
                     <span className="avionic text-xs text-muted">
@@ -601,30 +665,86 @@ export default function RadarPage({
                   <div className="text-[11px] text-muted">
                     {pickedOp.tails.length} tails
                     {pickedOp.base_icao ? ` · ${pickedOp.base_icao}` : ''}
+                    {selectedOpTails.size
+                      ? ` · ${selectedOpTails.size} selected`
+                      : ''}
                   </div>
                 </div>
                 <button
                   type="button"
                   className="text-xs text-gold"
-                  onClick={() => setPickedOpId(null)}
+                  onClick={() => {
+                    setPickedOpId(null)
+                    setSelectedOpTails(new Set())
+                  }}
                 >
                   Back
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="text-xs text-gold hover:text-gold-lt"
+                  onClick={selectAllOpTails}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className="text-xs text-muted hover:text-cream"
+                  onClick={() => setSelectedOpTails(new Set())}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="ml-auto rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
+                  disabled={pollBusy || selectedOpTails.size === 0}
+                  onClick={() => void onPollSelectedLastKnown()}
+                >
+                  {pollBusy
+                    ? 'Polling…'
+                    : `Get last known${
+                        selectedOpTails.size
+                          ? ` (${selectedOpTails.size})`
+                          : ''
+                      }`}
                 </button>
               </div>
               <ul className="max-h-64 space-y-1.5 overflow-y-auto">
                 {pickedOp.tails.map((a) => {
                   const on = tracking.some((t) => t.tail === a.tail)
+                  const checked = selectedOpTails.has(a.tail)
+                  const polled = polledStatuses.find(
+                    (s) => s.tail.toUpperCase() === a.tail,
+                  )
                   return (
                     <li
                       key={a.tail}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded border border-border px-3 py-2 text-sm"
+                      className={[
+                        'flex flex-wrap items-center justify-between gap-2 rounded border px-3 py-2 text-sm',
+                        checked ? 'border-gold/50 bg-gold/5' : 'border-border',
+                      ].join(' ')}
                     >
-                      <div>
-                        <span className="avionic text-gold">{a.tail}</span>
-                        <span className="ml-2 text-muted">
-                          {a.type_name || '—'}
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleOpTail(a.tail)}
+                          className="accent-[#C9A227]"
+                        />
+                        <span>
+                          <span className="avionic text-gold">{a.tail}</span>
+                          <span className="ml-2 text-muted">
+                            {a.type_name || '—'}
+                          </span>
+                          {polled && !polled.laddBlocked ? (
+                            <span className="ml-2 text-[10px] uppercase tracking-wide text-[#2E7D32]">
+                              {polled.phase.replace('_', ' ')}
+                            </span>
+                          ) : null}
                         </span>
-                      </div>
+                      </label>
                       {on ? (
                         <span className="text-[10px] uppercase tracking-wide text-gold">
                           Tracking
