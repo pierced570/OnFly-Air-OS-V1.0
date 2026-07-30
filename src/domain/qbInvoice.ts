@@ -122,6 +122,84 @@ export function charterFlightLineDescription(opts: {
 }
 
 /**
+ * Trip itinerary lines for invoice email / PDF note (OFA payment-request style).
+ * Example:
+ *   KNQA → KDFW
+ *   Pickup in NQA ETA 2hr 15 min
+ *   NQA-DFW 1 hr 45 min
+ *   Drop Off at DFW
+ */
+export function buildInvoiceItineraryLines(opts: {
+  lane: string
+  /** Position / TTP minutes (pickup ETA). */
+  pickupEtaMin?: number | null
+  /** Live air-leg minutes. */
+  liveLegMin?: number | null
+  originIcao?: string | null
+  destIcao?: string | null
+}): string[] {
+  const lane = opts.lane.trim()
+  const origin = (
+    opts.originIcao?.trim() ||
+    lane.split(/→|->|–|—/)[0]?.trim() ||
+    ''
+  ).toUpperCase()
+  const dest = (
+    opts.destIcao?.trim() ||
+    lane.split(/→|->|–|—/)[1]?.trim() ||
+    ''
+  ).toUpperCase()
+  const originShort = origin.replace(/^K/, '') || origin
+  const destShort = dest.replace(/^K/, '') || dest
+  const lines: string[] = []
+  if (lane) lines.push(lane)
+  if (originShort && opts.pickupEtaMin != null && Number.isFinite(opts.pickupEtaMin)) {
+    lines.push(
+      `Pickup in ${originShort} ETA ${formatInvoiceDuration(opts.pickupEtaMin)}`,
+    )
+  } else if (originShort) {
+    lines.push(`Pickup in ${originShort}`)
+  }
+  if (
+    originShort &&
+    destShort &&
+    opts.liveLegMin != null &&
+    Number.isFinite(opts.liveLegMin)
+  ) {
+    lines.push(
+      `${originShort}-${destShort} ${formatInvoiceDuration(opts.liveLegMin)}`,
+    )
+  }
+  if (destShort) lines.push(`Drop Off at ${destShort}`)
+  return lines
+}
+
+/** "2hr 15 min" / "1 hr 45 min" — matches live OFA invoice copy. */
+export function formatInvoiceDuration(min: number): string {
+  const t = Math.max(0, Math.round(min))
+  const h = Math.floor(t / 60)
+  const m = t % 60
+  if (h > 0 && m > 0) return `${h}hr ${m} min`
+  if (h > 0) return `${h} hr`
+  return `${m} min`
+}
+
+/**
+ * Pickup / drop-off address lines for QBO "Note to customer".
+ */
+export function buildInvoiceStopNotes(opts: {
+  pickupAddress?: string | null
+  dropoffAddress?: string | null
+}): string[] {
+  const out: string[] = []
+  const pickup = opts.pickupAddress?.trim()
+  const drop = opts.dropoffAddress?.trim()
+  if (pickup) out.push(`Pick up the part at ${pickup}`)
+  if (drop) out.push(`Drop off part at ${drop}`)
+  return out
+}
+
+/**
  * Customer-facing memo on the QBO PDF ("Note to customer"), OFA style.
  */
 export function buildInvoiceCustomerMemo(opts: {
@@ -132,7 +210,16 @@ export function buildInvoiceCustomerMemo(opts: {
   poNumber?: string | null
   payTerms?: string | null
   extraNotes?: string | null
+  /** Optional itinerary block (inserted after terms). */
+  itineraryLines?: string[] | null
+  pickupAddress?: string | null
+  dropoffAddress?: string | null
 }): string {
+  const stopNotes = buildInvoiceStopNotes({
+    pickupAddress: opts.pickupAddress,
+    dropoffAddress: opts.dropoffAddress,
+  })
+  const itinerary = (opts.itineraryLines ?? []).map((l) => l.trim()).filter(Boolean)
   const lines = [
     opts.tail?.trim() ? `Tail Number: ${opts.tail.trim().toUpperCase()}` : null,
     opts.lane.trim() ? `Route: ${opts.lane.trim()}` : null,
@@ -144,9 +231,12 @@ export function buildInvoiceCustomerMemo(opts: {
       ? `PO #${normalizePoDocNumber(opts.poNumber, opts.poNumber.trim())}`
       : null,
     opts.payTerms?.trim() ? `Terms: ${opts.payTerms.trim()}` : null,
+    itinerary.length ? '' : null,
+    ...itinerary,
+    ...stopNotes,
     opts.extraNotes?.trim() || null,
-  ].filter(Boolean) as string[]
-  return lines.join('\n').slice(0, 1000)
+  ].filter((l) => l != null) as string[]
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').slice(0, 1000)
 }
 
 export function buildQbInvoicePayload(input: BuildQbInvoiceInput): QbInvoicePayload {
