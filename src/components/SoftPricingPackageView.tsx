@@ -324,10 +324,6 @@ function SoftClassCard({ quote }: { quote: SoftClassQuote }) {
           value={`${formatHoursMinutes(t.live_min)} @ ${t.avg_gs_kts} kt avg`}
         />
         <Row label="Repo leg" value="2h 30m assumed" />
-        <Row
-          label="Return"
-          value={`${formatHoursMinutes(t.home_min)} (live + 1h)`}
-        />
         <p className="avionic pt-0.5 text-ink">
           At your destination{' '}
           {formatHoursMinutes(destinationFromGoMinutes(t))} from Go
