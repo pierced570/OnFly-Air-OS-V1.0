@@ -5,6 +5,7 @@ import { selectOffersAndHardQuote } from '@/lib/offerFlow'
 import {
   __resetTripsForTests,
   createTripFromCandidates,
+  getTrip,
   mutateTrip,
   safeTransitionTrip,
 } from '@/lib/tripStore'
@@ -56,7 +57,7 @@ describe('selectOffersAndHardQuote email recipients', () => {
     })
 
     const before = getMockSentEmails().length
-    const offerId = getTripOfferId(trip.id)
+    const offerId = getTrip(trip.id)!.offers[0]!.id
     await selectOffersAndHardQuote(
       trip.id,
       [offerId],
@@ -97,7 +98,7 @@ describe('selectOffersAndHardQuote email recipients', () => {
     })
 
     const before = getMockSentEmails().length
-    const offerId = getTripOfferId(trip.id)
+    const offerId = getTrip(trip.id)!.offers[0]!.id
     await selectOffersAndHardQuote(
       trip.id,
       [offerId],
@@ -116,8 +117,3 @@ describe('selectOffersAndHardQuote email recipients', () => {
     expect(last.bcc ?? []).toEqual([])
   })
 })
-
-function getTripOfferId(tripId: string): string {
-  const { getTrip } = require('@/lib/tripStore') as typeof import('@/lib/tripStore')
-  return getTrip(tripId)!.offers[0]!.id
-}
