@@ -35,6 +35,8 @@ export type StaffMember = {
   is_admin: boolean
   sections: StaffSectionId[]
   active: boolean
+  /** ISO timestamptz — used to rescue local edits over stale DB seed. */
+  updated_at?: string
 }
 
 /** Hard-coded sole owner — only this account manages staff ACL. */

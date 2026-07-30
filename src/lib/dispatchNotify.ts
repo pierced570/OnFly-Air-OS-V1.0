@@ -1,7 +1,7 @@
 /**
  * Page the desk when work lands from a client door (portal request, email/SMS
- * intake). Portal / hard-quote SMS always hits the hard-coded OnFly desk line
- * (858). Other intake may still use on-shift via resolveDispatchPhone().
+ * intake). Soft-quote / cost-inquiry path is email-only to info@onflyair.com
+ * (no SMS). Other intake may still SMS the desk line (858) via notifyDispatch.
  * Uses Comms + Email adapters — mock-safe.
  */
 
@@ -67,6 +67,32 @@ export function formatPortalRequestSms(
   return `OnFly: portal request R-${row.ref} · ${row.lane} · ${row.summary} · ${who}${reach} — review ${link}`
 }
 
+export function formatCostInquiryEmail(
+  row: Pick<
+    TripRequestRecord,
+    'id' | 'ref' | 'lane' | 'summary' | 'email' | 'client_name' | 'urgent_phone'
+  >,
+): { subject: string; text: string } {
+  const who = row.email?.trim() || row.client_name?.trim() || 'client'
+  const phone = row.urgent_phone?.trim()
+  const href = portalRequestReviewPath(row.id)
+  const base = appBase()
+  const link = base ? `${base}${href}` : href
+  const text = [
+    'A cost inquiry has been made.',
+    '',
+    `R-${row.ref} · ${row.lane}`,
+    row.summary,
+    who + (phone ? ` · ${phone}` : ''),
+    '',
+    `Review: ${link}`,
+  ].join('\n')
+  return {
+    subject: `OnFly cost inquiry R-${row.ref} · ${row.lane}`,
+    text,
+  }
+}
+
 export type DispatchNotifyResult = {
   phone: string
   sms_id: string | null
@@ -93,6 +119,8 @@ export async function notifyDispatch(opts: {
    * Defaults to on-shift phone (or demo fallback).
    */
   phone?: string
+  /** Soft-quote cost inquiries: email only — no SMS page. */
+  skipSms?: boolean
 }): Promise<DispatchNotifyResult> {
   const phone = opts.phone?.trim() || resolveDispatchPhone()
   const raiseBoard = opts.raiseBoard !== false
@@ -100,15 +128,17 @@ export async function notifyDispatch(opts: {
   let email_id: string | null = null
   let exception_id: string | null = null
 
-  try {
-    const sms = await createCommsAdapter().send({
-      channel: 'sms',
-      to: phone,
-      body: opts.smsBody,
-    })
-    sms_id = sms.id
-  } catch (err) {
-    console.warn('[dispatchNotify] SMS failed', err)
+  if (!opts.skipSms) {
+    try {
+      const sms = await createCommsAdapter().send({
+        channel: 'sms',
+        to: phone,
+        body: opts.smsBody,
+      })
+      sms_id = sms.id
+    } catch (err) {
+      console.warn('[dispatchNotify] SMS failed', err)
+    }
   }
 
   const to = dispatchAlertEmail()
@@ -118,7 +148,7 @@ export async function notifyDispatch(opts: {
         to,
         subject: opts.emailSubject ?? opts.title,
         text: opts.detail,
-        html: `<p>${escapeHtml(opts.detail)}</p>${
+        html: `<p>${escapeHtml(opts.detail).replace(/\n/g, '<br/>')}</p>${
           opts.href
             ? `<p><a href="${escapeHtml(appBase() + opts.href)}">Open in OnFly</a></p>`
             : ''
@@ -166,28 +196,32 @@ export async function notifyPortalRequest(
   })
 }
 
-export async function notifyHardQuoteRequest(
+/**
+ * Soft quote / “Have OnFly quote this NOW” — email info@ only, no SMS.
+ */
+export async function notifyCostInquiry(
   row: TripRequestRecord,
 ): Promise<DispatchNotifyResult> {
   const href = portalRequestReviewPath(row.id)
-  const who = row.email?.trim() || row.client_name?.trim() || 'client'
-  const detail = `HARD QUOTE · R-${row.ref} · ${row.lane} · ${who}`
-  const path = portalRequestReviewPath(row.id)
-  const base = (import.meta.env.VITE_APP_URL as string | undefined)?.replace(
-    /\/$/,
-    '',
-  )
-  const link = base ? `${base}${path}` : path
+  const mail = formatCostInquiryEmail(row)
   return notifyDispatch({
-    title: 'Hard quote requested',
-    detail,
-    smsBody: `OnFly: client wants HARD QUOTE on R-${row.ref} · ${row.lane} — real times/numbers · ${link}`,
-    emailSubject: `OnFly HARD QUOTE R-${row.ref} · ${row.lane}`,
+    title: 'Cost inquiry',
+    detail: mail.text,
+    smsBody: '',
+    emailSubject: mail.subject,
     href,
     trip_id: null,
     trip_ref: row.ref,
     phone: DESK_ALERT_PHONE_E164,
+    skipSms: true,
   })
+}
+
+/** Hard quote from soft quotes — same as cost inquiry (email only). */
+export async function notifyHardQuoteRequest(
+  row: TripRequestRecord,
+): Promise<DispatchNotifyResult> {
+  return notifyCostInquiry(row)
 }
 
 function escapeHtml(s: string): string {

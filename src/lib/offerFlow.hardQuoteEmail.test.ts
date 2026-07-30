@@ -57,7 +57,7 @@ describe('selectOffersAndHardQuote email recipients', () => {
     })
 
     const before = getMockSentEmails().length
-    const offerId = getTrip(trip.id)!.offers[0]!.id
+    const offerId = getTripOfferId(trip.id)
     await selectOffersAndHardQuote(
       trip.id,
       [offerId],
@@ -98,7 +98,7 @@ describe('selectOffersAndHardQuote email recipients', () => {
     })
 
     const before = getMockSentEmails().length
-    const offerId = getTrip(trip.id)!.offers[0]!.id
+    const offerId = getTripOfferId(trip.id)
     await selectOffersAndHardQuote(
       trip.id,
       [offerId],
@@ -117,3 +117,7 @@ describe('selectOffersAndHardQuote email recipients', () => {
     expect(last.bcc ?? []).toEqual([])
   })
 })
+
+function getTripOfferId(tripId: string): string {
+  return getTrip(tripId)!.offers[0]!.id
+}

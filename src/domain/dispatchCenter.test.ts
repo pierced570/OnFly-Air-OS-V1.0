@@ -190,6 +190,45 @@ describe('dispatchCenter', () => {
     expect(buckets.tracking[0]?.meta).toBe('Live')
   })
 
+  it('hides a request once a trip claims it (exclusive handoff)', () => {
+    const buckets = buildDispatchDrawers({
+      requests: [
+        {
+          id: 'r-claimed',
+          ref: 42,
+          lane: 'KCAK→KHPN',
+          summary: '1 skid',
+          source: 'portal',
+          status: 'in_review',
+          client_name: 'Acme',
+        },
+        {
+          id: 'r-open',
+          ref: 43,
+          lane: 'KCLE→KORD',
+          summary: '2 pax',
+          source: 'scratchpad',
+          status: 'submitted',
+        },
+      ],
+      trips: [
+        {
+          id: 't-from-r',
+          ref: 10,
+          lane: 'KCAK→KHPN',
+          state: 'offers_out',
+          request_id: 'r-claimed',
+          client_name: 'Acme',
+          legs: [],
+          offers: [],
+        },
+      ],
+    })
+    expect(buckets.requests.map((c) => c.id)).toEqual(['r-open'])
+    expect(buckets.offers).toHaveLength(1)
+    expect(buckets.offers[0]?.id).toBe('t-from-r')
+  })
+
   it('labels Scratchpad requests distinctly and shows client name', () => {
     const buckets = buildDispatchDrawers({
       requests: [

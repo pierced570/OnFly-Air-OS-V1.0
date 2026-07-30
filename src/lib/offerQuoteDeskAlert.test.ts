@@ -3,6 +3,7 @@ import {
   clearMockCommsLog,
   getMockCommsLog,
 } from '@/adapters/comms'
+import { getMockSentEmails } from '@/adapters/email'
 import { BRAND_PHONE_E164 } from '@/domain/brand'
 import type { Candidate } from '@/domain/routing'
 import {
@@ -50,13 +51,13 @@ const quoteInput = {
   fee_scope: 'aircraft_and_fees' as const,
 }
 
-describe('operator quote → desk SMS alert', () => {
+describe('operator quote → desk email alert (no SMS)', () => {
   beforeEach(() => {
     __resetTripsForTests()
     clearMockCommsLog()
   })
 
-  it('texts dispatch RC when operator submits via magic link', async () => {
+  it('emails info@ when operator submits via magic link — no SMS', async () => {
     const trip = createTripFromCandidates({
       lane: 'KCAK→KHPN',
       payload_summary: 'cargo',
@@ -71,13 +72,21 @@ describe('operator quote → desk SMS alert', () => {
       o.state = 'available'
     })
 
+    const mailBefore = getMockSentEmails().length
     await submitOperatorQuote('tok-quote-alert', quoteInput)
 
     const sms = getMockCommsLog().filter((m) => m.channel === 'sms')
-    expect(sms.some((m) => m.to === BRAND_PHONE_E164)).toBe(true)
-    const alert = sms.find((m) => m.to === BRAND_PHONE_E164)
-    expect(alert?.body).toContain('quote submitted by Charlie Jets')
-    expect(alert?.body).toContain('KCAK→KHPN')
+    expect(sms.some((m) => m.to === BRAND_PHONE_E164)).toBe(false)
+    expect(sms).toHaveLength(0)
+
+    expect(getMockSentEmails().length).toBe(mailBefore + 1)
+    const alert = getMockSentEmails().at(-1)!
+    expect(alert.to).toBe('info@onflyair.com')
+    expect(alert.subject).toMatch(/quote submitted by Charlie Jets/i)
+    expect(alert.subject).toContain('KCAK→KHPN')
+    expect(alert.text).toMatch(/Charlie Jets/)
+    expect(alert.text).toMatch(/KCAK→KHPN/)
+    expect(alert.text?.toLowerCase()).not.toContain('bid')
   })
 
   it('does not alert desk when dispatcher enters the quote manually', async () => {
@@ -90,12 +99,14 @@ describe('operator quote → desk SMS alert', () => {
     })
     safeTransitionTrip(trip.id, 'offers_out', 'dispatcher', {})
     const offerId = trip.offers[0]!.id
+    const mailBefore = getMockSentEmails().length
 
     await submitDeskManualQuote(trip.id, offerId, quoteInput)
 
-    const deskAlerts = getMockCommsLog().filter(
+    const deskSms = getMockCommsLog().filter(
       (m) => m.channel === 'sms' && m.to === BRAND_PHONE_E164,
     )
-    expect(deskAlerts).toHaveLength(0)
+    expect(deskSms).toHaveLength(0)
+    expect(getMockSentEmails().length).toBe(mailBefore)
   })
 })

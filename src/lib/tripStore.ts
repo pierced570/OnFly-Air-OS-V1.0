@@ -38,6 +38,11 @@ import { getReferral } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
 import { buildQuickDispatchChain } from '@/domain/quickDispatchChain'
 import { roleOnOpsThread } from '@/domain/tripThread'
+import {
+  normalizeTripPassengers,
+  tripPassengerNames,
+  type TripPassenger,
+} from '@/domain/tripPassengers'
 import { appPublicUrl } from '@/lib/appUrl'
 import { getCachedNetwork } from '@/lib/networkData'
 import { getClient } from '@/lib/clientStore'
@@ -64,9 +69,15 @@ export async function flushPersistTrip(tripId: string): Promise<void> {
     .catch(() => {})
     .then(async () => {
       try {
+        if (deletedTripIds.has(tripId)) return
         const m = await import('@/lib/db/persistTrip')
         const row = trips.get(tripId)
-        if (row) await m.persistTripSnapshot(structuredClone(row))
+        if (!row) return
+        const clone = structuredClone(row)
+        clone.offers = clone.offers.filter(
+          (o) => !deletedOfferKeys.has(`${tripId}:${o.id}`),
+        )
+        await m.persistTripSnapshot(clone)
       } catch (e) {
         console.warn('[trips] persist failed', tripId, e)
       }
@@ -450,6 +461,11 @@ export type TripStoreRow = {
   portal_dropoff_address?: string | null
   /** Optional passenger names for portal cargo card. */
   portal_pax_names?: string[]
+  /**
+   * Structured passengers (name / weight / DOB) — often filled post booking
+   * on the waterfall / trip page when details arrive late.
+   */
+  passengers?: TripPassenger[]
   /** Referral partner attached at book (profit share → financials). */
   referral?: {
     id: string | null
@@ -472,6 +488,58 @@ const trips = new Map<string, TripStoreRow>()
 const deletedTripIds = new Set<string>()
 /** Desk-removed offers (`tripId:offerId`) — same hydrate race guard. */
 const deletedOfferKeys = new Set<string>()
+/**
+ * Trip ids ever seen in a successful active hydrate. Used to prune local
+ * ghosts that soft-delete / close removed from the DB payload.
+ */
+const syncedFromDbIds = new Set<string>()
+
+const TRIP_TOMBSTONE_KEY = 'onfly.trips.discarded.v1'
+const OFFER_TOMBSTONE_KEY = 'onfly.offers.discarded.v1'
+
+function loadTombstones(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const tripsRaw = localStorage.getItem(TRIP_TOMBSTONE_KEY)
+    if (tripsRaw) {
+      const ids = JSON.parse(tripsRaw) as unknown
+      if (Array.isArray(ids)) {
+        for (const id of ids) {
+          if (typeof id === 'string' && id) deletedTripIds.add(id)
+        }
+      }
+    }
+    const offersRaw = localStorage.getItem(OFFER_TOMBSTONE_KEY)
+    if (offersRaw) {
+      const keys = JSON.parse(offersRaw) as unknown
+      if (Array.isArray(keys)) {
+        for (const key of keys) {
+          if (typeof key === 'string' && key.includes(':')) {
+            deletedOfferKeys.add(key)
+          }
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function persistTombstones(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(
+      TRIP_TOMBSTONE_KEY,
+      JSON.stringify([...deletedTripIds]),
+    )
+    localStorage.setItem(
+      OFFER_TOMBSTONE_KEY,
+      JSON.stringify([...deletedOfferKeys]),
+    )
+  } catch {
+    /* ignore */
+  }
+}
 let refSeq = 2000
 const listeners = new Set<() => void>()
 let snapshot: TripStoreRow[] = []
@@ -529,6 +597,7 @@ function loadLocal(): void {
     if (!Array.isArray(parsed)) return
     for (const row of parsed) {
       if (!row?.id || !row.state) continue
+      if (deletedTripIds.has(row.id)) continue
       // Backfill ETA spine fields for older localStorage snapshots
       if (!Array.isArray(row.eta_chain)) row.eta_chain = []
       if (row.service_pattern === undefined) row.service_pattern = null
@@ -551,16 +620,18 @@ function loadLocal(): void {
         invite_sent_at: p.invite_sent_at ?? null,
       }))
       if (!Array.isArray(row.offers)) row.offers = []
-      row.offers = row.offers.map((o) => ({
-        ...o,
-        fee_scope: o.fee_scope ?? null,
-        notes: o.notes ?? null,
-        duty_available_min: o.duty_available_min ?? null,
-        duty_included_min: o.duty_included_min ?? null,
-        declined_acked_at: o.declined_acked_at ?? null,
-        notified_at: o.notified_at ?? null,
-        quick_turn_min: o.quick_turn_min ?? null,
-      }))
+      row.offers = row.offers
+        .filter((o) => !deletedOfferKeys.has(`${row.id}:${o.id}`))
+        .map((o) => ({
+          ...o,
+          fee_scope: o.fee_scope ?? null,
+          notes: o.notes ?? null,
+          duty_available_min: o.duty_available_min ?? null,
+          duty_included_min: o.duty_included_min ?? null,
+          declined_acked_at: o.declined_acked_at ?? null,
+          notified_at: o.notified_at ?? null,
+          quick_turn_min: o.quick_turn_min ?? null,
+        }))
       if (row.shortlist === undefined) row.shortlist = null
       if (row.request_id === undefined) row.request_id = undefined
       trips.set(row.id, row)
@@ -574,9 +645,11 @@ function loadLocal(): void {
 function bump() {
   rebuild()
   persistLocal()
+  persistTombstones()
   for (const l of listeners) l()
 }
 
+loadTombstones()
 loadLocal()
 ensureTripCodes()
 rebuild()
@@ -593,6 +666,7 @@ export function __resetTripsForTests(): void {
   trips.clear()
   deletedTripIds.clear()
   deletedOfferKeys.clear()
+  syncedFromDbIds.clear()
   refSeq = 2000
   rebuild()
   for (const l of listeners) l()
@@ -1045,12 +1119,9 @@ export function deleteTrip(id: string): boolean {
   bump()
   void import('@/lib/db/persistTrip')
     .then(async (m) => {
-      const ok = await m.deleteTripFromDb(id)
-      if (ok) {
-        // Confirmed discarded — stop retrying even before next hydrate.
-        deletedTripIds.delete(id)
-        bump()
-      }
+      // Keep tombstone until a successful hydrate confirms the trip is gone.
+      // Clearing on discard-ok races an in-flight poll and resurrects the card.
+      await m.deleteTripFromDb(id)
     })
     .catch((e) => console.warn('[trips] discard in db failed', id, e))
   return true
@@ -1094,7 +1165,7 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
   })
   void import('@/lib/db/persistTrip')
     .then(async (m) => {
-      const ok = await m.deleteOfferFromDb(offerId)
+      await m.deleteOfferFromDb(offerId)
       await m.persistOfferRemovedEvent({
         tripId,
         offerId,
@@ -1102,31 +1173,48 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
         previousCount: before,
         at,
       })
-      if (ok) {
-        deletedOfferKeys.delete(tombstone)
-        bump()
-      }
+      // Tombstone clears only when a non-empty hydrate omits this offer.
     })
     .catch((e) => console.warn('[trips] offer delete in db failed', offerId, e))
   return true
 }
 
 /** Merge DB rows into session (does not wipe local-only trips still syncing). */
-export function replaceTripsFromDb(rows: TripStoreRow[]): void {
+export function replaceTripsFromDb(
+  rows: TripStoreRow[],
+  opts?: { emptyOk?: boolean },
+): void {
   // Empty hydrate must not clear tombstones — live poll can briefly return []
   // while a delete is in flight; clearing would let the next tick resurrect.
-  if (!rows.length) return
+  // Only prune when the caller confirms a successful empty active desk.
+  if (!rows.length) {
+    if (opts?.emptyOk) {
+      for (const id of [...syncedFromDbIds]) {
+        trips.delete(id)
+        deletedTripIds.delete(id)
+        syncedFromDbIds.delete(id)
+        for (const key of [...deletedOfferKeys]) {
+          if (key.startsWith(`${id}:`)) deletedOfferKeys.delete(key)
+        }
+      }
+      bump()
+      void flushLocalOnlyTrips(new Set())
+    }
+    return
+  }
 
   const dbIds = new Set(rows.map((r) => r.id))
+  for (const id of dbIds) syncedFromDbIds.add(id)
+
   const offerPersistIds = new Set<string>()
 
   for (const r of rows) {
     if (deletedTripIds.has(r.id)) {
       // Still present in DB after desk delete — keep out of UI and retry soft-delete.
+      // Do not clear the tombstone on discard-ok (in-flight hydrate race).
       void import('@/lib/db/persistTrip')
         .then(async (m) => {
-          const ok = await m.deleteTripFromDb(r.id)
-          if (ok) deletedTripIds.delete(r.id)
+          await m.deleteTripFromDb(r.id)
         })
         .catch((e) =>
           console.warn('[trips] retry discard from db failed', r.id, e),
@@ -1166,6 +1254,9 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
 
     if (existing) {
       // Preserve richer session overlays until DB catches up.
+      if (!r.request_id && existing.request_id) {
+        r.request_id = existing.request_id
+      }
       if (!r.events.length && existing.events.length) r.events = existing.events
       else if (r.events.length && existing.events.length) {
         r.events = mergeTripEvents(r.events, existing.events)
@@ -1218,6 +1309,13 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
         }
       }
     }
+    if (!r.request_id) {
+      const fromEvent = [...r.events]
+        .reverse()
+        .find((e) => e.kind === 'created_from_request')
+      const rid = fromEvent?.payload?.request_id
+      if (typeof rid === 'string' && rid.trim()) r.request_id = rid.trim()
+    }
     if (!r.code || !isValidTripCode(r.code)) {
       r.code = allocateTripCode(r.id)
     } else {
@@ -1227,10 +1325,24 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
     if (r.ref >= refSeq) refSeq = r.ref + 1
   }
 
+  // Drop local ghosts that used to be on the active desk but are gone now
+  // (soft-deleted, closed, or cancelled — hydrate filters those out).
+  for (const id of [...trips.keys()]) {
+    if (dbIds.has(id)) continue
+    if (deletedTripIds.has(id) || syncedFromDbIds.has(id)) {
+      trips.delete(id)
+      syncedFromDbIds.delete(id)
+    }
+  }
+
   // Trip tombstones confirmed absent from this hydrate payload.
   for (const id of [...deletedTripIds]) {
-    if (!dbIds.has(id)) deletedTripIds.delete(id)
+    if (!dbIds.has(id)) {
+      deletedTripIds.delete(id)
+      syncedFromDbIds.delete(id)
+    }
   }
+
 
   bump()
   // Push any local-only trips that never made it to DB (never re-push tombstoned).
@@ -1499,6 +1611,37 @@ export function setPortalStopAddresses(
         pickup: t.portal_pickup_address,
         dropoff: t.portal_dropoff_address,
         pax_names: t.portal_pax_names ?? [],
+      },
+    })
+  })
+}
+
+/**
+ * Dispatcher — set structured passenger info (often post booking).
+ * Keeps portal_pax_names in sync for the client tracker cargo card.
+ */
+export function setTripPassengers(
+  tripId: string,
+  passengers: TripPassenger[],
+  actor = 'dispatcher',
+): TripStoreRow {
+  if (!trips.has(tripId)) {
+    throw new Error('Trip not loaded in this session — refresh and try again')
+  }
+  const normalized = normalizeTripPassengers(passengers).filter((p) =>
+    Boolean(p.name.trim() || p.dob || p.weight_lbs !== ''),
+  )
+  return mutateTrip(tripId, (t) => {
+    t.passengers = normalized
+    t.portal_pax_names = tripPassengerNames(normalized)
+    t.events.push({
+      at: new Date().toISOString(),
+      actor,
+      kind: 'passenger_info_updated',
+      payload: {
+        count: normalized.length,
+        pax_names: t.portal_pax_names,
+        passengers: normalized,
       },
     })
   })

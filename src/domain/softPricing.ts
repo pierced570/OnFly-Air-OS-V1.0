@@ -40,21 +40,28 @@ export const SOFT_PRICING_CLASSES = [
   'light_jet',
   'midsize',
   'heavy_freight',
+  'super_heavy',
 ] as const
 
 export type SoftPricingClass = (typeof SOFT_PRICING_CLASSES)[number]
+
+/** hourly_range = soft $ band; inquiry_only = available but no soft number. */
+export type SoftPricingMode = 'hourly_range' | 'inquiry_only'
 
 export type SoftClassProfile = {
   id: SoftPricingClass
   label: string
   avg_gs_kts: number
   example_types: string[]
-  /** Client-facing hourly rate band ($/hr). */
+  /** Client-facing hourly rate band ($/hr). Unused when inquiry_only. */
   hourly_low: number
   hourly_high: number
   typical_door_w_in: number
   typical_door_h_in: number
   typical_payload_lbs: number
+  pricing_mode: SoftPricingMode
+  /** Shown instead of a $ range when pricing_mode is inquiry_only. */
+  inquiry_blurb?: string
 }
 
 /** Profiles aligned to soft-quote mockup examples / rates / GS. */
@@ -69,6 +76,7 @@ export const SOFT_CLASS_PROFILES: Record<SoftPricingClass, SoftClassProfile> = {
     typical_door_w_in: 44,
     typical_door_h_in: 37,
     typical_payload_lbs: 1100,
+    pricing_mode: 'hourly_range',
   },
   twin_piston: {
     id: 'twin_piston',
@@ -80,6 +88,7 @@ export const SOFT_CLASS_PROFILES: Record<SoftPricingClass, SoftClassProfile> = {
     typical_door_w_in: 45,
     typical_door_h_in: 33,
     typical_payload_lbs: 1600,
+    pricing_mode: 'hourly_range',
   },
   turboprop: {
     id: 'turboprop',
@@ -91,6 +100,7 @@ export const SOFT_CLASS_PROFILES: Record<SoftPricingClass, SoftClassProfile> = {
     typical_door_w_in: 53,
     typical_door_h_in: 52,
     typical_payload_lbs: 2600,
+    pricing_mode: 'hourly_range',
   },
   light_jet: {
     id: 'light_jet',
@@ -102,6 +112,7 @@ export const SOFT_CLASS_PROFILES: Record<SoftPricingClass, SoftClassProfile> = {
     typical_door_w_in: 36,
     typical_door_h_in: 48,
     typical_payload_lbs: 3000,
+    pricing_mode: 'hourly_range',
   },
   midsize: {
     id: 'midsize',
@@ -113,6 +124,7 @@ export const SOFT_CLASS_PROFILES: Record<SoftPricingClass, SoftClassProfile> = {
     typical_door_w_in: 86,
     typical_door_h_in: 58,
     typical_payload_lbs: 6000,
+    pricing_mode: 'hourly_range',
   },
   heavy_freight: {
     id: 'heavy_freight',
@@ -124,6 +136,22 @@ export const SOFT_CLASS_PROFILES: Record<SoftPricingClass, SoftClassProfile> = {
     typical_door_w_in: 108,
     typical_door_h_in: 70,
     typical_payload_lbs: 12000,
+    pricing_mode: 'hourly_range',
+  },
+  super_heavy: {
+    id: 'super_heavy',
+    label: 'Super heavy freighter',
+    avg_gs_kts: 320,
+    /** Types only — never name operators on client surfaces. */
+    example_types: ['727 freighter', 'DC-9 freighter', 'C-130'],
+    hourly_low: 0,
+    hourly_high: 0,
+    typical_door_w_in: 140,
+    typical_door_h_in: 100,
+    typical_payload_lbs: 45000,
+    pricing_mode: 'inquiry_only',
+    inquiry_blurb:
+      'We have aircraft in this class available on the network. Positioning and configuration swing the number so hard that we usually don’t soft-quote — request a hard quote and we’ll check live availability.',
   },
 }
 
@@ -154,6 +182,29 @@ export function formatHoursMinutes(min: number): string {
   return `${h}h ${String(r).padStart(2, '0')}m`
 }
 
+/**
+ * Client-facing door opening — categorical band only, never inches/feet that
+ * look like a published spec.
+ */
+export function roughDoorOpeningLabel(wIn: number, hIn: number): string {
+  const maxSide = Math.max(0, wIn, hIn)
+  if (maxSide < 40) return 'smaller cabin door · varies by tail'
+  if (maxSide < 55) return 'typical cabin door · varies by tail'
+  if (maxSide < 80) return 'wide cabin / light cargo door · varies'
+  if (maxSide < 110) return 'large cargo door · varies by tail'
+  return 'oversized freighter door · varies by tail'
+}
+
+/** Rough payload band for soft-quote cards (not a published max). */
+export function roughPayloadLabel(lbs: number): string {
+  if (!(lbs > 0)) return 'payload TBD · class-typical'
+  if (lbs < 1500) return 'light payload · class-typical'
+  if (lbs < 3500) return 'moderate payload · class-typical'
+  if (lbs < 8000) return 'heavy payload · class-typical'
+  if (lbs < 20000) return 'very heavy payload · class-typical'
+  return 'multi-ton freighter payload · class-typical'
+}
+
 export function flightMinutesFromNmGs(nm: number, gsKts: number): number {
   const gs = gsKts > 0 ? gsKts : 200
   return Math.round((Math.max(0, nm) / gs) * 60)
@@ -166,6 +217,11 @@ export type SoftLegTiming = {
   total_block_min: number
   live_nm: number
   avg_gs_kts: number
+}
+
+/** Repo + live — when the aircraft reaches the destination after Go. */
+export function destinationFromGoMinutes(t: SoftLegTiming): number {
+  return t.repo_min + t.live_min
 }
 
 export function buildSoftLegTiming(
@@ -243,25 +299,18 @@ export type SoftClassQuote = {
   class_id: SoftPricingClass
   label: string
   example_types: string[]
-  /** All-in estimate range (hourly × billable). */
+  pricing_mode: SoftPricingMode
+  /** All-in estimate range (hourly × billable). Zero when inquiry_only. */
   price_low: number
   price_high: number
   hourly_low: number
   hourly_high: number
+  /** Client copy when pricing_mode is inquiry_only. */
+  inquiry_blurb: string | null
   timing: SoftLegTiming
   fit: SoftCargoFitSummary
   /** Reference-only when no_fit — still show price. */
   recommended: boolean
-}
-
-export type SoftSimilarMission = {
-  origin: string
-  dest: string
-  nm: number
-  type_name: string
-  cargo_blurb: string
-  month_label: string
-  price: number
 }
 
 export type SoftPricingPackage = {
@@ -275,7 +324,6 @@ export type SoftPricingPackage = {
   ready_asap: boolean
   classes: SoftClassQuote[]
   door_rows: SoftDoorExample[]
-  similar_missions: SoftSimilarMission[]
   fit_summary: string
   pricing_logic_overview: string
   math_cards: Array<{ title: string; body: string }>
@@ -348,9 +396,9 @@ export function summarizeCargoFitForClass(
     explanation =
       'No cargo dims yet — we show class guidelines until pieces are entered.'
   } else if (fit === 'fits') {
-    explanation = `Your ${Math.round(maxDims.l_in)}×${Math.round(maxDims.w_in)}×${Math.round(maxDims.h_in)} in piece clears the ${doorW}×${doorH} in door on its side with room to secure.`
+    explanation = `Your cargo looks like a fit for a typical ${roughDoorOpeningLabel(doorW, doorH)} in this class — dispatch confirms the real door at hard quote.`
   } else {
-    explanation = `Two smallest sides (${two_smallest_label}) exceed the ${doorW}×${doorH} in door — this class is priced for reference only.`
+    explanation = `Your cargo looks tight for a typical ${roughDoorOpeningLabel(doorW, doorH)} in this class — priced for reference only; we confirm fit at hard quote.`
   }
 
   return {
@@ -432,52 +480,6 @@ function buildDoorRows(
   return rows
 }
 
-/** Demo / fallback similar missions when trip_history is empty (portal-safe). */
-export function defaultSimilarMissions(
-  originDisplay: string,
-  destDisplay: string,
-  liveNm: number,
-): SoftSimilarMission[] {
-  return [
-    {
-      origin: originDisplay,
-      dest: destDisplay,
-      nm: liveNm,
-      type_name: 'Cessna 310',
-      cargo_blurb: '2 pallets, 780 lb',
-      month_label: 'Jul 2026',
-      price: 10000,
-    },
-    {
-      origin: originDisplay,
-      dest: 'MDW',
-      nm: Math.max(200, liveNm - 60),
-      type_name: 'Pilatus PC-12',
-      cargo_blurb: 'crated pump, 1,150 lb',
-      month_label: 'Jun 2026',
-      price: 8400,
-    },
-    {
-      origin: 'BNA',
-      dest: 'TEB',
-      nm: 660,
-      type_name: 'PC-12',
-      cargo_blurb: 'door-to-door, 3 pieces',
-      month_label: 'Jul 2026',
-      price: 14200,
-    },
-    {
-      origin: 'SAN',
-      dest: 'PDX',
-      nm: 830,
-      type_name: 'King Air 200',
-      cargo_blurb: 'AOG parts, 420 lb',
-      month_label: 'Jul 2026',
-      price: 16900,
-    },
-  ]
-}
-
 function icaoToDisplay(icao: string): string {
   const u = icao.trim().toUpperCase()
   if (u.length === 4 && u.startsWith('K')) return u.slice(1)
@@ -505,7 +507,6 @@ export function buildSoftPricingPackage(input: {
   pieces: Piece[]
   fleet: SoftFleetRow[]
   ready_asap?: boolean
-  similar_missions?: SoftSimilarMission[]
   claude_guidelines?: string | null
 }): SoftPricingPackage {
   const live_nm = Math.max(0, Math.round(input.live_nm))
@@ -518,35 +519,49 @@ export function buildSoftPricingPackage(input: {
   for (const id of SOFT_PRICING_CLASSES) {
     const profile = SOFT_CLASS_PROFILES[id]
     const timing = buildSoftLegTiming(live_nm, profile.avg_gs_kts)
-    const hours = timing.total_block_min / 60
-    const price_low = Math.round(hours * profile.hourly_low)
-    const price_high = Math.round(hours * profile.hourly_high)
-    // Round to nearest $250 like mockup feel
-    const round250 = (n: number) => Math.round(n / 250) * 250
     const fit = summarizeCargoFitForClass(profile, input.pieces, input.fleet)
+    const inquiryOnly = profile.pricing_mode === 'inquiry_only'
+    let price_low = 0
+    let price_high = 0
+    if (!inquiryOnly) {
+      const hours = timing.total_block_min / 60
+      const round250 = (n: number) => Math.round(n / 250) * 250
+      price_low = round250(Math.round(hours * profile.hourly_low))
+      price_high = round250(Math.round(hours * profile.hourly_high))
+    }
     classes.push({
       class_id: id,
       label: profile.label,
       example_types: profile.example_types,
-      price_low: round250(price_low),
-      price_high: round250(price_high),
+      pricing_mode: profile.pricing_mode,
+      price_low,
+      price_high,
       hourly_low: profile.hourly_low,
       hourly_high: profile.hourly_high,
+      inquiry_blurb: inquiryOnly
+        ? (profile.inquiry_blurb ??
+          'Available on request — ask for a hard quote.')
+        : null,
       timing,
       fit,
-      recommended: fit.fit === 'fits' || fit.fit === 'unknown',
+      recommended: inquiryOnly
+        ? true
+        : fit.fit === 'fits' || fit.fit === 'unknown',
     })
   }
 
   const fitLabels = classes
-    .filter((c) => c.fit.fit === 'fits')
+    .filter(
+      (c) =>
+        c.pricing_mode === 'hourly_range' && c.fit.fit === 'fits',
+    )
     .map((c) => c.label.toLowerCase())
   let fit_summary =
-    'We show every class with door/payload guidance — priced for reference even when doors are tight.'
+    'We show every class with rough door/payload guidance — priced for reference even when doors look tight. Super-heavy freighters are listed as inquiry-only.'
   if (fitLabels.length === 1) {
-    fit_summary = `Based on cargo dims/doors, this most clearly fits a ${fitLabels[0]}.`
+    fit_summary = `Based on cargo dims/doors, this most clearly fits a ${fitLabels[0]}. Super-heavy freighters stay inquiry-only when you need that lift.`
   } else if (fitLabels.length > 1) {
-    fit_summary = `Based on cargo dims/doors, this can fit: ${fitLabels.join(', ')}.`
+    fit_summary = `Based on cargo dims/doors, this can fit: ${fitLabels.join(', ')}. Super-heavy freighters stay inquiry-only when you need that lift.`
   }
 
   return {
@@ -559,12 +574,9 @@ export function buildSoftPricingPackage(input: {
     ready_asap: input.ready_asap !== false,
     classes,
     door_rows: buildDoorRows(input.pieces, input.fleet),
-    similar_missions:
-      input.similar_missions ??
-      defaultSimilarMissions(origin_display, dest_display, live_nm),
     fit_summary,
     pricing_logic_overview:
-      'We assume a 2.5 hr repositioning leg to reach you. Live leg = distance ÷ average ground speed. Return home ≈ live leg + 1 hr. Billable time × class hourly rate.',
+      'We assume a 2.5 hr repositioning leg to reach you. Live leg uses distance and average ground speed for each class. Return home ≈ live leg + 1 hr. All-in ranges reflect typical class rates — not a bookable quote.',
     math_cards: [
       {
         title: '1. Repositioning',
@@ -575,8 +587,8 @@ export function buildSoftPricingPackage(input: {
         body: `${live_nm} NM ÷ average ground speed. Averages come from our own trip logs: 180 kt is a Cessna 310 / Aerostar day, 260 kt a PC-12, 420 kt a Lear 35A.`,
       },
       {
-        title: '3. Return home',
-        body: 'Return ≈ live leg + 1 hr for routing and descent into base. Repo + live + return, times the class hourly rate, gives the range above.',
+        title: '3. At your destination',
+        body: 'From Go, destination arrival is repositioning plus the live leg for that class. Final price still depends on the actual aircraft we book — this page only shows estimated all-in ranges.',
       },
     ],
     disclaimer: SOFT_PRICING_DISCLAIMER,
@@ -594,20 +606,23 @@ export function softPricingClaudePrompt(pkg: SoftPricingPackage): string {
     `Lane ${pkg.origin_display}→${pkg.dest_display} · ${pkg.live_nm} NM live.`,
     pkg.fit_summary,
     'Per-class snapshots:',
-    ...pkg.classes.map(
-      (c) =>
-        `- ${c.label}: $${c.price_low}–$${c.price_high} · live ${formatHoursMinutes(c.timing.live_min)} @ ${c.timing.avg_gs_kts} kt · fit=${c.fit.fit} · ${c.fit.explanation}`,
+    ...pkg.classes.map((c) =>
+      c.pricing_mode === 'inquiry_only'
+        ? `- ${c.label}: hard quote only (no soft $) · ${c.inquiry_blurb ?? ''} · fit=${c.fit.fit}`
+        : `- ${c.label}: $${c.price_low}–$${c.price_high} · live ${formatHoursMinutes(c.timing.live_min)} @ ${c.timing.avg_gs_kts} kt · fit=${c.fit.fit} · ${c.fit.explanation}`,
     ),
-    'Write short, calm client guidelines (no operator names, no margins, no “bid”). Explain what fits, why turboprop may beat a cheaper no-fit class, and that this is only an estimate.',
+    'Write short, calm client guidelines (no operator names, no margins, no “bid”). Do not publish exact door inches/feet or invite self-sizing — use categorical door/payload bands only and say dispatch confirms fit at hard quote. Mention super-heavy freighters exist on the network but are usually hard-quote only. Explain what class looks workable and that this is only an estimate.',
   ]
   return lines.join('\n')
 }
 
 export function mockSoftPricingGuidelines(pkg: SoftPricingPackage): string {
-  const fitting = pkg.classes.filter((c) => c.fit.fit === 'fits')
+  const fitting = pkg.classes.filter(
+    (c) => c.pricing_mode === 'hourly_range' && c.fit.fit === 'fits',
+  )
   const cheapestFit = [...fitting].sort((a, b) => a.price_low - b.price_low)[0]
   if (cheapestFit) {
-    return `Your piece height/width is the constraint here. It clears a ${cheapestFit.example_types[0]}-class door on its side, which is why ${cheapestFit.label.toLowerCase()} is your cheapest fitting class even when some lower hourly classes show a lower reference price but NO FIT. If the piece can ship shorter, a smaller door class may open up and the estimate can drop. ${SOFT_PRICING_DISCLAIMER}`
+    return `Door openings vary by tail — based on a rough ${cheapestFit.label.toLowerCase()} opening, your cargo looks workable in that class (and may show NO FIT on smaller classes even when their all-in range looks cheaper). Don’t size to published specs; request a hard quote so dispatch confirms the real door. Super-heavy freighters (727F / DC-9F / C-130 class) are on the network when you need that lift, but we usually hard-quote only. ${SOFT_PRICING_DISCLAIMER}`
   }
-  return `Door fit is tight or unverified across the sample — request a hard quote so dispatch can confirm. ${SOFT_PRICING_DISCLAIMER}`
+  return `Door fit is tight or unverified across the sample — request a hard quote so dispatch can confirm. Super-heavy freighters remain available on inquiry when needed. ${SOFT_PRICING_DISCLAIMER}`
 }
