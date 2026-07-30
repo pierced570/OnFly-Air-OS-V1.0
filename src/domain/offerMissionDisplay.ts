@@ -151,3 +151,72 @@ export function buildOfferMissionDisplay(opts: {
     ready,
   }
 }
+
+/** Badge chips for the cream operator quote header. */
+export type OfferMissionBadge = {
+  label: string
+  emphasis?: 'gold' | 'default'
+}
+
+export function buildOfferMissionBadges(opts: {
+  lane: string
+  payload_summary: string
+  ready_label: string
+  nm?: number | null
+}): OfferMissionBadge[] {
+  const badges: OfferMissionBadge[] = []
+  if (opts.nm != null && opts.nm > 0) {
+    badges.push({ label: `${Math.round(opts.nm)} NM` })
+  }
+  const cargo = scrubOpsNoiseFromCargo(opts.payload_summary)
+  const pc = cargo.match(/(\d+)\s*(?:pc|pcs|piece|pieces|skid|skids|pallet|pallets)\b/i)
+  if (pc) {
+    badges.push({
+      label: `${pc[1]} PC`,
+    })
+  } else if (/cargo\s*only/i.test(opts.payload_summary) || cargo) {
+    const qty = cargo.match(/^(\d+)\s*x\b/i)
+    if (qty) badges.push({ label: `${qty[1]} PC` })
+    else if (cargo && !isEmptyCargo(cargo)) badges.push({ label: '1 PC' })
+  }
+  const dims = cargo.match(
+    /(\d+)\s*[x×]\s*(\d+)\s*[x×]\s*(\d+)\s*(?:in|")?/i,
+  )
+  if (dims) {
+    badges.push({
+      label: `${dims[1]}x${dims[2]}x${dims[3]} IN`,
+    })
+  }
+  const lb = cargo.match(/(\d[\d,]*)\s*(?:lb|lbs)\b/i)
+  if (lb) {
+    badges.push({ label: `${lb[1].replace(/,/g, '')} LB` })
+  }
+  const ready = (opts.ready_label || '').trim()
+  if (/asap/i.test(ready)) {
+    badges.push({ label: 'READY ASAP' })
+  } else if (ready && !/^scheduled$/i.test(ready)) {
+    badges.push({ label: ready.toUpperCase() })
+  }
+  if (isRoundTripLane(opts.lane)) {
+    badges.push({ label: 'ROUNDTRIP', emphasis: 'gold' })
+  }
+  return badges
+}
+
+export function offerLaneTitle(opts: {
+  lane: string
+  payload_summary: string
+}): string {
+  const parsed = parseLaneAirports(opts.lane)
+  const laneBit = parsed
+    ? `${parsed.origin} → ${parsed.dest}`
+    : opts.lane.trim() || 'Trip'
+  const cargoOnly = /cargo\s*only/i.test(opts.payload_summary)
+  const pax = parsePayloadSummary(opts.payload_summary).passengers
+  const kind = cargoOnly
+    ? 'cargo only'
+    : pax.startsWith('None')
+      ? 'cargo'
+      : pax
+  return `${laneBit} · ${kind}`
+}

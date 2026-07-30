@@ -13,6 +13,8 @@ type Props = {
   labelClassName?: string
   /** Override hour/min input class. */
   inputClassName?: string
+  /** Where to put hrs/min captions. Default above each box. */
+  unitPlacement?: 'above' | 'below' | 'none'
 }
 
 /** Two boxes — Hours + Mins — for quote / Quick Dispatch entry. */
@@ -23,6 +25,7 @@ export function HrsMinsInput({
   required,
   labelClassName,
   inputClassName,
+  unitPlacement = 'above',
 }: Props) {
   const { hours, minutes } = hrsMinsFromTotal(totalMinutes)
   const fieldClass = inputClassName ?? offerInput
@@ -31,17 +34,26 @@ export function HrsMinsInput({
     onChange(totalMinutesFromHrsMins({ hours: nextH, minutes: nextM }))
   }
 
+  const showAbove = unitPlacement === 'above'
+  const showBelow = unitPlacement === 'below'
+
   return (
     <div>
-      <div className={labelClassName ?? offerLabel}>{label}</div>
-      <div className="mt-1 grid grid-cols-2 gap-2">
-        <label className="text-xs text-muted">
-          Hours
+      {label || labelClassName !== 'sr-only' ? (
+        <div className={labelClassName ?? offerLabel}>{label}</div>
+      ) : (
+        <div className="sr-only">{label || 'Duration'}</div>
+      )}
+      <div className={['grid grid-cols-2 gap-2', label ? 'mt-1' : ''].join(' ')}>
+        <label className="block">
+          {showAbove ? (
+            <span className="text-xs text-muted">Hours</span>
+          ) : null}
           <input
             type="number"
             inputMode="numeric"
             min={0}
-            className={fieldClass}
+            className={[fieldClass, showAbove ? '' : ''].join(' ')}
             value={hours === 0 && minutes === 0 ? '' : hours}
             placeholder="0"
             required={required}
@@ -49,11 +61,18 @@ export function HrsMinsInput({
               const raw = e.target.value
               emit(raw === '' ? 0 : Number(raw) || 0, minutes)
             }}
-            aria-label={`${label} hours`}
+            aria-label={`${label || 'Duration'} hours`}
           />
+          {showBelow ? (
+            <span className="mt-1 block text-center text-[10px] uppercase tracking-wide text-[#9A9285]">
+              hrs
+            </span>
+          ) : null}
         </label>
-        <label className="text-xs text-muted">
-          Mins
+        <label className="block">
+          {showAbove ? (
+            <span className="text-xs text-muted">Mins</span>
+          ) : null}
           <input
             type="number"
             inputMode="numeric"
@@ -67,8 +86,13 @@ export function HrsMinsInput({
               const raw = e.target.value
               emit(hours, raw === '' ? 0 : Number(raw) || 0)
             }}
-            aria-label={`${label} minutes`}
+            aria-label={`${label || 'Duration'} minutes`}
           />
+          {showBelow ? (
+            <span className="mt-1 block text-center text-[10px] uppercase tracking-wide text-[#9A9285]">
+              min
+            </span>
+          ) : null}
         </label>
       </div>
     </div>

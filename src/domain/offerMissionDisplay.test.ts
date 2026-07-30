@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildOfferMissionBadges,
   buildOfferMissionDisplay,
   isRoundTripLane,
+  offerLaneTitle,
   parseLaneAirports,
   parsePayloadSummary,
 } from './offerMissionDisplay'
@@ -76,5 +78,28 @@ describe('offerMissionDisplay', () => {
     expect(d.passengers).toBe('2 passengers')
     expect(d.cargo).toMatch(/standard tooling/i)
     expect(d.ready).toBe('ASAP')
+  })
+
+  it('builds operator quote header badges and title', () => {
+    const badges = buildOfferMissionBadges({
+      lane: 'KCAK→KHPN · KHPN→KCAK',
+      payload_summary: 'cargo only · 1 skid 48x40x60 @ 800 lb',
+      ready_label: 'ASAP',
+      nm: 360,
+    })
+    expect(badges.map((b) => b.label)).toEqual(
+      expect.arrayContaining([
+        '360 NM',
+        '1 PC',
+        '48x40x60 IN',
+        '800 LB',
+        'READY ASAP',
+        'ROUNDTRIP',
+      ]),
+    )
+    expect(offerLaneTitle({
+      lane: 'KCAK→KHPN',
+      payload_summary: 'cargo only · 1 skid',
+    })).toBe('KCAK → KHPN · cargo only')
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   OfferBoardChrome,
@@ -6,7 +6,9 @@ import {
   offerBtnYes,
 } from '@/components/OfferBoardChrome'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
-import { isRoundTripLane } from '@/domain/offerMissionDisplay'
+import { haversineNm } from '@/domain/geo'
+import { lookupAirport } from '@/domain/airports'
+import { isRoundTripLane, parseLaneAirports } from '@/domain/offerMissionDisplay'
 import { resolveOfferByToken } from '@/lib/db/hydrateTrips'
 import type { OfferRow, TripStoreRow } from '@/lib/tripStore'
 import {
@@ -15,7 +17,7 @@ import {
 } from '@/lib/offerFlow'
 
 /**
- * Operator trip-offer board — Yes/No, then aircraft + timing chain + NET NET.
+ * Operator trip-offer board — Yes/No, then cream quote form matching desk UI.
  * Never recommend a tail; never say "bid".
  */
 export default function OfferPublicPage() {
@@ -54,9 +56,19 @@ export default function OfferPublicPage() {
     }
   }, [token])
 
+  const liveNm = useMemo(() => {
+    if (!found) return null
+    const parsed = parseLaneAirports(found.trip.lane)
+    if (!parsed) return null
+    const o = lookupAirport(parsed.origin)
+    const d = lookupAirport(parsed.dest)
+    if (!o || !d) return null
+    return Math.round(haversineNm(o.lat, o.lon, d.lat, d.lon))
+  }, [found])
+
   if (loading) {
     return (
-      <div className="min-h-dvh bg-ink px-4 py-6 text-base text-cream">
+      <div className="min-h-dvh bg-[#F9F7F2] px-4 py-6 text-base text-ink">
         Loading trip offer…
       </div>
     )
@@ -64,7 +76,7 @@ export default function OfferPublicPage() {
 
   if (!found) {
     return (
-      <div className="min-h-dvh bg-ink px-4 py-6 text-base text-cream">
+      <div className="min-h-dvh bg-[#F9F7F2] px-4 py-6 text-base text-ink">
         <p className="font-medium">Could not open this trip offer link.</p>
         <p className="mt-2 text-sm text-muted">
           Ask dispatch to send the offer again — the link may not have saved
@@ -93,6 +105,84 @@ export default function OfferPublicPage() {
     }
   }
 
+  // Quote step — full cream mockup (header lives inside the form)
+  if (step === 'quote') {
+    return (
+      <div
+        className="min-h-dvh bg-[#F9F7F2] px-4 py-6 sm:py-10"
+        data-theme="client"
+      >
+        <div className="mx-auto w-full max-w-lg">
+          {error && (
+            <p className="mb-3 text-base text-[#C0392B]">{error}</p>
+          )}
+          <OfferQuoteForm
+            variant="operator"
+            lane={trip.lane}
+            roundTrip={isRoundTripLane(trip.lane)}
+            busy={busy}
+            tripCode={trip.code || `T-${trip.ref}`}
+            payloadSummary={trip.payload_summary}
+            readyLabel={ready}
+            liveNm={liveNm}
+            initialTypeName={found.offer.type_name || ''}
+            initialTail={
+              found.offer.tail && !/^TBD/i.test(found.offer.tail)
+                ? found.offer.tail
+                : ''
+            }
+            onDecline={() => void onAvail(false)}
+            onSubmit={(values) => {
+              setBusy(true)
+              setError(null)
+              void submitOperatorQuote(token!, values)
+                .then(() => setStep('done'))
+                .catch((err) =>
+                  setError(err instanceof Error ? err.message : String(err)),
+                )
+                .finally(() => setBusy(false))
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'done') {
+    return (
+      <div
+        className="min-h-dvh bg-[#F9F7F2] px-4 py-10 text-ink"
+        data-theme="client"
+      >
+        <div className="mx-auto max-w-lg rounded-2xl border border-[#E4DDD0] bg-white px-5 py-6 shadow-sm">
+          <h1 className="text-xl font-semibold">Quote submitted</h1>
+          <p className="mt-2 text-sm text-[#6F675C]">
+            Dispatch has been notified. We&apos;ll confirm by your preferred
+            channel.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'no') {
+    return (
+      <div
+        className="min-h-dvh bg-[#F9F7F2] px-4 py-10 text-ink"
+        data-theme="client"
+      >
+        <div className="mx-auto max-w-lg rounded-2xl border border-[#E4DDD0] bg-white px-5 py-6 shadow-sm">
+          <h1 className="text-xl font-semibold">Thanks</h1>
+          <p className="mt-2 text-sm text-[#6F675C]">
+            Marked unavailable. You&apos;re still in line for the next trip that
+            fits.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Availability Yes/No — keep existing dark chrome for the first tap
   return (
     <OfferBoardChrome
       lane={trip.lane}
@@ -101,68 +191,35 @@ export default function OfferPublicPage() {
     >
       {error && <p className="text-base text-late">{error}</p>}
 
-      {step === 'avail' && (
-        <div className="space-y-4">
-          <p className="text-base text-cream">
-            {asap
-              ? 'Availability check — can you cover this trip ASAP?'
-              : `Availability check — can you cover this trip at ${ready}?`}
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void onAvail(true)}
-              className={offerBtnYes}
-            >
-              Yes
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void onAvail(false)}
-              className={offerBtnNo}
-            >
-              No
-            </button>
-          </div>
-          <p className="text-base text-muted">
-            Yes → enter your aircraft, times, and price. No → we stand you down
-            for this one.
-          </p>
+      <div className="space-y-4">
+        <p className="text-base text-cream">
+          {asap
+            ? 'Availability check — can you cover this trip ASAP?'
+            : `Availability check — can you cover this trip at ${ready}?`}
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onAvail(true)}
+            className={offerBtnYes}
+          >
+            Yes
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onAvail(false)}
+            className={offerBtnNo}
+          >
+            No
+          </button>
         </div>
-      )}
-
-      {step === 'no' && (
-        <div className="rounded-lg border border-border bg-surface p-4 text-base text-muted">
-          Thanks — marked unavailable. You&apos;re still in line for the next
-          trip that fits.
-        </div>
-      )}
-
-      {step === 'done' && (
-        <div className="rounded-lg border border-onplan/40 bg-onplan/10 p-4 text-base text-onplan">
-          Quote submitted. Dispatch has been notified.
-        </div>
-      )}
-
-      {step === 'quote' && (
-        <OfferQuoteForm
-          lane={trip.lane}
-          roundTrip={isRoundTripLane(trip.lane)}
-          busy={busy}
-          onSubmit={(values) => {
-            setBusy(true)
-            setError(null)
-            void submitOperatorQuote(token!, values)
-              .then(() => setStep('done'))
-              .catch((err) =>
-                setError(err instanceof Error ? err.message : String(err)),
-              )
-              .finally(() => setBusy(false))
-          }}
-        />
-      )}
+        <p className="text-base text-muted">
+          Yes → enter your aircraft, times, and price. No → we stand you down
+          for this one.
+        </p>
+      </div>
     </OfferBoardChrome>
   )
 }

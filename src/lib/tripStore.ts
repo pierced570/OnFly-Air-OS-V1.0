@@ -257,6 +257,10 @@ export type OfferRow = {
   /** Aircraft-only vs aircraft + all fees (operator landing). */
   fee_scope: FeeScope | null
   notes: string | null
+  /** Roundtrip: crew duty remaining today (minutes). */
+  duty_available_min: number | null
+  /** Roundtrip: duty covered by this quote (minutes). */
+  duty_included_min: number | null
   magic_token: string
   bookingGated: boolean
   needsInfo: string[]
@@ -551,6 +555,8 @@ function loadLocal(): void {
         ...o,
         fee_scope: o.fee_scope ?? null,
         notes: o.notes ?? null,
+        duty_available_min: o.duty_available_min ?? null,
+        duty_included_min: o.duty_included_min ?? null,
         declined_acked_at: o.declined_acked_at ?? null,
         notified_at: o.notified_at ?? null,
         quick_turn_min: o.quick_turn_min ?? null,
@@ -709,6 +715,8 @@ export function buildOfferRow(
     price_net: null,
     fee_scope: null,
     notes: null,
+    duty_available_min: null,
+    duty_included_min: null,
     magic_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
     bookingGated: c.bookingGated,
     needsInfo: c.needsInfo,
