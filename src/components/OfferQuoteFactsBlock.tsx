@@ -27,7 +27,7 @@ function Row({
   mono?: boolean
 }) {
   return (
-    <div className="grid grid-cols-[5.5rem_1fr] gap-x-2 text-sm leading-snug">
+    <div className="grid grid-cols-[5.5rem_1fr] gap-x-3 text-sm leading-snug">
       <div className="text-muted">{label}</div>
       <div className={mono ? 'avionic text-cream' : 'text-cream'}>{value}</div>
     </div>

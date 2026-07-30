@@ -173,7 +173,8 @@ describe('dispatchCenter', () => {
     expect(buckets.approved[0]?.state).toBe('booked')
     expect(buckets.approved[0]?.approvable).toBe(false)
     expect(buckets.approved[0]?.deletable).toBe(false)
-    expect(buckets.approved[0]?.subtitle).toContain('Approved')
+    expect(buckets.approved[0]?.code).toBe('AB123')
+    expect(buckets.approved[0]?.meta).toContain('Pilatus PC-12')
     expect(buckets.approved[0]?.booking).toMatchObject({
       operator_name: 'Charlie Jets',
       type_name: 'Pilatus PC-12',
@@ -185,7 +186,8 @@ describe('dispatchCenter', () => {
     expect(buckets.quotes[0]?.approvable).toBe(false)
     expect(buckets.tracking).toHaveLength(1)
     expect(buckets.tracking[0]?.deletable).toBe(false)
-    expect(buckets.tracking[0]?.subtitle).toBe('Live · T-5')
+    expect(buckets.tracking[0]?.code).toBe('T-5')
+    expect(buckets.tracking[0]?.meta).toBe('Live')
   })
 
   it('labels Scratchpad requests distinctly and shows client name', () => {
@@ -295,7 +297,8 @@ describe('dispatchCenter', () => {
       ],
     })
     expect(buckets.offers[0]?.title).toBe('Client TBD · KCAK→KHPN')
-    expect(buckets.offers[0]?.subtitle).toBe('ZZ007')
+    expect(buckets.offers[0]?.code).toBe('ZZ007')
+    expect(buckets.offers[0]?.meta).toBeNull()
   })
 
   it('collapses acknowledged declines to unavailable', () => {
