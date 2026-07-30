@@ -91,6 +91,46 @@ Ready ASAP`),
     expect(synced.destination_text).toBe('KHPN')
   })
 
+  it('builds two desk legs from GSP → CVG → MHT call notes', async () => {
+    setScratchPadBody(`PSA
+2 Pax + tools
+Pickup small part GSP
+then two pax in CVG
+then drop off in MHT`)
+    const { draft } = await parseScratchToDeskDraft()
+    expect(draft.client_name).toBe('PSA')
+    expect(draft.legs).toHaveLength(2)
+    expect(draft.legs[0]?.origin_icao).toBe('KGSP')
+    expect(draft.legs[0]?.dest_icao).toBe('KCVG')
+    expect(draft.legs[1]?.origin_icao).toBe('KCVG')
+    expect(draft.legs[1]?.dest_icao).toBe('KMHT')
+    expect(draft.origin_text).toBe('KGSP')
+    expect(draft.destination_text).toBe('KMHT')
+    expect(draft.pax_count).toBe(2)
+    expect(draft.pieces_text).toMatch(/standard tooling/i)
+  })
+
+  it('mergeScratchExtract prefers longer stop chain from heuristics', () => {
+    const h = extractFromScratchNotes(
+      `PSA
+Pickup small part GSP
+then two pax in CVG
+then drop off in MHT`,
+    )
+    const merged = mergeScratchExtract(
+      {
+        raw: 'x',
+        notes: 'llm endpoints only',
+        origin_text: 'GSP',
+        destination_text: 'MHT',
+      },
+      h,
+    )
+    expect(merged.stop_texts).toEqual(['GSP', 'CVG', 'MHT'])
+    expect(merged.origin_text).toBe('GSP')
+    expect(merged.destination_text).toBe('MHT')
+  })
+
   it('filters operators using previous client parameters', async () => {
     const client = addClient({
       name: `Desk Rules ${crypto.randomUUID().slice(0, 6)}`,

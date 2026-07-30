@@ -18,9 +18,9 @@ import {
   type StaffSectionId,
 } from '@/domain/staffAccess'
 import {
-  localHasPhoneRescue,
   mergeStaffFromDbAndLocal,
   staffMemberFromDbRow,
+  staffRowsNeedingFlush,
 } from '@/domain/staffDirectorySync'
 
 /** Pierce's cell — login seed (not the 858 dispatch line). */
@@ -29,11 +29,23 @@ const PIERCE_PHONE = '6105092031'
 const STAFF_KEY = 'onfly.staff.directory.v1'
 const SESSION_KEY = 'onfly.staff.session.v1'
 
+export type StaffPersistResult = {
+  member: StaffMember
+  /** True when the row is durable in Supabase (or Supabase is not configured). */
+  synced: boolean
+  error?: string
+}
+
 function storageAvailable(): boolean {
   return typeof localStorage !== 'undefined'
 }
 
+function nowIso(): string {
+  return new Date().toISOString()
+}
+
 function seedStaff(): StaffMember[] {
+  const stamped = nowIso()
   return [
     enforceOwnerRules({
       id: OWNER_STAFF_ID,
@@ -42,6 +54,7 @@ function seedStaff(): StaffMember[] {
       is_admin: true,
       sections: [...ALL_SECTION_IDS],
       active: true,
+      updated_at: stamped,
     }),
     enforceOwnerRules({
       id: 'staff-paige',
@@ -50,6 +63,7 @@ function seedStaff(): StaffMember[] {
       is_admin: false,
       sections: [...DISPATCH_DEFAULT_SECTIONS],
       active: true,
+      updated_at: stamped,
     }),
     enforceOwnerRules({
       id: 'staff-ben',
@@ -58,6 +72,7 @@ function seedStaff(): StaffMember[] {
       is_admin: false,
       sections: [...DISPATCH_DEFAULT_SECTIONS],
       active: true,
+      updated_at: stamped,
     }),
     enforceOwnerRules({
       id: 'staff-chris',
@@ -66,6 +81,7 @@ function seedStaff(): StaffMember[] {
       is_admin: false,
       sections: [...DISPATCH_DEFAULT_SECTIONS],
       active: true,
+      updated_at: stamped,
     }),
     enforceOwnerRules({
       id: 'staff-austin',
@@ -74,6 +90,7 @@ function seedStaff(): StaffMember[] {
       is_admin: false,
       sections: ['board', 'clients', 'network', 'trips', 'quotes'],
       active: true,
+      updated_at: stamped,
     }),
   ]
 }
@@ -139,11 +156,20 @@ const listeners = new Set<() => void>()
 let cachedStaff: StaffMember[] = []
 let cachedSession: StaffMember | null = null
 
+/** Last cloud sync outcome for Staff access UI. */
+let lastSyncMessage: string | null = null
+let lastSyncOk: boolean | null = null
+let cachedSyncStatus: { ok: boolean | null; message: string | null } = {
+  ok: null,
+  message: null,
+}
+
 function rebuildCache() {
   cachedStaff = staff.map((s) => ({ ...s, sections: [...s.sections] }))
   cachedSession = session
     ? { ...session, sections: [...session.sections] }
     : null
+  cachedSyncStatus = { ok: lastSyncOk, message: lastSyncMessage }
 }
 
 function loadSession(): StaffMember | null {
@@ -194,45 +220,81 @@ function rowPayload(s: StaffMember) {
     is_admin: s.is_admin,
     sections: s.sections,
     active: s.active,
-    updated_at: new Date().toISOString(),
+    updated_at: s.updated_at ?? nowIso(),
   }
 }
 
-async function flushStaffRowToDb(member: StaffMember): Promise<void> {
+async function flushStaffRowToDb(
+  member: StaffMember,
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const { supabase, isSupabaseConfigured } = await import('@/lib/supabase')
-    if (!isSupabaseConfigured || !supabase) return
+    if (!isSupabaseConfigured || !supabase) {
+      return {
+        ok: false,
+        error: 'Supabase is not configured in this environment',
+      }
+    }
     const { error } = await supabase
       .from('staff_directory')
       .upsert(rowPayload(member), { onConflict: 'id' })
-    if (error) console.warn('[staff_directory] upsert failed', error.message)
+    if (error) {
+      console.warn('[staff_directory] upsert failed', error.message)
+      return { ok: false, error: error.message }
+    }
+    return { ok: true }
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
     console.warn('[staff_directory] upsert failed', e)
+    return { ok: false, error: msg }
   }
 }
 
-async function flushAllStaffToDb(): Promise<void> {
+async function flushStaffRowsToDb(
+  rows: StaffMember[],
+): Promise<{ ok: boolean; error?: string }> {
+  if (!rows.length) return { ok: true }
   try {
     const { supabase, isSupabaseConfigured } = await import('@/lib/supabase')
-    if (!isSupabaseConfigured || !supabase) return
-    const rows = staff.map(rowPayload)
+    if (!isSupabaseConfigured || !supabase) {
+      return {
+        ok: false,
+        error: 'Supabase is not configured in this environment',
+      }
+    }
     const { error } = await supabase
       .from('staff_directory')
-      .upsert(rows, { onConflict: 'id' })
-    if (error) console.warn('[staff_directory] bulk upsert failed', error.message)
+      .upsert(rows.map(rowPayload), { onConflict: 'id' })
+    if (error) {
+      console.warn('[staff_directory] bulk upsert failed', error.message)
+      return { ok: false, error: error.message }
+    }
+    return { ok: true }
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
     console.warn('[staff_directory] bulk upsert failed', e)
+    return { ok: false, error: msg }
   }
 }
 
-async function deleteStaffFromDb(id: string): Promise<void> {
+async function deleteStaffFromDb(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const { supabase, isSupabaseConfigured } = await import('@/lib/supabase')
-    if (!isSupabaseConfigured || !supabase) return
+    if (!isSupabaseConfigured || !supabase) {
+      return { ok: true }
+    }
     const { error } = await supabase.from('staff_directory').delete().eq('id', id)
-    if (error) console.warn('[staff_directory] delete failed', error.message)
+    if (error) {
+      console.warn('[staff_directory] delete failed', error.message)
+      return { ok: false, error: error.message }
+    }
+    return { ok: true }
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
     console.warn('[staff_directory] delete failed', e)
+    return { ok: false, error: msg }
   }
 }
 
@@ -245,13 +307,22 @@ let hydratePromise: Promise<number> | null = null
 export async function hydrateStaffFromDb(): Promise<number> {
   try {
     const { supabase, isSupabaseConfigured } = await import('@/lib/supabase')
-    if (!isSupabaseConfigured || !supabase) return 0
+    if (!isSupabaseConfigured || !supabase) {
+      lastSyncOk = false
+      lastSyncMessage =
+        'Cloud roster unavailable — phones/grants only on this device until Supabase is configured.'
+      bump()
+      return 0
+    }
     const { data, error } = await supabase
       .from('staff_directory')
-      .select('id,name,phone,is_admin,sections,active')
+      .select('id,name,phone,is_admin,sections,active,updated_at')
       .order('name')
     if (error) {
       console.warn('[staff_directory] hydrate failed', error.message)
+      lastSyncOk = false
+      lastSyncMessage = `Cloud roster sync failed: ${error.message}`
+      bump()
       return 0
     }
     const fromDb = (data ?? []).map((r) =>
@@ -266,14 +337,31 @@ export async function hydrateStaffFromDb(): Promise<number> {
       persistSession()
     }
     persistStaffLocal()
-    bump()
 
-    if (!fromDb.length || localHasPhoneRescue(fromDb, local)) {
-      await flushAllStaffToDb()
+    const toFlush = staffRowsNeedingFlush(fromDb, merged)
+    if (toFlush.length) {
+      const flush = await flushStaffRowsToDb(toFlush)
+      if (!flush.ok) {
+        lastSyncOk = false
+        lastSyncMessage = `Roster loaded, but pushing local phones/grants failed: ${flush.error}`
+      } else {
+        lastSyncOk = true
+        lastSyncMessage = `Cloud roster synced (${staff.length} people).`
+      }
+    } else {
+      lastSyncOk = true
+      lastSyncMessage = fromDb.length
+        ? `Cloud roster synced (${staff.length} people).`
+        : 'Cloud roster empty — seed will push on first save.'
     }
+    bump()
     return staff.length
   } catch (e) {
     console.warn('[staff_directory] hydrate failed', e)
+    lastSyncOk = false
+    lastSyncMessage =
+      e instanceof Error ? e.message : 'Cloud roster sync failed'
+    bump()
     return 0
   }
 }
@@ -288,6 +376,19 @@ export function ensureStaffHydrated(): Promise<number> {
     })
   }
   return hydratePromise
+}
+
+/** Force a fresh pull (Staff access page / after save). */
+export function refreshStaffFromDb(): Promise<number> {
+  hydratePromise = null
+  return ensureStaffHydrated()
+}
+
+export function getStaffSyncStatus(): {
+  ok: boolean | null
+  message: string | null
+} {
+  return cachedSyncStatus
 }
 
 export function subscribeStaff(fn: () => void): () => void {
@@ -364,14 +465,14 @@ export function logoutStaff(): void {
   }
 }
 
-export function upsertStaff(input: {
+export async function upsertStaff(input: {
   id?: string
   name: string
   phone: string
   is_admin?: boolean
   sections: StaffSectionId[]
   active?: boolean
-}): StaffMember {
+}): Promise<StaffPersistResult> {
   if (!session?.is_admin) {
     throw new Error('Only the owner can edit staff access')
   }
@@ -389,22 +490,55 @@ export function upsertStaff(input: {
         ? [...ALL_SECTION_IDS]
         : [...new Set(input.sections.filter((s) => s !== 'staff_access'))],
     active: id === OWNER_STAFF_ID ? true : (input.active ?? true),
+    updated_at: nowIso(),
   })
 
   const idx = staff.findIndex((s) => s.id === id)
   if (idx >= 0) staff[idx] = next
   else staff.push(next)
   persistStaffLocal()
-  void flushStaffRowToDb(next)
   if (session?.id === id) {
     session = next
     persistSession()
   }
   bump()
-  return { ...next, sections: [...next.sections] }
+
+  const { isSupabaseConfigured } = await import('@/lib/supabase')
+  const sync = await flushStaffRowToDb(next)
+  if (!isSupabaseConfigured) {
+    lastSyncOk = false
+    lastSyncMessage =
+      'Saved on this device only — Supabase is not configured, so grants reset on new deploys.'
+    bump()
+    return {
+      member: { ...next, sections: [...next.sections] },
+      synced: false,
+      error: lastSyncMessage,
+    }
+  }
+  if (!sync.ok) {
+    lastSyncOk = false
+    lastSyncMessage = `Saved on this device only — cloud sync failed: ${sync.error}`
+    bump()
+    return {
+      member: { ...next, sections: [...next.sections] },
+      synced: false,
+      error: sync.error,
+    }
+  }
+  lastSyncOk = true
+  lastSyncMessage = `Saved ${next.name} to cloud.`
+  bump()
+  return {
+    member: { ...next, sections: [...next.sections] },
+    synced: true,
+  }
 }
 
-export function setStaffSections(id: string, sections: StaffSectionId[]): void {
+export async function setStaffSections(
+  id: string,
+  sections: StaffSectionId[],
+): Promise<StaffPersistResult> {
   if (!session?.is_admin) {
     throw new Error('Only the owner can edit staff access')
   }
@@ -419,16 +553,22 @@ export function setStaffSections(id: string, sections: StaffSectionId[]): void {
       ...new Set(sections.filter((sid) => sid !== 'staff_access')),
     ]
   }
+  s.updated_at = nowIso()
   persistStaffLocal()
-  void flushStaffRowToDb({ ...s, sections: [...s.sections] })
   if (session?.id === id) {
     session = { ...s, sections: [...s.sections] }
     persistSession()
   }
   bump()
+  const sync = await flushStaffRowToDb({ ...s, sections: [...s.sections] })
+  return {
+    member: { ...s, sections: [...s.sections] },
+    synced: sync.ok,
+    error: sync.error,
+  }
 }
 
-export function removeStaff(id: string): void {
+export async function removeStaff(id: string): Promise<StaffPersistResult> {
   if (!session?.is_admin) {
     throw new Error('Only the owner can edit staff access')
   }
@@ -436,12 +576,30 @@ export function removeStaff(id: string): void {
     throw new Error('Cannot remove the owner account')
   }
   if (staff.length <= 1) throw new Error('Keep at least one staff member')
+  const removed = staff.find((s) => s.id === id)
   staff = staff.filter((s) => s.id !== id)
   persistStaffLocal()
-  void deleteStaffFromDb(id)
   if (session?.id === id) {
     session = null
     persistSession()
   }
   bump()
+  const sync = await deleteStaffFromDb(id)
+  if (!sync.ok) {
+    lastSyncOk = false
+    lastSyncMessage = `Removed locally — cloud delete failed: ${sync.error}`
+    bump()
+  }
+  return {
+    member: removed ?? {
+      id,
+      name: '',
+      phone: '',
+      is_admin: false,
+      sections: [],
+      active: false,
+    },
+    synced: sync.ok,
+    error: sync.error,
+  }
 }

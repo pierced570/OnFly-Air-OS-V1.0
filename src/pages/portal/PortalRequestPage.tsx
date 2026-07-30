@@ -18,6 +18,35 @@ import {
 } from '@/lib/softPricingPackage'
 import { requestHardQuote, submitTripRequest } from '@/lib/requestStore'
 
+function draftFromRecord(row: TripRequestRecord): TripRequestDraft {
+  return {
+    email: row.email,
+    client_id: row.client_id,
+    client_name: row.client_name,
+    timing: row.timing,
+    direction: row.direction,
+    hours_on_ground: row.hours_on_ground,
+    service_mode: row.service_mode,
+    legs: row.legs.map((l) => ({ ...l })),
+    return_legs: row.return_legs.map((l) => ({ ...l })),
+    cargo_only: row.cargo_only,
+    pax: row.pax.map((p) => ({ ...p })),
+    pax_details_deferred: row.pax_details_deferred,
+    hazmat: row.hazmat,
+    cargo_notes: row.cargo_notes,
+    cargo_weight_lbs: row.cargo_weight_lbs,
+    dim_unit: row.dim_unit,
+    notes: row.notes,
+    po_number: row.po_number,
+    declared_value_usd: row.declared_value_usd,
+    hard_deadline_at: row.hard_deadline_at,
+    forklift_recommended: row.forklift_recommended,
+    forklift_required: row.forklift_required,
+    cargo_dims_status: row.cargo_dims_status,
+    urgent_phone: row.urgent_phone,
+  }
+}
+
 export default function PortalRequestPage() {
   const [done, setDone] = useState<TripRequestRecord | null>(null)
   const [intent, setIntent] = useState<PortalSubmitIntent | null>(null)
@@ -25,9 +54,13 @@ export default function PortalRequestPage() {
     useState<SoftPricingPackageResult | null>(null)
   const [estimating, setEstimating] = useState(false)
   const [hardQuoteDone, setHardQuoteDone] = useState(false)
+  /** When returning from soft quote, re-seed the form with that submit. */
+  const [editDraft, setEditDraft] = useState<TripRequestDraft | null>(null)
+  const [formKey, setFormKey] = useState(0)
   const client = getPortalClient()
 
   const initial = useMemo(() => {
+    if (editDraft) return editDraft
     const base = emptyTripRequestDraft()
     if (!client) return base
     const lane = client.profile.frequent_lanes?.[0]
@@ -55,7 +88,19 @@ export default function PortalRequestPage() {
             client.rules.hazmat_notes),
       ),
     }
-  }, [client])
+  }, [client, editDraft])
+
+  function editTripRequest() {
+    if (done) {
+      setEditDraft(draftFromRecord(done))
+      setFormKey((k) => k + 1)
+    }
+    setDone(null)
+    setIntent(null)
+    setSoftPackage(null)
+    setEstimating(false)
+    setHardQuoteDone(false)
+  }
 
   async function onSubmit(
     draft: TripRequestDraft,
@@ -72,6 +117,11 @@ export default function PortalRequestPage() {
         declared_value_usd: '',
       },
       'portal',
+      {
+        // Soft quotes: email-only cost inquiry — no desk SMS.
+        // Hard quote path notifies once via requestHardQuote.
+        alert: mode === 'hard_quote' ? 'none' : 'cost_inquiry',
+      },
     )
     setDone(row)
     setIntent(mode)
@@ -143,23 +193,27 @@ export default function PortalRequestPage() {
 
   if (done) {
     return (
-      <WizardShell wide>
+      <WizardShell wide flushTop>
         {estimating && (
-          <div className="rounded-2xl bg-white px-5 py-8 text-sm text-muted">
+          <div className="mt-6 rounded-2xl bg-white px-5 py-8 text-sm text-muted">
             Building soft pricing across aircraft classes…
           </div>
         )}
         {!estimating && softPackage?.error && (
-          <div className="space-y-3 rounded-2xl bg-white p-5 text-ink sm:p-6">
+          <div className="mt-6 space-y-3 rounded-2xl bg-white p-5 text-ink sm:p-6">
             <h1 className="text-2xl font-semibold">Soft estimate</h1>
             <p className="text-sm text-late">{softPackage.error}</p>
             <p className="text-xs text-muted">
               Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
               {done.lane}
             </p>
-            <Link to="/portal/request" className="text-sm font-semibold text-gold">
-              ← Back to trip request
-            </Link>
+            <button
+              type="button"
+              onClick={editTripRequest}
+              className="text-sm font-semibold text-gold"
+            >
+              ← Edit trip request
+            </button>
           </div>
         )}
         {!estimating &&
@@ -170,7 +224,7 @@ export default function PortalRequestPage() {
               pkg={softPackage}
               requestRef={done.ref}
               lane={done.lane}
-              backTo="/portal/request"
+              onEditTrip={editTripRequest}
               hardQuoteDone={hardQuoteDone || Boolean(done.hard_quote_requested_at)}
               hardQuoteEmail={done.email || undefined}
               onHardQuote={() => {
@@ -224,7 +278,7 @@ export default function PortalRequestPage() {
         </header>
         <div className="px-4 py-5 sm:px-6">
           <TripRequestForm
-            key={client?.id ?? 'anon'}
+            key={`${client?.id ?? 'anon'}-${formKey}`}
             variant="portal"
             initial={initial}
             portalWizard
@@ -241,6 +295,8 @@ export default function PortalRequestPage() {
 function WizardShell(props: {
   children: React.ReactNode
   wide?: boolean
+  /** Soft-quote sticky banner sits flush to the viewport top. */
+  flushTop?: boolean
 }) {
   return (
     <div
@@ -249,7 +305,8 @@ function WizardShell(props: {
     >
       <div
         className={[
-          'mx-auto px-4 py-6 sm:px-6 sm:py-8',
+          'mx-auto px-4 sm:px-6',
+          props.flushTop ? 'pb-6 pt-0 sm:pb-8' : 'py-6 sm:py-8',
           props.wide ? 'max-w-6xl' : 'max-w-3xl sm:max-w-4xl',
         ].join(' ')}
       >

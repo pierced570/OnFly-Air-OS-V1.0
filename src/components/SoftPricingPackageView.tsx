@@ -6,8 +6,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { createLlmAdapter } from '@/adapters/llm'
+import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 import {
+  destinationFromGoMinutes,
   formatHoursMinutes,
+  roughDoorOpeningLabel,
+  roughPayloadLabel,
   type SoftClassQuote,
   type SoftPricingPackage,
 } from '@/domain/softPricing'
@@ -22,6 +26,8 @@ export function SoftPricingPackageView(props: {
   onHardQuote?: () => void
   hardQuoteDone?: boolean
   hardQuoteEmail?: string
+  /** Prefer over backTo — returns to the request form with the same draft. */
+  onEditTrip?: () => void
   backTo?: string
 }) {
   const { pkg } = props
@@ -40,9 +46,10 @@ export function SoftPricingPackageView(props: {
       const context = [
         `Soft quote ${pkg.origin_display}→${pkg.dest_display} ${pkg.live_nm} NM.`,
         pkg.fit_summary,
-        ...pkg.classes.map(
-          (c) =>
-            `${c.label}: $${c.price_low}–$${c.price_high} fit=${c.fit.fit} ${c.fit.explanation}`,
+        ...pkg.classes.map((c) =>
+          c.pricing_mode === 'inquiry_only'
+            ? `${c.label}: hard quote only · ${c.inquiry_blurb ?? ''} fit=${c.fit.fit}`
+            : `${c.label}: $${c.price_low}–$${c.price_high} fit=${c.fit.fit} ${c.fit.explanation}`,
         ),
         `Client question: ${q}`,
       ].join('\n')
@@ -63,15 +70,53 @@ export function SoftPricingPackageView(props: {
 
   return (
     <div className="space-y-6 text-ink">
+      <div className="sticky top-0 z-40 -mx-4 border-b border-gold/35 bg-[#0C0C0E] px-4 py-3 text-cream shadow-[0_8px_24px_rgba(0,0,0,0.35)] sm:-mx-6 sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          {props.hardQuoteDone ? (
+            <p className="text-sm font-semibold text-gold">
+              Hard quote requested
+              {props.hardQuoteEmail ? ` — ${props.hardQuoteEmail}` : ''}.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={props.onHardQuote}
+              className="w-full rounded-lg bg-[#C9A227] px-4 py-2.5 text-sm font-semibold text-[#0C0C0E] hover:bg-[#E3B341] sm:w-auto"
+            >
+              Request this trip NOW
+            </button>
+          )}
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="text-center text-sm text-cream/85 hover:text-gold sm:text-right"
+          >
+            Contact a live dispatcher{' '}
+            <span className="avionic font-semibold text-gold">{BRAND_PHONE}</span>
+            {' '}
+            <span className="text-cream/55">24Hr Line</span>
+          </a>
+        </div>
+      </div>
+
       {/* Dark hero */}
       <header className="overflow-hidden rounded-2xl bg-[#141414] text-cream">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cream/10 px-4 py-3 text-xs sm:px-6">
-          <Link
-            to={props.backTo ?? '/portal/request'}
-            className="text-cream/70 hover:text-gold"
-          >
-            ← Back to trip request
-          </Link>
+          {props.onEditTrip ? (
+            <button
+              type="button"
+              onClick={props.onEditTrip}
+              className="text-cream/70 hover:text-gold"
+            >
+              ← Edit trip request
+            </button>
+          ) : (
+            <Link
+              to={props.backTo ?? '/portal/request'}
+              className="text-cream/70 hover:text-gold"
+            >
+              ← Edit trip request
+            </Link>
+          )}
           <span className="text-cream/50">Soft pricing · not a bookable quote</span>
         </div>
         <div className="grid gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -118,8 +163,9 @@ export function SoftPricingPackageView(props: {
               <span className="font-semibold text-cream">
                 2.5 hr repositioning leg
               </span>{' '}
-              to reach you. Live leg = distance ÷ average ground speed. Return
-              home ≈ live leg + 1 hr. Billable time × class hourly rate.
+              to reach you. Live leg uses distance and class average ground
+              speed. Destination arrival from Go is repo plus the live leg —
+              ranges above are estimates only, not a bookable quote.
             </p>
           </aside>
         </div>
@@ -147,22 +193,23 @@ export function SoftPricingPackageView(props: {
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-white px-4 py-5 sm:px-5">
           <h2 className="text-base font-semibold">
-            Will it fit? Door sizes vs your cargo
+            Will it fit? Rough class guidance
           </h2>
           <p className="mt-1 text-sm text-muted">
             Your largest piece is {pkg.classes[0]?.fit.largest_piece_label ?? '—'}.
           </p>
           <p className="mt-2 text-xs text-muted">
-            A piece fits when its two smallest sides clear the door with ~2 in
-            to spare — length rides through the opening.
+            These are categorical bands only — not published door or payload
+            specs. Our team confirms the real aircraft when you request a hard
+            quote.
           </p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[28rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted">
                   <th className="py-2 pr-2 font-medium">Aircraft</th>
-                  <th className="py-2 pr-2 font-medium">Door</th>
-                  <th className="py-2 pr-2 font-medium">Payload</th>
+                  <th className="py-2 pr-2 font-medium">Door (rough)</th>
+                  <th className="py-2 pr-2 font-medium">Payload (rough)</th>
                   <th className="py-2 font-medium">Fit</th>
                 </tr>
               </thead>
@@ -179,10 +226,10 @@ export function SoftPricingPackageView(props: {
                       </div>
                     </td>
                     <td className="avionic py-2.5 pr-2 text-ink">
-                      {r.door_w_in}×{r.door_h_in} in
+                      {roughDoorOpeningLabel(r.door_w_in, r.door_h_in)}
                     </td>
                     <td className="avionic py-2.5 pr-2 text-ink">
-                      {r.payload_lbs.toLocaleString('en-US')} lb
+                      {roughPayloadLabel(r.payload_lbs)}
                     </td>
                     <td className="py-2.5">
                       <FitBadge fit={r.fit} />
@@ -193,9 +240,10 @@ export function SoftPricingPackageView(props: {
             </table>
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted">
-            Door data comes from our operator network page. Freighter
-            conversions may have larger doors. Pieces over 200 lb typically need
-            a forklift.
+            Don’t size cargo to these bands — request a hard quote for a
+            confirmed fit. Pieces over ~200 lb typically need a forklift.
+            Super-heavy freighters are available on request; we usually don’t
+            soft-quote that class.
           </p>
         </div>
 
@@ -282,7 +330,7 @@ export function SoftPricingPackageView(props: {
             onClick={props.onHardQuote}
             className="shrink-0 rounded-xl bg-[#C9A227] px-6 py-3.5 text-sm font-semibold text-[#0C0C0E] hover:bg-[#E3B341]"
           >
-            Have OnFly quote this NOW
+            Request this trip NOW
           </button>
         )}
       </section>
@@ -292,6 +340,7 @@ export function SoftPricingPackageView(props: {
 
 function SoftClassCard({ quote }: { quote: SoftClassQuote }) {
   const t = quote.timing
+  const inquiry = quote.pricing_mode === 'inquiry_only'
   const fits = quote.fit.fit === 'fits'
   const noFit = quote.fit.fit === 'no_fit'
   return (
@@ -303,52 +352,93 @@ function SoftClassCard({ quote }: { quote: SoftClassQuote }) {
             e.g. {quote.example_types.join(', ')}
           </p>
         </div>
-        <FitBadge fit={quote.fit.fit} doorLabel />
+        {inquiry ? (
+          <span className="shrink-0 rounded-md bg-ink px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-gold">
+            Inquiry
+          </span>
+        ) : (
+          <FitBadge fit={quote.fit.fit} doorLabel />
+        )}
       </div>
 
       <div className="mt-4">
-        <div className="avionic text-2xl font-semibold tracking-tight text-ink">
-          ${quote.price_low.toLocaleString('en-US')}–$
-          {quote.price_high.toLocaleString('en-US')}
-        </div>
-        <div className="text-xs text-muted">estimated all-in range</div>
+        {inquiry ? (
+          <>
+            <div className="text-2xl font-semibold tracking-tight text-ink">
+              Hard quote only
+            </div>
+            <div className="text-xs text-muted">
+              Available — pricing varies too widely to soft-quote
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="avionic text-2xl font-semibold tracking-tight text-ink">
+              ${quote.price_low.toLocaleString('en-US')}–$
+              {quote.price_high.toLocaleString('en-US')}
+            </div>
+            <div className="text-xs text-muted">estimated all-in range</div>
+          </>
+        )}
       </div>
 
-      <dl className="mt-4 space-y-1.5 border-t border-border pt-3 text-sm">
-        <Row
-          label="Live leg"
-          value={`${formatHoursMinutes(t.live_min)} @ ${t.avg_gs_kts} kt avg`}
-        />
-        <Row label="Repo leg" value="2h 30m assumed" />
-        <Row
-          label="Return"
-          value={`${formatHoursMinutes(t.home_min)} (live + 1h)`}
-        />
-        <Row
-          label="Billable"
-          value={`${formatHoursMinutes(t.total_block_min)} × $${quote.hourly_low.toLocaleString('en-US')}–${quote.hourly_high.toLocaleString('en-US')}/hr`}
-        />
-        <Row
-          label="Door"
-          value={`${quote.fit.door_w_in}×${quote.fit.door_h_in} in`}
-        />
-        <Row
-          label="Payload"
-          value={`${quote.fit.payload_lbs.toLocaleString('en-US')} lb max`}
-        />
-      </dl>
+      {inquiry ? (
+        <div className="mt-4 space-y-3 border-t border-border pt-3 text-sm">
+          <p className="leading-relaxed text-ink">{quote.inquiry_blurb}</p>
+          <dl className="space-y-1.5">
+            <Row
+              label="Door"
+              value={roughDoorOpeningLabel(
+                quote.fit.door_w_in,
+                quote.fit.door_h_in,
+              )}
+            />
+            <Row
+              label="Payload"
+              value={roughPayloadLabel(quote.fit.payload_lbs)}
+            />
+          </dl>
+        </div>
+      ) : (
+        <dl className="mt-4 space-y-1.5 border-t border-border pt-3 text-sm">
+          <Row
+            label="Live leg"
+            value={`${formatHoursMinutes(t.live_min)} @ ${t.avg_gs_kts} kt avg`}
+          />
+          <Row label="Repo leg" value="2h 30m assumed" />
+          <p className="avionic pt-0.5 text-ink">
+            At your destination{' '}
+            {formatHoursMinutes(destinationFromGoMinutes(t))} from Go
+          </p>
+          <Row
+            label="Door"
+            value={roughDoorOpeningLabel(
+              quote.fit.door_w_in,
+              quote.fit.door_h_in,
+            )}
+          />
+          <Row
+            label="Payload"
+            value={roughPayloadLabel(quote.fit.payload_lbs)}
+          />
+        </dl>
+      )}
 
       <div
         className={[
           'mt-4 rounded-lg px-3 py-2.5 text-xs leading-relaxed',
-          fits
-            ? 'bg-[#2E7D32]/10 text-ink'
-            : noFit
-              ? 'bg-[#C0392B]/10 text-ink'
-              : 'bg-[#F7F2E3] text-ink',
+          inquiry
+            ? 'bg-[#F7F2E3] text-ink'
+            : fits
+              ? 'bg-[#2E7D32]/10 text-ink'
+              : noFit
+                ? 'bg-[#C0392B]/10 text-ink'
+                : 'bg-[#F7F2E3] text-ink',
         ].join(' ')}
       >
-        {quote.fit.explanation}
+        {inquiry
+          ? 'Door and payload are oversized freighter class — confirm configuration on a hard quote.'
+          : quote.fit.explanation}
       </div>
     </article>
   )

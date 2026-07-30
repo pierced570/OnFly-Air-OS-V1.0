@@ -4,6 +4,7 @@
 
 import type { TripState } from '@/domain/stateMachine'
 import type { ChainLeg, EtaDefaults, EtaSource, ServicePattern } from '@/domain/etaChain'
+import { normalizeTripPassengers } from '@/domain/tripPassengers'
 import { getClient } from '@/lib/clientStore'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import {
@@ -182,6 +183,9 @@ function mapTripShellRow(
     portal_pax_names: Array.isArray(meta.portal_pax_names)
       ? meta.portal_pax_names.map((n) => String(n).trim()).filter(Boolean)
       : undefined,
+    passengers: Array.isArray(meta.passengers)
+      ? normalizeTripPassengers(meta.passengers)
+      : undefined,
   }
 }
 
@@ -246,8 +250,10 @@ export async function hydrateTrips(): Promise<number> {
     return 0
   }
   if (!tripRows.length) {
-    // Truly empty desk — still push any local-only trips that never landed.
-    const { flushAllTrips } = await import('@/lib/tripStore')
+    // Truly empty active desk — prune previously synced ghosts, then push
+    // any local-only trips that never landed.
+    const { flushAllTrips, replaceTripsFromDb } = await import('@/lib/tripStore')
+    replaceTripsFromDb([], { emptyOk: true })
     await flushAllTrips()
     return 0
   }

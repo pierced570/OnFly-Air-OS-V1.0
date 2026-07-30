@@ -5,9 +5,12 @@ import {
   SOFT_REPO_HOURS,
   buildSoftLegTiming,
   buildSoftPricingPackage,
+  destinationFromGoMinutes,
   doorFitsWithSpare,
   formatHoursMinutes,
   flightMinutesFromNmGs,
+  roughDoorOpeningLabel,
+  roughPayloadLabel,
   verticalToSoftClass,
   mockSoftPricingGuidelines,
 } from '@/domain/softPricing'
@@ -31,11 +34,31 @@ describe('softPricing', () => {
     expect(formatHoursMinutes(60)).toBe('1h 00m')
   })
 
+  it('roughens door/payload to categorical bands (no hard specs)', () => {
+    expect(roughDoorOpeningLabel(44, 37)).toBe(
+      'typical cabin door · varies by tail',
+    )
+    expect(roughDoorOpeningLabel(53, 52)).toBe(
+      'typical cabin door · varies by tail',
+    )
+    expect(roughDoorOpeningLabel(108, 70)).toBe(
+      'large cargo door · varies by tail',
+    )
+    expect(roughDoorOpeningLabel(140, 100)).toBe(
+      'oversized freighter door · varies by tail',
+    )
+    expect(roughPayloadLabel(900)).toBe('light payload · class-typical')
+    expect(roughPayloadLabel(45000)).toBe(
+      'multi-ton freighter payload · class-typical',
+    )
+  })
+
   it('builds timing: 2.5hr repo, live=nm/gs, return=live+1hr', () => {
     const t = buildSoftLegTiming(270, 270)
     expect(t.repo_min).toBe(Math.round(SOFT_REPO_HOURS * 60))
     expect(t.live_min).toBe(60)
     expect(t.home_min).toBe(60 + Math.round(SOFT_HOME_EXTRA_HOURS * 60))
+    expect(destinationFromGoMinutes(t)).toBe(t.repo_min + t.live_min)
     expect(flightMinutesFromNmGs(360, 130)).toBe(166)
   })
 
@@ -50,7 +73,7 @@ describe('softPricing', () => {
     ).toBe('no_fit')
   })
 
-  it('builds six class cards with hourly ranges and disclaimer', () => {
+  it('builds seven class cards with hourly ranges, super-heavy inquiry, disclaimer', () => {
     const pkg = buildSoftPricingPackage({
       origin_icao: 'KCAK',
       dest_icao: 'KHPN',
@@ -68,15 +91,16 @@ describe('softPricing', () => {
       fleet: [],
     })
 
-    expect(pkg.classes).toHaveLength(6)
+    expect(pkg.classes).toHaveLength(7)
     expect(pkg.origin_display).toBe('CAK')
     expect(pkg.dest_display).toBe('HPN')
     expect(pkg.disclaimer).toBe(SOFT_PRICING_DISCLAIMER)
     expect(pkg.cargo_badges[0]).toMatch(/48×40×60/i)
     expect(pkg.math_cards).toHaveLength(3)
-    expect(pkg.door_rows.length).toBeGreaterThanOrEqual(6)
+    expect(pkg.door_rows.length).toBeGreaterThanOrEqual(7)
 
     const tp = pkg.classes.find((c) => c.class_id === 'turboprop')!
+    expect(tp.pricing_mode).toBe('hourly_range')
     expect(tp.fit.fit).toBe('fits')
     expect(tp.price_low).toBeGreaterThan(0)
     expect(tp.price_high).toBeGreaterThan(tp.price_low)
@@ -84,7 +108,20 @@ describe('softPricing', () => {
 
     const se = pkg.classes.find((c) => c.class_id === 'single_engine')!
     expect(se.fit.fit).toBe('no_fit')
-    expect(se.fit.explanation).toMatch(/reference only/i)
+    expect(se.fit.explanation).toMatch(/reference only|tight/i)
+    expect(se.fit.explanation).not.toMatch(/\d+×\d+ in door/)
+    expect(tp.fit.explanation).not.toMatch(/\d+×\d+ in door/)
+
+    const sh = pkg.classes.find((c) => c.class_id === 'super_heavy')!
+    expect(sh.pricing_mode).toBe('inquiry_only')
+    expect(sh.price_low).toBe(0)
+    expect(sh.price_high).toBe(0)
+    expect(sh.inquiry_blurb).toMatch(/usually don’t soft-quote/i)
+    expect(sh.example_types).toEqual(
+      expect.arrayContaining(['727 freighter', 'DC-9 freighter', 'C-130']),
+    )
+    expect(JSON.stringify(sh)).not.toMatch(/IFL|Ameristar/i)
+    expect(pkg.fit_summary).toMatch(/inquiry-only/i)
 
     const guide = mockSoftPricingGuidelines(pkg)
     expect(guide).toContain('not the actual price')
@@ -101,6 +138,13 @@ describe('softPricing', () => {
     for (const c of pkg.classes) {
       expect(Number.isFinite(c.price_low)).toBe(true)
       expect(c.price_high).toBeGreaterThanOrEqual(c.price_low)
+      if (c.pricing_mode === 'inquiry_only') {
+        expect(c.price_low).toBe(0)
+        expect(c.price_high).toBe(0)
+        expect(c.inquiry_blurb).toBeTruthy()
+      } else {
+        expect(c.price_low).toBeGreaterThan(0)
+      }
     }
     expect(JSON.stringify(pkg)).not.toMatch(/\bN[0-9]{1,5}[A-Z]{0,2}\b/)
   })

@@ -8,7 +8,8 @@ import { messageFromEdgeInvoke } from '@/lib/edgeFunctionError'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 export type EmailMessage = {
-  to: string
+  /** Primary recipient(s). Arrays are sent as multiple To addresses. */
+  to: string | string[]
   subject: string
   html?: string
   text?: string
@@ -43,17 +44,23 @@ export class ResendEmailAdapter implements EmailAdapter {
         'Resend email requires Supabase — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY',
       )
     }
-    const to = msg.to.trim().toLowerCase()
-    if (!to.includes('@')) throw new Error('Valid email required')
+    const toList = (Array.isArray(msg.to) ? msg.to : [msg.to])
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes('@'))
+    if (!toList.length) throw new Error('Valid email required')
+    const to = toList.length === 1 ? toList[0]! : toList
     if (!msg.subject?.trim()) throw new Error('Subject required')
     if (!msg.html && !msg.text) throw new Error('html or text required')
 
+    const primarySet = new Set(toList)
     const cc = (msg.cc ?? [])
       .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.includes('@') && e !== to)
+      .filter((e) => e.includes('@') && !primarySet.has(e))
     const bcc = (msg.bcc ?? [])
       .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.includes('@') && e !== to && !cc.includes(e))
+      .filter(
+        (e) => e.includes('@') && !primarySet.has(e) && !cc.includes(e),
+      )
 
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {

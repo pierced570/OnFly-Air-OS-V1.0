@@ -160,7 +160,7 @@ describe('tripStore delete vs live hydrate', () => {
     expect(getTrip(trip.id)).toBeNull()
   })
 
-  it('prunes a discarded zombie when hydrate omits it', () => {
+  it('prunes previously synced trips missing from hydrate (soft-deleted ghosts)', () => {
     const trip = createTripFromCandidates({
       lane: 'KCAK→KHPN',
       payload_summary: 'cargo',
@@ -169,18 +169,35 @@ describe('tripStore delete vs live hydrate', () => {
       payload_kind: 'cargo',
     })
     const other = createTripFromCandidates({
-      lane: 'KCLE→KORD',
+      lane: 'KGSP→KCVG',
       payload_summary: 'cargo',
       ready_label: 'ASAP',
       candidates: [cand('N900II')],
       payload_kind: 'cargo',
     })
+    // First hydrate marks both as synced-from-DB.
     replaceTripsFromDb([cloneRow(trip), cloneRow(other)])
-    expect(getTrip(trip.id)).not.toBeNull()
+    expect(getTrip(trip.id)).toBeTruthy()
+    expect(getTrip(other.id)).toBeTruthy()
 
-    // Next successful hydrate omits the discarded trip — prune local zombie.
+    // Soft-delete landed in DB — trip omitted from next active hydrate.
+    // Without prune, the local ghost would stay on the board forever.
     replaceTripsFromDb([cloneRow(other)])
     expect(getTrip(trip.id)).toBeNull()
-    expect(getTrip(other.id)).not.toBeNull()
+    expect(getTrip(other.id)).toBeTruthy()
+  })
+
+  it('emptyOk hydrate prunes all previously synced trips', () => {
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KHPN',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [cand('N111JJ')],
+      payload_kind: 'cargo',
+    })
+    replaceTripsFromDb([cloneRow(trip)])
+    expect(getTrip(trip.id)).toBeTruthy()
+    replaceTripsFromDb([], { emptyOk: true })
+    expect(getTrip(trip.id)).toBeNull()
   })
 })
