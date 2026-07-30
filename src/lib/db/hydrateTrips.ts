@@ -161,6 +161,17 @@ function mapTripShellRow(
     invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
     client_id: clientId,
     client_name: metaName || fromDir || null,
+    portal_pickup_address:
+      typeof meta.portal_pickup_address === 'string'
+        ? meta.portal_pickup_address
+        : null,
+    portal_dropoff_address:
+      typeof meta.portal_dropoff_address === 'string'
+        ? meta.portal_dropoff_address
+        : null,
+    portal_pax_names: Array.isArray(meta.portal_pax_names)
+      ? meta.portal_pax_names.map((n) => String(n).trim()).filter(Boolean)
+      : undefined,
   }
 }
 

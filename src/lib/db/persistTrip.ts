@@ -118,6 +118,9 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
           eta_defaults_snapshot: trip.eta_defaults_snapshot,
           thread_number: trip.thread_number,
           thread_disbanded_at: trip.thread_disbanded_at,
+          portal_pickup_address: trip.portal_pickup_address ?? null,
+          portal_dropoff_address: trip.portal_dropoff_address ?? null,
+          portal_pax_names: trip.portal_pax_names ?? [],
         },
       })
       .eq('id', trip.id),
