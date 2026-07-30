@@ -69,6 +69,155 @@ const TOOLS: { id: Exclude<ToolId, 'quick'>; label: string; hint: string }[] = [
   { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
 ]
 
+function StageStrip({
+  counts,
+  openDrawer,
+  onSelect,
+}: {
+  counts: Record<DispatchDrawerId, number>
+  openDrawer: DispatchDrawerId | 'tools' | null
+  onSelect: (id: DispatchDrawerId) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {DISPATCH_DRAWERS.map((d) => {
+        const count = counts[d.id]
+        const active = openDrawer === d.id
+        const hot = count > 0
+        return (
+          <button
+            key={d.id}
+            type="button"
+            onClick={() => onSelect(d.id)}
+            className={[
+              'rounded-xl border px-3 py-3 text-left transition-colors',
+              active
+                ? 'border-gold/55 bg-surface-2 ring-1 ring-gold/20'
+                : hot
+                  ? 'border-gold/40 bg-surface hover:border-gold/55'
+                  : 'border-border/70 bg-surface hover:border-border',
+            ].join(' ')}
+          >
+            <div
+              className={[
+                'avionic text-2xl font-semibold leading-none tabular-nums',
+                hot ? 'text-gold' : 'text-muted',
+              ].join(' ')}
+            >
+              {count}
+            </div>
+            <div className="mt-1.5 text-xs leading-snug text-muted">
+              {d.shortLabel}
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Chip({
+  children,
+  tone = 'muted',
+}: {
+  children: React.ReactNode
+  tone?: 'muted' | 'gold' | 'late'
+}) {
+  return (
+    <span
+      className={[
+        'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+        tone === 'late'
+          ? 'bg-late/20 text-late'
+          : tone === 'gold'
+            ? 'bg-gold/15 text-gold'
+            : 'border border-border/80 bg-surface-2/80 text-muted',
+      ].join(' ')}
+    >
+      {children}
+    </span>
+  )
+}
+
+function chipTone(chip: string): 'muted' | 'gold' | 'late' {
+  if (chip.includes('forklift required')) return 'late'
+  if (chip.includes('courier') || chip.includes('forklift')) return 'gold'
+  return 'muted'
+}
+
+function WaterfallCardHeader({
+  title,
+  code,
+  meta,
+  subtitle,
+  chips,
+  deletable,
+  onDelete,
+  titleHref,
+}: {
+  title: string
+  code?: string | null
+  meta?: string | null
+  subtitle?: string | null
+  chips?: string[]
+  deletable?: boolean
+  onDelete?: () => void
+  /** When set, title links through (request cards). */
+  titleHref?: string
+}) {
+  const titleEl = (
+    <span className="text-base font-semibold text-cream">{title}</span>
+  )
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {titleHref ? (
+            <Link to={titleHref} className="hover:opacity-90">
+              {titleEl}
+            </Link>
+          ) : (
+            titleEl
+          )}
+          {code ? (
+            <span className="avionic rounded bg-gold px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-ink">
+              {code}
+            </span>
+          ) : null}
+          {meta ? <Chip>{meta}</Chip> : null}
+          {chips?.map((chip) => (
+            <Chip key={chip} tone={chipTone(chip)}>
+              {chip}
+            </Chip>
+          ))}
+        </div>
+        {!code && subtitle ? (
+          <div className="mt-0.5 text-sm text-muted">
+            {titleHref ? (
+              <Link to={titleHref} className="hover:opacity-90">
+                {subtitle}
+              </Link>
+            ) : (
+              subtitle
+            )}
+          </div>
+        ) : null}
+      </div>
+      {deletable && onDelete ? (
+        <button
+          type="button"
+          aria-label={`Delete ${title}`}
+          title="Delete"
+          onClick={onDelete}
+          className="shrink-0 px-1 py-0.5 text-xs text-muted hover:text-late"
+        >
+          Delete
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 function Drawer({
   id,
   title,
@@ -77,7 +226,6 @@ function Drawer({
   open,
   onToggle,
   children,
-  attention,
 }: {
   id: string
   title: string
@@ -86,25 +234,19 @@ function Drawer({
   open: boolean
   onToggle: () => void
   children: React.ReactNode
-  attention?: boolean
 }) {
   return (
-    <section
-      className={[
-        'overflow-hidden rounded-lg border',
-        attention ? 'border-gold/50 bg-gold/5' : 'border-border bg-surface',
-      ].join(' ')}
-    >
+    <section className="overflow-hidden rounded-xl border border-border/80 bg-surface">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={`drawer-${id}`}
         onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-surface-2/60"
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-surface-2/50"
       >
         <span
           className={[
-            'avionic text-lg text-muted transition-transform',
+            'avionic text-sm text-muted transition-transform',
             open ? 'rotate-90 text-gold' : '',
           ].join(' ')}
           aria-hidden
@@ -119,15 +261,20 @@ function Drawer({
         </span>
         <span
           className={[
-            'avionic rounded-md px-2.5 py-1 text-sm font-semibold',
-            count > 0 ? 'bg-gold/20 text-gold' : 'bg-surface-2 text-muted',
+            'avionic flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-sm font-semibold tabular-nums',
+            count > 0
+              ? 'border-gold/55 text-gold'
+              : 'border-border/80 text-muted',
           ].join(' ')}
         >
           {count}
         </span>
       </button>
       {open && (
-        <div id={`drawer-${id}`} className="border-t border-border/60 px-3 pb-3 pt-2">
+        <div
+          id={`drawer-${id}`}
+          className="border-t border-border/50 px-3 pb-3 pt-3"
+        >
           {children}
         </div>
       )}
@@ -152,136 +299,101 @@ function CardList({
     return <p className="px-1 py-3 text-sm text-muted">Nothing here right now.</p>
   }
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-3">
       {cards.map((c) => {
         const tripId = c.trip_id ?? (c.kind === 'trip' ? c.id : undefined)
         const stayOnCard = Boolean(showBookedActions || showTrackingActions)
         return (
-        <li
-          key={`${c.kind}-${c.id}`}
-          id={tripId ? `offer-trip-${tripId}` : undefined}
-          className="rounded-md border border-border/70 bg-ink px-3 py-3"
-        >
-          <div className="flex items-stretch gap-2">
-            <div className="min-w-0 flex-1">
-              {stayOnCard ? (
-                <div>
-                  <div className="font-medium text-cream">{c.title}</div>
-                  <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-                </div>
-              ) : (
-                <Link
-                  to={c.href}
-                  className="block hover:opacity-90"
-                >
-                  <div className="font-medium text-cream">{c.title}</div>
-                  <div className="mt-0.5 text-sm text-muted">{c.subtitle}</div>
-                </Link>
-              )}
-              {c.chips?.length && !showTrackingActions ? (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {c.chips.map((chip) => (
-                    <span
-                      key={chip}
-                      className={[
-                        'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                        chip.includes('forklift required')
-                          ? 'bg-late/20 text-late'
-                          : chip.includes('courier') || chip.includes('forklift')
-                            ? 'bg-gold/15 text-gold'
-                            : 'bg-surface-2 text-cream',
-                      ].join(' ')}
-                    >
-                      {chip}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {showBookedActions && c.booking ? (
-                <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-                  {c.booking.operator_name ? (
-                    <div>
-                      <dt className="text-[11px] uppercase tracking-wider text-muted">
-                        Operator
-                      </dt>
-                      <dd className="text-cream">{c.booking.operator_name}</dd>
-                    </div>
-                  ) : null}
-                  {c.booking.type_name ? (
-                    <div>
-                      <dt className="text-[11px] uppercase tracking-wider text-muted">
-                        Aircraft
-                      </dt>
-                      <dd className="text-cream">{c.booking.type_name}</dd>
-                    </div>
-                  ) : null}
-                  {c.booking.tail ? (
-                    <div>
-                      <dt className="text-[11px] uppercase tracking-wider text-muted">
-                        Tail
-                      </dt>
-                      <dd className="avionic text-cream">{c.booking.tail}</dd>
-                    </div>
-                  ) : null}
-                  {c.booking.client_total != null ? (
-                    <div>
-                      <dt className="text-[11px] uppercase tracking-wider text-muted">
-                        Client total
-                      </dt>
-                      <dd className="avionic text-gold">
-                        $
-                        {Math.round(c.booking.client_total).toLocaleString(
-                          'en-US',
-                        )}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {c.booking.po ? (
-                    <div>
-                      <dt className="text-[11px] uppercase tracking-wider text-muted">
-                        PO
-                      </dt>
-                      <dd className="avionic text-cream">{c.booking.po}</dd>
-                    </div>
-                  ) : null}
-                </dl>
-              ) : null}
-            </div>
-            {!showTrackingActions ? (
-              <div className="flex shrink-0 flex-col justify-center gap-1">
-                {c.deletable ? (
-                  <button
-                    type="button"
-                    aria-label={`Delete ${c.title}`}
-                    title="Delete"
-                    onClick={() => onDeleteCard(c)}
-                    className="px-2.5 py-1 text-xs text-muted hover:text-late"
-                  >
-                    Delete
-                  </button>
+          <li
+            key={`${c.kind}-${c.id}`}
+            id={tripId ? `offer-trip-${tripId}` : undefined}
+            className="rounded-xl border border-border/70 bg-surface-2 px-3.5 py-3.5"
+          >
+            <WaterfallCardHeader
+              title={c.title}
+              code={c.code}
+              meta={c.meta}
+              subtitle={c.subtitle}
+              chips={
+                c.chips?.length && !showTrackingActions ? c.chips : undefined
+              }
+              deletable={!showTrackingActions && c.deletable}
+              onDelete={() => onDeleteCard(c)}
+              titleHref={stayOnCard ? undefined : c.href}
+            />
+            {showBookedActions && c.booking ? (
+              <dl className="mt-3 grid gap-1.5 text-sm sm:grid-cols-2">
+                {c.booking.operator_name ? (
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted">
+                      Operator
+                    </dt>
+                    <dd className="font-medium text-gold">
+                      {c.booking.operator_name}
+                    </dd>
+                  </div>
                 ) : null}
-              </div>
+                {c.booking.type_name ? (
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted">
+                      Aircraft
+                    </dt>
+                    <dd className="text-cream">{c.booking.type_name}</dd>
+                  </div>
+                ) : null}
+                {c.booking.tail ? (
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted">
+                      Tail
+                    </dt>
+                    <dd className="avionic text-cream">{c.booking.tail}</dd>
+                  </div>
+                ) : null}
+                {c.booking.client_total != null ? (
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted">
+                      Client total
+                    </dt>
+                    <dd className="avionic text-gold">
+                      $
+                      {Math.round(c.booking.client_total).toLocaleString(
+                        'en-US',
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
+                {c.booking.po ? (
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted">
+                      PO
+                    </dt>
+                    <dd className="avionic text-cream">{c.booking.po}</dd>
+                  </div>
+                ) : null}
+              </dl>
             ) : null}
-          </div>
-          {showBookedActions && tripId ? (
-            <BookedTripActionsPanel tripId={tripId} />
-          ) : null}
-          {showTrackingActions && tripId ? (
-            <LiveTrackingCardActions tripId={tripId} />
-          ) : null}
-        </li>
+            {showBookedActions && tripId ? (
+              <BookedTripActionsPanel tripId={tripId} />
+            ) : null}
+            {showTrackingActions && tripId ? (
+              <LiveTrackingCardActions tripId={tripId} />
+            ) : null}
+          </li>
         )
       })}
     </ul>
   )
 }
 
-function recipientTone(status: string): string {
+function recipientTone(status: string, label?: string): string {
   if (status === 'yes' || status === 'quote_submitted' || status === 'selected') {
     return 'text-onplan'
   }
   if (status === 'no' || status === 'stood_down' || status === 'expired') {
     return 'text-muted'
+  }
+  if (status === 'awaiting' && label?.startsWith('Notified')) {
+    return 'text-[#E39B3A]'
   }
   return 'text-gold'
 }
@@ -336,8 +448,10 @@ function OfferUpdateForm({
   }
 
   return (
-    <div className="mt-3 space-y-3 rounded-md border border-gold/40 bg-gold/5 px-3 py-3">
-      <div className="text-sm font-semibold text-cream">Update request</div>
+    <div className="mt-3 space-y-3 rounded-xl border border-gold/45 bg-ink/40 px-3.5 py-3.5">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
+        Update request
+      </div>
       <p className="text-xs text-muted">
         Same mission fields as Parse & shortlist. Changes show on existing offer
         links — no re-ping.
@@ -463,58 +577,27 @@ function OfferTripList({
             key={`${c.kind}-${c.id}`}
             id={c.trip_id ? `offer-trip-${c.trip_id}` : undefined}
             className={[
-              'rounded-md border bg-ink px-3 py-3',
+              'rounded-xl border bg-surface-2 px-3.5 py-3.5',
               focused || editing || adding || quoting
-                ? 'border-gold/60 ring-1 ring-gold/30'
+                ? 'border-gold/55 ring-1 ring-gold/20'
                 : 'border-border/70',
             ].join(' ')}
           >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="font-medium text-cream">{c.title}</div>
-                <div className="mt-0.5 font-mono text-sm text-gold/90">
-                  {c.subtitle}
-                </div>
-                {c.chips?.length ? (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {c.chips.map((chip) => (
-                      <span
-                        key={chip}
-                        className={[
-                          'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                          chip.includes('forklift required')
-                            ? 'bg-late/20 text-late'
-                            : chip.includes('courier') ||
-                                chip.includes('forklift')
-                              ? 'bg-gold/15 text-gold'
-                              : 'bg-surface-2 text-cream',
-                        ].join(' ')}
-                      >
-                        {chip}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {c.deletable ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted hover:text-late"
-                    onClick={() => onDeleteCard(c)}
-                  >
-                    Delete
-                  </button>
-                ) : null}
-              </div>
-            </div>
+            <WaterfallCardHeader
+              title={c.title}
+              code={c.code}
+              meta={c.meta}
+              chips={c.chips}
+              deletable={c.deletable}
+              onDelete={() => onDeleteCard(c)}
+            />
             {c.recipients &&
             c.recipients.length > 0 &&
             !((isQuotes || isSubmitted) && quoting) ? (
-              <ul className="mt-2 space-y-3 border-t border-border/50 pt-2">
+              <ul className="mt-3 space-y-3 border-t border-border/40 pt-3">
                 {isOffers ? (
                   <>
-                    <li className="px-0.5 text-[11px] uppercase tracking-wider text-muted">
+                    <li className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
                       Sent to
                     </li>
                     {c.recipients.map((r) =>
@@ -523,7 +606,9 @@ function OfferTripList({
                           key={r.offer_id}
                           className="flex flex-wrap items-baseline justify-between gap-2 px-0.5 py-1 text-sm text-muted"
                         >
-                          <span className="text-cream/80">{r.name}</span>
+                          <span className="font-semibold text-gold/70">
+                            {r.name}
+                          </span>
                           <div className="flex items-center gap-3">
                             <span className="text-muted">unavailable</span>
                             {c.trip_id ? (
@@ -542,26 +627,26 @@ function OfferTripList({
                       ) : (
                         <li
                           key={r.offer_id}
-                          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-0.5 py-1 text-sm"
+                          className="space-y-1 px-0.5 py-1 text-sm"
                         >
-                          <div className="min-w-0">
-                            <span className="font-medium text-cream">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            <span className="font-semibold text-gold">
                               {r.name}
                             </span>
                             {r.destination_summary ? (
-                              <span className="ml-2 text-xs text-muted">
+                              <span className="text-xs text-muted">
                                 {r.destination_summary}
                               </span>
                             ) : null}
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                             <span
-                              className={`font-medium ${recipientTone(r.status)}`}
+                              className={`font-medium ${recipientTone(r.status, r.status_label)}`}
                             >
                               {r.status_label}
                             </span>
                             {r.sent_label ? (
-                              <span className="font-mono text-muted">
+                              <span className="avionic text-muted">
                                 {r.sent_label}
                               </span>
                             ) : null}
@@ -607,16 +692,14 @@ function OfferTripList({
                   </>
                 ) : (
                   <>
-                    <li className="px-0.5 text-[11px] uppercase tracking-wider text-muted">
+                    <li className="px-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
                       {isSubmitted
                         ? 'Operator quotes submitted'
                         : 'Options for client'}
                     </li>
                     {c.recipients.map((r) => (
                       <li key={r.offer_id} className="px-0.5 py-1">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <span className="font-medium text-cream">{r.name}</span>
-                        </div>
+                        <div className="font-semibold text-gold">{r.name}</div>
                         {r.quote_facts ? (
                           <OfferQuoteFactsBlock facts={r.quote_facts} />
                         ) : (
@@ -664,14 +747,14 @@ function OfferTripList({
                 onClose={() => setQuotingTripId(null)}
               />
             ) : null}
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3.5 flex flex-wrap gap-2">
               {(isQuotes || isSubmitted) && c.trip_id ? (
                 <button
                   type="button"
                   className={[
-                    'rounded-md px-3 py-2 text-xs font-semibold',
+                    'rounded-lg px-3.5 py-2.5 text-sm font-semibold',
                     quoting
-                      ? 'border border-gold/50 bg-gold/10 text-gold'
+                      ? 'border border-gold/50 bg-transparent text-gold hover:bg-gold/10'
                       : 'bg-gold text-ink hover:bg-gold-lt',
                   ].join(' ')}
                   onClick={() => {
@@ -692,9 +775,9 @@ function OfferTripList({
                 <button
                   type="button"
                   className={[
-                    'rounded-md px-3 py-2 text-xs font-semibold',
+                    'rounded-lg px-3.5 py-2.5 text-sm font-semibold',
                     adding
-                      ? 'border border-gold/50 bg-gold/10 text-gold'
+                      ? 'border border-gold/50 bg-transparent text-gold hover:bg-gold/10'
                       : 'bg-gold text-ink hover:bg-gold-lt',
                   ].join(' ')}
                   onClick={() => {
@@ -711,10 +794,10 @@ function OfferTripList({
                 <button
                   type="button"
                   className={[
-                    'rounded-md border px-2.5 py-1.5 text-xs',
+                    'rounded-lg border px-3.5 py-2.5 text-sm font-semibold',
                     editing
                       ? 'border-gold/50 bg-gold/10 text-gold'
-                      : 'border-border text-cream hover:border-gold/40',
+                      : 'border-gold/50 bg-transparent text-gold hover:bg-gold/10',
                   ].join(' ')}
                   onClick={() => {
                     setAddingTripId(null)
@@ -899,6 +982,14 @@ export default function DispatchCenterPage() {
     setPushError(null)
   }
 
+  const stageCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        DISPATCH_DRAWERS.map((d) => [d.id, buckets[d.id].length]),
+      ) as Record<DispatchDrawerId, number>,
+    [buckets],
+  )
+
   if (tool) {
     const Tool = {
       scratchpad: ScratchPadPage,
@@ -944,13 +1035,14 @@ export default function DispatchCenterPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
+    <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h1 className="text-2xl font-semibold text-cream">Dispatch center</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-cream">
+            Dispatch center
+          </h1>
           <p className="text-sm text-muted">
-            Requests → offers → quotes → approved → live tracking. Quick
-            Dispatch skips straight to tracking with invoice + ETA sheet.
+            Requests → offers → quotes → approved → live tracking.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -960,23 +1052,31 @@ export default function DispatchCenterPage() {
               setOpenDrawer('requests')
               setTool('scratchpad')
             }}
-            className="rounded-md border border-gold/50 bg-gold/10 px-4 py-2.5 text-sm font-semibold text-gold hover:bg-gold/20"
+            className="rounded-lg border border-gold/55 bg-transparent px-4 py-2.5 text-sm font-semibold text-gold hover:bg-gold/10"
           >
             Start new request
           </button>
           <button
             type="button"
             onClick={() => setTool('quick')}
-            className="rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt"
+            className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt"
           >
             Quick Dispatch
           </button>
         </div>
       </header>
 
+      <StageStrip
+        counts={stageCounts}
+        openDrawer={openDrawer}
+        onSelect={(id) => {
+          setOpenDrawer(id)
+        }}
+      />
+
       {scratchPreview ? (
-        <div className="rounded-lg border border-gold/40 bg-gold/5 px-3 py-3">
-          <div className="text-xs font-medium uppercase tracking-wider text-gold">
+        <div className="rounded-xl border border-gold/40 bg-gold/5 px-3.5 py-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-gold">
             Scratchpad has notes
           </div>
           <pre className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-cream/85">
@@ -990,21 +1090,21 @@ export default function DispatchCenterPage() {
             <button
               type="button"
               onClick={() => setTool('parse')}
-              className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt"
+              className="rounded-lg bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt"
             >
               Parse & shortlist
             </button>
             <button
               type="button"
               onClick={pushToTripRequests}
-              className="rounded-md border border-gold/50 px-3 py-2 text-xs font-medium text-gold hover:bg-gold/10"
+              className="rounded-lg border border-gold/50 px-3 py-2 text-xs font-medium text-gold hover:bg-gold/10"
             >
               Push to trip requests
             </button>
             <button
               type="button"
               onClick={eraseScratchPad}
-              className="rounded-md border border-border px-3 py-2 text-xs text-muted hover:border-late/50 hover:text-late"
+              className="rounded-lg border border-border px-3 py-2 text-xs text-muted hover:border-late/50 hover:text-late"
             >
               Erase Scratchpad
             </button>
@@ -1021,10 +1121,6 @@ export default function DispatchCenterPage() {
           count={buckets[d.id].length}
           open={openDrawer === d.id}
           onToggle={() => toggle(d.id)}
-          attention={
-            buckets[d.id].length > 0 &&
-            (d.id === 'requests' || d.id === 'submitted_quotes')
-          }
         >
           {d.id === 'offers' ||
           d.id === 'quotes' ||
@@ -1077,7 +1173,7 @@ export default function DispatchCenterPage() {
                 if (t.id === 'scratchpad') setOpenDrawer('requests')
                 setTool(t.id)
               }}
-              className="rounded-md border border-border bg-ink px-3 py-3 text-left hover:border-gold/40"
+              className="rounded-xl border border-border/70 bg-surface-2 px-3 py-3 text-left hover:border-gold/40"
             >
               <div className="text-sm font-semibold text-cream">{t.label}</div>
               <div className="mt-0.5 text-xs text-muted">{t.hint}</div>

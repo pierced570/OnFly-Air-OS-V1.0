@@ -19,31 +19,37 @@ export const DISPATCH_DRAWERS = [
   {
     id: 'requests',
     label: 'Trip requests',
+    shortLabel: 'Trip requests',
     blurb: 'New work — open or delete a request',
   },
   {
     id: 'offers',
     label: 'Trip offers to operators',
+    shortLabel: 'Offers out',
     blurb: 'Send offers and wait for replies — no quotes in yet',
   },
   {
     id: 'submitted_quotes',
     label: 'Submitted quotes',
+    shortLabel: 'Quotes in',
     blurb: 'Operator quotes in — compare, price, send hard quote to client',
   },
   {
     id: 'quotes',
     label: 'Quotes to clients',
+    shortLabel: 'Quotes to clients',
     blurb: 'Hard quote out — revise / send another, or wait for client Yes',
   },
   {
     id: 'approved',
     label: 'Approved trips',
+    shortLabel: 'Approved',
     blurb: 'Client accepted — send invoice, ETA sheet, then start live tracking',
   },
   {
     id: 'tracking',
     label: 'Live tracking',
+    shortLabel: 'Live tracking',
     blurb: 'In progress — ETA sheet, tracking portal + trip group chat (Quick Dispatch lands here)',
   },
 ] as const
@@ -75,6 +81,10 @@ export type DispatchCard = {
   kind: 'request' | 'trip' | 'offer_quote'
   state?: TripState
   ref?: number
+  /** Trip public code for the gold badge (e.g. SC965). */
+  code?: string | null
+  /** Muted meta beside the code (e.g. "1 quote", "2 options"). */
+  meta?: string | null
   recipients?: DispatchRecipient[]
   trip_id?: string
   deletable: boolean
@@ -335,14 +345,16 @@ export function buildDispatchDrawers(input: {
     // —— Submitted quotes: trip leaves Offers; show quoted operators only ——
     if (drawer === 'submitted_quotes') {
       const quotedRecipients = mapRecipients(t, drawer, { quotedOnly: true })
+      const quoteMeta = `${quoteableOffers.length} quote${
+        quoteableOffers.length === 1 ? '' : 's'
+      }`
       out.submitted_quotes.push({
         kind: 'trip',
         id: t.id,
         title: tripTitle,
-        subtitle: [
-          tripIdLabel,
-          `${quoteableOffers.length} quote${quoteableOffers.length === 1 ? '' : 's'}`,
-        ].join(' · '),
+        subtitle: quoteMeta,
+        code: tripIdLabel,
+        meta: quoteMeta,
         href: `/dispatch?drawer=submitted_quotes&focus=${t.id}`,
         ref: t.ref,
         state: t.state,
@@ -391,11 +403,9 @@ export function buildDispatchDrawers(input: {
           }
         : null
 
-    let subtitle = tripIdLabel
+    let meta: string | null = null
     if (drawer === 'approved') {
-      subtitle = [
-        'Approved',
-        tripIdLabel,
+      meta = [
         booking?.type_name,
         booking?.tail,
         booking?.client_total != null
@@ -403,19 +413,15 @@ export function buildDispatchDrawers(input: {
           : null,
       ]
         .filter(Boolean)
-        .join(' · ')
+        .join(' · ') || null
     } else if (drawer === 'tracking') {
-      subtitle = ['Live', tripIdLabel].join(' · ')
+      meta = 'Live'
     } else if (drawer === 'quotes') {
-      subtitle = [
-        tripIdLabel,
-        quoteableOffers.length
-          ? `${quoteableOffers.length} option${quoteableOffers.length === 1 ? '' : 's'}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
+      meta = quoteableOffers.length
+        ? `${quoteableOffers.length} option${quoteableOffers.length === 1 ? '' : 's'}`
+        : null
     }
+    // Offers stage: trip code badge only (operator count lives in SENT TO).
 
     const recipients =
       drawer === 'offers'
@@ -428,13 +434,16 @@ export function buildDispatchDrawers(input: {
       kind: 'trip',
       id: t.id,
       title: tripTitle,
-      subtitle,
+      subtitle: [tripIdLabel, meta].filter(Boolean).join(' · '),
+      code: tripIdLabel,
+      meta,
       href: `/dispatch?drawer=${drawer}&focus=${t.id}`,
       ref: t.ref,
       state: t.state,
       recipients,
       trip_id: t.id,
       // Delete only while still shaping the mission — not after book / live.
+      // (submitted_quotes uses its own push path above, also deletable.)
       deletable: drawer === 'offers' || drawer === 'quotes',
       // Never desk-approve — client Yes books the trip into Approved.
       approvable: false,

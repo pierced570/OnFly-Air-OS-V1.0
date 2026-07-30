@@ -261,10 +261,10 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   }
 
   return (
-    <div className="mt-3 space-y-4 border-t border-gold/30 pt-3">
+    <div className="mt-3 space-y-4 rounded-xl border border-gold/50 bg-ink/50 px-3.5 py-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <div className="text-[11px] uppercase tracking-wider text-gold">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
             Compare &amp; price for client
           </div>
           <p className="mt-0.5 text-xs text-muted">
@@ -357,10 +357,10 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                     }
                   />
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium text-cream">
+                    <span className="block text-sm font-semibold text-gold">
                       {o.operator_name}
                     </span>
-                    <span className="text-[11px] text-gold">
+                    <span className="text-[11px] text-gold/80">
                       {included
                         ? 'Included in client quote'
                         : 'Tap to include'}
@@ -368,7 +368,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   </span>
                 </label>
               ) : (
-                <div className="text-sm font-medium text-cream">
+                <div className="text-sm font-semibold text-gold">
                   {o.operator_name}
                 </div>
               )}
