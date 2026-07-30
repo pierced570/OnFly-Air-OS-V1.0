@@ -98,20 +98,9 @@ export function PortalTrackingBody({
     return `UPDATED ${Math.round(sec / 60)} MIN AGO`
   })()
 
-  const opsRows =
-    view.opsForecastRows.length > 0
-      ? view.opsForecastRows
-      : (view.etaRows.slice(0, 3).map((r, i) => ({
-          key: (['pickup', 'loading', 'live_leg'] as const)[i] ?? 'live_leg',
-          label: r.event,
-          estimatedLocal: r.scheduledLocal,
-          estimatedZulu: r.scheduledZulu,
-          actualOrForecastLocal: r.actualOrForecastLocal,
-          deltaMin: r.deltaMin,
-          status: r.status,
-          isForecast: r.isForecast,
-          kind: 'arrival' as const,
-        })) satisfies OpsForecastRow[])
+  // Prefer ops rows (pickup / loading / live). Never fall back to raw ETA
+  // event labels — those made the stepper look broken and inconsistent.
+  const opsRows: OpsForecastRow[] = view.opsForecastRows
 
   const cargo = view.cargo
 
@@ -195,54 +184,77 @@ export function PortalTrackingBody({
         </div>
       </section>
 
-      <section className="mt-6 overflow-x-auto">
-        <ol className="flex min-w-[480px] items-start gap-0">
-          {opsRows.map((row, i) => {
-            const done = row.status === 'done'
-            const active = row.status === 'active'
-            return (
-              <li key={row.key} className="relative flex-1 px-1 text-center">
-                {i < opsRows.length - 1 ? (
-                  <div
-                    className={[
-                      'absolute left-1/2 right-0 top-3 h-0.5',
-                      done ? 'bg-gold' : 'bg-border',
-                    ].join(' ')}
-                  />
-                ) : null}
-                <div
-                  className={[
-                    'relative z-[1] mx-auto h-6 w-6 rounded-full border-2',
-                    done
-                      ? 'border-gold bg-gold'
-                      : active
-                        ? 'border-gold bg-[#F7F2E3] shadow-[0_0_0_4px_rgba(201,162,39,0.25)]'
-                        : 'border-border bg-white',
-                  ].join(' ')}
-                />
-                <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-ink">
-                  {row.label}
-                </div>
-                <div className="avionic mt-0.5 text-[10px] text-muted">
-                  {active && row.isForecast
-                    ? row.actualOrForecastLocal || 'LIVE'
-                    : row.estimatedLocal || '—'}
-                </div>
-                <div className="mt-1 flex justify-center">
-                  <PortalDeltaPill
-                    deltaMin={row.deltaMin}
-                    live={active && row.isForecast}
-                  />
-                </div>
-              </li>
-            )
-          })}
-        </ol>
+      <section className="mt-6">
         {opsRows.length === 0 ? (
           <p className="text-sm text-muted">
             Milestone timeline appears once the trip is booked.
           </p>
-        ) : null}
+        ) : (
+          <ol
+            className="grid gap-3"
+            style={{
+              gridTemplateColumns: `repeat(${opsRows.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {opsRows.map((row, i) => {
+              const done = row.status === 'done'
+              const active = row.status === 'active'
+              const prevDone =
+                i > 0 ? opsRows[i - 1]!.status === 'done' : false
+              return (
+                <li
+                  key={row.key}
+                  className="flex min-w-0 flex-col items-center text-center"
+                >
+                  <div className="relative flex h-8 w-full items-center justify-center">
+                    {i > 0 ? (
+                      <span
+                        aria-hidden
+                        className={[
+                          'absolute left-0 right-1/2 top-1/2 h-0.5 -translate-y-1/2',
+                          prevDone || done ? 'bg-gold' : 'bg-border',
+                        ].join(' ')}
+                      />
+                    ) : null}
+                    {i < opsRows.length - 1 ? (
+                      <span
+                        aria-hidden
+                        className={[
+                          'absolute left-1/2 right-0 top-1/2 h-0.5 -translate-y-1/2',
+                          done ? 'bg-gold' : 'bg-border',
+                        ].join(' ')}
+                      />
+                    ) : null}
+                    <span
+                      className={[
+                        'relative z-[1] box-border h-6 w-6 shrink-0 rounded-full border-2',
+                        done
+                          ? 'border-gold bg-gold'
+                          : active
+                            ? 'border-gold bg-[#F7F2E3] ring-4 ring-gold/25'
+                            : 'border-border bg-white',
+                      ].join(' ')}
+                    />
+                  </div>
+                  <div className="mt-2 w-full px-1 text-[10px] font-semibold uppercase leading-snug tracking-wider text-ink">
+                    {row.label}
+                  </div>
+                  <div className="avionic mt-0.5 w-full px-1 text-[10px] text-muted">
+                    {active && row.isForecast
+                      ? row.actualOrForecastLocal || 'LIVE'
+                      : row.estimatedLocal || '—'}
+                  </div>
+                  <div className="mt-1 flex justify-center">
+                    <PortalDeltaPill
+                      deltaMin={row.deltaMin}
+                      live={active && row.isForecast}
+                    />
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        )}
       </section>
 
       <section className="mt-6 overflow-x-auto rounded-md border border-border bg-white">

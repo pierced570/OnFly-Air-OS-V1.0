@@ -569,37 +569,121 @@ function minutesBetween(a: string | null, b: string | null): number | null {
   return Math.round(ms / 60_000)
 }
 
+type OpsStamp = {
+  seq: number
+  type: string
+  fromIcao: string
+  toIcao: string
+  tz: string
+  est_start: string | null
+  est_end: string | null
+  actual_start: string | null
+  actual_end: string | null
+  duration_min: number | null
+  status: 'done' | 'active' | 'pending'
+}
+
+function stampsFromTrip(trip: PortalTrackingTripInput): OpsStamp[] {
+  if (trip.eta_chain.length) {
+    return trip.eta_chain.map((leg) => ({
+      seq: leg.seq,
+      type: leg.type || leg.duration_key || '',
+      fromIcao: (leg.from.icao || leg.from.label || '—').toUpperCase(),
+      toIcao: (leg.to.icao || leg.to.label || '—').toUpperCase(),
+      tz: leg.to.tz || leg.from.tz || 'UTC',
+      est_start: leg.est_start,
+      est_end: leg.est_end,
+      actual_start: leg.actual_start,
+      actual_end: leg.actual_end,
+      duration_min: leg.duration_min ?? null,
+      status: legStatus(leg, trip.legs),
+    }))
+  }
+  return trip.legs.map((l) => {
+    const status: OpsStamp['status'] =
+      l.status === 'done' ? 'done' : l.status === 'active' ? 'active' : 'pending'
+    return {
+      seq: l.seq,
+      type: l.type || l.label || '',
+      fromIcao: (l.origin || '—').toUpperCase(),
+      toIcao: (l.dest || '—').toUpperCase(),
+      tz: 'UTC',
+      est_start: l.est_start,
+      est_end: l.est_end,
+      actual_start: l.actual_start,
+      actual_end: l.actual_end,
+      duration_min: minutesBetween(l.est_start, l.est_end),
+      status,
+    }
+  })
+}
+
+function isPositionStamp(s: OpsStamp): boolean {
+  const t = `${s.type}`.toLowerCase()
+  return (
+    t === 'position' ||
+    t === 'acft_ttp' ||
+    /\bposition\b/i.test(t) ||
+    /\bttp\b/i.test(t) ||
+    /in position/i.test(t)
+  )
+}
+
+function isAirStamp(s: OpsStamp): boolean {
+  const t = `${s.type}`.toLowerCase()
+  return (
+    t === 'air_leg' ||
+    t === 'air_time' ||
+    /\bair\b/i.test(t) ||
+    /wheels\s*up/i.test(t) ||
+    /live\s*leg/i.test(t)
+  )
+}
+
+function isTurnStamp(s: OpsStamp): boolean {
+  const t = `${s.type}`.toLowerCase()
+  return (
+    t === 'ground_stop' ||
+    t === 'acft_turn' ||
+    /turn/i.test(t) ||
+    /load/i.test(t) ||
+    /ready wheels/i.test(t)
+  )
+}
+
 /**
- * Pickup arrival → loading (turn) → live air leg, from chain stamps.
+ * Pickup arrival → loading (turn) → live air leg, from chain (or legs) stamps.
  */
 export function buildOpsForecastRows(
   trip: PortalTrackingTripInput,
 ): OpsForecastRow[] {
-  const chain = trip.eta_chain
-  if (!chain.length) return []
+  const stamps = stampsFromTrip(trip)
+  if (!stamps.length) return []
 
-  const position =
-    chain.find(
-      (l) => l.type === 'position' || l.duration_key === 'acft_ttp',
-    ) ?? null
+  const position = stamps.find(isPositionStamp) ?? stamps[0] ?? null
   const air =
-    chain.find(
-      (l) => l.type === 'air_leg' || l.duration_key === 'air_time',
-    ) ?? null
+    stamps.find(isAirStamp) ??
+    stamps.find(
+      (s) =>
+        s.fromIcao !== s.toIcao &&
+        s !== position &&
+        !isTurnStamp(s),
+    ) ??
+    null
   const turn =
-    chain.find(
-      (l) =>
-        (l.type === 'ground_stop' || l.duration_key === 'acft_turn') &&
-        (!air || l.seq < air.seq) &&
-        (!position || l.seq >= position.seq),
+    stamps.find(
+      (s) =>
+        isTurnStamp(s) &&
+        (!air || s.seq < air.seq) &&
+        (!position || s.seq >= position.seq),
     ) ?? null
 
   const rows: OpsForecastRow[] = []
 
   if (position) {
-    const tz = position.to.tz || position.from.tz || 'UTC'
-    const icao = (position.to.icao || position.to.label || 'origin').toUpperCase()
-    const status = legStatus(position, trip.legs)
+    const tz = position.tz
+    const icao = position.toIcao !== '—' ? position.toIcao : position.fromIcao
+    const status = position.status
     const estIso = position.est_end
     const actIso = position.actual_end
     const deltaMin =
@@ -625,12 +709,6 @@ export function buildOpsForecastRows(
   }
 
   if (turn || (position && air)) {
-    const tz =
-      turn?.to.tz ||
-      turn?.from.tz ||
-      position?.to.tz ||
-      air?.from.tz ||
-      'UTC'
     const estDur =
       turn?.duration_min ??
       minutesBetween(position?.est_end ?? null, air?.est_start ?? null)
@@ -639,10 +717,10 @@ export function buildOpsForecastRows(
       air?.actual_start ?? turn?.actual_end ?? null,
     )
     const status = turn
-      ? legStatus(turn, trip.legs)
+      ? turn.status
       : air?.actual_start
         ? 'done'
-        : position && legStatus(position, trip.legs) === 'done'
+        : position && position.status === 'done'
           ? 'active'
           : 'pending'
     const deltaMin =
@@ -652,31 +730,31 @@ export function buildOpsForecastRows(
       label: 'Loading time',
       estimatedLocal: formatDurationMin(estDur),
       estimatedZulu: null,
-      actualOrForecastLocal: actDur != null
-        ? formatDurationMin(actDur)
-        : status === 'active'
-          ? 'LOADING · LIVE'
-          : formatDurationMin(estDur),
+      actualOrForecastLocal:
+        actDur != null
+          ? formatDurationMin(actDur)
+          : status === 'active'
+            ? 'LOADING · LIVE'
+            : formatDurationMin(estDur),
       deltaMin: actDur != null ? deltaMin : null,
       status,
       isForecast: actDur == null,
       kind: 'duration',
     })
-    void tz
   }
 
   if (air) {
-    const tz = air.to.tz || air.from.tz || 'UTC'
-    const from = (air.from.icao || air.from.label || '—').toUpperCase()
-    const to = (air.to.icao || air.to.label || '—').toUpperCase()
-    const status = legStatus(air, trip.legs)
+    const tz = air.tz
+    const from = air.fromIcao
+    const to = air.toIcao
+    const status = air.status
     const estIso = air.est_end
     const actIso = air.actual_end
     const takeoffEst = air.est_start
-      ? formatClientLocal(air.est_start, air.from.tz || tz).local
+      ? formatClientLocal(air.est_start, tz).local
       : null
     const takeoffAct = air.actual_start
-      ? formatClientLocal(air.actual_start, air.from.tz || tz).local
+      ? formatClientLocal(air.actual_start, tz).local
       : null
     const estFmt = estIso ? formatClientLocal(estIso, tz) : null
     const zulu = estIso ? formatZuluLocal(estIso, tz) : null
@@ -707,7 +785,7 @@ export function buildOpsForecastRows(
               ? `${takeoffBit} → ${landingLabel}`
               : landingLabel
             : formatDurationMin(air.duration_min),
-      deltaMin: actIso ? deltaMin : status === 'active' ? null : null,
+      deltaMin: actIso ? deltaMin : null,
       status,
       isForecast: !actIso,
       kind: 'flight',

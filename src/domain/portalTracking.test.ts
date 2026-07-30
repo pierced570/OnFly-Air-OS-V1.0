@@ -301,6 +301,55 @@ describe('portalTracking', () => {
     expect(rows[2]!.estimatedLocal).toBeTruthy()
   })
 
+  it('builds ops forecast from trip.legs when eta_chain is empty', () => {
+    const base = sampleD2d()
+    const rows = buildOpsForecastRows({
+      ...base,
+      eta_chain: [],
+      legs: [
+        {
+          seq: 1,
+          type: 'position',
+          label: 'Position to KCAK',
+          status: 'active',
+          origin: 'KBKL',
+          dest: 'KCAK',
+          est_start: '2026-07-15T13:00:00.000Z',
+          est_end: '2026-07-15T15:00:00.000Z',
+          actual_start: null,
+          actual_end: null,
+        },
+        {
+          seq: 2,
+          type: 'ground_stop',
+          label: 'Turn',
+          status: 'pending',
+          origin: 'KCAK',
+          dest: 'KCAK',
+          est_start: '2026-07-15T15:00:00.000Z',
+          est_end: '2026-07-15T16:00:00.000Z',
+          actual_start: null,
+          actual_end: null,
+        },
+        {
+          seq: 3,
+          type: 'air_leg',
+          label: 'Live',
+          status: 'pending',
+          origin: 'KCAK',
+          dest: 'KMDW',
+          est_start: '2026-07-15T16:00:00.000Z',
+          est_end: '2026-07-15T17:30:00.000Z',
+          actual_start: null,
+          actual_end: null,
+        },
+      ],
+    })
+    expect(rows).toHaveLength(3)
+    expect(rows[0]!.label).toBe('Pickup in KCAK')
+    expect(rows[2]!.label).toBe('Live leg KCAK → KMDW')
+  })
+
   it('builds cargo manifest with pax names and cargo lines', () => {
     const cargo = buildCargoManifest(
       sampleD2d({
