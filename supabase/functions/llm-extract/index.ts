@@ -13,7 +13,7 @@ const corsHeaders = {
 }
 
 type Body = {
-  mode: 'extract_trip' | 'plain_english' | 'extract_d085'
+  mode: 'extract_trip' | 'plain_english' | 'extract_d085' | 'soft_pricing'
   text: string
   context?: string
 }
@@ -46,9 +46,31 @@ Deno.serve(async (req) => {
           openaiChat(openaiKey!, system, user, jsonMode)
 
     if (mode === 'plain_english') {
+      const soft = (body.context ?? '').toLowerCase().includes('soft_pricing')
       const out = await complete(
-        'You rewrite aviation NOTAMs and weather notes into short plain English for charter dispatchers. No fluff. Keep numbers and ICAOs.',
+        soft
+          ? `You write calm, highly informational guidelines for OnFly Air clients reading a soft (ballpark) freight charter estimate.
+Rules:
+- Never name operators, tails, margins, or “bids”.
+- Explain which aircraft classes likely fit the cargo (doors/payload) and why times differ by average ground speed.
+- Remind them: this is not the actual price — estimate from fit + historical data; aircraft positions change constantly.
+- Keep it under ~180 words. No fluff. Use hours/minutes language when times are given.`
+          : 'You rewrite aviation NOTAMs and weather notes into short plain English for charter dispatchers. No fluff. Keep numbers and ICAOs.',
         body.context ? `Context: ${body.context}\n\nText:\n${text}` : text,
+        false,
+      )
+      return json({ text: out, provider: anthropicKey ? 'anthropic' : 'openai' })
+    }
+
+    if (mode === 'soft_pricing') {
+      const out = await complete(
+        `You write calm, highly informational guidelines for OnFly Air clients reading a soft (ballpark) freight charter estimate.
+Rules:
+- Never name operators, tails, margins, or “bids”.
+- Explain which aircraft classes likely fit the cargo (doors/payload) and why times differ by average ground speed.
+- Always end by reinforcing: this is not the actual price — estimate from fit + historical data; every mission is unique as aircraft distances from pickup change.
+- Keep it under ~200 words.`,
+        text.slice(0, 12000),
         false,
       )
       return json({ text: out, provider: anthropicKey ? 'anthropic' : 'openai' })

@@ -1,14 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { SoftPricingPackageView } from '@/components/SoftPricingPackageView'
 import {
   TripRequestForm,
   type PortalSubmitIntent,
 } from '@/components/TripRequestForm'
-import {
-  formatApproxHours,
-  PORTAL_BAND_LABELS,
-  type PortalEstimateOption,
-} from '@/domain/portalEstimate'
 import {
   emptyTripRequestDraft,
   type TripRequestDraft,
@@ -17,15 +13,16 @@ import {
 import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 import { getPortalClient } from '@/lib/clientOnboardStore'
 import {
-  estimatePortalRequest,
-  type PortalRequestEstimate,
-} from '@/lib/estimatePortalRequest'
+  buildSoftPricingForRequest,
+  type SoftPricingPackageResult,
+} from '@/lib/softPricingPackage'
 import { requestHardQuote, submitTripRequest } from '@/lib/requestStore'
 
 export default function PortalRequestPage() {
   const [done, setDone] = useState<TripRequestRecord | null>(null)
   const [intent, setIntent] = useState<PortalSubmitIntent | null>(null)
-  const [estimate, setEstimate] = useState<PortalRequestEstimate | null>(null)
+  const [softPackage, setSoftPackage] =
+    useState<SoftPricingPackageResult | null>(null)
   const [estimating, setEstimating] = useState(false)
   const [hardQuoteDone, setHardQuoteDone] = useState(false)
   const client = getPortalClient()
@@ -79,7 +76,7 @@ export default function PortalRequestPage() {
     setDone(row)
     setIntent(mode)
     setHardQuoteDone(false)
-    setEstimate(null)
+    setSoftPackage(null)
 
     if (mode === 'hard_quote') {
       const updated = requestHardQuote(row.id)
@@ -104,8 +101,8 @@ export default function PortalRequestPage() {
       } catch (routeErr) {
         console.warn('[portal] routed trip deferred', routeErr)
       }
-      const est = await estimatePortalRequest(row)
-      setEstimate(est)
+      const pkg = await buildSoftPricingForRequest(row)
+      setSoftPackage(pkg)
     } finally {
       setEstimating(false)
     }
@@ -148,22 +145,31 @@ export default function PortalRequestPage() {
     return (
       <WizardShell>
         <div className="rounded-2xl bg-white p-5 text-ink sm:p-6">
-          <h1 className="text-2xl font-semibold">Ballpark estimate</h1>
-          <p className="mt-1 text-sm text-muted">
-            Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
-            {done.lane}
-          </p>
           {estimating && (
-            <p className="mt-4 text-sm text-muted">Sizing nearby options…</p>
+            <p className="text-sm text-muted">
+              Building soft pricing across aircraft classes…
+            </p>
           )}
-          {!estimating && estimate && !estimate.error && estimate.options.length > 0 && (
-            <div className="mt-4 space-y-4">
-              <p className="text-base">{estimate.closest_blurb}</p>
-              {estimate.options.map((opt) => (
-                <EstimateCard key={opt.band} option={opt} />
-              ))}
+          {!estimating && softPackage?.error && (
+            <div className="space-y-3">
+              <h1 className="text-2xl font-semibold">Soft estimate</h1>
+              <p className="text-sm text-late">{softPackage.error}</p>
+              <p className="text-xs text-muted">
+                Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
+                {done.lane}
+              </p>
             </div>
           )}
+          {!estimating &&
+            softPackage &&
+            !softPackage.error &&
+            softPackage.classes.length > 0 && (
+              <SoftPricingPackageView
+                pkg={softPackage}
+                requestRef={done.ref}
+                lane={done.lane}
+              />
+            )}
           <section className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-5 py-5">
             <h2 className="text-lg font-semibold">Have OnFly quote this NOW</h2>
             {hardQuoteDone || done.hard_quote_requested_at ? (
@@ -256,66 +262,9 @@ function WizardShell(props: { children: React.ReactNode }) {
       className="min-h-screen bg-[#F9F7F2] text-ink"
       data-theme="client"
     >
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:max-w-4xl sm:px-6 sm:py-8">
         {props.children}
       </div>
     </div>
-  )
-}
-
-function EstimateCard({ option }: { option: PortalEstimateOption }) {
-  const t = option.timing
-  return (
-    <article
-      className={[
-        'rounded-xl border bg-[#F7F2E3]/50 px-5 py-4',
-        option.closest ? 'border-gold shadow-sm' : 'border-border',
-      ].join(' ')}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-wider text-gold">
-            {option.closest ? 'Closest · ' : ''}
-            {PORTAL_BAND_LABELS[option.band]}
-          </div>
-          <h3 className="mt-1 text-lg font-semibold">{option.label}</h3>
-          <p className="mt-1 text-sm text-muted">{option.assumption_blurb}</p>
-        </div>
-        <div className="text-right">
-          <div className="avionic text-2xl font-semibold">
-            ${Math.round(option.total).toLocaleString('en-US')}
-          </div>
-          <div className="text-xs text-muted">estimated total</div>
-        </div>
-      </div>
-      <dl className="mt-4 grid gap-2 border-t border-border pt-3 text-sm sm:grid-cols-3">
-        {t.to_airport_min != null && (
-          <div>
-            <dt className="text-xs uppercase tracking-wider text-muted">
-              To airport
-            </dt>
-            <dd className="avionic mt-0.5">
-              ~{formatApproxHours(t.to_airport_min)}
-            </dd>
-          </div>
-        )}
-        <div>
-          <dt className="text-xs uppercase tracking-wider text-muted">
-            Reposition
-          </dt>
-          <dd className="avionic mt-0.5">
-            ~{formatApproxHours(t.reposition_min)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wider text-muted">
-            Live leg
-          </dt>
-          <dd className="avionic mt-0.5">
-            ~{formatApproxHours(t.live_leg_min)}
-          </dd>
-        </div>
-      </dl>
-    </article>
   )
 }
