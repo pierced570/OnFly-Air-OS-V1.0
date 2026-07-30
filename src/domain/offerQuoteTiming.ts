@@ -107,3 +107,98 @@ export function computeOfferQuoteTiming(opts: {
     destEta: formatZuluLocal(destEtaUtc, destTz),
   }
 }
+
+/** Default dest FBO handoff after landing (desk DELIVERS chip). */
+export const DEFAULT_DEST_HANDOFF_MIN = 15
+
+export type DeskQuoteMilestoneKey =
+  | 'at_pickup'
+  | 'wheels_up'
+  | 'landing'
+  | 'delivered'
+
+export type DeskQuoteMilestone = {
+  key: DeskQuoteMilestoneKey
+  label: string
+  /** Stop-local 12h clock, e.g. 12:40 PM */
+  clock: string
+}
+
+export type DeskOfferQuoteTimeline = {
+  milestones: DeskQuoteMilestone[]
+  /** Compact badge e.g. DELIVERS ~12:40 PM */
+  deliversBadge: string
+  /** Chain hint under the milestone row. */
+  chainHint: string
+}
+
+function formatDeskClockAmPm(utc: DateTime, tz: string | null): string {
+  const dt = tz ? utc.setZone(tz) : utc.toUTC()
+  return dt.toFormat('h:mm a')
+}
+
+function formatReadyNowLabel(nowUtc: DateTime, tz: string | null): string {
+  const dt = tz ? nowUtc.setZone(tz) : nowUtc.toUTC()
+  const clock = dt.toFormat('HH:mm')
+  const zone = tz ? dt.toFormat('ZZZZ') : 'UTC'
+  return `${clock} ${zone}`
+}
+
+function formatChainMinutes(min: number): string {
+  const t = Math.max(0, Math.floor(min) || 0)
+  const h = Math.floor(t / 60)
+  const m = t % 60
+  return `${h}h ${m}m`
+}
+
+/** Desk submitted-quote expand panel: AT PICKUP → WHEELS UP → LANDING → DELIVERED. */
+export function buildDeskOfferQuoteTimeline(opts: {
+  lane: string
+  nowUtc?: DateTime
+  timeToPositionMin: number
+  quickTurnMin: number
+  liveLegMin: number
+  destHandoffMin?: number
+}): DeskOfferQuoteTimeline {
+  const now = (opts.nowUtc ?? DateTime.utc()).toUTC()
+  const handoff = Math.max(
+    0,
+    opts.destHandoffMin ?? DEFAULT_DEST_HANDOFF_MIN,
+  )
+  const timing = computeOfferQuoteTiming({
+    lane: opts.lane,
+    nowUtc: now,
+    timeToPositionMin: opts.timeToPositionMin,
+    quickTurnMin: opts.quickTurnMin,
+    liveLegMin: opts.liveLegMin,
+  })
+  const deliveredUtc = timing.destEtaUtc.plus({ minutes: handoff })
+  const milestones: DeskQuoteMilestone[] = [
+    {
+      key: 'at_pickup',
+      label: 'At pickup',
+      clock: formatDeskClockAmPm(timing.positionEtaUtc, timing.originTz),
+    },
+    {
+      key: 'wheels_up',
+      label: 'Wheels up',
+      clock: formatDeskClockAmPm(timing.etdUtc, timing.originTz),
+    },
+    {
+      key: 'landing',
+      label: 'Landing',
+      clock: formatDeskClockAmPm(timing.destEtaUtc, timing.destTz),
+    },
+    {
+      key: 'delivered',
+      label: 'Delivered',
+      clock: formatDeskClockAmPm(deliveredUtc, timing.destTz),
+    },
+  ]
+  const deliversClock = formatDeskClockAmPm(deliveredUtc, timing.destTz)
+  return {
+    milestones,
+    deliversBadge: `Delivers ~${deliversClock}`,
+    chainHint: `From ready-now ${formatReadyNowLabel(now, timing.originTz)}: +TTP ${formatChainMinutes(opts.timeToPositionMin)} → +turn ${formatChainMinutes(opts.quickTurnMin)} → +live ${formatChainMinutes(opts.liveLegMin)} → +handoff ${formatChainMinutes(handoff)}`,
+  }
+}
