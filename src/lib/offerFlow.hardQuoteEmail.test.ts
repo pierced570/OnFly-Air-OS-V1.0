@@ -5,6 +5,7 @@ import { selectOffersAndHardQuote } from '@/lib/offerFlow'
 import {
   __resetTripsForTests,
   createTripFromCandidates,
+  getTrip,
   mutateTrip,
   safeTransitionTrip,
 } from '@/lib/tripStore'
@@ -118,6 +119,5 @@ describe('selectOffersAndHardQuote email recipients', () => {
 })
 
 function getTripOfferId(tripId: string): string {
-  const { getTrip } = require('@/lib/tripStore') as typeof import('@/lib/tripStore')
   return getTrip(tripId)!.offers[0]!.id
 }
