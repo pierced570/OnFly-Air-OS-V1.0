@@ -15,8 +15,16 @@ export type AdsbPosition = {
   gs: number
   seenAt: string
   laddBlocked?: boolean
+  /** Prefer FlightAware actual_off; may fall back to estimate — check takeoffIsActual. */
   lastTakeoffAt?: string | null
+  /** Prefer FlightAware actual_on; may fall back to estimate — check landingIsActual. */
   lastLandingAt?: string | null
+  /** True when lastTakeoffAt is AeroAPI actual_off (safe to commit to eta_chain). */
+  takeoffIsActual?: boolean
+  /** True when lastLandingAt is AeroAPI actual_on (safe to commit to eta_chain). */
+  landingIsActual?: boolean
+  originIcao?: string | null
+  destinationIcao?: string | null
   phase?: 'airborne' | 'on_ground' | 'no_data'
 }
 
@@ -161,6 +169,10 @@ function noData(tail: string): AdsbPosition {
     laddBlocked: true,
     lastTakeoffAt: null,
     lastLandingAt: null,
+    takeoffIsActual: false,
+    landingIsActual: false,
+    originIcao: null,
+    destinationIcao: null,
     phase: 'no_data',
   }
 }
