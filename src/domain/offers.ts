@@ -104,6 +104,43 @@ export function quoteSubmittedDeskSms(
   return bits.join(' · ')
 }
 
+/** Desk email when an operator submits a trip offer quote (no SMS). */
+export function quoteSubmittedDeskEmail(opts: {
+  operatorName: string
+  lane?: string | null
+  tripCode?: string | null
+  typeName?: string | null
+  tail?: string | null
+  priceNet?: number | null
+  tripPath?: string | null
+}): { subject: string; text: string } {
+  const who = opts.operatorName.trim() || 'an operator'
+  const lane = opts.lane?.trim() || '—'
+  const code = opts.tripCode?.trim() || '—'
+  const typeName = opts.typeName?.trim() || '—'
+  const tail = opts.tail?.trim() || '—'
+  const price =
+    opts.priceNet != null && Number.isFinite(opts.priceNet)
+      ? `$${Math.round(opts.priceNet).toLocaleString('en-US')} NET`
+      : '—'
+  const subject = `OnFly: quote submitted by ${who} · ${lane}`
+  const lines = [
+    'A trip offer quote was submitted.',
+    '',
+    `Operator: ${who}`,
+    `Lane: ${lane}`,
+    `Trip: ${code}`,
+    `Aircraft: ${typeName} · ${tail}`,
+    `Price NET: ${price}`,
+  ]
+  const path = opts.tripPath?.trim()
+  if (path) {
+    lines.push('', `Open trip: ${path}`)
+  }
+  lines.push('', 'No SMS was sent — email notification only.')
+  return { subject, text: lines.join('\n') }
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

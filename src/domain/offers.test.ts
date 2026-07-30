@@ -7,6 +7,7 @@ import {
   availabilityPingWithLink,
   parseAvailabilityReply,
   quoteSubmittedDeskSms,
+  quoteSubmittedDeskEmail,
 } from './offers'
 
 describe('offers language', () => {
@@ -87,5 +88,25 @@ describe('offers language', () => {
     ).toBe('OnFly: quote submitted by Alpha Air · KCAK→KHPN · UZ300')
     expect(quoteSubmittedDeskSms('  ')).toContain('an operator')
     expect(quoteSubmittedDeskSms('Tester').toLowerCase()).not.toContain('bid')
+  })
+
+  it('desk quote-submitted email names the operator and lane', () => {
+    const { subject, text } = quoteSubmittedDeskEmail({
+      operatorName: 'Charlie Jets',
+      lane: 'KCAK→KHPN',
+      tripCode: 'UZ300',
+      typeName: 'Citation CJ3',
+      tail: 'N9ZZ',
+      priceNet: 5000,
+      tripPath: '/trips/abc',
+    })
+    expect(subject).toBe('OnFly: quote submitted by Charlie Jets · KCAK→KHPN')
+    expect(text).toContain('Charlie Jets')
+    expect(text).toContain('KCAK→KHPN')
+    expect(text).toContain('UZ300')
+    expect(text).toContain('$5,000 NET')
+    expect(text).toContain('/trips/abc')
+    expect(text.toLowerCase()).not.toContain('bid')
+    expect(text).toMatch(/email notification only/i)
   })
 })
