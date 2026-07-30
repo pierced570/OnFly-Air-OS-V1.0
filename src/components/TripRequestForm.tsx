@@ -8,11 +8,13 @@ import {
   cargoPiecesFromDraft,
   draftIncludesCargo,
   draftIncludesPax,
+  draftNeedsPerLegPayload,
   emptyTripRequestDraft,
+  foldPerLegPayloadIntoDraft,
   forkliftFromDraft,
-  legHasCargo,
-  legHasPax,
+  itineraryLegs,
   newLeg,
+  patchItineraryLeg,
   payloadFromFlags,
   syncLegPayloadFromCargoOnly,
   syncReturnLegs,
@@ -22,6 +24,7 @@ import {
   type TripLegDraft,
   type PaxRow,
 } from '@/domain/tripRequest'
+import { TripRequestLegPayloadSection } from '@/components/TripRequestLegPayloadSection'
 import {
   STANDARD_TOOLING,
   composeStandardCargoDims,
@@ -102,6 +105,10 @@ export function TripRequestForm({
         payload:
           l.payload ??
           (cargoOnly ? ('cargo' as const) : ('pax' as const)),
+        pax: l.pax ?? [],
+        cargo_notes: l.cargo_notes ?? '',
+        cargo_weight_lbs: l.cargo_weight_lbs ?? '',
+        cargo_dims_status: l.cargo_dims_status ?? 'known',
       }))
     const merged: TripRequestDraft = {
       ...base,
@@ -167,19 +174,10 @@ export function TripRequestForm({
   function applyCargoDimsStatus(status: CargoDimsStatus) {
     setDraft((d) => {
       if (status === 'standard') {
-        const multi = d.legs.length > 1
-        const legs = multi
-          ? d.legs.map((l) => ({
-              ...l,
-              payload: legHasPax(l) ? ('both' as const) : ('cargo' as const),
-            }))
-          : d.legs
-        const hasPax = multi ? legs.some(legHasPax) : false
         return {
           ...d,
           cargo_dims_status: status,
-          cargo_only: multi ? !hasPax : true,
-          legs,
+          cargo_only: true,
           cargo_notes: composeStandardCargoDims(STANDARD_CARGO_DEFAULTS),
           cargo_weight_lbs: Number(STANDARD_CARGO_DEFAULTS.weight),
           dim_unit: 'in',
@@ -197,32 +195,22 @@ export function TripRequestForm({
     })
   }
 
-  function setLegPayloadFlags(
-    legId: string,
-    hasPax: boolean,
-    hasCargo: boolean,
-  ) {
-    let pax = hasPax
-    let cargo = hasCargo
-    if (!pax && !cargo) cargo = true
-    const payload = payloadFromFlags(pax, cargo)
-    if (!payload) return
-    setDraft((d) => applyLegPayload(d, legId, payload))
-  }
-
   async function handleSubmit(
     e: FormEvent,
     intent: PortalSubmitIntent = 'estimate',
   ) {
     e.preventDefault()
-    const next = { ...draft }
+    let next = foldPerLegPayloadIntoDraft({ ...draft })
     if (variant === 'dispatch' && !next.email.trim() && next.client_id) {
       const hit = clientOptions.find((c) => c.id === next.client_id)
-      if (hit) next.email = hit.email
+      if (hit) next = { ...next, email: hit.email }
     }
     if (next.cargo_dims_status === 'standard' && !next.cargo_notes.trim()) {
-      next.cargo_notes = composeStandardCargoDims(STANDARD_CARGO_DEFAULTS)
-      next.cargo_weight_lbs = Number(STANDARD_CARGO_DEFAULTS.weight)
+      next = {
+        ...next,
+        cargo_notes: composeStandardCargoDims(STANDARD_CARGO_DEFAULTS),
+        cargo_weight_lbs: Number(STANDARD_CARGO_DEFAULTS.weight),
+      }
     }
     const errs = validateTripRequest(next, {
       requireEmail: variant === 'portal',
@@ -1135,7 +1123,12 @@ export function TripRequestForm({
                   className={`${inputCls} avionic`}
                 />
               </label>
-              {draft.legs.length <= 1 ? (
+              {draftNeedsPerLegPayload(draft) ? (
+                <p className="mt-3 text-xs text-muted">
+                  Round trip / multi-leg: enter passengers and cargo for each
+                  leg on the next step.
+                </p>
+              ) : (
               <label
                 className={[
                   'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
@@ -1164,11 +1157,6 @@ export function TripRequestForm({
                 />
                 Cargo only (no passengers)
               </label>
-              ) : (
-                <p className="mt-3 text-xs text-muted">
-                  Multi-leg: choose passengers and/or cargo for each leg on the
-                  next step.
-                </p>
               )}
             </div>
           </div>
@@ -1286,74 +1274,39 @@ export function TripRequestForm({
       {showStep(3) ? (
       <>
       <section className="space-y-3">
-        {draft.legs.length > 1 ? (
-          <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
-            <div>
-              <h2
-                className={
-                  wizard
-                    ? 'text-base font-semibold text-ink'
-                    : 'text-xs font-medium uppercase tracking-wider text-muted'
+        {draftNeedsPerLegPayload(draft) ? (
+          <div className="space-y-4">
+            <p className="text-xs text-muted">
+              Enter passengers and/or cargo for each leg of this trip.
+            </p>
+            {itineraryLegs(draft).map((leg, idx) => (
+              <TripRequestLegPayloadSection
+                key={leg.id}
+                leg={leg}
+                index={idx}
+                dimUnit={draft.dim_unit ?? 'in'}
+                wizard={wizard}
+                variant={variant}
+                onPayloadFlags={(hasPax, hasCargo) => {
+                  let paxOn = hasPax
+                  let cargoOn = hasCargo
+                  if (!paxOn && !cargoOn) cargoOn = true
+                  const payload = payloadFromFlags(paxOn, cargoOn)
+                  if (!payload) return
+                  setDraft((d) => applyLegPayload(d, leg.id, payload))
+                }}
+                onPatch={(patch) =>
+                  setDraft((d) => patchItineraryLeg(d, leg.id, patch))
                 }
-              >
-                Per-leg passengers or cargo
-              </h2>
-              <p className="mt-1 text-xs text-muted">
-                Some legs can carry the team, others freight — or both on the
-                same leg.
-              </p>
-            </div>
-            <div className="space-y-3">
-              {draft.legs.map((leg, idx) => {
-                const o = leg.origin_icao.trim().toUpperCase() || '?'
-                const dest = leg.dest_icao.trim().toUpperCase() || '?'
-                return (
-                  <div
-                    key={leg.id}
-                    className="flex flex-col gap-2 rounded-lg border border-border bg-white px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="text-sm font-medium text-ink">
-                      <span className="text-muted">Leg {idx + 1}</span>{' '}
-                      <span className="avionic">
-                        {o} → {dest}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-4 text-sm text-[var(--text)]">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={legHasPax(leg)}
-                          onChange={(e) =>
-                            setLegPayloadFlags(
-                              leg.id,
-                              e.target.checked,
-                              legHasCargo(leg),
-                            )
-                          }
-                        />
-                        Passengers
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={legHasCargo(leg)}
-                          onChange={(e) =>
-                            setLegPayloadFlags(
-                              leg.id,
-                              legHasPax(leg),
-                              e.target.checked,
-                            )
-                          }
-                        />
-                        Cargo
-                      </label>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                onDimUnit={(dim_unit) =>
+                  setDraft((d) => ({ ...d, dim_unit }))
+                }
+              />
+            ))}
           </div>
-        ) : !wizard ? (
+        ) : (
+          <>
+        {!wizard ? (
         <label className="flex items-center gap-2 text-sm text-[var(--text)]">
           <input
             type="checkbox"
@@ -1450,6 +1403,8 @@ export function TripRequestForm({
         )}
 
         {draftIncludesCargo(draft) && (
+
+
 
           <div className="space-y-3">
             {variant === 'portal' && (
@@ -1584,6 +1539,8 @@ export function TripRequestForm({
               </>
             )}
           </div>
+        )}
+          </>
         )}
       </section>
 
