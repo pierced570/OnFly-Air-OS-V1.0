@@ -192,14 +192,14 @@ export default function PortalRequestPage() {
 
   if (done) {
     return (
-      <WizardShell wide>
+      <WizardShell wide flushTop>
         {estimating && (
-          <div className="rounded-2xl bg-white px-5 py-8 text-sm text-muted">
+          <div className="mt-6 rounded-2xl bg-white px-5 py-8 text-sm text-muted">
             Building soft pricing across aircraft classes…
           </div>
         )}
         {!estimating && softPackage?.error && (
-          <div className="space-y-3 rounded-2xl bg-white p-5 text-ink sm:p-6">
+          <div className="mt-6 space-y-3 rounded-2xl bg-white p-5 text-ink sm:p-6">
             <h1 className="text-2xl font-semibold">Soft estimate</h1>
             <p className="text-sm text-late">{softPackage.error}</p>
             <p className="text-xs text-muted">
@@ -294,6 +294,8 @@ export default function PortalRequestPage() {
 function WizardShell(props: {
   children: React.ReactNode
   wide?: boolean
+  /** Soft-quote sticky banner sits flush to the viewport top. */
+  flushTop?: boolean
 }) {
   return (
     <div
@@ -302,7 +304,8 @@ function WizardShell(props: {
     >
       <div
         className={[
-          'mx-auto px-4 py-6 sm:px-6 sm:py-8',
+          'mx-auto px-4 sm:px-6',
+          props.flushTop ? 'pb-6 pt-0 sm:pb-8' : 'py-6 sm:py-8',
           props.wide ? 'max-w-6xl' : 'max-w-3xl sm:max-w-4xl',
         ].join(' ')}
       >

@@ -6,6 +6,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { createLlmAdapter } from '@/adapters/llm'
+import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 import {
   destinationFromGoMinutes,
   formatHoursMinutes,
@@ -69,6 +70,34 @@ export function SoftPricingPackageView(props: {
 
   return (
     <div className="space-y-6 text-ink">
+      <div className="sticky top-0 z-40 -mx-4 border-b border-gold/35 bg-[#0C0C0E] px-4 py-3 text-cream shadow-[0_8px_24px_rgba(0,0,0,0.35)] sm:-mx-6 sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          {props.hardQuoteDone ? (
+            <p className="text-sm font-semibold text-gold">
+              Hard quote requested
+              {props.hardQuoteEmail ? ` — ${props.hardQuoteEmail}` : ''}.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={props.onHardQuote}
+              className="w-full rounded-lg bg-[#C9A227] px-4 py-2.5 text-sm font-semibold text-[#0C0C0E] hover:bg-[#E3B341] sm:w-auto"
+            >
+              Request this trip NOW
+            </button>
+          )}
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="text-center text-sm text-cream/85 hover:text-gold sm:text-right"
+          >
+            Contact a live dispatcher{' '}
+            <span className="avionic font-semibold text-gold">{BRAND_PHONE}</span>
+            {' '}
+            <span className="text-cream/55">24Hr Line</span>
+          </a>
+        </div>
+      </div>
+
       {/* Dark hero */}
       <header className="overflow-hidden rounded-2xl bg-[#141414] text-cream">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cream/10 px-4 py-3 text-xs sm:px-6">
@@ -301,7 +330,7 @@ export function SoftPricingPackageView(props: {
             onClick={props.onHardQuote}
             className="shrink-0 rounded-xl bg-[#C9A227] px-6 py-3.5 text-sm font-semibold text-[#0C0C0E] hover:bg-[#E3B341]"
           >
-            Have OnFly quote this NOW
+            Request this trip NOW
           </button>
         )}
       </section>
