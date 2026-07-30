@@ -365,7 +365,7 @@ export function validateTripRequest(
     if (draft.hours_on_ground === '' || Number(draft.hours_on_ground) <= 0) {
       issues.push({
         field: 'hours_on_ground',
-        message: 'Round trip needs hours on the ground',
+        message: 'Round trip needs est. hours needed on ground',
       })
     }
     const returns =
