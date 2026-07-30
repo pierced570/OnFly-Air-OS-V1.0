@@ -239,7 +239,7 @@ export default function TripPage() {
         </div>
         <p className="mt-1 text-[11px] text-muted">
           Auto-scheduled on dispatch: aircraft T-60/T-30/arrival, truck T-30/T-5,
-          overdue watchdogs → Board exception queue + on-shift SMS.
+          overdue watchdogs → Board exception queue (no auto SMS).
         </p>
         {tripChecks.length === 0 ? (
           <p className="mt-3 text-sm text-muted">No timers yet.</p>
