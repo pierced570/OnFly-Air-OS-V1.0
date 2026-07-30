@@ -143,63 +143,45 @@ export default function PortalRequestPage() {
 
   if (done) {
     return (
-      <WizardShell>
-        <div className="rounded-2xl bg-white p-5 text-ink sm:p-6">
-          {estimating && (
-            <p className="text-sm text-muted">
-              Building soft pricing across aircraft classes…
+      <WizardShell wide>
+        {estimating && (
+          <div className="rounded-2xl bg-white px-5 py-8 text-sm text-muted">
+            Building soft pricing across aircraft classes…
+          </div>
+        )}
+        {!estimating && softPackage?.error && (
+          <div className="space-y-3 rounded-2xl bg-white p-5 text-ink sm:p-6">
+            <h1 className="text-2xl font-semibold">Soft estimate</h1>
+            <p className="text-sm text-late">{softPackage.error}</p>
+            <p className="text-xs text-muted">
+              Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
+              {done.lane}
             </p>
+            <Link to="/portal/request" className="text-sm font-semibold text-gold">
+              ← Back to trip request
+            </Link>
+          </div>
+        )}
+        {!estimating &&
+          softPackage &&
+          !softPackage.error &&
+          softPackage.classes.length > 0 && (
+            <SoftPricingPackageView
+              pkg={softPackage}
+              requestRef={done.ref}
+              lane={done.lane}
+              backTo="/portal/request"
+              hardQuoteDone={hardQuoteDone || Boolean(done.hard_quote_requested_at)}
+              hardQuoteEmail={done.email || undefined}
+              onHardQuote={() => {
+                const updated = requestHardQuote(done.id)
+                if (updated) {
+                  setDone({ ...updated })
+                  setHardQuoteDone(true)
+                }
+              }}
+            />
           )}
-          {!estimating && softPackage?.error && (
-            <div className="space-y-3">
-              <h1 className="text-2xl font-semibold">Soft estimate</h1>
-              <p className="text-sm text-late">{softPackage.error}</p>
-              <p className="text-xs text-muted">
-                Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
-                {done.lane}
-              </p>
-            </div>
-          )}
-          {!estimating &&
-            softPackage &&
-            !softPackage.error &&
-            softPackage.classes.length > 0 && (
-              <SoftPricingPackageView
-                pkg={softPackage}
-                requestRef={done.ref}
-                lane={done.lane}
-              />
-            )}
-          <section className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-5 py-5">
-            <h2 className="text-lg font-semibold">Have OnFly quote this NOW</h2>
-            {hardQuoteDone || done.hard_quote_requested_at ? (
-              <p className="mt-2 text-sm">
-                Hard quote requested — we&apos;ll follow up at{' '}
-                {done.email || 'your email'}.
-              </p>
-            ) : (
-              <button
-                type="button"
-                className="mt-4 w-full rounded-lg bg-ink px-5 py-2.5 text-sm font-semibold text-gold"
-                onClick={() => {
-                  const updated = requestHardQuote(done.id)
-                  if (updated) {
-                    setDone({ ...updated })
-                    setHardQuoteDone(true)
-                  }
-                }}
-              >
-                Have OnFly quote this NOW
-              </button>
-            )}
-          </section>
-          <Link
-            to="/portal"
-            className="mt-4 inline-block text-sm font-semibold text-gold"
-          >
-            ← Portal
-          </Link>
-        </div>
       </WizardShell>
     )
   }
@@ -256,13 +238,21 @@ export default function PortalRequestPage() {
   )
 }
 
-function WizardShell(props: { children: React.ReactNode }) {
+function WizardShell(props: {
+  children: React.ReactNode
+  wide?: boolean
+}) {
   return (
     <div
       className="min-h-screen bg-[#F9F7F2] text-ink"
       data-theme="client"
     >
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:max-w-4xl sm:px-6 sm:py-8">
+      <div
+        className={[
+          'mx-auto px-4 py-6 sm:px-6 sm:py-8',
+          props.wide ? 'max-w-6xl' : 'max-w-3xl sm:max-w-4xl',
+        ].join(' ')}
+      >
         {props.children}
       </div>
     </div>

@@ -4,34 +4,34 @@
  *
  * Pure TypeScript. No React / Supabase.
  *
- * Timing model (planning assumptions, not a hard quote):
- *   - Repo to position: fixed 2.5 hr
- *   - Live leg: great-circle NM ÷ class average ground speed → hrs+mins
- *   - Home: same distance as live, plus 1.0 hr
+ * Timing (planning assumptions, not a hard quote):
+ *   - Repo: fixed 2.5 hr
+ *   - Live: great-circle NM ÷ class average GS → hrs+mins
+ *   - Return: live duration + 1.0 hr
+ * Price: billable hours × class hourly rate range → all-in estimate range.
  *
  * Never expose operator names, tails, margins, or raw cost.
  */
 
-import { doorFitsPiece, type DoorFit } from '@/domain/missionFit'
+import { type DoorFit } from '@/domain/missionFit'
 import {
   classifyAircraftVertical,
   type VerticalId,
 } from '@/domain/operatorVerticals'
 import type { Piece } from '@/domain/dimsParser'
 import { maxPieceDims, totalWeightLbs } from '@/domain/dimsParser'
-import { priceFromMargin } from '@/domain/quote'
-import { BUILTIN_RECOMMEND_MATRIX } from '@/domain/recommendMatrix'
-
-const DEFAULT_SOFT_MARGIN_PCT = BUILTIN_RECOMMEND_MATRIX.target_margin_pct
 
 /** Fixed reposition assumption for soft quotes. */
 export const SOFT_REPO_HOURS = 2.5
 
-/** Extra time added to the return/home leg beyond same-distance flight. */
+/** Extra time on the return beyond same-distance flight time. */
 export const SOFT_HOME_EXTRA_HOURS = 1
 
+/** Door clearance spare (inches) — mockup: ~2 in to spare. */
+export const SOFT_DOOR_SPARE_IN = 2
+
 export const SOFT_PRICING_DISCLAIMER =
-  'This is not the actual price — this is an estimate based on what we believe will fit and what historical data shows. Every mission is unique as aircraft are constantly changing distances from your pickup point.'
+  'This is not the actual price. It’s an estimate based on what we believe will fit and what historical data shows. Every mission is unique — aircraft are constantly changing distances from your pickup point, so the real repositioning leg (and price) moves with the fleet.'
 
 export const SOFT_PRICING_CLASSES = [
   'single_engine',
@@ -47,79 +47,83 @@ export type SoftPricingClass = (typeof SOFT_PRICING_CLASSES)[number]
 export type SoftClassProfile = {
   id: SoftPricingClass
   label: string
-  /** Average planning ground speed (kts) for live/home ETE. */
   avg_gs_kts: number
-  /** Example type names shown to the client for the GS average. */
   example_types: string[]
-  /** Assumed operator $/NM when no history/prior is available. */
-  default_rate_per_nm: number
-  /** Typical cargo door (in) for fit education when network lacks dims. */
+  /** Client-facing hourly rate band ($/hr). */
+  hourly_low: number
+  hourly_high: number
   typical_door_w_in: number
   typical_door_h_in: number
-  /** Short payload guideline for the class. */
-  payload_guideline: string
+  typical_payload_lbs: number
 }
 
+/** Profiles aligned to soft-quote mockup examples / rates / GS. */
 export const SOFT_CLASS_PROFILES: Record<SoftPricingClass, SoftClassProfile> = {
   single_engine: {
     id: 'single_engine',
     label: 'Single engine',
-    avg_gs_kts: 145,
-    example_types: ['Cessna 208 Caravan', 'Cessna 206', 'Piper Saratoga'],
-    default_rate_per_nm: 8.5,
-    typical_door_w_in: 49,
-    typical_door_h_in: 50,
-    payload_guideline: 'Often ~1,500–2,500 lb useful with careful CG.',
+    avg_gs_kts: 130,
+    example_types: ['Cessna 206', 'Bonanza A36'],
+    hourly_low: 850,
+    hourly_high: 1100,
+    typical_door_w_in: 44,
+    typical_door_h_in: 37,
+    typical_payload_lbs: 1100,
   },
   twin_piston: {
     id: 'twin_piston',
     label: 'Twin piston',
     avg_gs_kts: 180,
-    example_types: ['Beech Baron', 'Cessna 310 / 414', 'Piper Navajo'],
-    default_rate_per_nm: 9.5,
-    typical_door_w_in: 36,
-    typical_door_h_in: 45,
-    payload_guideline: 'Often ~1,200–2,000 lb; doors are usually smaller.',
+    example_types: ['Cessna 310', 'Aerostar 600', 'Navajo'],
+    hourly_low: 1300,
+    hourly_high: 1600,
+    typical_door_w_in: 45,
+    typical_door_h_in: 33,
+    typical_payload_lbs: 1600,
   },
   turboprop: {
     id: 'turboprop',
     label: 'Turboprop',
-    avg_gs_kts: 270,
-    example_types: ['King Air 200 / 350', 'Pilatus PC-12', 'Metroliner'],
-    default_rate_per_nm: 12,
-    typical_door_w_in: 52,
+    avg_gs_kts: 260,
+    example_types: ['Pilatus PC-12', 'Caravan 208B'],
+    hourly_low: 2100,
+    hourly_high: 2600,
+    typical_door_w_in: 53,
     typical_door_h_in: 52,
-    payload_guideline: 'Workhorse freight band — often ~2,500–4,500 lb.',
+    typical_payload_lbs: 2600,
   },
   light_jet: {
     id: 'light_jet',
     label: 'Light jet',
-    avg_gs_kts: 400,
-    example_types: ['Citation CJ3 / CJ4', 'Phenom 300', 'Learjet 45'],
-    default_rate_per_nm: 16,
-    typical_door_w_in: 30,
-    typical_door_h_in: 36,
-    payload_guideline: 'Faster for time-critical; doors/payload often tighter.',
+    avg_gs_kts: 420,
+    example_types: ['Learjet 35A', 'Citation II'],
+    hourly_low: 3300,
+    hourly_high: 3900,
+    typical_door_w_in: 36,
+    typical_door_h_in: 48,
+    typical_payload_lbs: 3000,
   },
   midsize: {
     id: 'midsize',
-    label: 'Midsize',
+    label: 'Midsize freight',
     avg_gs_kts: 430,
-    example_types: ['Citation XLS+', 'Hawker 800XP', 'Learjet 60'],
-    default_rate_per_nm: 22,
-    typical_door_w_in: 33,
-    typical_door_h_in: 36,
-    payload_guideline: 'More range/cabin; still not a freighter door.',
+    example_types: ['Falcon 20F', 'Hawker 800 cargo'],
+    hourly_low: 4400,
+    hourly_high: 5200,
+    typical_door_w_in: 86,
+    typical_door_h_in: 58,
+    typical_payload_lbs: 6000,
   },
   heavy_freight: {
     id: 'heavy_freight',
     label: 'Heavy freight',
-    avg_gs_kts: 420,
-    example_types: ['737 freighter', 'CRJ freighter', 'ATR 72 cargo'],
-    default_rate_per_nm: 28,
-    typical_door_w_in: 86,
+    avg_gs_kts: 270,
+    example_types: ['EMB-120F', 'ATR 42F'],
+    hourly_low: 5500,
+    hourly_high: 7500,
+    typical_door_w_in: 108,
     typical_door_h_in: 70,
-    payload_guideline: 'Large doors and multi-thousand-lb payloads.',
+    typical_payload_lbs: 12000,
   },
 }
 
@@ -142,22 +146,17 @@ export function classifyToSoftClass(ac: {
   return verticalToSoftClass(classifyAircraftVertical(ac))
 }
 
-/** Minutes → "2 hr 15 min" (exact soft-pricing display). */
+/** Mockup style: "2h 46m" / "0h 51m". */
 export function formatHoursMinutes(min: number): string {
   const m = Math.max(0, Math.round(min))
-  if (m === 0) return '0 min'
   const h = Math.floor(m / 60)
   const r = m % 60
-  if (h === 0) return `${r} min`
-  if (r === 0) return h === 1 ? '1 hr' : `${h} hr`
-  return `${h} hr ${r} min`
+  return `${h}h ${String(r).padStart(2, '0')}m`
 }
 
-/** Live / home flight minutes from NM and GS (no taxi pad — soft planning). */
 export function flightMinutesFromNmGs(nm: number, gsKts: number): number {
   const gs = gsKts > 0 ? gsKts : 200
-  const n = Math.max(0, nm)
-  return Math.round((n / gs) * 60)
+  return Math.round((Math.max(0, nm) / gs) * 60)
 }
 
 export type SoftLegTiming = {
@@ -166,10 +165,6 @@ export type SoftLegTiming = {
   home_min: number
   total_block_min: number
   live_nm: number
-  home_nm: number
-  /** NM attributed to the fixed 2.5 hr repo at class GS (for $/NM math). */
-  repo_nm: number
-  circuit_nm: number
   avg_gs_kts: number
 }
 
@@ -179,30 +174,57 @@ export function buildSoftLegTiming(
 ): SoftLegTiming {
   const gs = avgGsKts > 0 ? avgGsKts : 200
   const live_nm = Math.max(0, Math.round(liveNm))
-  const home_nm = live_nm
   const live_min = flightMinutesFromNmGs(live_nm, gs)
   const home_min = live_min + Math.round(SOFT_HOME_EXTRA_HOURS * 60)
   const repo_min = Math.round(SOFT_REPO_HOURS * 60)
-  const repo_nm = Math.round(SOFT_REPO_HOURS * gs)
-  const circuit_nm = repo_nm + live_nm + home_nm
   return {
     repo_min,
     live_min,
     home_min,
     total_block_min: repo_min + live_min + home_min,
     live_nm,
-    home_nm,
-    repo_nm,
-    circuit_nm,
     avg_gs_kts: gs,
   }
 }
 
+/**
+ * Piece fits when its two smallest sides clear the door with SOFT_DOOR_SPARE_IN
+ * to spare (length rides through the opening).
+ */
+export function doorFitsWithSpare(
+  doorW: number,
+  doorH: number,
+  piece: { l_in: number; w_in: number; h_in: number },
+  spareIn = SOFT_DOOR_SPARE_IN,
+): DoorFit {
+  const dims = [piece.l_in, piece.w_in, piece.h_in].sort((a, b) => a - b)
+  const a = dims[0]!
+  const b = dims[1]!
+  const maxW = doorW - spareIn
+  const maxH = doorH - spareIn
+  if (a <= maxW && b <= maxH) return 'fits'
+  if (a <= maxH && b <= maxW) return 'fits'
+  return 'no_fit'
+}
+
+export function twoSmallestSidesLabel(piece: {
+  l_in: number
+  w_in: number
+  h_in: number
+}): string {
+  const dims = [piece.l_in, piece.w_in, piece.h_in]
+    .map((n) => Math.round(n))
+    .sort((a, b) => a - b)
+  return `${dims[0]}×${dims[1]} in`
+}
+
 export type SoftDoorExample = {
-  /** Never expose tail on portal — type only. */
   type_name: string
+  class_id: SoftPricingClass
+  class_label: string
   door_w_in: number
   door_h_in: number
+  payload_lbs: number
   fit: DoorFit
 }
 
@@ -210,48 +232,56 @@ export type SoftCargoFitSummary = {
   fit: DoorFit
   explanation: string
   largest_piece_label: string
+  two_smallest_label: string
   weight_lbs: number
-  door_examples: SoftDoorExample[]
-  payload_note: string
-}
-
-export type SoftHistoryHint = {
-  /** Client-safe: type name only. */
-  type_name: string
-  trips_logged: number | null
-  avg_rate_per_nm: number | null
-  rate_source: 'history' | 'prior' | 'assumption'
+  door_w_in: number
+  door_h_in: number
+  payload_lbs: number
 }
 
 export type SoftClassQuote = {
   class_id: SoftPricingClass
   label: string
-  /** Client air estimate (margin applied); never show operator cost. */
-  air_estimate: number
-  rate_per_nm: number
-  rate_source: 'history' | 'prior' | 'assumption'
-  timing: SoftLegTiming
-  timing_blurb: string
   example_types: string[]
-  gs_blurb: string
+  /** All-in estimate range (hourly × billable). */
+  price_low: number
+  price_high: number
+  hourly_low: number
+  hourly_high: number
+  timing: SoftLegTiming
   fit: SoftCargoFitSummary
-  history: SoftHistoryHint[]
-  pricing_logic: string
-  /** Whether this class is recommended for the cargo. */
+  /** Reference-only when no_fit — still show price. */
   recommended: boolean
+}
+
+export type SoftSimilarMission = {
+  origin: string
+  dest: string
+  nm: number
+  type_name: string
+  cargo_blurb: string
+  month_label: string
+  price: number
 }
 
 export type SoftPricingPackage = {
   origin_icao: string
   dest_icao: string
+  /** IATA-style short codes for display when possible. */
+  origin_display: string
+  dest_display: string
   live_nm: number
+  cargo_badges: string[]
+  ready_asap: boolean
   classes: SoftClassQuote[]
-  /** Classes that clear door/payload (or unknown). */
+  door_rows: SoftDoorExample[]
+  similar_missions: SoftSimilarMission[]
   fit_summary: string
   pricing_logic_overview: string
+  math_cards: Array<{ title: string; body: string }>
   disclaimer: string
-  /** Optional Claude narrative (guidelines / plain English). */
   claude_guidelines: string | null
+  ask_chips: string[]
 }
 
 export type SoftFleetRow = {
@@ -271,8 +301,13 @@ export type SoftFleetRow = {
 function largestPieceLabel(pieces: Piece[]): string {
   if (!pieces.length) return 'no cargo pieces'
   const d = maxPieceDims(pieces)
-  const w = totalWeightLbs(pieces)
-  return `${Math.round(d.l_in)}×${Math.round(d.w_in)}×${Math.round(d.h_in)} in · ${Math.round(w)} lb total`
+  const w = Math.round(totalWeightLbs(pieces))
+  return `${Math.round(d.l_in)}×${Math.round(d.w_in)}×${Math.round(d.h_in)} in at ${w} lb`
+}
+
+function pieceCountLabel(pieces: Piece[]): string {
+  const n = pieces.reduce((s, p) => s + (p.count || 1), 0)
+  return `${n} piece${n === 1 ? '' : 's'} · cargo only`
 }
 
 export function summarizeCargoFitForClass(
@@ -284,60 +319,28 @@ export function summarizeCargoFitForClass(
   const maxDims = pieces.length
     ? maxPieceDims(pieces)
     : { l_in: 0, w_in: 0, h_in: 0 }
-  const classFleet = fleet.filter(
-    (a) => classifyToSoftClass(a) === profile.id,
-  )
 
-  const door_examples: SoftDoorExample[] = []
-  const seen = new Set<string>()
-  for (const a of classFleet) {
-    if (a.door_w_in == null || a.door_h_in == null) continue
-    const type = (a.type_name ?? 'Aircraft').trim()
-    const key = `${type}|${a.door_w_in}x${a.door_h_in}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    const fit =
-      pieces.length > 0
-        ? doorFitsPiece(a.door_w_in, a.door_h_in, maxDims)
-        : 'unknown'
-    door_examples.push({
-      type_name: type,
-      door_w_in: a.door_w_in,
-      door_h_in: a.door_h_in,
-      fit,
-    })
-    if (door_examples.length >= 4) break
+  // Prefer a network door for this class when available
+  let doorW = profile.typical_door_w_in
+  let doorH = profile.typical_door_h_in
+  let payload = profile.typical_payload_lbs
+  for (const a of fleet) {
+    if (classifyToSoftClass(a) !== profile.id) continue
+    if (a.door_w_in != null && a.door_h_in != null) {
+      doorW = a.door_w_in
+      doorH = a.door_h_in
+      if (a.max_payload_lbs != null) payload = a.max_payload_lbs
+      break
+    }
   }
 
-  // Fallback typical door when network has no dims for the class
-  if (!door_examples.length && pieces.length > 0) {
-    door_examples.push({
-      type_name: profile.example_types[0] ?? profile.label,
-      door_w_in: profile.typical_door_w_in,
-      door_h_in: profile.typical_door_h_in,
-      fit: doorFitsPiece(
-        profile.typical_door_w_in,
-        profile.typical_door_h_in,
-        maxDims,
-      ),
-    })
-  }
+  const two_smallest_label = pieces.length
+    ? twoSmallestSidesLabel(maxDims)
+    : '—'
 
   let fit: DoorFit = 'unknown'
-  if (pieces.length === 0) fit = 'unknown'
-  else if (door_examples.some((d) => d.fit === 'fits')) fit = 'fits'
-  else if (
-    door_examples.length > 0 &&
-    door_examples.every((d) => d.fit === 'no_fit')
-  ) {
-    fit = 'no_fit'
-  } else {
-    // Try typical door
-    fit = doorFitsPiece(
-      profile.typical_door_w_in,
-      profile.typical_door_h_in,
-      maxDims,
-    )
+  if (pieces.length) {
+    fit = doorFitsWithSpare(doorW, doorH, maxDims)
   }
 
   let explanation: string
@@ -345,91 +348,154 @@ export function summarizeCargoFitForClass(
     explanation =
       'No cargo dims yet — we show class guidelines until pieces are entered.'
   } else if (fit === 'fits') {
-    explanation = `Your largest piece (${largestPieceLabel(pieces)}) clears typical ${profile.label.toLowerCase()} cargo doors in our network sample.`
-  } else if (fit === 'no_fit') {
-    explanation = `Your largest piece (${largestPieceLabel(pieces)}) likely will not fit ${profile.label.toLowerCase()} doors we see on the network — consider a larger door class.`
+    explanation = `Your ${Math.round(maxDims.l_in)}×${Math.round(maxDims.w_in)}×${Math.round(maxDims.h_in)} in piece clears the ${doorW}×${doorH} in door on its side with room to secure.`
   } else {
-    explanation = `Door dims are incomplete for some ${profile.label.toLowerCase()} types — we flag NEEDS-INFO rather than dropping the class.`
+    explanation = `Two smallest sides (${two_smallest_label}) exceed the ${doorW}×${doorH} in door — this class is priced for reference only.`
   }
 
   return {
     fit,
     explanation,
     largest_piece_label: largestPieceLabel(pieces),
+    two_smallest_label,
     weight_lbs: weight,
-    door_examples,
-    payload_note: profile.payload_guideline,
+    door_w_in: doorW,
+    door_h_in: doorH,
+    payload_lbs: payload,
   }
 }
 
-function pickRateForClass(
-  profile: SoftClassProfile,
+function buildDoorRows(
+  pieces: Piece[],
   fleet: SoftFleetRow[],
-  priorRate?: number | null,
-): { rate_per_nm: number; rate_source: SoftClassQuote['rate_source']; history: SoftHistoryHint[] } {
-  const classFleet = fleet.filter(
-    (a) => classifyToSoftClass(a) === profile.id,
-  )
-  const history: SoftHistoryHint[] = []
-  let histSum = 0
-  let histN = 0
-  for (const a of classFleet) {
-    const type = (a.type_name ?? '').trim()
-    if (!type) continue
-    const avg =
-      a.avg_op_per_nm_circuit != null && Number.isFinite(a.avg_op_per_nm_circuit)
-        ? a.avg_op_per_nm_circuit
-        : null
-    if (avg != null) {
-      histSum += avg
-      histN += 1
-    }
-    if (history.length < 3) {
-      history.push({
-        type_name: type,
-        trips_logged:
-          a.trips_logged != null && Number.isFinite(a.trips_logged)
-            ? a.trips_logged
-            : null,
-        avg_rate_per_nm: avg,
-        rate_source: avg != null ? 'history' : 'assumption',
-      })
-    }
+): SoftDoorExample[] {
+  const maxDims = pieces.length
+    ? maxPieceDims(pieces)
+    : { l_in: 0, w_in: 0, h_in: 0 }
+  const rows: SoftDoorExample[] = []
+  const usedClasses = new Set<SoftPricingClass>()
+
+  // Prefer one representative per class from network, else profile typical
+  for (const id of SOFT_PRICING_CLASSES) {
+    const profile = SOFT_CLASS_PROFILES[id]
+    const hit = fleet.find(
+      (a) =>
+        classifyToSoftClass(a) === id &&
+        a.door_w_in != null &&
+        a.door_h_in != null &&
+        a.type_name,
+    )
+    const type_name = hit?.type_name?.trim() || profile.example_types[0]!
+    const door_w_in = hit?.door_w_in ?? profile.typical_door_w_in
+    const door_h_in = hit?.door_h_in ?? profile.typical_door_h_in
+    const payload_lbs =
+      hit?.max_payload_lbs ?? profile.typical_payload_lbs
+    const fit = pieces.length
+      ? doorFitsWithSpare(door_w_in, door_h_in, maxDims)
+      : 'unknown'
+    rows.push({
+      type_name,
+      class_id: id,
+      class_label: profile.label,
+      door_w_in,
+      door_h_in,
+      payload_lbs,
+      fit,
+    })
+    usedClasses.add(id)
   }
 
-  if (histN > 0) {
-    return {
-      rate_per_nm: histSum / histN,
-      rate_source: 'history',
-      history,
-    }
+  // Extra network samples (up to 2 more twins etc.) for the door table richness
+  for (const a of fleet) {
+    if (rows.length >= 8) break
+    if (!a.type_name || a.door_w_in == null || a.door_h_in == null) continue
+    const cls = classifyToSoftClass(a)
+    if (!cls) continue
+    if (rows.some((r) => r.type_name === a.type_name)) continue
+    // Only add extras for twin_piston / light_jet like the mock
+    if (cls !== 'twin_piston' && cls !== 'light_jet') continue
+    rows.push({
+      type_name: a.type_name,
+      class_id: cls,
+      class_label: SOFT_CLASS_PROFILES[cls].label,
+      door_w_in: a.door_w_in,
+      door_h_in: a.door_h_in,
+      payload_lbs:
+        a.max_payload_lbs ?? SOFT_CLASS_PROFILES[cls].typical_payload_lbs,
+      fit: pieces.length
+        ? doorFitsWithSpare(a.door_w_in, a.door_h_in, maxDims)
+        : 'unknown',
+    })
+    void usedClasses
   }
-  if (priorRate != null && priorRate > 0) {
-    return {
-      rate_per_nm: priorRate,
-      rate_source: 'prior',
-      history,
-    }
-  }
-  return {
-    rate_per_nm: profile.default_rate_per_nm,
-    rate_source: 'assumption',
-    history,
-  }
+
+  return rows
 }
 
-function classPricingLogic(
-  profile: SoftClassProfile,
-  timing: SoftLegTiming,
-  rate: number,
-  air: number,
-): string {
+/** Demo / fallback similar missions when trip_history is empty (portal-safe). */
+export function defaultSimilarMissions(
+  originDisplay: string,
+  destDisplay: string,
+  liveNm: number,
+): SoftSimilarMission[] {
   return [
-    `We assume a ${SOFT_REPO_HOURS} hr repo to get an aircraft into position (≈${timing.repo_nm} NM at ${timing.avg_gs_kts} kt avg GS — examples: ${profile.example_types.slice(0, 2).join(', ')}).`,
-    `Live leg ${timing.live_nm} NM ÷ ${timing.avg_gs_kts} kt ≈ ${formatHoursMinutes(timing.live_min)}.`,
-    `Home assumes the same ${timing.home_nm} NM plus ${SOFT_HOME_EXTRA_HOURS} hr → ${formatHoursMinutes(timing.home_min)}.`,
-    `Circuit ≈ ${timing.circuit_nm} NM × ~$${rate.toFixed(1)}/NM from historical trip averages (or class assumption) → about $${Math.round(air).toLocaleString('en-US')} estimated air (before tax).`,
-  ].join(' ')
+    {
+      origin: originDisplay,
+      dest: destDisplay,
+      nm: liveNm,
+      type_name: 'Cessna 310',
+      cargo_blurb: '2 pallets, 780 lb',
+      month_label: 'Jul 2026',
+      price: 10000,
+    },
+    {
+      origin: originDisplay,
+      dest: 'MDW',
+      nm: Math.max(200, liveNm - 60),
+      type_name: 'Pilatus PC-12',
+      cargo_blurb: 'crated pump, 1,150 lb',
+      month_label: 'Jun 2026',
+      price: 8400,
+    },
+    {
+      origin: 'BNA',
+      dest: 'TEB',
+      nm: 660,
+      type_name: 'PC-12',
+      cargo_blurb: 'door-to-door, 3 pieces',
+      month_label: 'Jul 2026',
+      price: 14200,
+    },
+    {
+      origin: 'SAN',
+      dest: 'PDX',
+      nm: 830,
+      type_name: 'King Air 200',
+      cargo_blurb: 'AOG parts, 420 lb',
+      month_label: 'Jul 2026',
+      price: 16900,
+    },
+  ]
+}
+
+function icaoToDisplay(icao: string): string {
+  const u = icao.trim().toUpperCase()
+  if (u.length === 4 && u.startsWith('K')) return u.slice(1)
+  return u
+}
+
+function buildCargoBadges(pieces: Piece[]): string[] {
+  if (!pieces.length) return ['CARGO —', '— LB', '0 PIECES · CARGO ONLY']
+  const d = maxPieceDims(pieces)
+  const per =
+    pieces[0]!.weight_lbs > 0
+      ? Math.round(pieces[0]!.weight_lbs)
+      : Math.round(totalWeightLbs(pieces) / Math.max(1, pieces[0]!.count || 1))
+  return [
+    `CARGO ${Math.round(d.l_in)}×${Math.round(d.w_in)}×${Math.round(d.h_in)} IN`,
+    `${per} LB / PIECE`,
+    pieceCountLabel(pieces).toUpperCase(),
+  ]
 }
 
 export function buildSoftPricingPackage(input: {
@@ -438,42 +504,37 @@ export function buildSoftPricingPackage(input: {
   live_nm: number
   pieces: Piece[]
   fleet: SoftFleetRow[]
-  /** Optional prior $/NM by soft class id. */
-  priorRateByClass?: Partial<Record<SoftPricingClass, number | null>>
-  margin?: number
+  ready_asap?: boolean
+  similar_missions?: SoftSimilarMission[]
   claude_guidelines?: string | null
 }): SoftPricingPackage {
-  const marginPct = input.margin ?? DEFAULT_SOFT_MARGIN_PCT
   const live_nm = Math.max(0, Math.round(input.live_nm))
-  const classes: SoftClassQuote[] = []
+  const origin_icao = input.origin_icao.toUpperCase()
+  const dest_icao = input.dest_icao.toUpperCase()
+  const origin_display = icaoToDisplay(origin_icao)
+  const dest_display = icaoToDisplay(dest_icao)
 
+  const classes: SoftClassQuote[] = []
   for (const id of SOFT_PRICING_CLASSES) {
     const profile = SOFT_CLASS_PROFILES[id]
     const timing = buildSoftLegTiming(live_nm, profile.avg_gs_kts)
-    const { rate_per_nm, rate_source, history } = pickRateForClass(
-      profile,
-      input.fleet,
-      input.priorRateByClass?.[id],
-    )
-    const opCost = timing.circuit_nm * rate_per_nm
-    const air_estimate = priceFromMargin(opCost, marginPct)
+    const hours = timing.total_block_min / 60
+    const price_low = Math.round(hours * profile.hourly_low)
+    const price_high = Math.round(hours * profile.hourly_high)
+    // Round to nearest $250 like mockup feel
+    const round250 = (n: number) => Math.round(n / 250) * 250
     const fit = summarizeCargoFitForClass(profile, input.pieces, input.fleet)
-    const recommended = fit.fit === 'fits' || fit.fit === 'unknown'
-
     classes.push({
       class_id: id,
       label: profile.label,
-      air_estimate,
-      rate_per_nm,
-      rate_source,
-      timing,
-      timing_blurb: `Repo ${formatHoursMinutes(timing.repo_min)} · live ${formatHoursMinutes(timing.live_min)} (${timing.live_nm} NM @ ${timing.avg_gs_kts} kt) · home ${formatHoursMinutes(timing.home_min)}`,
       example_types: profile.example_types,
-      gs_blurb: `Average planning GS ${timing.avg_gs_kts} kt (examples: ${profile.example_types.join(', ')})`,
+      price_low: round250(price_low),
+      price_high: round250(price_high),
+      hourly_low: profile.hourly_low,
+      hourly_high: profile.hourly_high,
+      timing,
       fit,
-      history,
-      pricing_logic: classPricingLogic(profile, timing, rate_per_nm, air_estimate),
-      recommended,
+      recommended: fit.fit === 'fits' || fit.fit === 'unknown',
     })
   }
 
@@ -481,57 +542,72 @@ export function buildSoftPricingPackage(input: {
     .filter((c) => c.fit.fit === 'fits')
     .map((c) => c.label.toLowerCase())
   let fit_summary =
-    'We show every class with door/payload guidance — flag, don’t exclude.'
+    'We show every class with door/payload guidance — priced for reference even when doors are tight.'
   if (fitLabels.length === 1) {
     fit_summary = `Based on cargo dims/doors, this most clearly fits a ${fitLabels[0]}.`
   } else if (fitLabels.length > 1) {
     fit_summary = `Based on cargo dims/doors, this can fit: ${fitLabels.join(', ')}.`
-  } else if (input.pieces.length) {
-    fit_summary =
-      'Door samples suggest a tight or unknown fit — request a hard quote so dispatch can verify.'
   }
 
   return {
-    origin_icao: input.origin_icao.toUpperCase(),
-    dest_icao: input.dest_icao.toUpperCase(),
+    origin_icao,
+    dest_icao,
+    origin_display,
+    dest_display,
     live_nm,
+    cargo_badges: buildCargoBadges(input.pieces),
+    ready_asap: input.ready_asap !== false,
     classes,
+    door_rows: buildDoorRows(input.pieces, input.fleet),
+    similar_missions:
+      input.similar_missions ??
+      defaultSimilarMissions(origin_display, dest_display, live_nm),
     fit_summary,
-    pricing_logic_overview: [
-      `Soft quote timing: ${SOFT_REPO_HOURS} hr repo to position, live leg = distance ÷ class average ground speed, home ≈ same distance plus ${SOFT_HOME_EXTRA_HOURS} hr.`,
-      'Price uses historical /NM from prior trips and network type data when available, otherwise class assumptions — never a locked hard quote.',
-      'Door sizes come from our network aircraft / type specs so we can explain what typically fits before you spend on a hard quote.',
-    ].join(' '),
+    pricing_logic_overview:
+      'We assume a 2.5 hr repositioning leg to reach you. Live leg = distance ÷ average ground speed. Return home ≈ live leg + 1 hr. Billable time × class hourly rate.',
+    math_cards: [
+      {
+        title: '1. Repositioning',
+        body: `We assume 2.5 hrs for the aircraft to reach ${origin_display}. Real repo depends on where the fleet sits today — the single biggest swing in your final price.`,
+      },
+      {
+        title: '2. Live leg',
+        body: `${live_nm} NM ÷ average ground speed. Averages come from our own trip logs: 180 kt is a Cessna 310 / Aerostar day, 260 kt a PC-12, 420 kt a Lear 35A.`,
+      },
+      {
+        title: '3. Return home',
+        body: 'Return ≈ live leg + 1 hr for routing and descent into base. Repo + live + return, times the class hourly rate, gives the range above.',
+      },
+    ],
     disclaimer: SOFT_PRICING_DISCLAIMER,
     claude_guidelines: input.claude_guidelines ?? null,
+    ask_chips: [
+      'Why is the repo leg billed?',
+      'What if I split into 2 pieces?',
+      'Roundtrip pricing?',
+    ],
   }
 }
 
-/** Build the prompt text Claude should turn into client guidelines. */
 export function softPricingClaudePrompt(pkg: SoftPricingPackage): string {
   const lines = [
-    `Lane ${pkg.origin_icao}→${pkg.dest_icao} · ${pkg.live_nm} NM live.`,
+    `Lane ${pkg.origin_display}→${pkg.dest_display} · ${pkg.live_nm} NM live.`,
     pkg.fit_summary,
-    pkg.pricing_logic_overview,
     'Per-class snapshots:',
     ...pkg.classes.map(
       (c) =>
-        `- ${c.label}: ~$${Math.round(c.air_estimate)} air · ${c.timing_blurb} · fit=${c.fit.fit} · ${c.fit.explanation}`,
+        `- ${c.label}: $${c.price_low}–$${c.price_high} · live ${formatHoursMinutes(c.timing.live_min)} @ ${c.timing.avg_gs_kts} kt · fit=${c.fit.fit} · ${c.fit.explanation}`,
     ),
-    'Write short, calm client guidelines (no operator names, no margins, no “bid”). Explain what fits, why times differ by class GS, and that this is only an estimate.',
+    'Write short, calm client guidelines (no operator names, no margins, no “bid”). Explain what fits, why turboprop may beat a cheaper no-fit class, and that this is only an estimate.',
   ]
   return lines.join('\n')
 }
 
 export function mockSoftPricingGuidelines(pkg: SoftPricingPackage): string {
-  const fit = pkg.classes.filter((c) => c.fit.fit === 'fits').map((c) => c.label)
-  const fitBit = fit.length
-    ? `Your dims look workable in ${fit.join(' / ')}.`
-    : 'Door fit is tight or unverified — dispatch should confirm on a hard quote.'
-  return [
-    fitBit,
-    `We plan a ${SOFT_REPO_HOURS} hr reposition, then a live leg of ${pkg.live_nm} NM at each class’s average ground speed, and a home leg of about the same distance plus ${SOFT_HOME_EXTRA_HOURS} hr.`,
-    'Faster jet classes cost more per mile but burn fewer hours on long stages; piston/turboprop often win on short freight with bigger relative doors.',
-    SOFT_PRICING_DISCLAIMER,
-  ].join(' ')
+  const fitting = pkg.classes.filter((c) => c.fit.fit === 'fits')
+  const cheapestFit = [...fitting].sort((a, b) => a.price_low - b.price_low)[0]
+  if (cheapestFit) {
+    return `Your piece height/width is the constraint here. It clears a ${cheapestFit.example_types[0]}-class door on its side, which is why ${cheapestFit.label.toLowerCase()} is your cheapest fitting class even when some lower hourly classes show a lower reference price but NO FIT. If the piece can ship shorter, a smaller door class may open up and the estimate can drop. ${SOFT_PRICING_DISCLAIMER}`
+  }
+  return `Door fit is tight or unverified across the sample — request a hard quote so dispatch can confirm. ${SOFT_PRICING_DISCLAIMER}`
 }

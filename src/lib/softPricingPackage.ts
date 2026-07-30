@@ -1,6 +1,6 @@
 /**
  * Build the portal soft-pricing package for a trip request.
- * Uses network doors + historical /NM + optional Claude guidelines.
+ * Network doors + hourly class bands + optional Claude guidelines.
  */
 
 import { createLlmAdapter } from '@/adapters/llm'
@@ -9,16 +9,14 @@ import { piecesHaveWeights } from '@/domain/dimsParser'
 import { haversineNm } from '@/domain/geo'
 import {
   buildSoftPricingPackage,
-  classifyToSoftClass,
   mockSoftPricingGuidelines,
   softPricingClaudePrompt,
+  SOFT_PRICING_DISCLAIMER,
   type SoftFleetRow,
-  type SoftPricingClass,
   type SoftPricingPackage,
 } from '@/domain/softPricing'
 import { cargoPiecesFromDraft, type TripRequestRecord } from '@/domain/tripRequest'
 import { loadNetwork } from '@/lib/networkData'
-import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
 
 export type SoftPricingPackageResult = SoftPricingPackage & {
   request_id: string
@@ -70,26 +68,13 @@ export async function buildSoftPricingForRequest(
     haversineNm(origin.lat, origin.lon, dest.lat, dest.lon),
   )
 
-  const [net, priors] = await Promise.all([
-    loadNetwork(),
-    loadPricingPriors(),
-  ])
-
+  const net = await loadNetwork()
   const fleet: SoftFleetRow[] = net.aircraft.map((a) => {
     const spec = a.type_name
       ? net.type_specs.find(
           (s) => String(s.type_name ?? '') === a.type_name,
         )
       : undefined
-    const doorW =
-      a.door_w_in ??
-      (spec?.door_w_in != null ? Number(spec.door_w_in) : null)
-    const doorH =
-      a.door_h_in ??
-      (spec?.door_h_in != null ? Number(spec.door_h_in) : null)
-    const payload =
-      a.max_payload_lbs ??
-      (spec?.max_payload_lbs != null ? Number(spec.max_payload_lbs) : null)
     return {
       type_name: a.type_name,
       category: a.category,
@@ -98,23 +83,24 @@ export async function buildSoftPricingForRequest(
       cruise_kts:
         a.cruise_kts ??
         (spec?.cruise_kts != null ? Number(spec.cruise_kts) : null),
-      door_w_in: doorW,
-      door_h_in: doorH,
-      max_payload_lbs: payload,
+      door_w_in:
+        a.door_w_in ??
+        (spec?.door_w_in != null ? Number(spec.door_w_in) : null),
+      door_h_in:
+        a.door_h_in ??
+        (spec?.door_h_in != null ? Number(spec.door_h_in) : null),
+      max_payload_lbs:
+        a.max_payload_lbs ??
+        (spec?.max_payload_lbs != null ? Number(spec.max_payload_lbs) : null),
       avg_op_per_nm_circuit: a.avg_op_per_nm_circuit ?? null,
       med_assumed_op_per_nm: a.med_assumed_op_per_nm ?? null,
       trips_logged: null,
     }
   })
 
-  const priorRateByClass: Partial<Record<SoftPricingClass, number | null>> = {}
-  for (const a of fleet) {
-    const cls = classifyToSoftClass(a)
-    if (!cls || !a.type_name) continue
-    if (priorRateByClass[cls] != null) continue
-    const p = priorRatePerNm(a.type_name, null, priors)
-    if (p != null) priorRateByClass[cls] = p
-  }
+  const ready_asap =
+    /asap|aog|hot/i.test(row.summary || '') ||
+    Boolean(row.ready_at && Date.parse(row.ready_at) - Date.now() < 4 * 3600_000)
 
   let pkg = buildSoftPricingPackage({
     origin_icao: origin.icao,
@@ -122,15 +108,14 @@ export async function buildSoftPricingForRequest(
     live_nm,
     pieces,
     fleet,
-    priorRateByClass,
+    ready_asap,
   })
 
   const withClaude = opts?.withClaude !== false
   if (withClaude) {
     try {
       const llm = createLlmAdapter()
-      const prompt = softPricingClaudePrompt(pkg)
-      const text = await llm.explainSoftPricing(prompt)
+      const text = await llm.explainSoftPricing(softPricingClaudePrompt(pkg))
       pkg = {
         ...pkg,
         claude_guidelines: text?.trim() || mockSoftPricingGuidelines(pkg),
@@ -169,13 +154,20 @@ function emptyPackage(
     request_ref: row.ref,
     origin_icao: '',
     dest_icao: '',
+    origin_display: '',
+    dest_display: '',
     live_nm: 0,
+    cargo_badges: [],
+    ready_asap: false,
     classes: [],
+    door_rows: [],
+    similar_missions: [],
     fit_summary: '',
     pricing_logic_overview: '',
-    disclaimer:
-      'This is not the actual price — this is an estimate based on what we believe will fit and what historical data shows. Every mission is unique as aircraft are constantly changing distances from your pickup point.',
+    math_cards: [],
+    disclaimer: SOFT_PRICING_DISCLAIMER,
     claude_guidelines: null,
+    ask_chips: [],
     error,
   }
 }

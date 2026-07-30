@@ -5,6 +5,7 @@ import {
   SOFT_REPO_HOURS,
   buildSoftLegTiming,
   buildSoftPricingPackage,
+  doorFitsWithSpare,
   formatHoursMinutes,
   flightMinutesFromNmGs,
   verticalToSoftClass,
@@ -23,111 +24,85 @@ describe('softPricing', () => {
     expect(verticalToSoftClass('other')).toBeNull()
   })
 
-  it('formats hours and minutes exactly', () => {
-    expect(formatHoursMinutes(150)).toBe('2 hr 30 min')
-    expect(formatHoursMinutes(60)).toBe('1 hr')
-    expect(formatHoursMinutes(45)).toBe('45 min')
-    expect(formatHoursMinutes(0)).toBe('0 min')
+  it('formats hours as mockup 2h 46m', () => {
+    expect(formatHoursMinutes(166)).toBe('2h 46m')
+    expect(formatHoursMinutes(150)).toBe('2h 30m')
+    expect(formatHoursMinutes(51)).toBe('0h 51m')
+    expect(formatHoursMinutes(60)).toBe('1h 00m')
   })
 
-  it('builds timing: 2.5hr repo, live=nm/gs, home=live+1hr', () => {
-    // 270 NM @ 270 kt = 60 min live; home = 60+60 = 120
+  it('builds timing: 2.5hr repo, live=nm/gs, return=live+1hr', () => {
     const t = buildSoftLegTiming(270, 270)
     expect(t.repo_min).toBe(Math.round(SOFT_REPO_HOURS * 60))
     expect(t.live_min).toBe(60)
     expect(t.home_min).toBe(60 + Math.round(SOFT_HOME_EXTRA_HOURS * 60))
-    expect(t.live_nm).toBe(270)
-    expect(t.home_nm).toBe(270)
-    expect(t.repo_nm).toBe(Math.round(SOFT_REPO_HOURS * 270))
-    expect(t.circuit_nm).toBe(t.repo_nm + 270 + 270)
-    expect(flightMinutesFromNmGs(400, 400)).toBe(60)
+    expect(flightMinutesFromNmGs(360, 130)).toBe(166)
   })
 
-  it('builds a full package with six classes, doors, and disclaimer', () => {
+  it('fits door with ~2 in spare on two smallest sides', () => {
+    // 48×40×60 → two smallest 40×48; door 53×52 with 2" spare → 51×50 OK
+    expect(
+      doorFitsWithSpare(53, 52, { l_in: 48, w_in: 40, h_in: 60 }),
+    ).toBe('fits')
+    // 40×48 vs 44×37 spare → 42×35 — 40 ok, 48 > 35 and 48 > 42
+    expect(
+      doorFitsWithSpare(44, 37, { l_in: 48, w_in: 40, h_in: 60 }),
+    ).toBe('no_fit')
+  })
+
+  it('builds six class cards with hourly ranges and disclaimer', () => {
     const pkg = buildSoftPricingPackage({
-      origin_icao: 'kcak',
-      dest_icao: 'kmdw',
-      live_nm: 300,
+      origin_icao: 'KCAK',
+      dest_icao: 'KHPN',
+      live_nm: 360,
       pieces: [
         {
           count: 1,
           l_in: 48,
           w_in: 40,
-          h_in: 48,
-          weight_lbs: 400,
+          h_in: 60,
+          weight_lbs: 800,
           stackable: false,
         },
       ],
-      fleet: [
-        {
-          type_name: 'King Air 200',
-          category: 'turboprop',
-          engines: 'multi turboprop',
-          door_w_in: 52,
-          door_h_in: 52,
-          max_payload_lbs: 3500,
-          avg_op_per_nm_circuit: 11.5,
-          trips_logged: 40,
-        },
-        {
-          type_name: 'Citation CJ3',
-          category: 'light jet',
-          engines: 'multi jet',
-          door_w_in: 30,
-          door_h_in: 36,
-          max_payload_lbs: 1800,
-          avg_op_per_nm_circuit: 15,
-          trips_logged: 12,
-        },
-      ],
+      fleet: [],
     })
 
     expect(pkg.classes).toHaveLength(6)
+    expect(pkg.origin_display).toBe('CAK')
+    expect(pkg.dest_display).toBe('HPN')
     expect(pkg.disclaimer).toBe(SOFT_PRICING_DISCLAIMER)
-    expect(pkg.origin_icao).toBe('KCAK')
-    expect(pkg.live_nm).toBe(300)
+    expect(pkg.cargo_badges[0]).toMatch(/48×40×60/i)
+    expect(pkg.math_cards).toHaveLength(3)
+    expect(pkg.door_rows.length).toBeGreaterThanOrEqual(6)
+    expect(pkg.similar_missions.length).toBe(4)
 
     const tp = pkg.classes.find((c) => c.class_id === 'turboprop')!
-    expect(tp.timing.repo_min).toBe(150)
-    expect(tp.rate_source).toBe('history')
     expect(tp.fit.fit).toBe('fits')
-    expect(tp.fit.door_examples[0]?.type_name).toBe('King Air 200')
-    expect(tp.timing_blurb).toMatch(/Repo 2 hr 30 min/)
-    expect(tp.pricing_logic).toMatch(/2\.5 hr repo/)
-    expect(tp.example_types.length).toBeGreaterThan(0)
+    expect(tp.price_low).toBeGreaterThan(0)
+    expect(tp.price_high).toBeGreaterThan(tp.price_low)
+    expect(tp.timing.repo_min).toBe(150)
 
-    const jet = pkg.classes.find((c) => c.class_id === 'light_jet')!
-    // 48x40 face may not fit 30x36 door
-    expect(jet.fit.fit).toBe('no_fit')
+    const se = pkg.classes.find((c) => c.class_id === 'single_engine')!
+    expect(se.fit.fit).toBe('no_fit')
+    expect(se.fit.explanation).toMatch(/reference only/i)
 
     const guide = mockSoftPricingGuidelines(pkg)
-    expect(guide).toContain(SOFT_PRICING_DISCLAIMER)
-    expect(guide.toLowerCase()).toMatch(/turboprop|fit/)
+    expect(guide).toContain('not the actual price')
   })
 
-  it('keeps class quotes portal-safe (no tails; finite prices)', () => {
+  it('keeps finite price ranges without tails', () => {
     const pkg = buildSoftPricingPackage({
       origin_icao: 'KHPN',
       dest_icao: 'KTEB',
       live_nm: 20,
       pieces: [],
-      fleet: [
-        {
-          type_name: 'Cessna 208',
-          category: 'piston',
-          engines: 'single piston',
-          door_w_in: 49,
-          door_h_in: 50,
-          max_payload_lbs: 2500,
-        },
-      ],
+      fleet: [],
     })
-    expect(pkg.origin_icao).toBe('KHPN')
     for (const c of pkg.classes) {
-      expect(Number.isFinite(c.air_estimate)).toBe(true)
-      expect(c.air_estimate).toBeGreaterThan(0)
+      expect(Number.isFinite(c.price_low)).toBe(true)
+      expect(c.price_high).toBeGreaterThanOrEqual(c.price_low)
     }
-    const blob = JSON.stringify(pkg)
-    expect(blob).not.toMatch(/\bN[0-9]{1,5}[A-Z]{0,2}\b/)
+    expect(JSON.stringify(pkg)).not.toMatch(/\bN[0-9]{1,5}[A-Z]{0,2}\b/)
   })
 })
