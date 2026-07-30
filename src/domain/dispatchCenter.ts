@@ -179,6 +179,8 @@ type TripInput = {
   code?: string | null
   lane: string
   state: TripState
+  /** When set, the inbound request has moved on — hide it from Trip requests. */
+  request_id?: string | null
   client_name?: string | null
   service_pattern?: string | null
   forklift_required?: boolean
@@ -301,9 +303,17 @@ export function buildDispatchDrawers(input: {
   trips: TripInput[]
 }): DispatchDrawerBucket {
   const out = emptyBuckets()
+  const seenTripIds = new Set<string>()
+  // Request → trip handoff: once a trip claims the request, leave Trip requests.
+  const claimedRequestIds = new Set(
+    input.trips
+      .map((t) => t.request_id?.trim())
+      .filter((id): id is string => Boolean(id)),
+  )
 
   for (const r of input.requests) {
     if (r.status !== 'submitted' && r.status !== 'in_review') continue
+    if (claimedRequestIds.has(r.id)) continue
     const client = (r.client_name ?? '').trim()
     out.requests.push({
       kind: 'request',
@@ -322,8 +332,10 @@ export function buildDispatchDrawers(input: {
   }
 
   for (const t of input.trips) {
+    if (seenTripIds.has(t.id)) continue
     const drawer = exclusiveDrawerForTrip(t)
     if (!drawer) continue
+    seenTripIds.add(t.id)
 
     const client = (
       t.client_name ||
