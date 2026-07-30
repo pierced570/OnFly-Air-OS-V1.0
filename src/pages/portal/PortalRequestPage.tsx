@@ -72,6 +72,11 @@ export default function PortalRequestPage() {
         declared_value_usd: '',
       },
       'portal',
+      {
+        // Soft quotes: email-only cost inquiry — no desk SMS.
+        // Hard quote path notifies once via requestHardQuote.
+        alert: mode === 'hard_quote' ? 'none' : 'cost_inquiry',
+      },
     )
     setDone(row)
     setIntent(mode)

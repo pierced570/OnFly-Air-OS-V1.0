@@ -9,7 +9,10 @@ import { BRAND_PHONE_E164 } from '@/domain/brand'
 import {
   DESK_ALERT_PHONE_E164,
   dispatchAlertEmail,
+  formatCostInquiryEmail,
   formatPortalRequestSms,
+  notifyCostInquiry,
+  notifyHardQuoteRequest,
   notifyPortalRequest,
   resolveDispatchPhone,
   FALLBACK_DISPATCH_PHONE,
@@ -118,5 +121,67 @@ describe('dispatchNotify', () => {
     )
     await new Promise((r) => setTimeout(r, 20))
     expect(getMockCommsLog().length).toBe(before)
+  })
+
+  it('cost inquiry emails info@ only — no SMS', async () => {
+    startShift('Pierce', '+16105092031')
+    const beforeSms = getMockCommsLog().length
+    const beforeMail = getMockSentEmails().length
+    const draft = emptyTripRequestDraft()
+    const row = {
+      ...draft,
+      id: crypto.randomUUID(),
+      ref: 9444,
+      source: 'portal' as const,
+      status: 'submitted' as const,
+      created_at: new Date().toISOString(),
+      ready_at: new Date().toISOString(),
+      lane: 'KGSP→KCVG',
+      summary: '1 pax · ASAP',
+      email: 'ops@client.com',
+      client_name: 'Acme',
+      hard_quote_requested_at: null,
+      forklift: forkliftFromDraft(draft),
+    }
+    const formatted = formatCostInquiryEmail(row)
+    expect(formatted.text).toContain('A cost inquiry has been made.')
+    expect(formatted.subject).toMatch(/cost inquiry/i)
+
+    const result = await notifyCostInquiry(row)
+    expect(result.sms_id).toBeNull()
+    expect(result.email_id).toBeTruthy()
+    expect(getMockCommsLog().length).toBe(beforeSms)
+    expect(getMockSentEmails().length).toBe(beforeMail + 1)
+    expect(getMockSentEmails().at(-1)?.to).toBe('info@onflyair.com')
+    expect(getMockSentEmails().at(-1)?.subject).toMatch(/cost inquiry/i)
+    expect(getMockSentEmails().at(-1)?.text).toContain(
+      'A cost inquiry has been made.',
+    )
+
+    const hq = await notifyHardQuoteRequest(row)
+    expect(hq.sms_id).toBeNull()
+    expect(getMockCommsLog().length).toBe(beforeSms)
+  })
+
+  it('portal soft-quote submit uses cost inquiry (no SMS)', async () => {
+    const beforeSms = getMockCommsLog().length
+    const beforeMail = getMockSentEmails().length
+    submitTripRequest(
+      {
+        ...emptyTripRequestDraft(),
+        email: 'soft@client.com',
+        cargo_notes: '1 box 12x12x12 @ 75',
+        cargo_weight_lbs: 75,
+      },
+      'portal',
+      { alert: 'cost_inquiry' },
+    )
+    await new Promise((r) => setTimeout(r, 20))
+    expect(getMockCommsLog().length).toBe(beforeSms)
+    expect(getMockSentEmails().length).toBe(beforeMail + 1)
+    expect(getMockSentEmails().at(-1)?.to).toBe('info@onflyair.com')
+    expect(getMockSentEmails().at(-1)?.text).toContain(
+      'A cost inquiry has been made.',
+    )
   })
 })

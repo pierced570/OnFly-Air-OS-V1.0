@@ -23,6 +23,7 @@ import {
   type ClientProfile,
 } from '@/lib/clientStore'
 import {
+  notifyCostInquiry,
   notifyHardQuoteRequest,
   notifyPortalRequest,
   portalRequestReviewPath,
@@ -96,6 +97,14 @@ function flagForkliftForDispatchers(
 export function submitTripRequest(
   draft: TripRequestDraft,
   source: TripRequestSource,
+  opts?: {
+    /**
+     * Portal soft quotes: email-only cost inquiry (no SMS).
+     * Hard quote from soft page uses requestHardQuote → notifyCostInquiry.
+     * Default `desk` keeps SMS + email for non–soft-quote portal submits.
+     */
+    alert?: 'desk' | 'cost_inquiry' | 'none'
+  },
 ): TripRequestRecord {
   const id = crypto.randomUUID()
   const forklift = forkliftFromDraft(draft)
@@ -115,9 +124,10 @@ export function submitTripRequest(
   requests.set(id, row)
   bump()
   flagForkliftForDispatchers(row)
-  // Portal door: SMS/email the on-shift desk + Board exception — approve, don't auto-book.
   if (source === 'portal') {
-    void notifyPortalRequest(row)
+    const alert = opts?.alert ?? 'desk'
+    if (alert === 'cost_inquiry') void notifyCostInquiry(row)
+    else if (alert === 'desk') void notifyPortalRequest(row)
   }
   return row
 }
