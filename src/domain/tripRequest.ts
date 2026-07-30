@@ -80,7 +80,7 @@ export type TripRequestDraft = {
    * Dispatch leaves as `known` and edits cargo_notes directly.
    */
   cargo_dims_status: CargoDimsStatus
-  /** Best number to reach the team for urgent matters (portal). */
+  /** Best number to reach the team for urgent matters (portal). E.164 when set. */
   urgent_phone: string
 }
 

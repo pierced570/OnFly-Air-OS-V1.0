@@ -2,6 +2,7 @@ import { useMemo, useState, useSyncExternalStore, type FormEvent } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
+import PhoneInput from '@/components/PhoneInput'
 import {
   ASAP_MAX_HOURS,
   cargoPiecesFromDraft,
@@ -323,14 +324,16 @@ export function TripRequestForm({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className={labelCls}>
               Best number for urgent matters
-              <input
-                type="tel"
+              <PhoneInput
+                international
                 value={draft.urgent_phone}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, urgent_phone: e.target.value }))
+                onChange={(e164) =>
+                  setDraft((d) => ({ ...d, urgent_phone: e164 }))
                 }
                 placeholder="(555) 555-5555"
-                className={inputCls}
+                className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-sm text-[var(--text)] outline-none"
+                rowClassName="mt-1 flex min-w-0 overflow-hidden rounded-md border border-border bg-surface-2 focus-within:border-gold"
+                selectClassName="shrink-0 border-0 border-r border-border bg-transparent px-2 py-2.5 text-sm text-[var(--text)] outline-none"
                 autoComplete="tel"
               />
             </label>
