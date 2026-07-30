@@ -1,4 +1,4 @@
-import { useSyncExternalStore, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import PhoneInput from '@/components/PhoneInput'
 import {
   formatPhoneDisplay,
@@ -11,7 +11,9 @@ import {
 } from '@/domain/staffAccess'
 import {
   getSession,
+  getStaffSyncStatus,
   listStaff,
+  refreshStaffFromDb,
   removeStaff,
   subscribeStaff,
   upsertStaff,
@@ -23,8 +25,18 @@ const field =
 export default function StaffAccessPage() {
   const staff = useSyncExternalStore(subscribeStaff, listStaff, listStaff)
   const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
+  const sync = useSyncExternalStore(
+    subscribeStaff,
+    getStaffSyncStatus,
+    getStaffSyncStatus,
+  )
   const [editing, setEditing] = useState<StaffMember | null>(null)
   const [status, setStatus] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    void refreshStaffFromDb()
+  }, [])
 
   if (!session?.is_admin) {
     return (
@@ -46,6 +58,19 @@ export default function StaffAccessPage() {
         </p>
       </header>
 
+      {sync.message ? (
+        <aside
+          className={[
+            'rounded-lg border px-3 py-2 text-xs',
+            sync.ok === false
+              ? 'border-[color:var(--red)]/40 bg-[color:var(--red)]/10 text-late'
+              : 'border-gold/30 bg-gold/10 text-cream/85',
+          ].join(' ')}
+        >
+          {sync.message}
+        </aside>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -62,6 +87,17 @@ export default function StaffAccessPage() {
           }
         >
           Add person
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-border px-3 py-1.5 text-sm text-cream hover:border-gold"
+          onClick={() => {
+            void refreshStaffFromDb().then(() =>
+              setStatus('Refreshed roster from cloud'),
+            )
+          }}
+        >
+          Refresh from cloud
         </button>
       </div>
 
@@ -119,12 +155,20 @@ export default function StaffAccessPage() {
                     type="button"
                     className="rounded-md border border-border px-3 py-1.5 text-xs text-late hover:border-late"
                     onClick={() => {
-                      try {
-                        removeStaff(s.id)
-                        setStatus(`Removed ${s.name}`)
-                      } catch (e) {
-                        setStatus(e instanceof Error ? e.message : String(e))
-                      }
+                      void (async () => {
+                        try {
+                          const result = await removeStaff(s.id)
+                          setStatus(
+                            result.synced
+                              ? `Removed ${s.name}`
+                              : `Removed ${s.name} locally — cloud delete failed: ${result.error}`,
+                          )
+                        } catch (e) {
+                          setStatus(
+                            e instanceof Error ? e.message : String(e),
+                          )
+                        }
+                      })()
                     }}
                   >
                     Remove
@@ -141,15 +185,29 @@ export default function StaffAccessPage() {
       {editing && (
         <StaffEditor
           initial={editing}
+          busy={saving}
           onClose={() => setEditing(null)}
           onSave={(input) => {
-            try {
-              upsertStaff(input)
-              setEditing(null)
-              setStatus(`Saved ${input.name}`)
-            } catch (e) {
-              setStatus(e instanceof Error ? e.message : String(e))
-            }
+            void (async () => {
+              setSaving(true)
+              try {
+                const result = await upsertStaff(input)
+                if (result.synced) {
+                  setEditing(null)
+                  setStatus(`Saved ${input.name} to cloud`)
+                } else {
+                  setStatus(
+                    `Saved ${input.name} on this device only — cloud sync failed${
+                      result.error ? `: ${result.error}` : ''
+                    }. Grants will reset on a new deploy until cloud sync works.`,
+                  )
+                }
+              } catch (e) {
+                setStatus(e instanceof Error ? e.message : String(e))
+              } finally {
+                setSaving(false)
+              }
+            })()
           }}
         />
       )}
@@ -159,10 +217,12 @@ export default function StaffAccessPage() {
 
 function StaffEditor({
   initial,
+  busy,
   onClose,
   onSave,
 }: {
   initial: StaffMember
+  busy?: boolean
   onClose: () => void
   onSave: (input: {
     id?: string
@@ -209,7 +269,7 @@ function StaffEditor({
               className={field}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              disabled={isOwner}
+              disabled={isOwner || busy}
             />
           </label>
           <label className="block text-xs text-muted">
@@ -233,6 +293,7 @@ function StaffEditor({
                   type="checkbox"
                   checked={active}
                   onChange={(e) => setActive(e.target.checked)}
+                  disabled={busy}
                 />
                 Active (can log in)
               </label>
@@ -251,6 +312,7 @@ function StaffEditor({
                         type="checkbox"
                         checked={sections.includes(s.id)}
                         onChange={() => toggle(s.id)}
+                        disabled={busy}
                       />
                       {s.label}
                     </label>
@@ -261,6 +323,7 @@ function StaffEditor({
                     type="button"
                     className="text-xs text-gold"
                     onClick={() => setSections([...GRANTABLE_SECTION_IDS])}
+                    disabled={busy}
                   >
                     Select all
                   </button>
@@ -268,6 +331,7 @@ function StaffEditor({
                     type="button"
                     className="text-xs text-muted hover:text-cream"
                     onClick={() => setSections([])}
+                    disabled={busy}
                   >
                     Clear
                   </button>
@@ -282,12 +346,14 @@ function StaffEditor({
             type="button"
             className="rounded-md border border-border px-3 py-1.5 text-sm text-muted"
             onClick={onClose}
+            disabled={busy}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="rounded-md bg-gold px-3 py-1.5 text-sm font-medium text-ink"
+            disabled={busy}
+            className="rounded-md bg-gold px-3 py-1.5 text-sm font-medium text-ink disabled:opacity-50"
             onClick={() =>
               onSave({
                 id: initial.id || undefined,
@@ -298,7 +364,7 @@ function StaffEditor({
               })
             }
           >
-            Save
+            {busy ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
