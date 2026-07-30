@@ -1,74 +1,78 @@
 import { describe, expect, it } from 'vitest'
-import type { LogisticsQuoteOptionView } from '@/domain/clientLogisticsQuote'
+import {
+  buildLogisticsQuoteOption,
+  finalizeLogisticsQuoteOptions,
+} from '@/domain/clientLogisticsQuote'
 import {
   logisticsQuoteEmailSubject,
   renderLogisticsQuoteEmailHtml,
   renderLogisticsQuoteEmailText,
 } from './logisticsQuoteEmail'
 
-function sampleOptions(): LogisticsQuoteOptionView[] {
-  return [
-    {
+function sampleOptions() {
+  return finalizeLogisticsQuoteOptions([
+    buildLogisticsQuoteOption({
       offer_id: 'o1',
       label: 'Option A',
-      aircraft_type: 'Pilatus PC-12',
-      departure_label: 'CAK',
-      destination_label: 'HPN',
-      ttp_min: 90,
-      turn_load_min: 40,
+      option_index: 0,
+      type_name: 'Cessna 310',
+      time_to_position_min: 90,
+      quick_turn_min: 40,
       live_leg_min: 75,
-      position_eta: {
-        duration: '1h 30m',
-        clock: '18:00Z · 14:00 EDT',
-      },
-      etd: {
-        duration: '0h 40m',
-        clock: '18:40Z · 14:40 EDT',
-      },
-      arrival_eta: {
-        duration: '1h 15m',
-        clock: '19:55Z · 15:55 EDT',
-      },
-      price: 6000,
-      taxes_fees_note: 'All taxes and fees included',
-    },
-    {
+      client_total: 12658,
+      lane: 'KCAK → KHPN',
+      goAtIso: '2026-07-26T13:00:00.000Z',
+    }),
+    buildLogisticsQuoteOption({
       offer_id: 'o2',
       label: 'Option B',
-      aircraft_type: 'Citation CJ3',
-      departure_label: 'CAK',
-      destination_label: 'HPN',
-      ttp_min: 60,
-      turn_load_min: 30,
-      live_leg_min: 55,
-      position_eta: { duration: '1h 0m', clock: null },
-      etd: { duration: '0h 30m', clock: null },
-      arrival_eta: { duration: '0h 55m', clock: null },
-      price: 8500,
-      taxes_fees_note: 'All taxes and fees included',
-    },
-  ]
+      option_index: 1,
+      type_name: 'Aerostar 600',
+      time_to_position_min: 130,
+      quick_turn_min: 30,
+      live_leg_min: 80,
+      client_total: 10634,
+      lane: 'KCAK → KHPN',
+      goAtIso: '2026-07-26T13:00:00.000Z',
+    }),
+  ])
 }
 
 describe('logisticsQuoteEmail', () => {
-  it('renders multi-option HTML cards without operator / cost / margin', () => {
+  it('renders charter quote HTML matching client mock layout', () => {
     const html = renderLogisticsQuoteEmailHtml({
       title: 'Charter Quote',
-      originLabel: 'CAK',
-      destLabel: 'HPN',
+      originLabel: 'Akron CAK',
+      destLabel: 'White Plains HPN',
       options: sampleOptions(),
       acceptUrl: 'https://app.example/accept/abc',
       logoUrl: 'https://cdn.example/logo.png',
+      refLabel: 'VK982',
+      missionChips: [
+        { label: 'Cargo only' },
+        { label: '1 pc' },
+        { label: '800 lb' },
+        { label: 'Ready ASAP' },
+      ],
+      intro:
+        'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Pick one and we lock it.',
     })
-    expect(html).toContain('Charter Quote')
-    expect(html).toContain('Aircraft Options')
-    expect(html).toContain('Pilatus PC-12')
-    expect(html).toContain('Citation CJ3')
-    expect(html).toContain('Aircraft ready for pickup at CAK')
-    expect(html).toContain('Est. arrival')
-    expect(html).toContain('$6,000')
-    expect(html).toContain('$8,500')
-    expect(html).toContain('Review &amp; Accept Quote')
+    expect(html).toContain('Akron CAK')
+    expect(html).toContain('White Plains HPN')
+    expect(html).toContain('Quote · VK982')
+    expect(html).toContain('Cargo only')
+    expect(html).toContain('Cessna 310')
+    expect(html).toContain('Aerostar 600')
+    expect(html).toContain('Recommended')
+    expect(html).toContain('Earliest delivery')
+    expect(html).toContain('At pickup')
+    expect(html).toContain('Delivered')
+    expect(html).toContain('$12,658')
+    expect(html).toContain('$10,634')
+    expect(html).toContain('Accept Option 1')
+    expect(html).toContain('Included')
+    expect(html).toContain('On acceptance')
+    expect(html).toContain('24-hr ops')
     expect(html).toContain('vetted Part 135 carrier')
     expect(html).not.toMatch(/Sonrise|operator_name|NTEST/i)
     expect(html).not.toContain('target margin')
@@ -85,17 +89,19 @@ describe('logisticsQuoteEmail', () => {
     ).toContain('Charter Quote (CAK → HPN) · UZ300')
   })
 
-  it('text body lists each option with ETAs and price', () => {
+  it('text body lists each option with milestones and price', () => {
     const text = renderLogisticsQuoteEmailText({
       title: 'Charter Quote',
       originLabel: 'CAK',
       destLabel: 'HPN',
       options: sampleOptions(),
       acceptUrl: '/accept/abc',
+      refLabel: 'VK982',
     })
-    expect(text).toContain('Option A: Pilatus PC-12')
-    expect(text).toContain('Option B: Citation CJ3')
-    expect(text).toContain('Price: $6,000')
+    expect(text).toContain('Option 1 · Cessna 310')
+    expect(text).toContain('Option 2 · Aerostar 600')
+    expect(text).toContain('Price: $12,658')
     expect(text).toContain('Review & accept:')
+    expect(text).toMatch(/At pickup:/i)
   })
 })

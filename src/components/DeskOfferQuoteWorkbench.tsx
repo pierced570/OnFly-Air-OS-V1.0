@@ -17,7 +17,9 @@ import {
 import { ClientLogisticsQuotePreview } from '@/components/ClientLogisticsQuotePreview'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
 import {
+  buildCharterMissionChips,
   buildLogisticsQuoteOption,
+  finalizeLogisticsQuoteOptions,
   logisticsQuoteTitle,
 } from '@/domain/clientLogisticsQuote'
 import {
@@ -191,36 +193,47 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
 
   const clientPreviewOptions =
     clientQuotePreview && canPreviewClientQuote
-      ? picked.map((oid, i) => {
-          const o = liveTrip.offers.find((x) => x.id === oid)!
-          const hqOpt = liveTrip.hard_quote?.options?.find(
-            (opt) => opt.offer_id === oid,
-          )
-          const lock =
-            pricingLock[oid] ?? (hqOpt != null ? 'total' : 'margin')
-          const draftMargin = marginEdits[oid] ?? marginPct
-          const draftTotal = clientEdits[oid] ?? hqOpt?.client_total ?? null
-          const p = offerQuotePreviewFor(
-            o,
-            liveTrip,
-            0,
-            lock === 'total' ? draftTotal : null,
-            draftMargin,
-          )
-          const typeName = confirmedTypes[oid]!.trim()
-          return buildLogisticsQuoteOption({
-            offer_id: oid,
-            label: `Option ${String.fromCharCode(65 + i)}`,
-            type_name: typeName,
-            time_to_position_min: o.time_to_position_min,
-            quick_turn_min: o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
-            live_leg_min: o.live_leg_min,
-            client_total: p.client_total,
-            lane: liveTrip.lane,
-            goAtIso: new Date().toISOString(),
-          })
-        })
+      ? finalizeLogisticsQuoteOptions(
+          picked.map((oid, i) => {
+            const o = liveTrip.offers.find((x) => x.id === oid)!
+            const hqOpt = liveTrip.hard_quote?.options?.find(
+              (opt) => opt.offer_id === oid,
+            )
+            const lock =
+              pricingLock[oid] ?? (hqOpt != null ? 'total' : 'margin')
+            const draftMargin = marginEdits[oid] ?? marginPct
+            const draftTotal = clientEdits[oid] ?? hqOpt?.client_total ?? null
+            const p = offerQuotePreviewFor(
+              o,
+              liveTrip,
+              0,
+              lock === 'total' ? draftTotal : null,
+              draftMargin,
+            )
+            const typeName = confirmedTypes[oid]!.trim()
+            return buildLogisticsQuoteOption({
+              offer_id: oid,
+              label: `Option ${String.fromCharCode(65 + i)}`,
+              option_index: i,
+              type_name: typeName,
+              time_to_position_min: o.time_to_position_min,
+              quick_turn_min: o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
+              live_leg_min: o.live_leg_min,
+              client_total: p.client_total,
+              lane: liveTrip.lane,
+              goAtIso: new Date().toISOString(),
+            })
+          }),
+        )
       : []
+
+  const previewMissionChips = buildCharterMissionChips({
+    payload_kind: payloadKindOf(liveTrip),
+    payload_summary: liveTrip.payload_summary,
+    ready_label: liveTrip.ready_label,
+  })
+  const previewRef =
+    (liveTrip.code ?? '').trim() || `T-${liveTrip.ref}`
 
   const kind = payloadKindOf(liveTrip)
   const showPaxDisclosure = kind === 'pax' || kind === 'both'
@@ -750,6 +763,8 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                 disclosureText={
                   showPaxDisclosure ? DISCLOSURE_295_24_TEMPLATE : null
                 }
+                refLabel={previewRef}
+                missionChips={previewMissionChips}
               />
               <div className="flex flex-wrap gap-2">
                 <button
