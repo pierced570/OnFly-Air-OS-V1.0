@@ -863,20 +863,31 @@ export async function selectOffersAndHardQuote(
             : null,
         refLabel: (trip.code ?? '').trim() || `T-${trip.ref}`,
       }
-      const [primary, ...restTo] = recipients
-      await email.send({
-        to: primary!,
-        cc: [...restTo, ...ccEmails],
-        bcc: bccEmails,
-        subject: logisticsQuoteEmailSubject(emailPayload),
-        html: renderLogisticsQuoteEmailHtml(emailPayload),
-        text: [
-          renderLogisticsQuoteEmailText(emailPayload),
-          trip.po_number ? `PO: ${trip.po_number}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      })
+      const toList = recipients.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))
+      if (!toList.length) {
+        // no valid To — skip email
+      } else {
+        const toSet = new Set(toList)
+        const cc = ccEmails
+          .map((e) => e.trim().toLowerCase())
+          .filter((e) => e.includes('@') && !toSet.has(e))
+        const bcc = bccEmails
+          .map((e) => e.trim().toLowerCase())
+          .filter((e) => e.includes('@') && !toSet.has(e) && !cc.includes(e))
+        await email.send({
+          to: toList.length === 1 ? toList[0]! : toList,
+          cc,
+          bcc,
+          subject: logisticsQuoteEmailSubject(emailPayload),
+          html: renderLogisticsQuoteEmailHtml(emailPayload),
+          text: [
+            renderLogisticsQuoteEmailText(emailPayload),
+            trip.po_number ? `PO: ${trip.po_number}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        })
+      }
     }
   }
 
