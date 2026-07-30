@@ -4,6 +4,7 @@
  */
 
 import type { AdsbPosition } from '@/adapters/adsb'
+import { proposeAdsbActuals } from '@/domain/adsbActuals'
 import type { ChainLeg, ServicePattern } from '@/domain/etaChain'
 import {
   deliveryDeltaMin,
@@ -53,22 +54,20 @@ export type TrackingEtaRow = {
 }
 
 /**
- * Client Actual vs Forecast — pickup arrival, loading (turn), live air leg.
- * Derived from ETA chain arrival / takeoff / landing stamps.
+ * Client Actual vs Forecast — ADS-B / chain arrival, takeoff, air time, on-ground.
  */
 export type OpsForecastRow = {
-  key: 'pickup' | 'loading' | 'live_leg'
-  /** e.g. "Pickup in KCAK", "Loading time", "Live leg KCAK → KMDW" */
+  key: 'arrived_origin' | 'takeoff' | 'time_in_air' | 'on_ground_dest'
+  /** e.g. "Arrived KCAK", "Takeoff KCAK", "Time in air", "On ground at KMDW" */
   label: string
   estimatedLocal: string | null
   estimatedZulu: string | null
   actualOrForecastLocal: string | null
-  /** Minutes early (−) / late (+) — or duration delta for loading. */
+  /** Minutes early (−) / late (+) — or duration delta for air / ground. */
   deltaMin: number | null
   status: 'done' | 'active' | 'pending'
   isForecast: boolean
-  /** Loading row compares durations; pickup/live compare clock times. */
-  kind: 'arrival' | 'duration' | 'flight'
+  kind: 'arrival' | 'departure' | 'duration' | 'ground'
 }
 
 /** Portal-safe cargo / pax manifest (no operator cost). */
@@ -593,8 +592,8 @@ function stampsFromTrip(trip: PortalTrackingTripInput): OpsStamp[] {
       tz: leg.to.tz || leg.from.tz || 'UTC',
       est_start: leg.est_start,
       est_end: leg.est_end,
-      actual_start: leg.actual_start,
-      actual_end: leg.actual_end,
+      actual_start: leg.actual_start ?? null,
+      actual_end: leg.actual_end ?? null,
       duration_min: leg.duration_min ?? null,
       status: legStatus(leg, trip.legs),
     }))
@@ -652,15 +651,17 @@ function isTurnStamp(s: OpsStamp): boolean {
 }
 
 /**
- * Pickup arrival → loading (turn) → live air leg, from chain (or legs) stamps.
+ * Arrived origin → takeoff → time in air → on ground at dest.
+ * Prefers eta_chain actuals; overlays high-confidence ADS-B actual_off/on.
  */
 export function buildOpsForecastRows(
   trip: PortalTrackingTripInput,
+  opts?: { adsb?: AdsbPosition | null; nowIso?: string },
 ): OpsForecastRow[] {
   const stamps = stampsFromTrip(trip)
   if (!stamps.length) return []
 
-  const position = stamps.find(isPositionStamp) ?? stamps[0] ?? null
+  const position = stamps.find(isPositionStamp) ?? null
   const air =
     stamps.find(isAirStamp) ??
     stamps.find(
@@ -670,130 +671,177 @@ export function buildOpsForecastRows(
         !isTurnStamp(s),
     ) ??
     null
-  const turn =
-    stamps.find(
-      (s) =>
-        isTurnStamp(s) &&
-        (!air || s.seq < air.seq) &&
-        (!position || s.seq >= position.seq),
-    ) ?? null
+  if (!air && !position) return []
+
+  const originIcao =
+    (air?.fromIcao && air.fromIcao !== '—' ? air.fromIcao : null) ||
+    (position?.toIcao && position.toIcao !== '—' ? position.toIcao : null) ||
+    'ORIGIN'
+  const destIcao =
+    (air?.toIcao && air.toIcao !== '—' ? air.toIcao : null) || 'DEST'
+  const tz = air?.tz || position?.tz || 'UTC'
+  const nowIso = opts?.nowIso ?? new Date().toISOString()
+
+  const adsbProp = proposeAdsbActuals({
+    adsb: opts?.adsb,
+    airFromIcao: originIcao,
+    airToIcao: destIcao,
+    nowIso,
+  })
+
+  const arrivedActFinal = position?.actual_end ?? adsbProp.originArrivalAt
+  const takeoffAct = air?.actual_start ?? adsbProp.takeoffAt
+  const landingAct = air?.actual_end ?? adsbProp.destLandingAt
+
+  const arrivedEst = position?.est_end ?? null
+  const takeoffEst = air?.est_start ?? null
+  const landingEst = air?.est_end ?? null
+  const airEstMin =
+    air?.duration_min ?? minutesBetween(takeoffEst, landingEst)
+  const airActMin =
+    minutesBetween(takeoffAct, landingAct) ?? adsbProp.airTimeMin
 
   const rows: OpsForecastRow[] = []
 
-  if (position) {
-    const tz = position.tz
-    const icao = position.toIcao !== '—' ? position.toIcao : position.fromIcao
-    const status = position.status
-    const estIso = position.est_end
-    const actIso = position.actual_end
+  {
+    const status: OpsForecastRow['status'] = arrivedActFinal
+      ? 'done'
+      : takeoffAct
+        ? 'done'
+        : position?.status === 'active' ||
+            (opts?.adsb?.phase === 'on_ground' && !takeoffAct)
+          ? 'active'
+          : 'pending'
+    const estFmt = arrivedEst ? formatClientLocal(arrivedEst, tz) : null
+    const zulu = arrivedEst ? formatZuluLocal(arrivedEst, tz) : null
+    const actFmt = arrivedActFinal
+      ? formatClientLocal(arrivedActFinal, tz)
+      : null
     const deltaMin =
-      estIso && actIso
-        ? Math.round((Date.parse(actIso) - Date.parse(estIso)) / 60_000)
+      arrivedEst && arrivedActFinal
+        ? Math.round(
+            (Date.parse(arrivedActFinal) - Date.parse(arrivedEst)) / 60_000,
+          )
         : null
-    const estFmt = estIso ? formatClientLocal(estIso, tz) : null
-    const zulu = estIso ? formatZuluLocal(estIso, tz) : null
-    const actFmt = actIso ? formatClientLocal(actIso, tz) : null
     rows.push({
-      key: 'pickup',
-      label: `Pickup in ${icao}`,
+      key: 'arrived_origin',
+      label: `Arrived ${originIcao}`,
       estimatedLocal: estFmt?.local ?? null,
       estimatedZulu: zulu?.zulu ?? null,
       actualOrForecastLocal:
         actFmt?.local ??
-        (status === 'active' ? 'ARRIVING · LIVE' : estFmt?.local ?? null),
-      deltaMin: actIso ? deltaMin : status === 'active' ? null : deltaMin,
+        (status === 'active' ? 'ARRIVING · LIVE ADS-B' : estFmt?.local ?? null),
+      deltaMin: arrivedActFinal ? deltaMin : null,
       status,
-      isForecast: !actIso,
+      isForecast: !arrivedActFinal,
       kind: 'arrival',
     })
   }
 
-  if (turn || (position && air)) {
-    const estDur =
-      turn?.duration_min ??
-      minutesBetween(position?.est_end ?? null, air?.est_start ?? null)
-    const actDur = minutesBetween(
-      position?.actual_end ?? turn?.actual_start ?? null,
-      air?.actual_start ?? turn?.actual_end ?? null,
-    )
-    const status = turn
-      ? turn.status
-      : air?.actual_start
-        ? 'done'
-        : position && position.status === 'done'
-          ? 'active'
-          : 'pending'
+  {
+    const status: OpsForecastRow['status'] = takeoffAct
+      ? 'done'
+      : opts?.adsb?.phase === 'airborne' || air?.status === 'active'
+        ? 'active'
+        : 'pending'
+    const estFmt = takeoffEst ? formatClientLocal(takeoffEst, tz) : null
+    const zulu = takeoffEst ? formatZuluLocal(takeoffEst, tz) : null
+    const actFmt = takeoffAct ? formatClientLocal(takeoffAct, tz) : null
     const deltaMin =
-      estDur != null && actDur != null ? actDur - estDur : null
+      takeoffEst && takeoffAct
+        ? Math.round(
+            (Date.parse(takeoffAct) - Date.parse(takeoffEst)) / 60_000,
+          )
+        : null
     rows.push({
-      key: 'loading',
-      label: 'Loading time',
-      estimatedLocal: formatDurationMin(estDur),
+      key: 'takeoff',
+      label: `Takeoff ${originIcao}`,
+      estimatedLocal: estFmt?.local ?? null,
+      estimatedZulu: zulu?.zulu ?? null,
+      actualOrForecastLocal:
+        actFmt?.local ??
+        (status === 'active' ? 'DEPARTING · LIVE ADS-B' : estFmt?.local ?? null),
+      deltaMin: takeoffAct ? deltaMin : null,
+      status,
+      isForecast: !takeoffAct,
+      kind: 'departure',
+    })
+  }
+
+  {
+    const status: OpsForecastRow['status'] = landingAct
+      ? 'done'
+      : takeoffAct || opts?.adsb?.phase === 'airborne' || air?.status === 'active'
+        ? 'active'
+        : 'pending'
+    const liveAirMin =
+      status === 'active' && takeoffAct
+        ? minutesBetween(takeoffAct, nowIso)
+        : null
+    rows.push({
+      key: 'time_in_air',
+      label: 'Time in air',
+      estimatedLocal: formatDurationMin(airEstMin),
       estimatedZulu: null,
       actualOrForecastLocal:
-        actDur != null
-          ? formatDurationMin(actDur)
-          : status === 'active'
-            ? 'LOADING · LIVE'
-            : formatDurationMin(estDur),
-      deltaMin: actDur != null ? deltaMin : null,
+        airActMin != null
+          ? formatDurationMin(airActMin)
+          : liveAirMin != null
+            ? `${formatDurationMin(liveAirMin)} · LIVE`
+            : status === 'active'
+              ? 'IN FLIGHT · LIVE ADS-B'
+              : formatDurationMin(airEstMin),
+      deltaMin:
+        airEstMin != null && airActMin != null ? airActMin - airEstMin : null,
       status,
-      isForecast: actDur == null,
+      isForecast: airActMin == null,
       kind: 'duration',
     })
   }
 
-  if (air) {
-    const tz = air.tz
-    const from = air.fromIcao
-    const to = air.toIcao
-    const status = air.status
-    const estIso = air.est_end
-    const actIso = air.actual_end
-    const takeoffEst = air.est_start
-      ? formatClientLocal(air.est_start, tz).local
-      : null
-    const takeoffAct = air.actual_start
-      ? formatClientLocal(air.actual_start, tz).local
-      : null
-    const estFmt = estIso ? formatClientLocal(estIso, tz) : null
-    const zulu = estIso ? formatZuluLocal(estIso, tz) : null
-    const actFmt = actIso ? formatClientLocal(actIso, tz) : null
-    const deltaMin =
-      estIso && actIso
-        ? Math.round((Date.parse(actIso) - Date.parse(estIso)) / 60_000)
+  {
+    const status: OpsForecastRow['status'] = landingAct
+      ? 'done'
+      : takeoffAct || opts?.adsb?.phase === 'airborne'
+        ? 'active'
+        : 'pending'
+    const estFmt = landingEst ? formatClientLocal(landingEst, tz) : null
+    const zulu = landingEst ? formatZuluLocal(landingEst, tz) : null
+    const actFmt = landingAct ? formatClientLocal(landingAct, tz) : null
+    const groundMin =
+      landingAct != null
+        ? minutesBetween(landingAct, nowIso) ?? adsbProp.groundTimeDestMin
         : null
-    const landingLabel = actFmt?.local ?? estFmt?.local
-    const takeoffBit = takeoffAct || takeoffEst
+    const deltaMin =
+      landingEst && landingAct
+        ? Math.round(
+            (Date.parse(landingAct) - Date.parse(landingEst)) / 60_000,
+          )
+        : null
     rows.push({
-      key: 'live_leg',
-      label: `Live leg ${from} → ${to}`,
-      estimatedLocal: estFmt?.local
-        ? takeoffEst
-          ? `${takeoffEst} → ${estFmt.local}`
-          : estFmt.local
-        : formatDurationMin(air.duration_min),
+      key: 'on_ground_dest',
+      label: `On ground at ${destIcao}`,
+      estimatedLocal: estFmt?.local ?? null,
       estimatedZulu: zulu?.zulu ?? null,
-      actualOrForecastLocal: actIso
-        ? takeoffAct
-          ? `${takeoffAct} → ${actFmt!.local}`
-          : actFmt!.local
+      actualOrForecastLocal: landingAct
+        ? `${actFmt!.local}${
+            groundMin != null && groundMin > 0
+              ? ` · ${formatDurationMin(groundMin)} on ground`
+              : ''
+          }`
         : status === 'active'
-          ? 'IN FLIGHT · LIVE'
-          : landingLabel
-            ? takeoffBit
-              ? `${takeoffBit} → ${landingLabel}`
-              : landingLabel
-            : formatDurationMin(air.duration_min),
-      deltaMin: actIso ? deltaMin : null,
+          ? 'EN ROUTE · LIVE ADS-B'
+          : estFmt?.local ?? null,
+      deltaMin: landingAct ? deltaMin : null,
       status,
-      isForecast: !actIso,
-      kind: 'flight',
+      isForecast: !landingAct,
+      kind: 'ground',
     })
   }
 
   return rows
 }
+
 
 export function buildCargoManifest(
   trip: PortalTrackingTripInput,
@@ -1320,7 +1368,10 @@ export function buildPortalTrackingView(
   const nowIso = opts?.nowIso ?? new Date().toISOString()
   const milestones = buildMilestones(trip, nowIso)
   const etaRows = buildEtaRows(trip)
-  const opsForecastRows = buildOpsForecastRows(trip)
+  const opsForecastRows = buildOpsForecastRows(trip, {
+    adsb: opts?.adsb ?? null,
+    nowIso,
+  })
   const cargo = buildCargoManifest(trip)
   const aircraft = resolveAircraftPosition(trip, opts?.adsb ?? null, nowIso)
 

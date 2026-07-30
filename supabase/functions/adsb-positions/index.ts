@@ -208,11 +208,24 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     }
   }
 
+  const originIcao = airportCode(flight.origin)
+  const destinationIcao = airportCode(flight.destination)
+  const takeoffIsActual = Boolean(flight.actual_off)
+  const landingIsActual = Boolean(flight.actual_on)
+  const lastTakeoffAt =
+    flight.actual_off ?? flight.estimated_off ?? null
+  const lastLandingAt =
+    flight.actual_on ?? flight.estimated_on ?? null
+
   if (lat == null || lon == null) {
     return {
       ...noData(tail),
-      lastTakeoffAt: flight.actual_off ?? null,
-      lastLandingAt: flight.actual_on ?? null,
+      lastTakeoffAt,
+      lastLandingAt,
+      takeoffIsActual,
+      landingIsActual,
+      originIcao,
+      destinationIcao,
       laddBlocked: true,
     }
   }
@@ -227,8 +240,12 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     gs,
     seenAt: seenAt ?? new Date().toISOString(),
     laddBlocked: false,
-    lastTakeoffAt: flight.actual_off ?? flight.estimated_off ?? null,
-    lastLandingAt: flight.actual_on ?? flight.estimated_on ?? null,
+    lastTakeoffAt,
+    lastLandingAt,
+    takeoffIsActual,
+    landingIsActual,
+    originIcao,
+    destinationIcao,
     phase: airborne ? ('airborne' as const) : ('on_ground' as const),
   }
 }

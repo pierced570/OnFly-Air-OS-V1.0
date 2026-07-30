@@ -290,15 +290,19 @@ describe('portalTracking', () => {
     expect(view.etaRows[0]!.scheduledZulu).toMatch(/Z/)
   })
 
-  it('builds pickup / loading / live-leg Actual vs Forecast rows', () => {
+  it('builds arrived / takeoff / air time / on-ground Actual vs Forecast rows', () => {
     const rows = buildOpsForecastRows(sampleD2d())
-    expect(rows.map((r) => r.key)).toEqual(['pickup', 'loading', 'live_leg'])
-    expect(rows[0]!.label).toMatch(/Pickup in KCAK/)
-    expect(rows[1]!.label).toBe('Loading time')
-    expect(rows[1]!.kind).toBe('duration')
-    expect(rows[1]!.estimatedLocal).toMatch(/min|h/)
-    expect(rows[2]!.label).toMatch(/Live leg KCAK → KMDW/)
-    expect(rows[2]!.estimatedLocal).toBeTruthy()
+    expect(rows.map((r) => r.key)).toEqual([
+      'arrived_origin',
+      'takeoff',
+      'time_in_air',
+      'on_ground_dest',
+    ])
+    expect(rows[0]!.label).toMatch(/Arrived KCAK/)
+    expect(rows[1]!.label).toMatch(/Takeoff KCAK/)
+    expect(rows[2]!.label).toBe('Time in air')
+    expect(rows[2]!.kind).toBe('duration')
+    expect(rows[3]!.label).toMatch(/On ground at KMDW/)
   })
 
   it('builds ops forecast from trip.legs when eta_chain is empty', () => {
@@ -345,9 +349,9 @@ describe('portalTracking', () => {
         },
       ],
     })
-    expect(rows).toHaveLength(3)
-    expect(rows[0]!.label).toBe('Pickup in KCAK')
-    expect(rows[2]!.label).toBe('Live leg KCAK → KMDW')
+    expect(rows).toHaveLength(4)
+    expect(rows[0]!.label).toBe('Arrived KCAK')
+    expect(rows[3]!.label).toBe('On ground at KMDW')
   })
 
   it('builds cargo manifest with pax names and cargo lines', () => {
@@ -374,6 +378,33 @@ describe('portalTracking', () => {
     )
     expect(view.cargo.paxNames).toContain('Ada Lovelace')
     expect(view.pickupStreet).toBe('100 Industrial Pkwy')
-    expect(view.opsForecastRows).toHaveLength(3)
+    expect(view.opsForecastRows).toHaveLength(4)
+  })
+
+  it('overlays ADS-B actual takeoff / landing on Actual vs Forecast', () => {
+    const rows = buildOpsForecastRows(sampleD2d(), {
+      nowIso: '2026-07-15T18:00:00.000Z',
+      adsb: {
+        tail: 'N450CJ',
+        lat: 41,
+        lon: -87,
+        alt: 0,
+        gs: 0,
+        seenAt: '2026-07-15T17:40:00.000Z',
+        phase: 'on_ground',
+        laddBlocked: false,
+        originIcao: 'KCAK',
+        destinationIcao: 'KMDW',
+        lastTakeoffAt: '2026-07-15T16:05:00.000Z',
+        lastLandingAt: '2026-07-15T17:35:00.000Z',
+        takeoffIsActual: true,
+        landingIsActual: true,
+      },
+    })
+    expect(rows[1]!.isForecast).toBe(false)
+    expect(rows[1]!.actualOrForecastLocal).toBeTruthy()
+    expect(rows[2]!.isForecast).toBe(false)
+    expect(rows[3]!.isForecast).toBe(false)
+    expect(rows[3]!.actualOrForecastLocal).toMatch(/on ground/i)
   })
 })

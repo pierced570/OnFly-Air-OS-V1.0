@@ -197,9 +197,29 @@ export default function PortalTrackPage() {
 
   const input = trip ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail)
+
+  // Commit FlightAware actual_off / actual_on into the trip spine when present.
+  useEffect(() => {
+    if (!trip?.id || !adsb) return
+    if (adsb.takeoffIsActual !== true && adsb.landingIsActual !== true) return
+    void import('@/lib/applyAdsbActuals').then((m) => {
+      m.applyAdsbActualsToTrip(trip.id, adsb, { nowIso })
+    })
+  }, [
+    trip?.id,
+    adsb?.tail,
+    adsb?.lastTakeoffAt,
+    adsb?.lastLandingAt,
+    adsb?.takeoffIsActual,
+    adsb?.landingIsActual,
+    nowIso,
+  ])
+
   const view = useMemo(() => {
     if (!trip) return null
-    return viewFromTrip(trip, adsb, nowIso)
+    // Re-read after ADS-B apply so Actual vs Forecast picks up chain stamps.
+    const live = getTrip(trip.id) ?? trip
+    return viewFromTrip(live, adsb, nowIso)
   }, [trip, adsb, nowIso])
 
   if (resolving) return <PortalLoading />
