@@ -124,4 +124,45 @@ describe('tripStore delete vs live hydrate', () => {
     replaceTripsFromDb([ghost])
     expect(getTrip(trip.id)?.offers.map((o) => o.id)).toEqual([otherId])
   })
+
+  it('prunes previously synced trips missing from hydrate (soft-deleted ghosts)', () => {
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KHPN',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [cand('N700GG')],
+      payload_kind: 'cargo',
+    })
+    const other = createTripFromCandidates({
+      lane: 'KGSP→KCVG',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [cand('N800HH')],
+      payload_kind: 'cargo',
+    })
+    // First hydrate marks both as synced-from-DB.
+    replaceTripsFromDb([cloneRow(trip), cloneRow(other)])
+    expect(getTrip(trip.id)).toBeTruthy()
+    expect(getTrip(other.id)).toBeTruthy()
+
+    // Soft-delete landed in DB — trip omitted from next active hydrate.
+    // Without prune, the local ghost would stay on the board forever.
+    replaceTripsFromDb([cloneRow(other)])
+    expect(getTrip(trip.id)).toBeNull()
+    expect(getTrip(other.id)).toBeTruthy()
+  })
+
+  it('emptyOk hydrate prunes all previously synced trips', () => {
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KHPN',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [cand('N900II')],
+      payload_kind: 'cargo',
+    })
+    replaceTripsFromDb([cloneRow(trip)])
+    expect(getTrip(trip.id)).toBeTruthy()
+    replaceTripsFromDb([], { emptyOk: true })
+    expect(getTrip(trip.id)).toBeNull()
+  })
 })

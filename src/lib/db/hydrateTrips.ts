@@ -242,8 +242,10 @@ export async function hydrateTrips(): Promise<number> {
     return 0
   }
   if (!tripRows.length) {
-    // Truly empty desk — still push any local-only trips that never landed.
-    const { flushAllTrips } = await import('@/lib/tripStore')
+    // Truly empty active desk — prune previously synced ghosts, then push
+    // any local-only trips that never landed.
+    const { flushAllTrips, replaceTripsFromDb } = await import('@/lib/tripStore')
+    replaceTripsFromDb([], { emptyOk: true })
     await flushAllTrips()
     return 0
   }
