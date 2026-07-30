@@ -83,7 +83,7 @@ function isEmptyCargo(cargo: string): boolean {
 
 /**
  * Pull pax count and cargo description from operator mission summaries
- * like "2 pax + standard tooling (12×12×12 @ 50 lb)".
+ * like "2 pax + standard tooling (12×12×12 @ 75 lb)".
  * Service pattern (A2A) and ground/forklift chips are not cargo.
  */
 export function parsePayloadSummary(summary: string): {

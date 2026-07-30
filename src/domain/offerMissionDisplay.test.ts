@@ -27,10 +27,10 @@ describe('offerMissionDisplay', () => {
 
   it('splits pax and cargo from mission summary', () => {
     expect(
-      parsePayloadSummary('2 pax + standard tooling (12×12×12 @ 50 lb)'),
+      parsePayloadSummary('2 pax + standard tooling (12×12×12 @ 75 lb)'),
     ).toEqual({
       passengers: '2 passengers',
-      cargo: 'standard tooling (12×12×12 @ 50 lb)',
+      cargo: 'standard tooling (12×12×12 @ 75 lb)',
     })
     expect(parsePayloadSummary('cargo only · 3 boxes')).toMatchObject({
       passengers: 'None (cargo only)',
@@ -70,7 +70,7 @@ describe('offerMissionDisplay', () => {
   it('builds labeled mission display', () => {
     const d = buildOfferMissionDisplay({
       lane: 'KCAK→KHPN',
-      payload_summary: '2 pax + standard tooling (12x12x12 @ 50 lb)',
+      payload_summary: '2 pax + standard tooling (12x12x12 @ 75 lb)',
       ready_label: 'ASAP',
     })
     expect(d.departure?.icao).toBe('KCAK')

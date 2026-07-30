@@ -20,6 +20,7 @@ import {
   STANDARD_TOOLING,
   composeStandardCargoDims,
   STANDARD_CARGO_DEFAULTS,
+  isStandardToolingPieces,
 } from '@/domain/standardTooling'
 import {
   addSessionClient,
@@ -183,6 +184,11 @@ export function TripRequestForm({
     const errs = validateTripRequest(next, {
       requireEmail: variant === 'portal',
       requireClient: variant === 'dispatch',
+      // Soft estimate may defer pax identity; hard quote / desk need full details.
+      requirePaxDetails:
+        intent === 'hard_quote' ||
+        variant === 'dispatch' ||
+        !next.pax_details_deferred,
     })
     if (variant === 'portal' && !next.client_name?.trim()) {
       errs.push({ field: 'client_name', message: 'Enter your company name' })
@@ -1141,6 +1147,9 @@ export function TripRequestForm({
                     setDraft((d) => ({
                       ...d,
                       cargo_only,
+                      pax_details_deferred: cargo_only
+                        ? false
+                        : d.pax_details_deferred,
                       pax: cargo_only
                         ? []
                         : d.pax.length
@@ -1307,7 +1316,14 @@ export function TripRequestForm({
               setDraft((d) => ({
                 ...d,
                 cargo_only,
-                pax: cargo_only ? [] : d.pax.length ? d.pax : [{ name: '', weight_lbs: '', dob: '' }],
+                pax_details_deferred: cargo_only
+                  ? false
+                  : d.pax_details_deferred,
+                pax: cargo_only
+                  ? []
+                  : d.pax.length
+                    ? d.pax
+                    : [{ name: '', weight_lbs: '', dob: '' }],
               }))
             }}
           />
@@ -1328,62 +1344,231 @@ export function TripRequestForm({
                 className={inputCls}
               />
             </label>
-            {draft.pax.map((p, i) => (
-              <div
-                key={i}
-                className="grid gap-2 border-t border-border pt-3 sm:grid-cols-3"
+            <label
+              className={[
+                'flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm',
+                draft.pax_details_deferred
+                  ? 'border-gold bg-gold/10 text-ink'
+                  : 'border-border bg-white text-[var(--text)]',
+              ].join(' ')}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={draft.pax_details_deferred}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    pax_details_deferred: e.target.checked,
+                  }))
+                }
+              />
+              <span>
+                <span className="font-medium">
+                  Pax unverified right now — I&apos;ll tell OnFly Air prior to
+                  booking
+                </span>
+                <span className="mt-1 block text-xs text-muted">
+                  Soft estimate only needs headcount. Names, estimated weights,
+                  and DOBs are required before we can book.
+                </span>
+              </span>
+            </label>
+            {draft.pax_details_deferred ? (
+              <p className="rounded-md border border-gold/40 bg-gold/5 px-3 py-2 text-xs text-[var(--text)]">
+                Holding {paxCount || 1} passenger
+                {(paxCount || 1) === 1 ? '' : 's'} without identity details.
+                Dispatch will collect name / weight / DOB before booking.
+              </p>
+            ) : (
+              draft.pax.map((p, i) => (
+                <div
+                  key={i}
+                  className="grid gap-2 border-t border-border pt-3 sm:grid-cols-3"
+                >
+                  <label className={labelCls}>
+                    Name
+                    <input
+                      value={p.name}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = { ...pax[i]!, name: e.target.value }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    Est. weight (lb)
+                    <input
+                      type="number"
+                      min={1}
+                      value={p.weight_lbs}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = {
+                            ...pax[i]!,
+                            weight_lbs:
+                              e.target.value === ''
+                                ? ''
+                                : Number(e.target.value),
+                          }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    DOB
+                    <input
+                      type="date"
+                      value={p.dob}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = { ...pax[i]!, dob: e.target.value }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Accompanying cargo — tools / equipment that ride with pax */}
+        {!draft.cargo_only && (
+          <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
+            <div>
+              <h2
+                className={
+                  wizard
+                    ? 'text-base font-semibold text-ink'
+                    : 'text-xs font-medium uppercase tracking-wider text-muted'
+                }
               >
-                <label className={labelCls}>
-                  Name
-                  <input
-                    value={p.name}
-                    onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = { ...pax[i]!, name: e.target.value }
-                        return { ...d, pax }
-                      })
+                Accompanying cargo
+              </h2>
+              <p className="mt-1 text-xs text-muted">
+                Toolboxes or equipment riding with the team — optional if none.
+              </p>
+            </div>
+            <label
+              className={[
+                'flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm',
+                isStandardToolingPieces(draft.cargo_notes)
+                  ? 'border-gold bg-gold/10 text-ink'
+                  : 'border-border bg-white text-[var(--text)]',
+              ].join(' ')}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={isStandardToolingPieces(draft.cargo_notes)}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setDraft((d) => {
+                    if (on) {
+                      return {
+                        ...d,
+                        cargo_dims_status: 'standard',
+                        cargo_notes: composeStandardCargoDims(
+                          STANDARD_CARGO_DEFAULTS,
+                        ),
+                        cargo_weight_lbs: Number(STANDARD_CARGO_DEFAULTS.weight),
+                        dim_unit: 'in',
+                      }
                     }
-                    className={inputCls}
-                  />
-                </label>
-                <label className={labelCls}>
-                  Est. weight (lb)
+                    if (!isStandardToolingPieces(d.cargo_notes)) return d
+                    return {
+                      ...d,
+                      cargo_dims_status: 'known',
+                      cargo_notes: '',
+                      cargo_weight_lbs: '',
+                    }
+                  })
+                }}
+              />
+              <span>
+                <span className="font-medium">
+                  Assume standard box and tooling (12&quot;×12&quot;×12&quot;){' '}
+                  {STANDARD_CARGO_DEFAULTS.weight}&nbsp;lbs
+                </span>
+                <span className="mt-1 block text-xs text-muted">
+                  Uncheck to enter custom dims and weight for equipment going
+                  with the passengers.
+                </span>
+              </span>
+            </label>
+            {!isStandardToolingPieces(draft.cargo_notes) ? (
+              <div className="space-y-3">
+                <DimUnitToggle
+                  value={draft.dim_unit ?? 'in'}
+                  onChange={(dim_unit) =>
+                    setDraft((d) => ({ ...d, dim_unit }))
+                  }
+                  hideLabel={wizard}
+                  light={wizard}
+                />
+                <DimsTripleInput
+                  value={draft.cargo_notes}
+                  unit={draft.dim_unit ?? 'in'}
+                  onChange={(cargo_notes) =>
+                    setDraft((d) => {
+                      const pieces = cargoPiecesFromDraft({
+                        ...d,
+                        cargo_notes,
+                      })
+                      const weighted = pieces.filter((p) => p.weight_lbs > 0)
+                      const cargo_weight_lbs =
+                        weighted.length === pieces.length &&
+                        weighted.length > 0
+                          ? weighted[0]!.weight_lbs
+                          : d.cargo_weight_lbs
+                      return {
+                        ...d,
+                        cargo_notes,
+                        cargo_weight_lbs,
+                        cargo_dims_status: cargo_notes.trim()
+                          ? 'known'
+                          : d.cargo_dims_status,
+                      }
+                    })
+                  }
+                />
+                <label className={`${labelCls} max-w-[10rem]`}>
+                  Weight each (lb)
                   <input
                     type="number"
-                    min={1}
-                    value={p.weight_lbs}
+                    min={0}
+                    value={draft.cargo_weight_lbs}
                     onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = {
-                          ...pax[i]!,
-                          weight_lbs:
-                            e.target.value === '' ? '' : Number(e.target.value),
-                        }
-                        return { ...d, pax }
-                      })
+                      setDraft((d) => ({
+                        ...d,
+                        cargo_weight_lbs:
+                          e.target.value === ''
+                            ? ''
+                            : Number(e.target.value),
+                      }))
                     }
-                    className={inputCls}
-                  />
-                </label>
-                <label className={labelCls}>
-                  DOB
-                  <input
-                    type="date"
-                    value={p.dob}
-                    onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = { ...pax[i]!, dob: e.target.value }
-                        return { ...d, pax }
-                      })
-                    }
-                    className={inputCls}
+                    className={`${inputCls} avionic`}
+                    placeholder="Optional"
                   />
                 </label>
               </div>
-            ))}
+            ) : (
+              <p className="text-xs text-muted">
+                Using {STANDARD_TOOLING.summary}. Uncheck above to enter custom
+                sizes.
+              </p>
+            )}
           </div>
         )}
 

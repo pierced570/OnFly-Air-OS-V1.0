@@ -57,6 +57,11 @@ export type TripRequestDraft = {
   return_legs: TripLegDraft[]
   cargo_only: boolean
   pax: PaxRow[]
+  /**
+   * Soft estimate: passenger count known, but names/weights/DOBs deferred
+   * until before booking. Hard quote still requires full details.
+   */
+  pax_details_deferred: boolean
   hazmat: boolean
   cargo_notes: string
   /**
@@ -181,6 +186,7 @@ export function emptyTripRequestDraft(): TripRequestDraft {
     return_legs: [],
     cargo_only: true,
     pax: [],
+    pax_details_deferred: false,
     hazmat: false,
     cargo_notes: '',
     cargo_weight_lbs: '',
@@ -282,6 +288,7 @@ export function laneFromDraft(draft: TripRequestDraft): string {
 export function summaryFromDraft(draft: TripRequestDraft): string {
   const bits: string[] = []
   bits.push(draft.cargo_only ? 'cargo' : `${draft.pax.length || 0} pax`)
+  if (!draft.cargo_only && draft.pax_details_deferred) bits.push('pax TBD')
   bits.push(draft.service_mode)
   bits.push(draft.timing === 'asap' ? 'ASAP (<4h)' : 'scheduled')
   if (draft.direction === 'round_trip') {
@@ -301,11 +308,21 @@ export type TripRequestIssue = { field: string; message: string }
 
 export function validateTripRequest(
   draft: TripRequestDraft,
-  opts: { requireEmail?: boolean; requireClient?: boolean } = {},
+  opts: {
+    requireEmail?: boolean
+    requireClient?: boolean
+    /**
+     * When true (default unless draft.pax_details_deferred), require name /
+     * weight / DOB for each passenger. Soft estimates may pass false.
+     */
+    requirePaxDetails?: boolean
+  } = {},
 ): TripRequestIssue[] {
   const issues: TripRequestIssue[] = []
   const requireEmail = opts.requireEmail ?? true
   const requireClient = opts.requireClient ?? false
+  const requirePaxDetails =
+    opts.requirePaxDetails ?? !draft.pax_details_deferred
 
   if (requireEmail) {
     const email = draft.email.trim()
@@ -388,20 +405,36 @@ export function validateTripRequest(
     if (draft.pax.length < 1) {
       issues.push({ field: 'pax', message: 'Add at least one passenger' })
     }
-    draft.pax.forEach((p, i) => {
-      if (!p.name.trim()) {
-        issues.push({ field: `pax.${i}.name`, message: `Passenger ${i + 1}: name required` })
-      }
-      if (p.weight_lbs === '' || Number(p.weight_lbs) <= 0) {
+    if (requirePaxDetails) {
+      if (draft.pax_details_deferred) {
         issues.push({
-          field: `pax.${i}.weight`,
-          message: `Passenger ${i + 1}: estimated weight required`,
+          field: 'pax_details_deferred',
+          message:
+            'Passenger names, weights, and DOBs are required before booking — uncheck “pax unverified” and fill each passenger, or use the soft estimate first',
+        })
+      } else {
+        draft.pax.forEach((p, i) => {
+          if (!p.name.trim()) {
+            issues.push({
+              field: `pax.${i}.name`,
+              message: `Passenger ${i + 1}: name required`,
+            })
+          }
+          if (p.weight_lbs === '' || Number(p.weight_lbs) <= 0) {
+            issues.push({
+              field: `pax.${i}.weight`,
+              message: `Passenger ${i + 1}: estimated weight required`,
+            })
+          }
+          if (!p.dob) {
+            issues.push({
+              field: `pax.${i}.dob`,
+              message: `Passenger ${i + 1}: DOB required`,
+            })
+          }
         })
       }
-      if (!p.dob) {
-        issues.push({ field: `pax.${i}.dob`, message: `Passenger ${i + 1}: DOB required` })
-      }
-    })
+    }
   }
 
   if (draftNeedsCargoWeight(draft)) {
