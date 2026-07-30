@@ -1088,10 +1088,13 @@ export function TripRequestForm({
             </div>
             <div>
               <div className="text-xs font-medium uppercase tracking-wider text-muted">
-                Hard deadline
+                Hard deadline{' '}
+                <span className="normal-case tracking-normal text-muted/80">
+                  (optional)
+                </span>
               </div>
               <label className={`${labelCls} mt-2`}>
-                <span className="sr-only">Hard deadline</span>
+                <span className="sr-only">Hard deadline (optional)</span>
                 <input
                   type="datetime-local"
                   value={draft.hard_deadline_at}
@@ -1222,7 +1225,10 @@ export function TripRequestForm({
                 </>
               )}
               <label className={labelCls}>
-                Hard deadline
+                Hard deadline{' '}
+                <span className="font-normal normal-case text-muted">
+                  (optional)
+                </span>
                 <input
                   type="datetime-local"
                   value={draft.hard_deadline_at}
