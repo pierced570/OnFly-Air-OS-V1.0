@@ -33,12 +33,31 @@ export function tripRequestDraftFromScratchNotes(
   draft.hazmat = Boolean(ex.hazmat)
   draft.notes = text
   draft.cargo_notes = (ex.pieces_text ?? '').trim()
-  draft.legs = [
-    newLeg({
-      origin_icao: placeToIcao(ex.origin_text),
-      dest_icao: placeToIcao(ex.destination_text),
-    }),
-  ]
+  const stops =
+    Array.isArray(ex.stop_texts) && ex.stop_texts.length >= 2
+      ? ex.stop_texts
+      : [ex.origin_text, ex.destination_text]
+  const stopIcaos = stops
+    .map((s) => placeToIcao(s))
+    .filter((icao, i, arr) => icao && (i === 0 || icao !== arr[i - 1]))
+  if (stopIcaos.length >= 2) {
+    draft.legs = []
+    for (let i = 0; i < stopIcaos.length - 1; i++) {
+      draft.legs.push(
+        newLeg({
+          origin_icao: stopIcaos[i]!,
+          dest_icao: stopIcaos[i + 1]!,
+        }),
+      )
+    }
+  } else {
+    draft.legs = [
+      newLeg({
+        origin_icao: placeToIcao(ex.origin_text),
+        dest_icao: placeToIcao(ex.destination_text),
+      }),
+    ]
+  }
 
   const paxCount = ex.pax_count ?? 0
   if (paxCount > 0 || ex.payload_kind === 'pax' || ex.payload_kind === 'both') {

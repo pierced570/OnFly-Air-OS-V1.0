@@ -92,4 +92,23 @@ CVG – HPN
     expect(extractFromScratchNotes('CVG/HPN').destination_text).toBe('HPN')
     expect(extractFromScratchNotes('CVG — HPN').origin_text).toBe('CVG')
   })
+
+  it('parses multi-stop pickup / then / drop-off into ordered stops', () => {
+    const r = extractFromScratchNotes(
+      `PSA
+2 Pax + tools
+Pickup small part GSP
+then two pax in CVG
+then drop off in MHT`,
+    )
+    expect(r.client_name).toBe('PSA')
+    expect(r.stop_texts).toEqual(['GSP', 'CVG', 'MHT'])
+    expect(r.origin_text).toBe('GSP')
+    expect(r.destination_text).toBe('MHT')
+    expect(r.pax_count).toBe(2)
+    expect(r.pieces_text).toMatch(/standard tooling/i)
+    expect(resolvePlaceToAirport(r.stop_texts![0]!)?.icao).toBe('KGSP')
+    expect(resolvePlaceToAirport(r.stop_texts![1]!)?.icao).toBe('KCVG')
+    expect(resolvePlaceToAirport(r.stop_texts![2]!)?.icao).toBe('KMHT')
+  })
 })
