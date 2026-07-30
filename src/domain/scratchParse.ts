@@ -3,7 +3,7 @@
  * Used by MockLlmAdapter (and as fill-in for real LLM) so demos parse typed notes.
  *
  * Defaults: one-way, ASAP + today unless scheduled cues; techs → pax;
- * tools → standard tooling (12×12×12 @ 50 lb).
+ * tools → standard tooling (12×12×12 @ 75 lb).
  */
 
 import type { ExtractedRequest } from '@/adapters/llm'
@@ -170,7 +170,7 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
   if (mentionsTools(text)) {
     pieces_text = `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`
     payload_kind = pax_count ? 'both' : 'cargo'
-    notes.push('tools→standard tooling 12x12x12 @ 50')
+    notes.push('tools→standard tooling 12x12x12 @ 75')
   }
 
   const skid = text.match(SKIDS)

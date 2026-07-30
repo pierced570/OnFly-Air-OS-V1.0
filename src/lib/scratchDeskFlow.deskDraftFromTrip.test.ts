@@ -5,7 +5,7 @@ describe('deskDraftFromTrip', () => {
   it('rebuilds origin/dest/pax/ready for recommend on an open trip', () => {
     const draft = deskDraftFromTrip({
       lane: 'KCAK→KHPN',
-      payload_summary: '2 pax + standard tooling (12x12x12 @ 50 lb)',
+      payload_summary: '2 pax + standard tooling (12x12x12 @ 75 lb)',
       ready_label: 'ASAP',
       client_id: null,
       quick: { client_name: 'Acme' },

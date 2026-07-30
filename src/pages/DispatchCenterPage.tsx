@@ -292,7 +292,7 @@ function CardList({
   onDeleteCard: (card: DispatchCard) => void
   /** Approved drawer — invoice + ETA sheet actions. */
   showBookedActions?: boolean
-  /** Live tracking — portal link + Access chat only. */
+  /** Live tracking — portal, Access chat, Log as complete. */
   showTrackingActions?: boolean
 }) {
   if (!cards.length) {
@@ -942,6 +942,7 @@ export default function DispatchCenterPage() {
             code: t.code,
             lane: t.lane,
             state: t.state,
+            request_id: t.request_id,
             client_name,
             service_pattern: t.service_pattern,
             forklift_required: t.forklift_required,

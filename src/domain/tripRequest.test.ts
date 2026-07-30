@@ -146,6 +146,25 @@ describe('tripRequest', () => {
     expect(issues.some((i) => i.field === 'pax.0.dob')).toBe(true)
   })
 
+  it('soft estimate may defer pax identity when flagged', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_only = false
+    d.pax_details_deferred = true
+    d.pax = [{ name: '', weight_lbs: '', dob: '' }]
+    expect(
+      validateTripRequest(d, { requirePaxDetails: false }).length,
+    ).toBe(0)
+    expect(summaryFromDraft(d)).toContain('pax TBD')
+    expect(
+      validateTripRequest(d, { requirePaxDetails: true }).some(
+        (i) => i.field === 'pax_details_deferred',
+      ),
+    ).toBe(true)
+  })
+
   it('d2d requires pickup + delivery addresses; ICAO optional', () => {
     const d = emptyTripRequestDraft()
     d.email = 'a@b.co'
