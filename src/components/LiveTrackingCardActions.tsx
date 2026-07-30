@@ -1,6 +1,6 @@
 /**
- * Live tracking card actions — portal link + Access chat only.
- * Chat = ops group thread (everybody on the trip thread).
+ * Live tracking card actions — portal, Access chat, Log as complete.
+ * Complete = in_progress → delivered (leaves Live tracking; invoice auto-draft).
  */
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
@@ -11,6 +11,7 @@ import {
   ensureTripThread,
   getTrip,
   listTripsStable,
+  safeTransitionTrip,
   subscribeTrips,
 } from '@/lib/tripStore'
 
@@ -23,6 +24,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
   const [chatOpen, setChatOpen] = useState(false)
   const [ensuring, setEnsuring] = useState(false)
+  const [completing, setCompleting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
@@ -40,6 +42,29 @@ export function LiveTrackingCardActions({ tripId }: Props) {
     (p) => p.in_thread && !p.released_at,
   )
   const trackUrl = portalTrackingUrlForTrip(trip.id)
+  const canComplete = trip.state === 'in_progress'
+
+  function logAsComplete() {
+    const row = getTrip(tripId)
+    if (!row || row.state !== 'in_progress' || completing) return
+    if (
+      !window.confirm(
+        `Log this trip as complete?\n\n${row.lane}\n\nMoves it out of Live tracking and drafts the invoice.`,
+      )
+    ) {
+      return
+    }
+    setCompleting(true)
+    setErr(null)
+    try {
+      safeTransitionTrip(row.id, 'delivered', 'dispatcher', {
+        via: 'desk_log_complete',
+      })
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+      setCompleting(false)
+    }
+  }
 
   return (
     <div className="mt-3 space-y-3 border-t border-gold/30 pt-3">
@@ -67,6 +92,16 @@ export function LiveTrackingCardActions({ tripId }: Props) {
         >
           {chatOpen ? 'Close chat' : 'Access chat'}
         </button>
+        {canComplete ? (
+          <button
+            type="button"
+            disabled={completing}
+            className="rounded-md border border-onplan/50 bg-onplan/10 px-3 py-2 text-xs font-semibold text-onplan hover:bg-onplan/20 disabled:opacity-40"
+            onClick={logAsComplete}
+          >
+            {completing ? 'Logging…' : 'Log as complete'}
+          </button>
+        ) : null}
       </div>
 
       {err ? <p className="text-xs text-late">{err}</p> : null}

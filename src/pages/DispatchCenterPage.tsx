@@ -292,7 +292,7 @@ function CardList({
   onDeleteCard: (card: DispatchCard) => void
   /** Approved drawer — invoice + ETA sheet actions. */
   showBookedActions?: boolean
-  /** Live tracking — portal link + Access chat only. */
+  /** Live tracking — portal, Access chat, Log as complete. */
   showTrackingActions?: boolean
 }) {
   if (!cards.length) {
