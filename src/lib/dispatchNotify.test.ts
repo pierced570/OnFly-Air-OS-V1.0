@@ -16,7 +16,7 @@ import {
 } from '@/lib/dispatchNotify'
 import { listExceptions } from '@/lib/exceptionStore'
 import { endShift, startShift } from '@/lib/shiftStore'
-import { submitTripRequest } from '@/lib/requestStore'
+import { requestHardQuote, submitTripRequest } from '@/lib/requestStore'
 
 describe('dispatchNotify', () => {
   afterEach(() => {
@@ -84,7 +84,7 @@ describe('dispatchNotify', () => {
     )
   })
 
-  it('submitTripRequest portal source pages the desk line', async () => {
+  it('soft portal submitTripRequest does not page the desk', async () => {
     startShift('Desk', '+15555550100')
     const before = getMockCommsLog().length
     submitTripRequest(
@@ -96,11 +96,28 @@ describe('dispatchNotify', () => {
       },
       'portal',
     )
-    // notify is fire-and-forget
+    // Soft estimates must not SMS/email the desk line
+    await new Promise((r) => setTimeout(r, 20))
+    expect(getMockCommsLog().length).toBe(before)
+  })
+
+  it('requestHardQuote pages the desk line', async () => {
+    startShift('Desk', '+15555550100')
+    const before = getMockCommsLog().length
+    const row = submitTripRequest(
+      {
+        ...emptyTripRequestDraft(),
+        email: 'portal@client.com',
+        cargo_notes: '1 skid 48x40x48 @ 400',
+        cargo_weight_lbs: 400,
+      },
+      'portal',
+    )
+    requestHardQuote(row.id)
     await new Promise((r) => setTimeout(r, 20))
     expect(getMockCommsLog().length).toBeGreaterThan(before)
     const last = getMockCommsLog().at(-1)
-    expect(last?.body).toMatch(/portal request/i)
+    expect(last?.body).toMatch(/hard quote/i)
     expect(last?.to).toBe(BRAND_PHONE_E164)
   })
 

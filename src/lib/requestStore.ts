@@ -24,7 +24,6 @@ import {
 } from '@/lib/clientStore'
 import {
   notifyHardQuoteRequest,
-  notifyPortalRequest,
   portalRequestReviewPath,
 } from '@/lib/dispatchNotify'
 import { raiseException } from '@/lib/exceptionStore'
@@ -115,10 +114,8 @@ export function submitTripRequest(
   requests.set(id, row)
   bump()
   flagForkliftForDispatchers(row)
-  // Portal door: SMS/email the on-shift desk + Board exception — approve, don't auto-book.
-  if (source === 'portal') {
-    void notifyPortalRequest(row)
-  }
+  // Soft portal estimates stay silent — desk SMS/email only on hard quote
+  // (requestHardQuote → notifyHardQuoteRequest). Never page for soft requests.
   return row
 }
 
