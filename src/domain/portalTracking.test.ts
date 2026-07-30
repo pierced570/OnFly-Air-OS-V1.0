@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildCargoManifest,
   buildMilestones,
+  buildOpsForecastRows,
   buildPortalTrackingView,
   classifyPortalShipmentPhase,
   interpolateGc,
@@ -286,5 +288,43 @@ describe('portalTracking', () => {
     expect(view.phase).toBe('in_flight')
     expect(view.etaRows[0]!.scheduledLocal).toBeTruthy()
     expect(view.etaRows[0]!.scheduledZulu).toMatch(/Z/)
+  })
+
+  it('builds pickup / loading / live-leg Actual vs Forecast rows', () => {
+    const rows = buildOpsForecastRows(sampleD2d())
+    expect(rows.map((r) => r.key)).toEqual(['pickup', 'loading', 'live_leg'])
+    expect(rows[0]!.label).toMatch(/Pickup in KCAK/)
+    expect(rows[1]!.label).toBe('Loading time')
+    expect(rows[1]!.kind).toBe('duration')
+    expect(rows[1]!.estimatedLocal).toMatch(/min|h/)
+    expect(rows[2]!.label).toMatch(/Live leg KCAK → KMDW/)
+    expect(rows[2]!.estimatedLocal).toBeTruthy()
+  })
+
+  it('builds cargo manifest with pax names and cargo lines', () => {
+    const cargo = buildCargoManifest(
+      sampleD2d({
+        payload_kind: 'both',
+        pax_count: 2,
+        pax_names: ['Ada Lovelace', 'Grace Hopper'],
+        cargo_lines: ['Standard tooling 48×40×60', 'Window seat preferred'],
+        payload_summary: '2 pax + tooling',
+      }),
+    )
+    expect(cargo.paxCount).toBe(2)
+    expect(cargo.paxNames).toEqual(['Ada Lovelace', 'Grace Hopper'])
+    expect(cargo.cargoLines.join(' ')).toMatch(/Standard tooling/)
+    expect(cargo.cargoLines.join(' ')).toMatch(/Window/)
+    const view = buildPortalTrackingView(
+      sampleD2d({
+        pax_count: 2,
+        pax_names: ['Ada Lovelace'],
+        cargo_lines: ['Standard tooling'],
+        pickup_street: '100 Industrial Pkwy',
+      }),
+    )
+    expect(view.cargo.paxNames).toContain('Ada Lovelace')
+    expect(view.pickupStreet).toBe('100 Industrial Pkwy')
+    expect(view.opsForecastRows).toHaveLength(3)
   })
 })

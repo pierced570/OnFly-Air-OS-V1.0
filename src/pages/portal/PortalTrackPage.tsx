@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { PortalTrackingBody } from '@/components/PortalTrackingBody'
 import { PortalShell } from '@/components/PortalShell'
 import {
+  ensureTripInSession,
   getTrip,
   listTripsStable,
   subscribeTrips,
@@ -180,6 +181,12 @@ export default function PortalTrackPage() {
     }
   }, [token])
 
+  useEffect(() => {
+    if (remoteTrip && !getTrip(remoteTrip.id)) {
+      ensureTripInSession(remoteTrip)
+    }
+  }, [remoteTrip])
+
   const trip = useMemo(() => {
     if (tripId) {
       const local = getTrip(tripId)
@@ -218,6 +225,7 @@ export default function PortalTrackPage() {
     <PortalTrackingBody
       view={view}
       backHref="/portal"
+      tripId={trip?.id ?? tripId}
     />
   )
 }
@@ -270,6 +278,12 @@ export function PortalTripTrackPage() {
     }
   }, [id])
 
+  useEffect(() => {
+    if (remoteTrip && !getTrip(remoteTrip.id)) {
+      ensureTripInSession(remoteTrip)
+    }
+  }, [remoteTrip])
+
   const trip = (id ? getTrip(id) : null) ?? remoteTrip
   const input = trip ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail)
@@ -292,5 +306,5 @@ export function PortalTripTrackPage() {
     )
   }
 
-  return <PortalTrackingBody view={view} />
+  return <PortalTrackingBody view={view} tripId={trip?.id ?? id} />
 }

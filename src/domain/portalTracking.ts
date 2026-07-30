@@ -52,6 +52,36 @@ export type TrackingEtaRow = {
   isForecast: boolean
 }
 
+/**
+ * Client Actual vs Forecast — pickup arrival, loading (turn), live air leg.
+ * Derived from ETA chain arrival / takeoff / landing stamps.
+ */
+export type OpsForecastRow = {
+  key: 'pickup' | 'loading' | 'live_leg'
+  /** e.g. "Pickup in KCAK", "Loading time", "Live leg KCAK → KMDW" */
+  label: string
+  estimatedLocal: string | null
+  estimatedZulu: string | null
+  actualOrForecastLocal: string | null
+  /** Minutes early (−) / late (+) — or duration delta for loading. */
+  deltaMin: number | null
+  status: 'done' | 'active' | 'pending'
+  isForecast: boolean
+  /** Loading row compares durations; pickup/live compare clock times. */
+  kind: 'arrival' | 'duration' | 'flight'
+}
+
+/** Portal-safe cargo / pax manifest (no operator cost). */
+export type PortalCargoManifest = {
+  payloadKind: 'cargo' | 'pax' | 'both'
+  paxCount: number
+  paxNames: string[]
+  /** Dims, standard tooling, window notes, etc. */
+  cargoLines: string[]
+  readyLabel: string
+  summaryLine: string
+}
+
 /** Client shipment card / list phase — portal-safe labels. */
 export type PortalShipmentPhase =
   | 'in_flight'
@@ -203,6 +233,8 @@ export type PortalTrackingView = {
   nextMilestoneLabel: string
   milestones: TrackingMilestone[]
   etaRows: TrackingEtaRow[]
+  /** Pickup / loading / live-leg Actual vs Forecast. */
+  opsForecastRows: OpsForecastRow[]
   aircraft: TrackingAircraftPosition
   timeline: Array<{ at: string; label: string; detail: string }>
   documents: Array<{ id: string; kind: string; title: string; at: string; url: string }>
@@ -210,6 +242,10 @@ export type PortalTrackingView = {
   stops: TrackingStop[]
   /** Snapshot facts for the hero / aircraft panel. */
   flightFacts: TrackingFlightFacts
+  cargo: PortalCargoManifest
+  /** Street / door addresses (editable on portal). */
+  pickupStreet: string | null
+  dropoffStreet: string | null
 }
 
 /** One stop on the client itinerary — FBO or door address. */
@@ -276,7 +312,14 @@ export type PortalTrackingTripInput = {
   documents?: Array<{ id: string; kind: string; title: string; at: string; url: string }>
   tail?: string | null
   aircraft_type?: string | null
-  hard_quote?: { disclosure_at?: string } | null
+  hard_quote?: { disclosure_at?: string; payload_kind?: 'cargo' | 'pax' | 'both' } | null
+  /** Pax count from Quick Dispatch / desk when names unknown. */
+  pax_count?: number | null
+  pax_names?: string[]
+  cargo_lines?: string[]
+  payload_kind?: 'cargo' | 'pax' | 'both' | null
+  pickup_street?: string | null
+  dropoff_street?: string | null
 }
 
 function eventAt(
@@ -508,6 +551,225 @@ export function buildEtaRows(trip: PortalTrackingTripInput): TrackingEtaRow[] {
       isForecast: !actIso,
     }
   })
+}
+
+function formatDurationMin(min: number | null | undefined): string | null {
+  if (min == null || !Number.isFinite(min)) return null
+  const m = Math.max(0, Math.round(min))
+  const h = Math.floor(m / 60)
+  const r = m % 60
+  if (h <= 0) return `${r} min`
+  return `${h}h ${String(r).padStart(2, '0')}m`
+}
+
+function minutesBetween(a: string | null, b: string | null): number | null {
+  if (!a || !b) return null
+  const ms = Date.parse(b) - Date.parse(a)
+  if (!Number.isFinite(ms)) return null
+  return Math.round(ms / 60_000)
+}
+
+/**
+ * Pickup arrival → loading (turn) → live air leg, from chain stamps.
+ */
+export function buildOpsForecastRows(
+  trip: PortalTrackingTripInput,
+): OpsForecastRow[] {
+  const chain = trip.eta_chain
+  if (!chain.length) return []
+
+  const position =
+    chain.find(
+      (l) => l.type === 'position' || l.duration_key === 'acft_ttp',
+    ) ?? null
+  const air =
+    chain.find(
+      (l) => l.type === 'air_leg' || l.duration_key === 'air_time',
+    ) ?? null
+  const turn =
+    chain.find(
+      (l) =>
+        (l.type === 'ground_stop' || l.duration_key === 'acft_turn') &&
+        (!air || l.seq < air.seq) &&
+        (!position || l.seq >= position.seq),
+    ) ?? null
+
+  const rows: OpsForecastRow[] = []
+
+  if (position) {
+    const tz = position.to.tz || position.from.tz || 'UTC'
+    const icao = (position.to.icao || position.to.label || 'origin').toUpperCase()
+    const status = legStatus(position, trip.legs)
+    const estIso = position.est_end
+    const actIso = position.actual_end
+    const deltaMin =
+      estIso && actIso
+        ? Math.round((Date.parse(actIso) - Date.parse(estIso)) / 60_000)
+        : null
+    const estFmt = estIso ? formatClientLocal(estIso, tz) : null
+    const zulu = estIso ? formatZuluLocal(estIso, tz) : null
+    const actFmt = actIso ? formatClientLocal(actIso, tz) : null
+    rows.push({
+      key: 'pickup',
+      label: `Pickup in ${icao}`,
+      estimatedLocal: estFmt?.local ?? null,
+      estimatedZulu: zulu?.zulu ?? null,
+      actualOrForecastLocal:
+        actFmt?.local ??
+        (status === 'active' ? 'ARRIVING · LIVE' : estFmt?.local ?? null),
+      deltaMin: actIso ? deltaMin : status === 'active' ? null : deltaMin,
+      status,
+      isForecast: !actIso,
+      kind: 'arrival',
+    })
+  }
+
+  if (turn || (position && air)) {
+    const tz =
+      turn?.to.tz ||
+      turn?.from.tz ||
+      position?.to.tz ||
+      air?.from.tz ||
+      'UTC'
+    const estDur =
+      turn?.duration_min ??
+      minutesBetween(position?.est_end ?? null, air?.est_start ?? null)
+    const actDur = minutesBetween(
+      position?.actual_end ?? turn?.actual_start ?? null,
+      air?.actual_start ?? turn?.actual_end ?? null,
+    )
+    const status = turn
+      ? legStatus(turn, trip.legs)
+      : air?.actual_start
+        ? 'done'
+        : position && legStatus(position, trip.legs) === 'done'
+          ? 'active'
+          : 'pending'
+    const deltaMin =
+      estDur != null && actDur != null ? actDur - estDur : null
+    rows.push({
+      key: 'loading',
+      label: 'Loading time',
+      estimatedLocal: formatDurationMin(estDur),
+      estimatedZulu: null,
+      actualOrForecastLocal: actDur != null
+        ? formatDurationMin(actDur)
+        : status === 'active'
+          ? 'LOADING · LIVE'
+          : formatDurationMin(estDur),
+      deltaMin: actDur != null ? deltaMin : null,
+      status,
+      isForecast: actDur == null,
+      kind: 'duration',
+    })
+    void tz
+  }
+
+  if (air) {
+    const tz = air.to.tz || air.from.tz || 'UTC'
+    const from = (air.from.icao || air.from.label || '—').toUpperCase()
+    const to = (air.to.icao || air.to.label || '—').toUpperCase()
+    const status = legStatus(air, trip.legs)
+    const estIso = air.est_end
+    const actIso = air.actual_end
+    const takeoffEst = air.est_start
+      ? formatClientLocal(air.est_start, air.from.tz || tz).local
+      : null
+    const takeoffAct = air.actual_start
+      ? formatClientLocal(air.actual_start, air.from.tz || tz).local
+      : null
+    const estFmt = estIso ? formatClientLocal(estIso, tz) : null
+    const zulu = estIso ? formatZuluLocal(estIso, tz) : null
+    const actFmt = actIso ? formatClientLocal(actIso, tz) : null
+    const deltaMin =
+      estIso && actIso
+        ? Math.round((Date.parse(actIso) - Date.parse(estIso)) / 60_000)
+        : null
+    const landingLabel = actFmt?.local ?? estFmt?.local
+    const takeoffBit = takeoffAct || takeoffEst
+    rows.push({
+      key: 'live_leg',
+      label: `Live leg ${from} → ${to}`,
+      estimatedLocal: estFmt?.local
+        ? takeoffEst
+          ? `${takeoffEst} → ${estFmt.local}`
+          : estFmt.local
+        : formatDurationMin(air.duration_min),
+      estimatedZulu: zulu?.zulu ?? null,
+      actualOrForecastLocal: actIso
+        ? takeoffAct
+          ? `${takeoffAct} → ${actFmt!.local}`
+          : actFmt!.local
+        : status === 'active'
+          ? 'IN FLIGHT · LIVE'
+          : landingLabel
+            ? takeoffBit
+              ? `${takeoffBit} → ${landingLabel}`
+              : landingLabel
+            : formatDurationMin(air.duration_min),
+      deltaMin: actIso ? deltaMin : status === 'active' ? null : null,
+      status,
+      isForecast: !actIso,
+      kind: 'flight',
+    })
+  }
+
+  return rows
+}
+
+export function buildCargoManifest(
+  trip: PortalTrackingTripInput,
+): PortalCargoManifest {
+  const kind: PortalCargoManifest['payloadKind'] =
+    trip.payload_kind === 'pax' ||
+    trip.payload_kind === 'both' ||
+    trip.payload_kind === 'cargo'
+      ? trip.payload_kind
+      : trip.hard_quote?.payload_kind === 'pax' ||
+          trip.hard_quote?.payload_kind === 'both' ||
+          trip.hard_quote?.payload_kind === 'cargo'
+        ? trip.hard_quote.payload_kind
+        : trip.pax_count && trip.pax_count > 0
+          ? trip.cargo_lines?.length
+            ? 'both'
+            : 'pax'
+          : 'cargo'
+
+  const paxNames = (trip.pax_names ?? [])
+    .map((n) => n.trim())
+    .filter(Boolean)
+  const paxCount = Math.max(trip.pax_count ?? 0, paxNames.length)
+
+  const cargoLines: string[] = []
+  for (const line of trip.cargo_lines ?? []) {
+    const t = line.trim()
+    if (t && !cargoLines.includes(t)) cargoLines.push(t)
+  }
+  const summary = trip.payload_summary.trim()
+  if (
+    summary &&
+    !cargoLines.some((l) => l.toLowerCase() === summary.toLowerCase()) &&
+    !/^\d+\s*pax\b/i.test(summary)
+  ) {
+    cargoLines.push(summary)
+  }
+
+  const bits: string[] = []
+  if (paxCount > 0) {
+    bits.push(`${paxCount} pax`)
+    if (paxNames.length) bits.push(paxNames.join(', '))
+  }
+  if (cargoLines.length) bits.push(cargoLines.join(' · '))
+  if (!bits.length) bits.push(summary || '—')
+
+  return {
+    payloadKind: kind,
+    paxCount,
+    paxNames,
+    cargoLines,
+    readyLabel: trip.ready_label,
+    summaryLine: bits.join(' · '),
+  }
 }
 
 function placeAddressHint(p: { icao?: string; label?: string }): string | null {
@@ -980,6 +1242,8 @@ export function buildPortalTrackingView(
   const nowIso = opts?.nowIso ?? new Date().toISOString()
   const milestones = buildMilestones(trip, nowIso)
   const etaRows = buildEtaRows(trip)
+  const opsForecastRows = buildOpsForecastRows(trip)
+  const cargo = buildCargoManifest(trip)
   const aircraft = resolveAircraftPosition(trip, opts?.adsb ?? null, nowIso)
 
   const promised = trip.promised_delivery ?? projectedDeliveryUtc(trip.eta_chain)
@@ -1035,6 +1299,7 @@ export function buildPortalTrackingView(
     nextMilestoneLabel: nextLabel,
     milestones,
     etaRows,
+    opsForecastRows,
     aircraft,
     timeline: clientTimeline(trip),
     documents: clientDocs.map((d) => ({
@@ -1046,7 +1311,52 @@ export function buildPortalTrackingView(
     })),
     stops: buildTrackingStops(trip),
     flightFacts: buildFlightFacts(trip),
+    cargo,
+    pickupStreet: trip.pickup_street?.trim() || null,
+    dropoffStreet: trip.dropoff_street?.trim() || null,
   }
+}
+
+function cargoLinesFromEvents(
+  events: PortalTrackingTripInput['events'],
+): string[] {
+  const lines: string[] = []
+  const push = (raw: unknown) => {
+    const t = String(raw ?? '').trim()
+    if (!t) return
+    if (!lines.some((l) => l.toLowerCase() === t.toLowerCase())) lines.push(t)
+  }
+  for (const e of events) {
+    if (
+      e.kind === 'desk_scratch_spool' ||
+      e.kind === 'quick_dispatch' ||
+      e.kind === 'portal_request'
+    ) {
+      push(e.payload.cargo_summary)
+      push(e.payload.pieces_text)
+      push(e.payload.mission_summary)
+      push(e.payload.cargo_notes)
+    }
+  }
+  return lines
+}
+
+function paxNamesFromEvents(
+  events: PortalTrackingTripInput['events'],
+): string[] {
+  for (const e of [...events].reverse()) {
+    const raw = e.payload.pax_names ?? e.payload.passenger_names
+    if (Array.isArray(raw)) {
+      return raw.map((n) => String(n).trim()).filter(Boolean)
+    }
+    if (typeof raw === 'string' && raw.trim()) {
+      return raw
+        .split(/[,;\n]+/)
+        .map((n) => n.trim())
+        .filter(Boolean)
+    }
+  }
+  return []
 }
 
 /** Map trip store row → tracking input (strips money fields by omission). */
@@ -1064,13 +1374,78 @@ export function tripToTrackingInput(trip: {
   legs: PortalTrackingTripInput['legs']
   events: PortalTrackingTripInput['events']
   documents?: PortalTrackingTripInput['documents']
-  quick?: { tail?: string; aircraft_type?: string; po?: string } | null
+  quick?: {
+    tail?: string
+    aircraft_type?: string
+    po?: string
+    cargo_only?: boolean
+    notes?: string
+    legs?: Array<{ pax: number }>
+  } | null
   offers?: Array<{ state: string; tail: string; type_name: string | null }>
-  hard_quote?: { disclosure_at?: string } | null
+  hard_quote?: {
+    disclosure_at?: string
+    payload_kind?: 'cargo' | 'pax' | 'both'
+  } | null
+  portal_pickup_address?: string | null
+  portal_dropoff_address?: string | null
+  portal_pax_names?: string[] | null
 }): PortalTrackingTripInput {
   const selected =
     trip.offers?.find((o) => o.state === 'selected') ??
     trip.offers?.find((o) => o.state === 'quoted')
+  const quickPax =
+    trip.quick?.legs?.reduce((n, l) => n + (Number(l.pax) || 0), 0) ?? 0
+  const eventPax = paxNamesFromEvents(trip.events)
+  const paxNames = [
+    ...(trip.portal_pax_names ?? []),
+    ...eventPax,
+  ].filter((n, i, arr) => n && arr.indexOf(n) === i)
+  const cargoLines = cargoLinesFromEvents(trip.events)
+  if (trip.quick?.notes?.trim()) {
+    const note = trip.quick.notes.trim()
+    if (!cargoLines.some((l) => l.toLowerCase() === note.toLowerCase())) {
+      cargoLines.push(note)
+    }
+  }
+  const deskPax = [...trip.events]
+    .reverse()
+    .find((e) => e.kind === 'desk_scratch_spool' || e.kind === 'quick_dispatch')
+  const deskPaxCount = Number(deskPax?.payload.pax_count ?? 0) || 0
+  const payloadKind: PortalTrackingTripInput['payload_kind'] =
+    trip.hard_quote?.payload_kind ??
+    (trip.quick
+      ? trip.quick.cargo_only
+        ? 'cargo'
+        : quickPax > 0
+          ? 'pax'
+          : 'cargo'
+      : null)
+
+  // Door addresses from ETA place labels when not ICAO-only.
+  let pickupStreet = trip.portal_pickup_address?.trim() || null
+  let dropoffStreet = trip.portal_dropoff_address?.trim() || null
+  for (const leg of trip.eta_chain ?? []) {
+    if (
+      !pickupStreet &&
+      (leg.type === 'truck_pickup' || leg.event === 'At Shipper')
+    ) {
+      const label = (leg.from.label || '').trim()
+      if (label && label.toUpperCase() !== (leg.from.icao || '').toUpperCase()) {
+        pickupStreet = label
+      }
+    }
+    if (
+      !dropoffStreet &&
+      (leg.type === 'truck_delivery' || leg.event === 'Delivered')
+    ) {
+      const label = (leg.to.label || '').trim()
+      if (label && label.toUpperCase() !== (leg.to.icao || '').toUpperCase()) {
+        dropoffStreet = label
+      }
+    }
+  }
+
   return {
     ref: trip.ref,
     code: trip.code ?? null,
@@ -1088,5 +1463,11 @@ export function tripToTrackingInput(trip: {
     tail: trip.quick?.tail || selected?.tail || null,
     aircraft_type: trip.quick?.aircraft_type || selected?.type_name || null,
     hard_quote: trip.hard_quote ?? null,
+    pax_count: Math.max(quickPax, deskPaxCount, paxNames.length),
+    pax_names: paxNames,
+    cargo_lines: cargoLines,
+    payload_kind: payloadKind,
+    pickup_street: pickupStreet,
+    dropoff_street: dropoffStreet,
   }
 }

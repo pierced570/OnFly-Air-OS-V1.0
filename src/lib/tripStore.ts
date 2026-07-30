@@ -427,6 +427,11 @@ export type TripStoreRow = {
   hard_deadline_at?: string | null
   forklift_recommended?: boolean
   forklift_required?: boolean
+  /** Client portal street / door addresses (pickup & drop-off cards). */
+  portal_pickup_address?: string | null
+  portal_dropoff_address?: string | null
+  /** Optional passenger names for portal cargo card. */
+  portal_pax_names?: string[]
   /** Referral partner attached at book (profit share → financials). */
   referral?: {
     id: string | null
@@ -995,6 +1000,15 @@ export function getTrip(id: string) {
   return trips.get(id) ?? null
 }
 
+/** Ensure a hydrated/stub trip is editable in this session (portal address save). */
+export function ensureTripInSession(row: TripStoreRow): TripStoreRow {
+  const existing = trips.get(row.id)
+  if (existing) return existing
+  trips.set(row.id, row)
+  bump()
+  return row
+}
+
 /**
  * Remove a trip from the desk queue (local + soft-delete in Supabase).
  * Does not hard-DELETE — trip_events are append-only. Sets trips.discarded_at.
@@ -1406,6 +1420,37 @@ export function mutateTrip(id: string, fn: (t: TripStoreRow) => void) {
   bump()
   schedulePersist(id)
   return t
+}
+
+/** Client portal — save street / door addresses on pickup & drop-off cards. */
+export function setPortalStopAddresses(
+  tripId: string,
+  patch: { pickup?: string; dropoff?: string; paxNames?: string[] },
+): TripStoreRow {
+  if (!trips.has(tripId)) {
+    throw new Error('Trip not loaded in this session — refresh and try again')
+  }
+  return mutateTrip(tripId, (t) => {
+    if (patch.pickup !== undefined) {
+      t.portal_pickup_address = patch.pickup.trim() || null
+    }
+    if (patch.dropoff !== undefined) {
+      t.portal_dropoff_address = patch.dropoff.trim() || null
+    }
+    if (patch.paxNames !== undefined) {
+      t.portal_pax_names = patch.paxNames.map((n) => n.trim()).filter(Boolean)
+    }
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'client',
+      kind: 'portal_stop_addresses',
+      payload: {
+        pickup: t.portal_pickup_address,
+        dropoff: t.portal_dropoff_address,
+        pax_names: t.portal_pax_names ?? [],
+      },
+    })
+  })
 }
 
 export function safeTransitionTrip(
