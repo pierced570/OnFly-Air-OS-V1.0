@@ -111,16 +111,17 @@ Reply JSON only.`,
 
     const raw = await complete(
       `Extract a charter/air-freight trip request as JSON with keys:
-client_name, pieces_text, origin_text, destination_text, ready_local, deadline_local,
+client_name, pieces_text, origin_text, destination_text, stop_texts (string[]|null), ready_local, deadline_local,
 hazmat (boolean), asap (boolean), pax_count (number|null), payload_kind ("cargo"|"pax"|"both"),
 notes.
 Rules: origin_text/destination_text keep IATA or ICAO when written (e.g. CVG, HPN, KCAK).
 Treat en-dash/em-dash/hyphen lanes like "CVG – HPN" as origin→destination.
+Multi-stop narrative (Pickup GSP / then in CVG / drop off in MHT) → stop_texts=["GSP","CVG","MHT"] in order, origin_text=first, destination_text=last.
 Defaults: one-way unless round-trip/return is said; asap=true and assume today unless a clock time or day is noted (ASAP/AOG/hot also → asap=true).
 Do NOT extract PO numbers or reposition/repo times.
 Techs/engineers/mechanics → pax_count (not cargo). e.g. "2 Techs + Parts" → pax_count=2, pieces_text omit or only real cargo dims, payload_kind="pax" (or "both" if cargo dims present).
 If tools/tooling mentioned → pieces_text="standard tooling 1 piece 12x12x12 @ 50", payload_kind cargo or both with pax.
-client_name = company on first line when obvious (e.g. PSA).
+client_name = company on first line when obvious (e.g. PSA) — do not treat the client name as an airport stop.
 Use null/omit when unknown. ready_local/deadline_local as local ISO-like strings if present. Reply JSON only.`,
       text.slice(0, 12000),
       true,
