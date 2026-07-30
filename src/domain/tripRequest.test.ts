@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   ASAP_MAX_HOURS,
   buildReturnLegs,
+  draftPayloadKind,
   emptyTripRequestDraft,
   forkliftFromDraft,
   isAsapReady,
+  newLeg,
   summaryFromDraft,
   laneFromDraft,
   syncReturnLegs,
@@ -174,6 +176,28 @@ describe('tripRequest', () => {
     )
     d.legs[0]!.pickup_address = '100 Industrial Pkwy, Akron OH'
     d.legs[0]!.dropoff_address = 'KMDW FBO ramp'
+    expect(validateTripRequest(d).length).toBe(0)
+  })
+
+  it('multi-leg can mix pax and cargo per leg', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KGSP'
+    d.legs[0]!.dest_icao = 'KCVG'
+    d.legs[0]!.payload = 'pax'
+    d.legs.push({
+      ...newLeg(),
+      origin_icao: 'KCVG',
+      dest_icao: 'KMHT',
+      payload: 'cargo',
+    })
+    d.cargo_only = false
+    d.pax = [{ name: 'Alex Tech', weight_lbs: 180, dob: '1990-01-01' }]
+    d.cargo_notes = '1 box 12x12x12 @ 75ea'
+    d.cargo_weight_lbs = 75
+    expect(draftPayloadKind(d)).toBe('both')
+    expect(summaryFromDraft(d)).toContain('L1 pax')
+    expect(summaryFromDraft(d)).toContain('L2 cargo')
     expect(validateTripRequest(d).length).toBe(0)
   })
 })

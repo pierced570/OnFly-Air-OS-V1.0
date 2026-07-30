@@ -18,6 +18,8 @@ export type TripDirection = 'one_way' | 'round_trip'
 export type ServiceMode = 'a2a' | 'd2d' | 'mixed'
 /** Portal cargo dims: known now, TBD with desk, or autofill standard cargo. */
 export type CargoDimsStatus = 'known' | 'not_yet' | 'standard'
+/** What rides a given air leg — passengers, freight, or both. */
+export type LegPayloadKind = 'pax' | 'cargo' | 'both'
 export type { DimLengthUnit }
 
 export type PaxRow = {
@@ -36,6 +38,12 @@ export type TripLegDraft = {
   pickup_tbd: boolean
   dropoff_address: string
   dropoff_tbd: boolean
+  /**
+   * Multi-leg portal: each leg can carry pax, cargo, or both.
+   * Single-leg trips still use trip-level `cargo_only` as the primary switch;
+   * this stays in sync via `syncLegPayloadFromCargoOnly` / `applyLegPayload`.
+   */
+  payload: LegPayloadKind
 }
 
 export type TripRequestDraft = {
@@ -114,7 +122,83 @@ export function newLeg(partial?: Partial<TripLegDraft>): TripLegDraft {
     pickup_tbd: false,
     dropoff_address: '',
     dropoff_tbd: false,
+    payload: 'cargo',
     ...partial,
+  }
+}
+
+export function legHasPax(leg: TripLegDraft): boolean {
+  return leg.payload === 'pax' || leg.payload === 'both'
+}
+
+export function legHasCargo(leg: TripLegDraft): boolean {
+  return leg.payload === 'cargo' || leg.payload === 'both'
+}
+
+/** Trip includes any passenger-carrying outbound leg (or !cargo_only on single-leg). */
+export function draftIncludesPax(draft: TripRequestDraft): boolean {
+  if (draft.legs.length <= 1) return !draft.cargo_only
+  return draft.legs.some(legHasPax)
+}
+
+/** Trip includes any freight-carrying outbound leg (or cargo_only / notes on single-leg). */
+export function draftIncludesCargo(draft: TripRequestDraft): boolean {
+  if (draft.legs.length <= 1) {
+    return draft.cargo_only || Boolean(draft.cargo_notes.trim())
+  }
+  return draft.legs.some(legHasCargo)
+}
+
+export function draftPayloadKind(
+  draft: TripRequestDraft,
+): 'cargo' | 'pax' | 'both' {
+  const pax = draftIncludesPax(draft)
+  const cargo = draftIncludesCargo(draft)
+  if (pax && cargo) return 'both'
+  if (pax) return 'pax'
+  return 'cargo'
+}
+
+export function payloadFromFlags(
+  hasPax: boolean,
+  hasCargo: boolean,
+): LegPayloadKind | null {
+  if (hasPax && hasCargo) return 'both'
+  if (hasPax) return 'pax'
+  if (hasCargo) return 'cargo'
+  return null
+}
+
+/** Keep leg.payload aligned when the trip-level cargo-only switch changes. */
+export function syncLegPayloadFromCargoOnly(
+  draft: TripRequestDraft,
+): TripRequestDraft {
+  const payload: LegPayloadKind = draft.cargo_only ? 'cargo' : 'pax'
+  return {
+    ...draft,
+    legs: draft.legs.map((l) => ({ ...l, payload })),
+  }
+}
+
+/**
+ * Apply a per-leg payload choice and re-derive cargo_only / empty pax rows.
+ */
+export function applyLegPayload(
+  draft: TripRequestDraft,
+  legId: string,
+  payload: LegPayloadKind,
+): TripRequestDraft {
+  const legs = draft.legs.map((l) => (l.id === legId ? { ...l, payload } : l))
+  const hasPax = legs.some(legHasPax)
+  return {
+    ...draft,
+    legs,
+    cargo_only: !hasPax,
+    pax: hasPax
+      ? draft.pax.length
+        ? draft.pax
+        : [{ name: '', weight_lbs: '', dob: '' }]
+      : [],
   }
 }
 
@@ -127,6 +211,7 @@ export function mirrorLeg(leg: TripLegDraft): TripLegDraft {
     dropoff_address: leg.pickup_address,
     pickup_tbd: leg.dropoff_tbd,
     dropoff_tbd: leg.pickup_tbd,
+    payload: leg.payload,
   })
 }
 
@@ -196,9 +281,12 @@ export function emptyTripRequestDraft(): TripRequestDraft {
   }
 }
 
-/** Cargo needs weight when freight is on the request (cargo-only or notes present). */
+/** Cargo needs weight when freight is on the request. */
 export function draftNeedsCargoWeight(draft: TripRequestDraft): boolean {
   if (draft.cargo_dims_status === 'not_yet') return false
+  if (draft.legs.length > 1) {
+    return draftIncludesCargo(draft)
+  }
   return draft.cargo_only || Boolean(draft.cargo_notes.trim())
 }
 
@@ -281,7 +369,16 @@ export function laneFromDraft(draft: TripRequestDraft): string {
 
 export function summaryFromDraft(draft: TripRequestDraft): string {
   const bits: string[] = []
-  bits.push(draft.cargo_only ? 'cargo' : `${draft.pax.length || 0} pax`)
+  if (draft.legs.length > 1) {
+    const legBits = draft.legs.map((l, i) => {
+      const kind =
+        l.payload === 'both' ? 'pax+cargo' : l.payload === 'pax' ? 'pax' : 'cargo'
+      return `L${i + 1} ${kind}`
+    })
+    bits.push(legBits.join(', '))
+  } else {
+    bits.push(draft.cargo_only ? 'cargo' : `${draft.pax.length || 0} pax`)
+  }
   bits.push(draft.service_mode)
   bits.push(draft.timing === 'asap' ? 'ASAP (<4h)' : 'scheduled')
   if (draft.direction === 'round_trip') {
@@ -345,6 +442,12 @@ export function validateTripRequest(
     if (draft.timing === 'scheduled' && !leg.date) {
       issues.push({ field: `leg.${i}.date`, message: `${prefix}: date required for scheduled` })
     }
+    if (draft.legs.length > 1 && !leg.payload) {
+      issues.push({
+        field: `leg.${i}.payload`,
+        message: `${prefix}: choose passengers and/or cargo`,
+      })
+    }
     if (needsDoorAddresses) {
       if (!leg.pickup_address.trim()) {
         issues.push({
@@ -360,6 +463,18 @@ export function validateTripRequest(
       }
     }
   })
+
+  if (draft.legs.length > 1) {
+    const missingPayload = draft.legs.some(
+      (l) => !legHasPax(l) && !legHasCargo(l),
+    )
+    if (missingPayload) {
+      issues.push({
+        field: 'legs.payload',
+        message: 'Each leg needs passengers, cargo, or both',
+      })
+    }
+  }
 
   if (draft.direction === 'round_trip') {
     if (draft.hours_on_ground === '' || Number(draft.hours_on_ground) <= 0) {
@@ -384,7 +499,7 @@ export function validateTripRequest(
     }
   }
 
-  if (!draft.cargo_only) {
+  if (draftIncludesPax(draft)) {
     if (draft.pax.length < 1) {
       issues.push({ field: 'pax', message: 'Add at least one passenger' })
     }
