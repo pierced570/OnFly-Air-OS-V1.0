@@ -1087,11 +1087,14 @@ export function TripRequestForm({
               </div>
             </div>
             <div>
-              <div className="text-xs font-medium uppercase tracking-wider text-muted">
-                Hard deadline
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                  Hard deadline
+                </div>
+                <span className="text-[11px] text-muted">Optional</span>
               </div>
               <label className={`${labelCls} mt-2`}>
-                <span className="sr-only">Hard deadline</span>
+                <span className="sr-only">Hard deadline (optional)</span>
                 <input
                   type="datetime-local"
                   value={draft.hard_deadline_at}
@@ -1104,6 +1107,21 @@ export function TripRequestForm({
                   className={`${inputCls} avionic`}
                 />
               </label>
+              {draft.hard_deadline_at ? (
+                <button
+                  type="button"
+                  className="mt-1.5 text-[11px] text-muted underline hover:text-gold"
+                  onClick={() =>
+                    setDraft((d) => ({ ...d, hard_deadline_at: '' }))
+                  }
+                >
+                  Clear deadline
+                </button>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-muted">
+                  Leave blank if there is no hard delivery time.
+                </p>
+              )}
               <label
                 className={[
                   'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
@@ -1222,7 +1240,10 @@ export function TripRequestForm({
                 </>
               )}
               <label className={labelCls}>
-                Hard deadline
+                Hard deadline{' '}
+                <span className="font-normal normal-case text-muted">
+                  (optional)
+                </span>
                 <input
                   type="datetime-local"
                   value={draft.hard_deadline_at}
@@ -1234,6 +1255,17 @@ export function TripRequestForm({
                   }
                   className={`${inputCls} avionic`}
                 />
+                {draft.hard_deadline_at ? (
+                  <button
+                    type="button"
+                    className="mt-1.5 text-[11px] text-muted underline hover:text-gold"
+                    onClick={() =>
+                      setDraft((d) => ({ ...d, hard_deadline_at: '' }))
+                    }
+                  >
+                    Clear deadline
+                  </button>
+                ) : null}
               </label>
             </div>
           </>
