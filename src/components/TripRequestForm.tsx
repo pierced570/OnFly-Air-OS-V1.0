@@ -908,8 +908,8 @@ export function TripRequestForm({
             </button>
           </label>
           {draft.direction === 'round_trip' && (
-            <label className={`${labelCls} w-40`}>
-              Hours on ground
+            <label className={`${labelCls} min-w-[11rem] flex-1 sm:max-w-xs`}>
+              Est. Hours Needed on Ground
               <input
                 type="number"
                 min={1}
