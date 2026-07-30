@@ -31,6 +31,7 @@ function draftFromRecord(row: TripRequestRecord): TripRequestDraft {
     return_legs: row.return_legs.map((l) => ({ ...l })),
     cargo_only: row.cargo_only,
     pax: row.pax.map((p) => ({ ...p })),
+    pax_details_deferred: row.pax_details_deferred,
     hazmat: row.hazmat,
     cargo_notes: row.cargo_notes,
     cargo_weight_lbs: row.cargo_weight_lbs,
