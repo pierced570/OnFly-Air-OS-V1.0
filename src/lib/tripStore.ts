@@ -1758,7 +1758,7 @@ export function postThreadMessage(
   return msg
 }
 
-/** Create QB invoice for a trip. Does not use QBO email. */
+/** Create QB invoice for a trip (ACH on). Email uses native QBO payment-request. */
 const invoiceInFlight = new Set<string>()
 
 /** @deprecated Use createInvoiceForTrip */
@@ -1790,6 +1790,7 @@ export async function createInvoiceForTrip(
   const { getClient, listInvoiceEmails } = await import('@/lib/clientStore')
   const { allocateNextPoForClient } = await import('@/lib/allocateNextPo')
   const { ONFLY_INFO_BCC } = await import('@/domain/onflyEmails')
+  const { invoiceTripFacts } = await import('@/lib/invoiceTripFacts')
   const acct = createAccountingAdapter()
   const client = t.client_id ? getClient(t.client_id) : undefined
   const clientName =
@@ -1823,31 +1824,31 @@ export async function createInvoiceForTrip(
   const payloadKind =
     t.hard_quote?.payload_kind ??
     (t.quick ? (t.quick.cargo_only ? 'cargo' : 'pax') : payloadKindOf(t))
-  const tail =
-    t.quick?.tail ||
-    selected?.tail ||
-    null
-  const aircraftType =
-    t.quick?.aircraft_type || selected?.type_name || null
-  const flightDate = t.quick?.legs[0]?.date ?? null
-  const payTerms = t.quick?.pay_terms ?? client?.pay_terms ?? 'Net 30'
+  const facts = invoiceTripFacts(trips.get(tripId) ?? t, {
+    poNumber: po,
+    clientName,
+  })
+  const payTerms = t.quick?.pay_terms ?? client?.pay_terms ?? facts.payTerms
   const { buildInvoiceCustomerMemo } = await import('@/domain/qbInvoice')
   const memo = buildInvoiceCustomerMemo({
-    lane: t.lane,
-    flightDate,
-    aircraftType,
-    tail,
+    lane: facts.lane,
+    flightDate: facts.flightDate,
+    aircraftType: facts.aircraftType,
+    tail: facts.tail,
     poNumber: po,
     payTerms,
-    extraNotes: t.quick?.notes ?? null,
+    itineraryLines: facts.itineraryLines,
+    pickupAddress: facts.pickupAddress,
+    dropoffAddress: facts.dropoffAddress,
+    extraNotes: facts.extraNotes,
   })
   const built = buildTripInvoiceLines({
     tripRef: t.ref,
-    lane: t.lane,
-    flightDate,
+    lane: facts.lane,
+    flightDate: facts.flightDate,
     clientTotal: total,
-    aircraftType,
-    tail,
+    aircraftType: facts.aircraftType,
+    tail: facts.tail,
     payloadKind,
     mtowLbs: mtow,
     rates: getTaxRates(),
@@ -1933,7 +1934,15 @@ export async function createInvoiceForTrip(
         bcc: uniqueBcc,
         poNumber: created.qbInvoiceNumber || po,
         qbInvoiceId: created.qbInvoiceId,
-        clientName,
+        clientName: facts.clientName,
+        amountUsd: facts.amountUsd,
+        lane: facts.lane,
+        flightDate: facts.flightDate,
+        aircraftType: facts.aircraftType,
+        tail: facts.tail,
+        itineraryLines: facts.itineraryLines,
+        contractUrl: facts.contractUrl,
+        payUrl: created.url || null,
       })
     } catch (e) {
       console.warn('[invoice] QBO send failed (invoice still created)', e)
@@ -2068,8 +2077,10 @@ export async function sendTripInvoiceEmail(
     ),
   ]
   const pdf = await acct.getInvoicePdfBase64(trip.invoice.qb_invoice_id)
-  // PDF is optional for native QBO send — QBO attaches its own branded PDF.
+  // PDF is optional for native QBO send — QBO attaches its own branded PDF + View and pay.
   const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
+  const { invoiceTripFacts } = await import('@/lib/invoiceTripFacts')
+  const facts = invoiceTripFacts(trip, { poNumber: po, clientName })
   await acct.sendInvoiceEmail({
     to,
     cc,
@@ -2077,8 +2088,16 @@ export async function sendTripInvoiceEmail(
     poNumber: po,
     qbInvoiceId: trip.invoice.qb_invoice_id,
     pdfBase64: pdf ?? undefined,
-    clientName,
+    clientName: facts.clientName,
     logoUrl: invoiceEmailLogoUrl(),
+    amountUsd: facts.amountUsd,
+    lane: facts.lane,
+    flightDate: facts.flightDate,
+    aircraftType: facts.aircraftType,
+    tail: facts.tail,
+    itineraryLines: facts.itineraryLines,
+    contractUrl: facts.contractUrl,
+    payUrl: trip.invoice.url || null,
   })
   mutateTrip(tripId, (row) => {
     if (row.invoice) row.invoice.status = 'sent'

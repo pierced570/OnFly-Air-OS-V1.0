@@ -94,8 +94,22 @@ export interface AccountingAdapter {
     pdfBase64?: string
     clientName?: string
     logoUrl?: string
+    /** Branded Resend body fields (mock / fallback path). */
+    amountUsd?: number | null
+    lane?: string | null
+    flightDate?: string | null
+    aircraftType?: string | null
+    tail?: string | null
+    itineraryLines?: string[] | null
+    contractUrl?: string | null
+    /** ACH / View and pay URL when available (QBO invoice link). */
+    payUrl?: string | null
   }): Promise<{ id: string }>
 }
+
+export type SendInvoiceEmailOpts = Parameters<
+  AccountingAdapter['sendInvoiceEmail']
+>[0]
 
 const mockInvoices = new Map<
   string,
@@ -215,23 +229,15 @@ export class MockAccountingAdapter implements AccountingAdapter {
     return minimal
   }
 
-  async sendInvoiceEmail(opts: {
-    to: string[]
-    cc?: string[]
-    bcc?: string[]
-    poNumber: string
-    qbInvoiceId: string
-    pdfBase64?: string
-    clientName?: string
-    logoUrl?: string
-  }) {
+  async sendInvoiceEmail(opts: SendInvoiceEmailOpts) {
     console.info(
-      '[MockQB] send-invoice (native QBO path simulated)',
+      '[MockQB] send-invoice (branded payment-request simulated)',
       {
         qbInvoiceId: opts.qbInvoiceId,
         to: opts.to,
         cc: opts.cc,
         po: opts.poNumber,
+        amountUsd: opts.amountUsd,
       },
     )
     // Optional Resend fallback when a PDF is provided (local demos).
@@ -247,6 +253,14 @@ export class MockAccountingAdapter implements AccountingAdapter {
             pdf_base64: opts.pdfBase64,
             client_name: opts.clientName,
             logo_url: opts.logoUrl,
+            amount_usd: opts.amountUsd ?? null,
+            lane: opts.lane ?? null,
+            flight_date: opts.flightDate ?? null,
+            aircraft_type: opts.aircraftType ?? null,
+            tail: opts.tail ?? null,
+            itinerary_lines: opts.itineraryLines ?? [],
+            contract_url: opts.contractUrl ?? null,
+            pay_url: opts.payUrl ?? null,
           },
         },
       )
@@ -395,22 +409,14 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
     return data.pdf_base64 ? String(data.pdf_base64) : null
   }
 
-  async sendInvoiceEmail(opts: {
-    to: string[]
-    cc?: string[]
-    bcc?: string[]
-    poNumber: string
-    qbInvoiceId: string
-    pdfBase64?: string
-    clientName?: string
-    logoUrl?: string
-  }) {
+  async sendInvoiceEmail(opts: SendInvoiceEmailOpts) {
     if (!opts.qbInvoiceId?.trim()) {
       throw new Error('qbInvoiceId required for QuickBooks invoice send')
     }
     const sendTo = opts.to.map((e) => e.trim().toLowerCase()).find((e) => e.includes('@'))
     if (!sendTo) throw new Error('Invoice To email required')
     // Native QBO payment-request email — PDF + ACH "View and pay" from the company file.
+    // Keep this path so Intuit's View and pay button stays on the attached PDF.
     const data = await this.invoke('send_invoice', {
       invoice_id: opts.qbInvoiceId,
       send_to: sendTo,

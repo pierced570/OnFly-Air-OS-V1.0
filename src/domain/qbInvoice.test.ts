@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildInvoiceCustomerMemo,
+  buildInvoiceItineraryLines,
+  buildInvoiceStopNotes,
   buildQbInvoicePayload,
   charterFlightLineDescription,
   extractPoNumeric,
+  formatInvoiceDuration,
   nextPoNumber,
   normalizePoDocNumber,
   salesTermRefForPayTerms,
@@ -57,10 +60,26 @@ describe('qbInvoice', () => {
       tail: 'N175CA',
       poNumber: '00346',
       payTerms: 'Net 30',
+      pickupAddress: 'Millington Airport Authority in NQA',
+      dropoffAddress: 'PSA hanger in DFW',
+      itineraryLines: buildInvoiceItineraryLines({
+        lane: 'KNQA → KDFW',
+        pickupEtaMin: 135,
+        liveLegMin: 105,
+      }),
     })
     expect(memo).toContain('Tail Number: N175CA')
     expect(memo).toContain('Route: KNQA → KDFW')
     expect(memo).toContain('PO #00346')
+    expect(memo).toContain('Terms: Net 30')
+    expect(memo).toContain('Pickup in NQA ETA 2hr 15 min')
+    expect(memo).toContain('Pick up the part at Millington Airport Authority in NQA')
+    expect(memo).toContain('Drop off part at PSA hanger in DFW')
+    expect(formatInvoiceDuration(105)).toBe('1hr 45 min')
+    expect(buildInvoiceStopNotes({ pickupAddress: 'A', dropoffAddress: 'B' })).toEqual([
+      'Pick up the part at A',
+      'Drop off part at B',
+    ])
   })
 
   it('sequences PO numbers with prefix', () => {

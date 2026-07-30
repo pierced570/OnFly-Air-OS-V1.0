@@ -136,6 +136,11 @@ export async function sendFinancialInvoice(
       poNumber: doc,
       qbInvoiceId: created.qbInvoiceId,
       clientName,
+      amountUsd: row.client_invoiced_amount,
+      lane: row.route_text,
+      flightDate: row.date_of_flight,
+      aircraftType: row.aircraft_type,
+      payUrl: created.url || null,
     })
     emailed = true
     emailId = mail.id
