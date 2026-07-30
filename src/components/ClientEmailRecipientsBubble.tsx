@@ -47,21 +47,20 @@ export function emptyClientEmailSelection(): ClientEmailSelection {
   return { to: [], cc: [], bcc: [] }
 }
 
-/** Prefill To from request-alert + primary; CC from tracker/invoice extras. */
+/** Prefill To only — request-alert contacts, else primary client email. Never auto-fill CC/BCC. */
 export function defaultClientEmailSelection(
   clientId?: string | null,
 ): ClientEmailSelection {
   if (!clientId) return emptyClientEmailSelection()
   const client = getClient(clientId)
-  const to = uniq([
-    ...listRequestAlertEmails(clientId),
-    client?.email ?? '',
-  ])
-  const cc = uniq([
-    ...listTrackerEmails(clientId),
-    ...listInvoiceEmails(clientId),
-  ]).filter((e) => !to.includes(e))
-  return { to, cc, bcc: [] }
+  const alert = uniq(listRequestAlertEmails(clientId))
+  const primary = normalize(client?.email ?? '')
+  const to = alert.length
+    ? alert
+    : primary.includes('@')
+      ? [primary]
+      : []
+  return { to, cc: [], bcc: [] }
 }
 
 /**
@@ -234,11 +233,20 @@ export function ClientEmailRecipientsBubble({
             {label}
             <input
               className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 font-mono text-xs text-cream"
+              name={`onfly-client-email-${key}`}
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               value={value[key].join(', ')}
               placeholder="name@client.com"
               onChange={(e) => {
                 const emails = uniq(e.target.value.split(/[,;\s]+/))
-                onChange({ ...value, [key]: emails })
+                const next: ClientEmailSelection = {
+                  to: key === 'to' ? emails : value.to.filter((x) => !emails.includes(x)),
+                  cc: key === 'cc' ? emails : value.cc.filter((x) => !emails.includes(x)),
+                  bcc: key === 'bcc' ? emails : value.bcc.filter((x) => !emails.includes(x)),
+                }
+                onChange(next)
               }}
             />
           </label>

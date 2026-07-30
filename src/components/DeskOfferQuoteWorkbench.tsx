@@ -238,11 +238,8 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
       sendMargin = p.margin_pct
     }
     if (liveTrip.client_id) {
-      rememberEmailsOnClient(
-        liveTrip.client_id,
-        emailSel.to[0] ?? '',
-        [...emailSel.cc, ...emailSel.bcc],
-      )
+      // Remember extras the desk typed — do not treat quote To as invoice AP.
+      rememberEmailsOnClient(liveTrip.client_id, '', emailSel.cc, emailSel.bcc)
     }
     setSendBusy(true)
     void selectOffersAndHardQuote(liveTrip.id, picked, totals, emailSel.to, {
