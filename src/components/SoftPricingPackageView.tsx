@@ -43,9 +43,10 @@ export function SoftPricingPackageView(props: {
       const context = [
         `Soft quote ${pkg.origin_display}→${pkg.dest_display} ${pkg.live_nm} NM.`,
         pkg.fit_summary,
-        ...pkg.classes.map(
-          (c) =>
-            `${c.label}: $${c.price_low}–$${c.price_high} fit=${c.fit.fit} ${c.fit.explanation}`,
+        ...pkg.classes.map((c) =>
+          c.pricing_mode === 'inquiry_only'
+            ? `${c.label}: hard quote only · ${c.inquiry_blurb ?? ''} fit=${c.fit.fit}`
+            : `${c.label}: $${c.price_low}–$${c.price_high} fit=${c.fit.fit} ${c.fit.explanation}`,
         ),
         `Client question: ${q}`,
       ].join('\n')
@@ -151,22 +152,23 @@ export function SoftPricingPackageView(props: {
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-white px-4 py-5 sm:px-5">
           <h2 className="text-base font-semibold">
-            Will it fit? Ballpark door openings
+            Will it fit? Rough class guidance
           </h2>
           <p className="mt-1 text-sm text-muted">
             Your largest piece is {pkg.classes[0]?.fit.largest_piece_label ?? '—'}.
           </p>
           <p className="mt-2 text-xs text-muted">
-            Door openings vary by tail — these are rough class estimates only.
-            Our team confirms the real door when you request a hard quote.
+            These are categorical bands only — not published door or payload
+            specs. Our team confirms the real aircraft when you request a hard
+            quote.
           </p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[28rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted">
                   <th className="py-2 pr-2 font-medium">Aircraft</th>
-                  <th className="py-2 pr-2 font-medium">Door (approx.)</th>
-                  <th className="py-2 pr-2 font-medium">Payload</th>
+                  <th className="py-2 pr-2 font-medium">Door (rough)</th>
+                  <th className="py-2 pr-2 font-medium">Payload (rough)</th>
                   <th className="py-2 font-medium">Fit</th>
                 </tr>
               </thead>
@@ -197,9 +199,10 @@ export function SoftPricingPackageView(props: {
             </table>
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted">
-            Exact door inches vary across the network and freighter conversions.
-            Don’t size to these numbers — request a hard quote for a confirmed
-            fit. Pieces over ~200 lb typically need a forklift.
+            Don’t size cargo to these bands — request a hard quote for a
+            confirmed fit. Pieces over ~200 lb typically need a forklift.
+            Super-heavy freighters are available on request; we usually don’t
+            soft-quote that class.
           </p>
         </div>
 
@@ -296,6 +299,7 @@ export function SoftPricingPackageView(props: {
 
 function SoftClassCard({ quote }: { quote: SoftClassQuote }) {
   const t = quote.timing
+  const inquiry = quote.pricing_mode === 'inquiry_only'
   const fits = quote.fit.fit === 'fits'
   const noFit = quote.fit.fit === 'no_fit'
   return (
@@ -307,51 +311,93 @@ function SoftClassCard({ quote }: { quote: SoftClassQuote }) {
             e.g. {quote.example_types.join(', ')}
           </p>
         </div>
-        <FitBadge fit={quote.fit.fit} doorLabel />
+        {inquiry ? (
+          <span className="shrink-0 rounded-md bg-ink px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-gold">
+            Inquiry
+          </span>
+        ) : (
+          <FitBadge fit={quote.fit.fit} doorLabel />
+        )}
       </div>
 
       <div className="mt-4">
-        <div className="avionic text-2xl font-semibold tracking-tight text-ink">
-          ${quote.price_low.toLocaleString('en-US')}–$
-          {quote.price_high.toLocaleString('en-US')}
-        </div>
-        <div className="text-xs text-muted">estimated all-in range</div>
+        {inquiry ? (
+          <>
+            <div className="text-2xl font-semibold tracking-tight text-ink">
+              Hard quote only
+            </div>
+            <div className="text-xs text-muted">
+              Available — pricing varies too widely to soft-quote
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="avionic text-2xl font-semibold tracking-tight text-ink">
+              ${quote.price_low.toLocaleString('en-US')}–$
+              {quote.price_high.toLocaleString('en-US')}
+            </div>
+            <div className="text-xs text-muted">estimated all-in range</div>
+          </>
+        )}
       </div>
 
-      <dl className="mt-4 space-y-1.5 border-t border-border pt-3 text-sm">
-        <Row
-          label="Live leg"
-          value={`${formatHoursMinutes(t.live_min)} @ ${t.avg_gs_kts} kt avg`}
-        />
-        <Row label="Repo leg" value="2h 30m assumed" />
-        <p className="avionic pt-0.5 text-ink">
-          At your destination{' '}
-          {formatHoursMinutes(destinationFromGoMinutes(t))} from Go
-        </p>
-        <Row
-          label="Door"
-          value={roughDoorOpeningLabel(
-            quote.fit.door_w_in,
-            quote.fit.door_h_in,
-          )}
-        />
-        <Row
-          label="Payload"
-          value={roughPayloadLabel(quote.fit.payload_lbs)}
-        />
-      </dl>
+      {inquiry ? (
+        <div className="mt-4 space-y-3 border-t border-border pt-3 text-sm">
+          <p className="leading-relaxed text-ink">{quote.inquiry_blurb}</p>
+          <dl className="space-y-1.5">
+            <Row
+              label="Door"
+              value={roughDoorOpeningLabel(
+                quote.fit.door_w_in,
+                quote.fit.door_h_in,
+              )}
+            />
+            <Row
+              label="Payload"
+              value={roughPayloadLabel(quote.fit.payload_lbs)}
+            />
+          </dl>
+        </div>
+      ) : (
+        <dl className="mt-4 space-y-1.5 border-t border-border pt-3 text-sm">
+          <Row
+            label="Live leg"
+            value={`${formatHoursMinutes(t.live_min)} @ ${t.avg_gs_kts} kt avg`}
+          />
+          <Row label="Repo leg" value="2h 30m assumed" />
+          <p className="avionic pt-0.5 text-ink">
+            At your destination{' '}
+            {formatHoursMinutes(destinationFromGoMinutes(t))} from Go
+          </p>
+          <Row
+            label="Door"
+            value={roughDoorOpeningLabel(
+              quote.fit.door_w_in,
+              quote.fit.door_h_in,
+            )}
+          />
+          <Row
+            label="Payload"
+            value={roughPayloadLabel(quote.fit.payload_lbs)}
+          />
+        </dl>
+      )}
 
       <div
         className={[
           'mt-4 rounded-lg px-3 py-2.5 text-xs leading-relaxed',
-          fits
-            ? 'bg-[#2E7D32]/10 text-ink'
-            : noFit
-              ? 'bg-[#C0392B]/10 text-ink'
-              : 'bg-[#F7F2E3] text-ink',
+          inquiry
+            ? 'bg-[#F7F2E3] text-ink'
+            : fits
+              ? 'bg-[#2E7D32]/10 text-ink'
+              : noFit
+                ? 'bg-[#C0392B]/10 text-ink'
+                : 'bg-[#F7F2E3] text-ink',
         ].join(' ')}
       >
-        {quote.fit.explanation}
+        {inquiry
+          ? 'Door and payload are oversized freighter class — confirm configuration on a hard quote.'
+          : quote.fit.explanation}
       </div>
     </article>
   )
