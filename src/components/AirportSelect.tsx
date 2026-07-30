@@ -130,7 +130,9 @@ export function AirportSelect({
         </p>
       )}
       {value && known && !open && (
-        <p className="mt-1 truncate text-[11px] text-muted">{formatAirportLabel(known)}</p>
+        <p className="mt-1 truncate text-[11px] text-[var(--text)]/70">
+          {formatAirportLabel(known)}
+        </p>
       )}
       {open && (
         <ul

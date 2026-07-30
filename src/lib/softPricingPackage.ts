@@ -15,7 +15,13 @@ import {
   type SoftFleetRow,
   type SoftPricingPackage,
 } from '@/domain/softPricing'
-import { cargoPiecesFromDraft, type TripRequestRecord } from '@/domain/tripRequest'
+import {
+  cargoPiecesFromDraft,
+  draftDimsAssumedSmall,
+  draftPayloadKind,
+  foldPerLegPayloadIntoDraft,
+  type TripRequestRecord,
+} from '@/domain/tripRequest'
 import { loadNetwork } from '@/lib/networkData'
 
 export type SoftPricingPackageResult = SoftPricingPackage & {
@@ -42,16 +48,10 @@ export async function buildSoftPricingForRequest(
     )
   }
 
-  const payloadKind = row.cargo_only
-    ? 'cargo'
-    : row.pax.length
-      ? row.cargo_notes.trim()
-        ? 'both'
-        : 'pax'
-      : 'cargo'
+  const payloadKind = draftPayloadKind(row)
 
   const pieces = payloadKind === 'pax' ? [] : cargoPiecesFromDraft(row)
-  const dimsAssumed = row.cargo_dims_status === 'not_yet'
+  const dimsAssumed = draftDimsAssumedSmall(foldPerLegPayloadIntoDraft(row))
   if (payloadKind !== 'pax' && !pieces.length) {
     return emptyPackage(
       row,
