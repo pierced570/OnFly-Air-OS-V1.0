@@ -156,17 +156,19 @@ export function AirportSelect({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(a)}
                 >
-                  <span className="avionic text-cream">
+                  <span className="avionic text-[var(--text)]">
                     {a.icao}
                     {a.iata ? (
                       <span className="text-muted"> ({a.iata})</span>
                     ) : null}{' '}
-                    <span className="font-sans text-gold">
+                    <span className="font-sans text-muted">
                       — {a.city}
                       {a.state ? `, ${a.state}` : ''}
                     </span>
                   </span>
-                  <span className="text-xs text-muted">{a.name}</span>
+                  <span className="text-xs font-medium text-[var(--text)]">
+                    {a.name}
+                  </span>
                 </button>
               </li>
             ))
