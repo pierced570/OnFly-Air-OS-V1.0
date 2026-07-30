@@ -563,37 +563,50 @@ async function applyOfferQuote(
   applyOfferTtpToTrip(tripId, offerId, input.time_to_position_min)
   await flushPersistTrip(tripId)
 
-  // Operator-submitted quote (magic link from SMS or email) → alert desk RC.
+  // Operator-submitted quote (magic link) → email desk only (no SMS).
+  // Texting the public 858 line triggered RingCentral marketing auto-replies
+  // and SMS loops; desk wants info@ notifications instead.
   if (meta.source === 'operator') {
     try {
-      const { createCommsAdapter } = await import('@/adapters/comms')
-      const { BRAND_PHONE_E164 } = await import('@/domain/brand')
-      const { quoteSubmittedDeskSms } = await import('@/domain/offers')
+      const { createEmailAdapter } = await import('@/adapters/email')
+      const { dispatchAlertEmail } = await import('@/lib/dispatchNotify')
+      const { quoteSubmittedDeskEmail } = await import('@/domain/offers')
       const fresh = getTrip(tripId)!
       const o = fresh.offers.find((x) => x.id === offerId)
-      const body = quoteSubmittedDeskSms(o?.operator_name || meta.actor, {
-        lane: fresh.lane,
-        tripCode: (fresh.code ?? '').trim() || `T-${fresh.ref}`,
-      })
-      await createCommsAdapter().send({
-        channel: 'sms',
-        to: BRAND_PHONE_E164,
-        body,
-      })
-      mutateTrip(tripId, (t) => {
-        t.events.push({
-          at: new Date().toISOString(),
-          actor: 'system',
-          kind: 'desk_quote_alert_sms',
-          payload: {
-            offer_id: offerId,
-            operator_name: o?.operator_name || meta.actor,
-            to: BRAND_PHONE_E164,
-          },
+      const to = dispatchAlertEmail()
+      if (to.includes('@')) {
+        const tripCode = (fresh.code ?? '').trim() || `T-${fresh.ref}`
+        const app =
+          (import.meta.env.VITE_APP_URL as string | undefined)?.replace(
+            /\/$/,
+            '',
+          ) || ''
+        const { subject, text } = quoteSubmittedDeskEmail({
+          operatorName: o?.operator_name || meta.actor,
+          lane: fresh.lane,
+          tripCode,
+          typeName: o?.type_name ?? input.type_name,
+          tail: o?.tail ?? input.tail,
+          priceNet: o?.price_net ?? input.price_net,
+          tripPath: app ? `${app}/trips/${tripId}` : `/trips/${tripId}`,
         })
-      })
+        await createEmailAdapter().send({ to, subject, text })
+        mutateTrip(tripId, (t) => {
+          t.events.push({
+            at: new Date().toISOString(),
+            actor: 'system',
+            kind: 'desk_quote_alert_email',
+            payload: {
+              offer_id: offerId,
+              operator_name: o?.operator_name || meta.actor,
+              to,
+              subject,
+            },
+          })
+        })
+      }
     } catch (e) {
-      console.warn('[quote] desk alert SMS failed', e)
+      console.warn('[quote] desk alert email failed', e)
     }
   }
 

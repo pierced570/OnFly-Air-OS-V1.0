@@ -14,6 +14,11 @@ export type ExtractedRequest = {
   pieces_text?: string
   origin_text?: string
   destination_text?: string
+  /**
+   * Ordered airport/place stops for multi-leg call notes
+   * (e.g. GSP → CVG → MHT). When length ≥ 2, desk builds consecutive legs.
+   */
+  stop_texts?: string[]
   ready_local?: string
   deadline_local?: string
   hazmat?: boolean
@@ -47,11 +52,34 @@ export function mergeScratchExtract(
   primary: ExtractedRequest,
   fallback: ExtractedRequest,
 ): ExtractedRequest {
+  const primaryStops = normalizeStops(primary.stop_texts)
+  const fallbackStops = normalizeStops(fallback.stop_texts)
+  // Prefer the longer stop chain — LLM often returns endpoints only.
+  const stop_texts =
+    fallbackStops.length > primaryStops.length
+      ? fallbackStops
+      : primaryStops.length
+        ? primaryStops
+        : fallbackStops.length
+          ? fallbackStops
+          : undefined
+
+  const origin_text =
+    stop_texts?.[0] ||
+    primary.origin_text?.trim() ||
+    fallback.origin_text
+  const destination_text =
+    (stop_texts && stop_texts.length >= 2
+      ? stop_texts[stop_texts.length - 1]
+      : undefined) ||
+    primary.destination_text?.trim() ||
+    fallback.destination_text
+
   const merged: ExtractedRequest = {
     raw: primary.raw || fallback.raw,
-    origin_text: primary.origin_text?.trim() || fallback.origin_text,
-    destination_text:
-      primary.destination_text?.trim() || fallback.destination_text,
+    origin_text,
+    destination_text,
+    stop_texts,
     pieces_text: primary.pieces_text?.trim() || fallback.pieces_text,
     client_name: primary.client_name?.trim() || fallback.client_name,
     ready_local: primary.ready_local?.trim() || fallback.ready_local,
@@ -64,6 +92,18 @@ export function mergeScratchExtract(
       [fallback.notes, primary.notes].filter(Boolean).join('; ') || undefined,
   }
   return applyOperatorScratchDefaults(merged)
+}
+
+function normalizeStops(stops: string[] | undefined): string[] {
+  if (!Array.isArray(stops)) return []
+  const out: string[] = []
+  for (const s of stops) {
+    const t = String(s ?? '').trim()
+    if (!t) continue
+    if (out.some((x) => x.toLowerCase() === t.toLowerCase())) continue
+    out.push(t)
+  }
+  return out
 }
 
 export class MockLlmAdapter implements LlmAdapter {

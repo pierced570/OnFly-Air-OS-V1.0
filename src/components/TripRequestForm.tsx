@@ -2,12 +2,22 @@ import { useMemo, useState, useSyncExternalStore, type FormEvent } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
+import PhoneInput from '@/components/PhoneInput'
 import {
   ASAP_MAX_HOURS,
+  applyLegPayload,
   cargoPiecesFromDraft,
+  draftIncludesCargo,
+  draftIncludesPax,
+  draftNeedsPerLegPayload,
   emptyTripRequestDraft,
+  foldPerLegPayloadIntoDraft,
   forkliftFromDraft,
+  itineraryLegs,
   newLeg,
+  patchItineraryLeg,
+  payloadFromFlags,
+  syncLegPayloadFromCargoOnly,
   syncReturnLegs,
   validateTripRequest,
   type CargoDimsStatus,
@@ -15,10 +25,12 @@ import {
   type TripLegDraft,
   type PaxRow,
 } from '@/domain/tripRequest'
+import { TripRequestLegPayloadSection } from '@/components/TripRequestLegPayloadSection'
 import {
   STANDARD_TOOLING,
   composeStandardCargoDims,
   STANDARD_CARGO_DEFAULTS,
+  isStandardToolingPieces,
 } from '@/domain/standardTooling'
 import {
   addSessionClient,
@@ -87,11 +99,26 @@ export function TripRequestForm({
 }: Props) {
   const [draft, setDraft] = useState<TripRequestDraft>(() => {
     const base = emptyTripRequestDraft()
+    const cargoOnly = initial?.cargo_only ?? base.cargo_only
+    const normalizeLegs = (legs: TripLegDraft[]) =>
+      legs.map((l) => ({
+        ...newLeg(),
+        ...l,
+        payload:
+          l.payload ??
+          (cargoOnly ? ('cargo' as const) : ('pax' as const)),
+        pax: l.pax ?? [],
+        cargo_notes: l.cargo_notes ?? '',
+        cargo_weight_lbs: l.cargo_weight_lbs ?? '',
+        cargo_dims_status: l.cargo_dims_status ?? 'known',
+      }))
     const merged: TripRequestDraft = {
       ...base,
       ...initial,
-      legs: initial?.legs?.length ? initial.legs : base.legs,
-      return_legs: initial?.return_legs ?? base.return_legs,
+      legs: normalizeLegs(
+        initial?.legs?.length ? initial.legs : base.legs,
+      ),
+      return_legs: normalizeLegs(initial?.return_legs ?? base.return_legs),
       cargo_dims_status: initial?.cargo_dims_status ?? base.cargo_dims_status,
       urgent_phone: initial?.urgent_phone ?? base.urgent_phone,
     }
@@ -137,7 +164,12 @@ export function TripRequestForm({
       for (let i = 0; i < count; i++) {
         next.push(d.pax[i] ?? { name: '', weight_lbs: '', dob: '' })
       }
-      return { ...d, cargo_only: count === 0 ? d.cargo_only : false, pax: next }
+      const cargo_only = count === 0 ? d.cargo_only : false
+      return syncLegPayloadFromCargoOnly({
+        ...d,
+        cargo_only,
+        pax: next,
+      })
     })
   }
 
@@ -170,18 +202,26 @@ export function TripRequestForm({
     intent: PortalSubmitIntent = 'estimate',
   ) {
     e.preventDefault()
-    const next = { ...draft }
+    let next = foldPerLegPayloadIntoDraft({ ...draft })
     if (variant === 'dispatch' && !next.email.trim() && next.client_id) {
       const hit = clientOptions.find((c) => c.id === next.client_id)
-      if (hit) next.email = hit.email
+      if (hit) next = { ...next, email: hit.email }
     }
     if (next.cargo_dims_status === 'standard' && !next.cargo_notes.trim()) {
-      next.cargo_notes = composeStandardCargoDims(STANDARD_CARGO_DEFAULTS)
-      next.cargo_weight_lbs = Number(STANDARD_CARGO_DEFAULTS.weight)
+      next = {
+        ...next,
+        cargo_notes: composeStandardCargoDims(STANDARD_CARGO_DEFAULTS),
+        cargo_weight_lbs: Number(STANDARD_CARGO_DEFAULTS.weight),
+      }
     }
     const errs = validateTripRequest(next, {
       requireEmail: variant === 'portal',
       requireClient: variant === 'dispatch',
+      // Soft estimate may defer pax identity; hard quote / desk need full details.
+      requirePaxDetails:
+        intent === 'hard_quote' ||
+        variant === 'dispatch' ||
+        !next.pax_details_deferred,
     })
     if (variant === 'portal' && !next.client_name?.trim()) {
       errs.push({ field: 'client_name', message: 'Enter your company name' })
@@ -323,14 +363,16 @@ export function TripRequestForm({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className={labelCls}>
               Best number for urgent matters
-              <input
-                type="tel"
+              <PhoneInput
+                international
                 value={draft.urgent_phone}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, urgent_phone: e.target.value }))
+                onChange={(e164) =>
+                  setDraft((d) => ({ ...d, urgent_phone: e164 }))
                 }
                 placeholder="(555) 555-5555"
-                className={inputCls}
+                className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-sm text-[var(--text)] outline-none"
+                rowClassName="mt-1 flex min-w-0 overflow-hidden rounded-md border border-border bg-surface-2 focus-within:border-gold"
+                selectClassName="shrink-0 border-0 border-r border-border bg-transparent px-2 py-2.5 text-sm text-[var(--text)] outline-none"
                 autoComplete="tel"
               />
             </label>
@@ -582,14 +624,16 @@ export function TripRequestForm({
           <button
             type="button"
             onClick={() =>
-              setDraft((d) =>
-                withOutboundLegs(d, [
+              setDraft((d) => {
+                const prev = d.legs[d.legs.length - 1]
+                return withOutboundLegs(d, [
                   ...d.legs,
                   newLeg({
-                    origin_icao: d.legs[d.legs.length - 1]?.dest_icao ?? '',
+                    origin_icao: prev?.dest_icao ?? '',
+                    payload: prev?.payload ?? (d.cargo_only ? 'cargo' : 'pax'),
                   }),
-                ]),
-              )
+                ])
+              })
             }
             className={
               wizard
@@ -908,8 +952,8 @@ export function TripRequestForm({
             </button>
           </label>
           {draft.direction === 'round_trip' && (
-            <label className={`${labelCls} w-40`}>
-              Hours on ground
+            <label className={`${labelCls} min-w-[11rem] flex-1 sm:max-w-xs`}>
+              Est. Hours Needed on Ground
               <input
                 type="number"
                 min={1}
@@ -1050,23 +1094,7 @@ export function TripRequestForm({
                       setDraft((d) => ({ ...d, hazmat: e.target.checked }))
                     }
                   />
-                  <span className="text-late">⚠</span> Hazmat
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={draft.forklift_recommended}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        forklift_recommended: e.target.checked,
-                        forklift_required: e.target.checked
-                          ? d.forklift_required
-                          : false,
-                      }))
-                    }
-                  />
-                  Forklift recommended
+                  Hazmat
                 </label>
                 <label className="flex items-center gap-2">
                   <input
@@ -1087,11 +1115,14 @@ export function TripRequestForm({
               </div>
             </div>
             <div>
-              <div className="text-xs font-medium uppercase tracking-wider text-muted">
-                Hard deadline
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="text-xs font-medium uppercase tracking-wider text-muted">
+                  Hard deadline
+                </div>
+                <span className="text-[11px] text-muted">Optional</span>
               </div>
               <label className={`${labelCls} mt-2`}>
-                <span className="sr-only">Hard deadline</span>
+                <span className="sr-only">Hard deadline (optional)</span>
                 <input
                   type="datetime-local"
                   value={draft.hard_deadline_at}
@@ -1104,6 +1135,27 @@ export function TripRequestForm({
                   className={`${inputCls} avionic`}
                 />
               </label>
+              {draft.hard_deadline_at ? (
+                <button
+                  type="button"
+                  className="mt-1.5 text-[11px] text-muted underline hover:text-gold"
+                  onClick={() =>
+                    setDraft((d) => ({ ...d, hard_deadline_at: '' }))
+                  }
+                >
+                  Clear deadline
+                </button>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-muted">
+                  Leave blank if there is no hard delivery time.
+                </p>
+              )}
+              {draftNeedsPerLegPayload(draft) ? (
+                <p className="mt-3 text-xs text-muted">
+                  Round trip / multi-leg: enter passengers and cargo for each
+                  leg on the next step.
+                </p>
+              ) : (
               <label
                 className={[
                   'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
@@ -1117,19 +1169,25 @@ export function TripRequestForm({
                   checked={draft.cargo_only}
                   onChange={(e) => {
                     const cargo_only = e.target.checked
-                    setDraft((d) => ({
-                      ...d,
-                      cargo_only,
-                      pax: cargo_only
-                        ? []
-                        : d.pax.length
-                          ? d.pax
-                          : [{ name: '', weight_lbs: '', dob: '' }],
-                    }))
+                    setDraft((d) =>
+                      syncLegPayloadFromCargoOnly({
+                        ...d,
+                        cargo_only,
+                        pax_details_deferred: cargo_only
+                          ? false
+                          : d.pax_details_deferred,
+                        pax: cargo_only
+                          ? []
+                          : d.pax.length
+                            ? d.pax
+                            : [{ name: '', weight_lbs: '', dob: '' }],
+                      }),
+                    )
                   }}
                 />
                 Cargo only (no passengers)
               </label>
+              )}
             </div>
           </div>
         ) : (
@@ -1146,23 +1204,7 @@ export function TripRequestForm({
                     setDraft((d) => ({ ...d, hazmat: e.target.checked }))
                   }
                 />
-                <span className="text-late">⚠</span> Hazmat
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.forklift_recommended}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      forklift_recommended: e.target.checked,
-                      forklift_required: e.target.checked
-                        ? d.forklift_required
-                        : false,
-                    }))
-                  }
-                />
-                Forklift recommended
+                Hazmat
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -1222,7 +1264,10 @@ export function TripRequestForm({
                 </>
               )}
               <label className={labelCls}>
-                Hard deadline
+                Hard deadline{' '}
+                <span className="font-normal normal-case text-muted">
+                  (optional)
+                </span>
                 <input
                   type="datetime-local"
                   value={draft.hard_deadline_at}
@@ -1234,6 +1279,17 @@ export function TripRequestForm({
                   }
                   className={`${inputCls} avionic`}
                 />
+                {draft.hard_deadline_at ? (
+                  <button
+                    type="button"
+                    className="mt-1.5 text-[11px] text-muted underline hover:text-gold"
+                    onClick={() =>
+                      setDraft((d) => ({ ...d, hard_deadline_at: '' }))
+                    }
+                  >
+                    Clear deadline
+                  </button>
+                ) : null}
               </label>
             </div>
           </>
@@ -1262,6 +1318,38 @@ export function TripRequestForm({
       {showStep(3) ? (
       <>
       <section className="space-y-3">
+        {draftNeedsPerLegPayload(draft) ? (
+          <div className="space-y-4">
+            <p className="text-xs text-muted">
+              Enter passengers and/or cargo for each leg of this trip.
+            </p>
+            {itineraryLegs(draft).map((leg, idx) => (
+              <TripRequestLegPayloadSection
+                key={leg.id}
+                leg={leg}
+                index={idx}
+                dimUnit={draft.dim_unit ?? 'in'}
+                wizard={wizard}
+                variant={variant}
+                onPayloadFlags={(hasPax, hasCargo) => {
+                  let paxOn = hasPax
+                  let cargoOn = hasCargo
+                  if (!paxOn && !cargoOn) cargoOn = true
+                  const payload = payloadFromFlags(paxOn, cargoOn)
+                  if (!payload) return
+                  setDraft((d) => applyLegPayload(d, leg.id, payload))
+                }}
+                onPatch={(patch) =>
+                  setDraft((d) => patchItineraryLeg(d, leg.id, patch))
+                }
+                onDimUnit={(dim_unit) =>
+                  setDraft((d) => ({ ...d, dim_unit }))
+                }
+              />
+            ))}
+          </div>
+        ) : (
+          <>
         {!wizard ? (
         <label className="flex items-center gap-2 text-sm text-[var(--text)]">
           <input
@@ -1269,18 +1357,27 @@ export function TripRequestForm({
             checked={draft.cargo_only}
             onChange={(e) => {
               const cargo_only = e.target.checked
-              setDraft((d) => ({
-                ...d,
-                cargo_only,
-                pax: cargo_only ? [] : d.pax.length ? d.pax : [{ name: '', weight_lbs: '', dob: '' }],
-              }))
+              setDraft((d) =>
+                syncLegPayloadFromCargoOnly({
+                  ...d,
+                  cargo_only,
+                  pax_details_deferred: cargo_only
+                    ? false
+                    : d.pax_details_deferred,
+                  pax: cargo_only
+                    ? []
+                    : d.pax.length
+                      ? d.pax
+                      : [{ name: '', weight_lbs: '', dob: '' }],
+                }),
+              )
             }}
           />
           Cargo only (no passengers)
         </label>
         ) : null}
 
-        {!draft.cargo_only && (
+        {draftIncludesPax(draft) && (
           <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
             <label className={`${labelCls} max-w-[8rem]`}>
               Pax count
@@ -1293,66 +1390,238 @@ export function TripRequestForm({
                 className={inputCls}
               />
             </label>
-            {draft.pax.map((p, i) => (
-              <div
-                key={i}
-                className="grid gap-2 border-t border-border pt-3 sm:grid-cols-3"
-              >
-                <label className={labelCls}>
-                  Name
-                  <input
-                    value={p.name}
-                    onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = { ...pax[i]!, name: e.target.value }
-                        return { ...d, pax }
-                      })
-                    }
-                    className={inputCls}
-                  />
-                </label>
-                <label className={labelCls}>
-                  Est. weight (lb)
-                  <input
-                    type="number"
-                    min={1}
-                    value={p.weight_lbs}
-                    onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = {
-                          ...pax[i]!,
-                          weight_lbs:
-                            e.target.value === '' ? '' : Number(e.target.value),
-                        }
-                        return { ...d, pax }
-                      })
-                    }
-                    className={inputCls}
-                  />
-                </label>
-                <label className={labelCls}>
-                  DOB
-                  <input
-                    type="date"
-                    value={p.dob}
-                    onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = { ...pax[i]!, dob: e.target.value }
-                        return { ...d, pax }
-                      })
-                    }
-                    className={inputCls}
-                  />
-                </label>
-              </div>
-            ))}
+            <label
+              className={[
+                'flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm',
+                draft.pax_details_deferred
+                  ? 'border-gold bg-gold/10 text-ink'
+                  : 'border-border bg-white text-[var(--text)]',
+              ].join(' ')}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={draft.pax_details_deferred}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    pax_details_deferred: e.target.checked,
+                  }))
+                }
+              />
+              <span>
+                <span className="font-medium">
+                  Pax unverified right now — I&apos;ll tell OnFly Air prior to
+                  booking
+                </span>
+                <span className="mt-1 block text-xs text-muted">
+                  Soft estimate only needs headcount. Names, estimated weights,
+                  and DOBs are required before we can book.
+                </span>
+              </span>
+            </label>
+            {draft.pax_details_deferred ? (
+              <p className="rounded-md border border-gold/40 bg-gold/5 px-3 py-2 text-xs text-[var(--text)]">
+                Holding {paxCount || 1} passenger
+                {(paxCount || 1) === 1 ? '' : 's'} without identity details.
+                Dispatch will collect name / weight / DOB before booking.
+              </p>
+            ) : (
+              draft.pax.map((p, i) => (
+                <div
+                  key={i}
+                  className="grid gap-2 border-t border-border pt-3 sm:grid-cols-3"
+                >
+                  <label className={labelCls}>
+                    Name
+                    <input
+                      value={p.name}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = { ...pax[i]!, name: e.target.value }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    Est. weight (lb)
+                    <input
+                      type="number"
+                      min={1}
+                      value={p.weight_lbs}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = {
+                            ...pax[i]!,
+                            weight_lbs:
+                              e.target.value === ''
+                                ? ''
+                                : Number(e.target.value),
+                          }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    DOB
+                    <input
+                      type="date"
+                      value={p.dob}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = { ...pax[i]!, dob: e.target.value }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                </div>
+              ))
+            )}
           </div>
         )}
 
-        {draft.cargo_only && (
+        {/* Accompanying cargo — tools / equipment that ride with pax */}
+        {!draft.cargo_only && (
+          <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
+            <div>
+              <h2
+                className={
+                  wizard
+                    ? 'text-base font-semibold text-ink'
+                    : 'text-xs font-medium uppercase tracking-wider text-muted'
+                }
+              >
+                Accompanying cargo
+              </h2>
+              <p className="mt-1 text-xs text-muted">
+                Toolboxes or equipment riding with the team — optional if none.
+              </p>
+            </div>
+            <label
+              className={[
+                'flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm',
+                isStandardToolingPieces(draft.cargo_notes)
+                  ? 'border-gold bg-gold/10 text-ink'
+                  : 'border-border bg-white text-[var(--text)]',
+              ].join(' ')}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={isStandardToolingPieces(draft.cargo_notes)}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setDraft((d) => {
+                    if (on) {
+                      return {
+                        ...d,
+                        cargo_dims_status: 'standard',
+                        cargo_notes: composeStandardCargoDims(
+                          STANDARD_CARGO_DEFAULTS,
+                        ),
+                        cargo_weight_lbs: Number(STANDARD_CARGO_DEFAULTS.weight),
+                        dim_unit: 'in',
+                      }
+                    }
+                    if (!isStandardToolingPieces(d.cargo_notes)) return d
+                    return {
+                      ...d,
+                      cargo_dims_status: 'known',
+                      cargo_notes: '',
+                      cargo_weight_lbs: '',
+                    }
+                  })
+                }}
+              />
+              <span>
+                <span className="font-medium">
+                  Assume standard box and tooling (12&quot;×12&quot;×12&quot;){' '}
+                  {STANDARD_CARGO_DEFAULTS.weight}&nbsp;lbs
+                </span>
+                <span className="mt-1 block text-xs text-muted">
+                  Uncheck to enter custom dims and weight for equipment going
+                  with the passengers.
+                </span>
+              </span>
+            </label>
+            {!isStandardToolingPieces(draft.cargo_notes) ? (
+              <div className="space-y-3">
+                <DimUnitToggle
+                  value={draft.dim_unit ?? 'in'}
+                  onChange={(dim_unit) =>
+                    setDraft((d) => ({ ...d, dim_unit }))
+                  }
+                  hideLabel={wizard}
+                  light={wizard}
+                />
+                <DimsTripleInput
+                  value={draft.cargo_notes}
+                  unit={draft.dim_unit ?? 'in'}
+                  onChange={(cargo_notes) =>
+                    setDraft((d) => {
+                      const pieces = cargoPiecesFromDraft({
+                        ...d,
+                        cargo_notes,
+                      })
+                      const weighted = pieces.filter((p) => p.weight_lbs > 0)
+                      const cargo_weight_lbs =
+                        weighted.length === pieces.length &&
+                        weighted.length > 0
+                          ? weighted[0]!.weight_lbs
+                          : d.cargo_weight_lbs
+                      return {
+                        ...d,
+                        cargo_notes,
+                        cargo_weight_lbs,
+                        cargo_dims_status: cargo_notes.trim()
+                          ? 'known'
+                          : d.cargo_dims_status,
+                      }
+                    })
+                  }
+                />
+                <label className={`${labelCls} max-w-[10rem]`}>
+                  Weight each (lb)
+                  <input
+                    type="number"
+                    min={0}
+                    value={draft.cargo_weight_lbs}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        cargo_weight_lbs:
+                          e.target.value === ''
+                            ? ''
+                            : Number(e.target.value),
+                      }))
+                    }
+                    className={`${inputCls} avionic`}
+                    placeholder="Optional"
+                  />
+                </label>
+              </div>
+            ) : (
+              <p className="text-xs text-muted">
+                Using {STANDARD_TOOLING.summary}. Uncheck above to enter custom
+                sizes.
+              </p>
+            )}
+          </div>
+        )}
+
+        {draftIncludesCargo(draft) && (
+
+
+
           <div className="space-y-3">
             {variant === 'portal' && (
               <div>
@@ -1486,6 +1755,8 @@ export function TripRequestForm({
               </>
             )}
           </div>
+        )}
+          </>
         )}
       </section>
 

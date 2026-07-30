@@ -3,7 +3,7 @@
  * Used by MockLlmAdapter (and as fill-in for real LLM) so demos parse typed notes.
  *
  * Defaults: one-way, ASAP + today unless scheduled cues; techs → pax;
- * tools → standard tooling (12×12×12 @ 50 lb).
+ * tools → standard tooling (12×12×12 @ 75 lb).
  */
 
 import type { ExtractedRequest } from '@/adapters/llm'
@@ -55,6 +55,20 @@ const CODE_NOISE = new Set([
   'ZULU',
   'TOOL',
   'TOOLS',
+  'THEN',
+  'DROP',
+  'OFF',
+  'INTO',
+  'THIS',
+  'THAT',
+  'HAVE',
+  'WILL',
+  'MUST',
+  'NEXT',
+  'ALSO',
+  'JUST',
+  'TWO',
+  'FEW',
 ])
 
 const CLIENT_LABEL =
@@ -89,6 +103,85 @@ function looksLikeLaneLine(line: string): boolean {
   return false
 }
 
+/**
+ * Ordered airport stops from narrative call notes:
+ * "Pickup … GSP / then … in CVG / then drop off in MHT"
+ */
+export function extractNarrativeStops(
+  text: string,
+  exclude: Set<string> = new Set(),
+): string[] {
+  const hits: Array<{ idx: number; code: string }> = []
+  const cues: Array<{ re: RegExp; preferInAtTo: boolean }> = [
+    // Pickup: take the first airport on the same line (avoid "in CVG" on next line).
+    { re: /\b(?:pick\s*ups?|pickup)\b/gi, preferInAtTo: false },
+    { re: /\bthen\b/gi, preferInAtTo: true },
+    {
+      re: /\b(?:drop\s*offs?|dropoffs?|deliver(?:y|ed|ies)?)\b/gi,
+      preferInAtTo: true,
+    },
+  ]
+
+  function lineSliceAfter(fromIdx: number): string {
+    const lineEnd = text.indexOf('\n', fromIdx)
+    const end = lineEnd === -1 ? text.length : lineEnd
+    return text.slice(fromIdx, end)
+  }
+
+  function nextLineSlice(fromIdx: number): string {
+    const lineEnd = text.indexOf('\n', fromIdx)
+    if (lineEnd === -1) return ''
+    const nextStart = lineEnd + 1
+    const nextEnd = text.indexOf('\n', nextStart)
+    return text.slice(nextStart, nextEnd === -1 ? text.length : nextEnd)
+  }
+
+  function firstAirportIn(
+    slice: string,
+    baseIdx: number,
+    preferInAtTo: boolean,
+  ): { idx: number; code: string } | null {
+    if (preferInAtTo) {
+      for (const im of slice.matchAll(
+        /\b(?:in|at|to)\s+([A-Za-z]{3,4})\b/gi,
+      )) {
+        const code = im[1]!.toUpperCase()
+        if (exclude.has(code) || !plausibleAirportToken(code)) continue
+        return { idx: baseIdx + (im.index ?? 0), code }
+      }
+    }
+    for (const tm of slice.matchAll(/\b([A-Za-z]{3,4})\b/g)) {
+      const code = tm[1]!.toUpperCase()
+      if (exclude.has(code) || !plausibleAirportToken(code)) continue
+      return { idx: baseIdx + (tm.index ?? 0), code }
+    }
+    return null
+  }
+
+  for (const { re, preferInAtTo } of cues) {
+    for (const m of text.matchAll(re)) {
+      const start = (m.index ?? 0) + m[0].length
+      const sameLine = lineSliceAfter(start)
+      let found = firstAirportIn(sameLine, start, preferInAtTo)
+      if (!found) {
+        const next = nextLineSlice(start)
+        const nextStart = text.indexOf('\n', start) + 1
+        if (next && nextStart > 0) {
+          found = firstAirportIn(next, nextStart, preferInAtTo)
+        }
+      }
+      if (found) hits.push(found)
+    }
+  }
+
+  hits.sort((a, b) => a.idx - b.idx)
+  const out: string[] = []
+  for (const h of hits) {
+    if (!out.includes(h.code)) out.push(h.code)
+  }
+  return out
+}
+
 export function extractFromScratchNotes(rawText: string): ExtractedRequest {
   const text = rawText.trim()
   const notes: string[] = []
@@ -117,32 +210,62 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
     }
   }
 
+  const exclude = new Set<string>()
+  if (client_name && /^[A-Za-z]{3,4}$/.test(client_name.trim())) {
+    exclude.add(client_name.trim().toUpperCase())
+  }
+
   let origin_text: string | undefined
   let destination_text: string | undefined
+  let stop_texts: string[] | undefined
 
+  const narrativeStops = extractNarrativeStops(text, exclude)
   const codeLane = text.match(CODE_LANE)
-  if (
+  const codeLaneOk =
     codeLane?.[1] &&
     codeLane[2] &&
     plausibleAirportToken(codeLane[1]) &&
     plausibleAirportToken(codeLane[2])
-  ) {
-    origin_text = codeLane[1].toUpperCase()
-    destination_text = codeLane[2].toUpperCase()
+
+  if (narrativeStops.length >= 3) {
+    stop_texts = narrativeStops
+    origin_text = narrativeStops[0]
+    destination_text = narrativeStops[narrativeStops.length - 1]
+    notes.push(`stops: ${narrativeStops.join('→')}`)
+  } else if (codeLaneOk) {
+    origin_text = codeLane[1]!.toUpperCase()
+    destination_text = codeLane[2]!.toUpperCase()
+    stop_texts = [origin_text, destination_text]
     notes.push(`lane: ${origin_text}→${destination_text}`)
+  } else if (narrativeStops.length >= 2) {
+    stop_texts = narrativeStops
+    origin_text = narrativeStops[0]
+    destination_text = narrativeStops[narrativeStops.length - 1]
+    notes.push(`stops: ${narrativeStops.join('→')}`)
   } else {
     const tokens = [...text.matchAll(/\b([A-Za-z]{3,4})\b/g)]
       .map((m) => m[1]!.toUpperCase())
-      .filter((t) => plausibleAirportToken(t))
-    if (tokens.length >= 2) {
-      origin_text = tokens[0]
-      destination_text = tokens[1]
-      notes.push(`codes: ${origin_text}→${destination_text}`)
+      .filter((t) => !exclude.has(t) && plausibleAirportToken(t))
+    // Deduplicate while preserving order
+    const uniq: string[] = []
+    for (const t of tokens) {
+      if (!uniq.includes(t)) uniq.push(t)
+    }
+    if (uniq.length >= 2) {
+      stop_texts = uniq
+      origin_text = uniq[0]
+      destination_text = uniq[uniq.length - 1]
+      notes.push(
+        uniq.length > 2
+          ? `stops: ${uniq.join('→')}`
+          : `codes: ${origin_text}→${destination_text}`,
+      )
     } else {
       const city = text.match(CITY_LANE)
       if (city?.[1] && city[2]) {
         origin_text = city[1].trim()
         destination_text = city[2].trim()
+        stop_texts = [origin_text, destination_text]
         notes.push(`city-lane: ${origin_text}→${destination_text}`)
       }
     }
@@ -170,7 +293,7 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
   if (mentionsTools(text)) {
     pieces_text = `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`
     payload_kind = pax_count ? 'both' : 'cargo'
-    notes.push('tools→standard tooling 12x12x12 @ 50')
+    notes.push('tools→standard tooling 12x12x12 @ 75')
   }
 
   const skid = text.match(SKIDS)
@@ -211,6 +334,7 @@ export function extractFromScratchNotes(rawText: string): ExtractedRequest {
     pieces_text,
     origin_text,
     destination_text,
+    stop_texts,
     ready_local,
     asap,
     hazmat: HAZMAT.test(text),

@@ -1519,6 +1519,7 @@ export function tripToTrackingInput(trip: {
   portal_pickup_address?: string | null
   portal_dropoff_address?: string | null
   portal_pax_names?: string[] | null
+  passengers?: Array<{ name?: string }> | null
 }): PortalTrackingTripInput {
   const selected =
     trip.offers?.find((o) => o.state === 'selected') ??
@@ -1526,7 +1527,11 @@ export function tripToTrackingInput(trip: {
   const quickPax =
     trip.quick?.legs?.reduce((n, l) => n + (Number(l.pax) || 0), 0) ?? 0
   const eventPax = paxNamesFromEvents(trip.events)
+  const structuredNames = (trip.passengers ?? [])
+    .map((p) => String(p.name ?? '').trim())
+    .filter(Boolean)
   const paxNames = [
+    ...structuredNames,
     ...(trip.portal_pax_names ?? []),
     ...eventPax,
   ].filter((n, i, arr) => n && arr.indexOf(n) === i)

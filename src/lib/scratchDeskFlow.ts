@@ -133,8 +133,20 @@ export function deskDraftFromExtract(
   ex: ExtractedRequest,
   rawNotes?: string,
 ): DeskDraft {
-  const origin = endpointFromExtract(ex.origin_text)
-  const dest = endpointFromExtract(ex.destination_text)
+  const stopTexts =
+    Array.isArray(ex.stop_texts) && ex.stop_texts.length >= 2
+      ? ex.stop_texts.map((s) => s.trim()).filter(Boolean)
+      : [ex.origin_text, ex.destination_text]
+          .map((s) => (s ?? '').trim())
+          .filter(Boolean)
+
+  const endpoints = stopTexts.map((s) => endpointFromExtract(s))
+  const origin = endpoints[0] ?? endpointFromExtract(ex.origin_text)
+  const dest =
+    endpoints.length >= 2
+      ? endpoints[endpoints.length - 1]!
+      : endpointFromExtract(ex.destination_text)
+
   // Default ASAP unless extract found a schedule cue.
   const asap = ex.asap !== false && !ex.ready_local
   const pax = ex.pax_count ?? 0
@@ -153,14 +165,27 @@ export function deskDraftFromExtract(
     dest: { kind: dest.kind, text: dest.text, icao: dest.icao },
     pieces_text,
   })
-  return {
-    client_name: ex.client_name?.trim() || '',
-    client_id: null,
-    po: '',
-    timing: asap ? 'asap' : 'scheduled',
-    roundtrip,
-    cargo_only,
-    legs: [
+
+  const legs: DeskLeg[] = []
+  if (endpoints.length >= 2) {
+    for (let i = 0; i < endpoints.length - 1; i++) {
+      const o = endpoints[i]!
+      const d = endpoints[i + 1]!
+      legs.push(
+        newDeskLeg({
+          origin_icao: o.icao,
+          dest_icao: d.icao,
+          origin_kind: o.kind,
+          dest_kind: d.kind,
+          origin_text: o.kind === 'airport' ? o.icao || o.text : o.text,
+          dest_text: d.kind === 'airport' ? d.icao || d.text : d.text,
+          date: today,
+          pax: cargo_only ? 0 : pax,
+        }),
+      )
+    }
+  } else {
+    legs.push(
       newDeskLeg({
         origin_icao: origin.icao,
         dest_icao: dest.icao,
@@ -173,7 +198,17 @@ export function deskDraftFromExtract(
         date: today,
         pax: cargo_only ? 0 : pax,
       }),
-    ],
+    )
+  }
+
+  return {
+    client_name: ex.client_name?.trim() || '',
+    client_id: null,
+    po: '',
+    timing: asap ? 'asap' : 'scheduled',
+    roundtrip,
+    cargo_only,
+    legs,
     pieces_text,
     hazmat: Boolean(ex.hazmat),
     notes: ex.notes?.trim() || '',

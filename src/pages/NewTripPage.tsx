@@ -25,7 +25,7 @@ import { formatStopLocal } from '@/domain/timeFmt'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
 import { getRequest, submitTripRequest } from '@/lib/requestStore'
 import type { TripRequestDraft, TripRequestRecord } from '@/domain/tripRequest'
-import { cargoPiecesFromDraft } from '@/domain/tripRequest'
+import { cargoPiecesFromDraft, draftPayloadKind } from '@/domain/tripRequest'
 
 function resolveAirport(icaoRaw: string) {
   const icao = icaoRaw.trim().toUpperCase()
@@ -93,12 +93,7 @@ export default function NewTripPage() {
     [request, piecesForQuote],
   )
 
-  const payloadKind =
-    request && !request.cargo_only
-      ? request.cargo_notes.trim()
-        ? 'both'
-        : 'pax'
-      : 'cargo'
+  const payloadKind = request ? draftPayloadKind(request) : 'cargo'
   const paxCount = request?.pax.length ?? 0
 
   async function onFormSubmit(draft: TripRequestDraft) {
