@@ -482,6 +482,12 @@ const trips = new Map<string, TripStoreRow>()
 const deletedTripIds = new Set<string>()
 /** Desk-removed offers (`tripId:offerId`) — same hydrate race guard. */
 const deletedOfferKeys = new Set<string>()
+/**
+ * Trip ids that have appeared in a successful non-empty hydrate.
+ * Used to prune local zombies when DB omits them (discarded / terminal)
+ * without wiping brand-new local-only trips still syncing.
+ */
+const hydratedFromDbIds = new Set<string>()
 let refSeq = 2000
 const listeners = new Set<() => void>()
 let snapshot: TripStoreRow[] = []
@@ -603,6 +609,7 @@ export function __resetTripsForTests(): void {
   trips.clear()
   deletedTripIds.clear()
   deletedOfferKeys.clear()
+  hydratedFromDbIds.clear()
   refSeq = 2000
   rebuild()
   for (const l of listeners) l()
@@ -1055,12 +1062,9 @@ export function deleteTrip(id: string): boolean {
   bump()
   void import('@/lib/db/persistTrip')
     .then(async (m) => {
-      const ok = await m.deleteTripFromDb(id)
-      if (ok) {
-        // Confirmed discarded — stop retrying even before next hydrate.
-        deletedTripIds.delete(id)
-        bump()
-      }
+      // Keep tombstone until a later hydrate omits this id — clearing on
+      // discard-ok races an in-flight poll and resurrects the card.
+      await m.deleteTripFromDb(id)
     })
     .catch((e) => console.warn('[trips] discard in db failed', id, e))
   return true
@@ -1104,7 +1108,7 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
   })
   void import('@/lib/db/persistTrip')
     .then(async (m) => {
-      const ok = await m.deleteOfferFromDb(offerId)
+      await m.deleteOfferFromDb(offerId)
       await m.persistOfferRemovedEvent({
         tripId,
         offerId,
@@ -1112,10 +1116,7 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
         previousCount: before,
         at,
       })
-      if (ok) {
-        deletedOfferKeys.delete(tombstone)
-        bump()
-      }
+      // Tombstone clears only when a non-empty hydrate omits this offer.
     })
     .catch((e) => console.warn('[trips] offer delete in db failed', offerId, e))
   return true
@@ -1133,10 +1134,10 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
   for (const r of rows) {
     if (deletedTripIds.has(r.id)) {
       // Still present in DB after desk delete — keep out of UI and retry soft-delete.
+      // Do not clear the tombstone on discard-ok (in-flight hydrate race).
       void import('@/lib/db/persistTrip')
         .then(async (m) => {
-          const ok = await m.deleteTripFromDb(r.id)
-          if (ok) deletedTripIds.delete(r.id)
+          await m.deleteTripFromDb(r.id)
         })
         .catch((e) =>
           console.warn('[trips] retry discard from db failed', r.id, e),
@@ -1176,6 +1177,9 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
 
     if (existing) {
       // Preserve richer session overlays until DB catches up.
+      if (!r.request_id && existing.request_id) {
+        r.request_id = existing.request_id
+      }
       if (!r.events.length && existing.events.length) r.events = existing.events
       else if (r.events.length && existing.events.length) {
         r.events = mergeTripEvents(r.events, existing.events)
@@ -1228,18 +1232,40 @@ export function replaceTripsFromDb(rows: TripStoreRow[]): void {
         }
       }
     }
+    if (!r.request_id) {
+      const fromEvent = [...r.events]
+        .reverse()
+        .find((e) => e.kind === 'created_from_request')
+      const rid = fromEvent?.payload?.request_id
+      if (typeof rid === 'string' && rid.trim()) r.request_id = rid.trim()
+    }
     if (!r.code || !isValidTripCode(r.code)) {
       r.code = allocateTripCode(r.id)
     } else {
       r.code = normalizeTripCode(r.code)
     }
     trips.set(r.id, r)
+    hydratedFromDbIds.add(r.id)
     if (r.ref >= refSeq) refSeq = r.ref + 1
   }
 
   // Trip tombstones confirmed absent from this hydrate payload.
   for (const id of [...deletedTripIds]) {
     if (!dbIds.has(id)) deletedTripIds.delete(id)
+  }
+
+  // Prune local zombies: previously hydrated desk trips that DB no longer
+  // returns (discarded / closed / lost / cancelled). Keep brand-new local-only.
+  for (const id of [...trips.keys()]) {
+    if (dbIds.has(id)) continue
+    if (deletedTripIds.has(id)) {
+      trips.delete(id)
+      continue
+    }
+    if (hydratedFromDbIds.has(id)) {
+      trips.delete(id)
+      hydratedFromDbIds.delete(id)
+    }
   }
 
   bump()

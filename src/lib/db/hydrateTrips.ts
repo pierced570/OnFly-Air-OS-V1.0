@@ -168,6 +168,10 @@ function mapTripShellRow(
     invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
     client_id: clientId,
     client_name: metaName || fromDir || null,
+    request_id:
+      typeof meta.request_id === 'string' && meta.request_id.trim()
+        ? meta.request_id.trim()
+        : undefined,
     portal_pickup_address:
       typeof meta.portal_pickup_address === 'string'
         ? meta.portal_pickup_address
