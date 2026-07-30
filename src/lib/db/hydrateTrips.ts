@@ -63,6 +63,12 @@ function mapOfferDbRow(
         ? notes.fee_scope
         : null,
     notes: notes.offer_notes == null ? null : String(notes.offer_notes),
+    duty_available_min:
+      notes.duty_available_min == null
+        ? null
+        : Number(notes.duty_available_min),
+    duty_included_min:
+      notes.duty_included_min == null ? null : Number(notes.duty_included_min),
     magic_token: String(r.magic_token || ''),
     bookingGated: Boolean(notes.bookingGated),
     needsInfo: Array.isArray(notes.needsInfo)

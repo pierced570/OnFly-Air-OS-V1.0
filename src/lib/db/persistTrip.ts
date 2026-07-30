@@ -253,6 +253,8 @@ function offerNotesJson(o: OfferRow): string {
     needsInfo: o.needsInfo,
     fee_scope: o.fee_scope,
     offer_notes: o.notes,
+    duty_available_min: o.duty_available_min,
+    duty_included_min: o.duty_included_min,
     // Keep raw ids in notes even when FK columns are nulled.
     operator_id: o.operator_id,
     aircraft_id: o.aircraft_id,

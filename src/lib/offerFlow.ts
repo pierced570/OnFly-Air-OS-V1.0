@@ -481,6 +481,8 @@ export type OperatorQuoteInput = {
   max_wait_hrs: number | null
   fee_scope: FeeScope
   notes?: string | null
+  duty_available_min?: number | null
+  duty_included_min?: number | null
 }
 
 async function applyOfferQuote(
@@ -522,6 +524,14 @@ async function applyOfferQuote(
     o.max_wait_hrs = input.max_wait_hrs
     o.fee_scope = input.fee_scope
     o.notes = input.notes?.trim() || null
+    o.duty_available_min =
+      input.duty_available_min != null && Number.isFinite(input.duty_available_min)
+        ? Math.max(0, Math.floor(input.duty_available_min))
+        : null
+    o.duty_included_min =
+      input.duty_included_min != null && Number.isFinite(input.duty_included_min)
+        ? Math.max(0, Math.floor(input.duty_included_min))
+        : null
     if (o.state !== 'selected') o.state = 'quoted'
     if (!o.replied_at) o.replied_at = at
     // Keep candidate label in sync for desk shortlist views.
