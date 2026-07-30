@@ -7,10 +7,12 @@ describe('portal tracking links', () => {
   })
 
   it('uses VITE_APP_URL not window origin for ETA / portal track links', async () => {
-    vi.stubEnv('VITE_APP_URL', 'https://app.onflyair.com')
+    vi.stubEnv('VITE_APP_URL', 'https://ofaops.onflyair.com')
     const { portalTrackingUrlForTrip } = await import('./etaSheetSender')
     const url = portalTrackingUrlForTrip('trip-1', 'ops@client.test')
-    expect(url.startsWith('https://app.onflyair.com/portal/track/')).toBe(true)
+    expect(url.startsWith('https://ofaops.onflyair.com/portal/track/')).toBe(
+      true,
+    )
     expect(url.includes('vercel.app')).toBe(false)
   })
 })

@@ -4,8 +4,11 @@
  * Deployment-Protection URL, which lands outsiders on a Vercel sign-in page.
  */
 
-/** Production SPA — used when VITE_APP_URL is missing or points at a gated preview. */
-export const DEFAULT_APP_PUBLIC_URL = 'https://app.onflyair.com'
+/**
+ * Production SPA on the live custom domain (Vercel).
+ * `app.onflyair.com` is not DNS-published — do not use it for client/operator links.
+ */
+export const DEFAULT_APP_PUBLIC_URL = 'https://ofaops.onflyair.com'
 
 export function isGatedDeployOrigin(origin: string): boolean {
   const o = origin.trim().replace(/\/$/, '')

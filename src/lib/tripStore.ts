@@ -2063,7 +2063,7 @@ export function addTripDocument(
 }
 
 function originBase(): string {
-  return appPublicUrl() || 'https://app.onflyair.com'
+  return appPublicUrl() || 'https://ofaops.onflyair.com'
 }
 
 /** Assign a pool DID and open the trip SMS thread (idempotent). */
