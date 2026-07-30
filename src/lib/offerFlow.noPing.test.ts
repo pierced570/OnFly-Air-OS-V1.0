@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as comms from '@/adapters/comms'
 import { getMockCommsLog } from '@/adapters/comms'
 import { getMockSentEmails } from '@/adapters/email'
 import type { Candidate } from '@/domain/routing'
@@ -69,6 +70,9 @@ function stubDeskDraft(): DeskDraft {
 describe('offerFlow — open vs notify', () => {
   beforeEach(() => {
     __resetTripsForTests()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('openTripOffers moves to offers_out without SMS/email', async () => {
@@ -209,6 +213,39 @@ describe('offerFlow — open vs notify', () => {
     expect(fresh.offers[0]?.ping_sent_at).toBeTruthy()
     expect(getMockCommsLog().length).toBeGreaterThan(before)
     expect(getMockCommsLog().at(-1)?.to).toBe('+15551212')
+  })
+
+  it('still emails when SMS channel fails (RingCentral permission)', async () => {
+    vi.spyOn(comms, 'isSmsDeliveryEnabled').mockReturnValue(true)
+    vi.spyOn(comms, 'createCommsAdapter').mockReturnValue({
+      async send() {
+        throw new Error(
+          'RingCentral SMS failed: application needs to have [SMS] permission',
+        )
+      },
+    })
+    const c = stubCandidate('Alpha Air', 'op-both')
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KMDW',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [c],
+      payload_kind: 'cargo',
+    })
+    mutateTrip(trip.id, (t) => {
+      t.offers = buildOffersFromCandidates(trip.id, [c], {
+        [c.operator_id]: {
+          contact_email: 'ops@alpha.example',
+          contact_cell: '6105092031',
+          quote_link_channel: 'both',
+        },
+      })
+    })
+    await openTripOffers(trip.id)
+    const emailBefore = getMockSentEmails().length
+    await expect(sendAvailabilityPings(trip.id)).rejects.toThrow(/SMS failed/)
+    expect(getMockSentEmails().length).toBeGreaterThan(emailBefore)
+    expect(getTrip(trip.id)?.offers[0]?.notified_at).toBeTruthy()
   })
 
   it('sendAvailabilityPings fails when no email or SMS on file', async () => {

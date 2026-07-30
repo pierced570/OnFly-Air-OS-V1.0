@@ -4,6 +4,7 @@
  */
 
 import { adapterMode } from '@/adapters/types'
+import { messageFromEdgeInvoke } from '@/lib/edgeFunctionError'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 export type EmailMessage = {
@@ -73,22 +74,24 @@ export class ResendEmailAdapter implements EmailAdapter {
     } | null
 
     if (error) {
-      const detail =
-        body?.error &&
-        (typeof body.detail === 'string'
-          ? `${body.error}: ${body.detail}`
-          : body.error)
-      throw new Error(detail || error.message || 'send-email edge function failed')
+      throw new Error(
+        await messageFromEdgeInvoke({
+          data: body,
+          error,
+          fallback: 'Email send failed (send-email)',
+        }),
+      )
     }
 
     const id = body?.id
     if (!id) {
       throw new Error(
-        body?.error
-          ? `Resend: ${body.error}${
-              typeof body.detail === 'string' ? ` — ${body.detail}` : ''
-            }`
-          : 'send-email returned no id — check RESEND_API_KEY / EMAIL_FROM secrets',
+        await messageFromEdgeInvoke({
+          data: body,
+          error: null,
+          fallback:
+            'send-email returned no id — check RESEND_API_KEY / EMAIL_FROM secrets',
+        }),
       )
     }
     sent.push(msg)

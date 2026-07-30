@@ -186,11 +186,20 @@ Deno.serve(async (req) => {
 
     if (!res.ok) {
       console.error('[send-sms] RingCentral error', res.status, result)
-      const detail =
+      let detail =
         result.message ||
         result.errors?.[0]?.message ||
         result.errorCode ||
         result
+      const detailText =
+        typeof detail === 'string' ? detail : JSON.stringify(detail)
+      // Common RC console misconfig — app created without SMS scope.
+      if (/\[SMS\] permission/i.test(detailText)) {
+        detail =
+          `${detailText} — In RingCentral Developer Console, open this app → ` +
+          `App Permissions → enable SMS, then re-issue the JWT and update ` +
+          `RINGCENTRAL_JWT.`
+      }
       return json(
         { error: 'RingCentral SMS failed', detail, status: res.status },
         502,
