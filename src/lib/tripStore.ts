@@ -38,6 +38,11 @@ import { getReferral } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
 import { buildQuickDispatchChain } from '@/domain/quickDispatchChain'
 import { roleOnOpsThread } from '@/domain/tripThread'
+import {
+  normalizeTripPassengers,
+  tripPassengerNames,
+  type TripPassenger,
+} from '@/domain/tripPassengers'
 import { appPublicUrl } from '@/lib/appUrl'
 import { getCachedNetwork } from '@/lib/networkData'
 import { getClient } from '@/lib/clientStore'
@@ -450,6 +455,11 @@ export type TripStoreRow = {
   portal_dropoff_address?: string | null
   /** Optional passenger names for portal cargo card. */
   portal_pax_names?: string[]
+  /**
+   * Structured passengers (name / weight / DOB) — often filled post booking
+   * on the waterfall / trip page when details arrive late.
+   */
+  passengers?: TripPassenger[]
   /** Referral partner attached at book (profit share → financials). */
   referral?: {
     id: string | null
@@ -1499,6 +1509,37 @@ export function setPortalStopAddresses(
         pickup: t.portal_pickup_address,
         dropoff: t.portal_dropoff_address,
         pax_names: t.portal_pax_names ?? [],
+      },
+    })
+  })
+}
+
+/**
+ * Dispatcher — set structured passenger info (often post booking).
+ * Keeps portal_pax_names in sync for the client tracker cargo card.
+ */
+export function setTripPassengers(
+  tripId: string,
+  passengers: TripPassenger[],
+  actor = 'dispatcher',
+): TripStoreRow {
+  if (!trips.has(tripId)) {
+    throw new Error('Trip not loaded in this session — refresh and try again')
+  }
+  const normalized = normalizeTripPassengers(passengers).filter((p) =>
+    Boolean(p.name.trim() || p.dob || p.weight_lbs !== ''),
+  )
+  return mutateTrip(tripId, (t) => {
+    t.passengers = normalized
+    t.portal_pax_names = tripPassengerNames(normalized)
+    t.events.push({
+      at: new Date().toISOString(),
+      actor,
+      kind: 'passenger_info_updated',
+      payload: {
+        count: normalized.length,
+        pax_names: t.portal_pax_names,
+        passengers: normalized,
       },
     })
   })
