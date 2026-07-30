@@ -71,7 +71,7 @@ export type TripRequestDraft = {
   po_number: string
   /** Declared cargo value USD (optional until required by client rules). */
   declared_value_usd: number | ''
-  /** Hard delivery deadline (UTC ISO or local datetime-local string). */
+  /** Hard delivery deadline (optional). UTC ISO or local datetime-local string. */
   hard_deadline_at: string
   forklift_recommended: boolean
   forklift_required: boolean
