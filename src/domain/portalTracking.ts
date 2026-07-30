@@ -593,8 +593,8 @@ function stampsFromTrip(trip: PortalTrackingTripInput): OpsStamp[] {
       tz: leg.to.tz || leg.from.tz || 'UTC',
       est_start: leg.est_start,
       est_end: leg.est_end,
-      actual_start: leg.actual_start,
-      actual_end: leg.actual_end,
+      actual_start: leg.actual_start ?? null,
+      actual_end: leg.actual_end ?? null,
       duration_min: leg.duration_min ?? null,
       status: legStatus(leg, trip.legs),
     }))
