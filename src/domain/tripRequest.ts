@@ -18,6 +18,8 @@ export type TripDirection = 'one_way' | 'round_trip'
 export type ServiceMode = 'a2a' | 'd2d' | 'mixed'
 /** Portal cargo dims: known now, TBD with desk, or autofill standard cargo. */
 export type CargoDimsStatus = 'known' | 'not_yet' | 'standard'
+/** What rides a given air leg — passengers, freight, or both. */
+export type LegPayloadKind = 'pax' | 'cargo' | 'both'
 export type { DimLengthUnit }
 
 export type PaxRow = {
@@ -36,6 +38,17 @@ export type TripLegDraft = {
   pickup_tbd: boolean
   dropoff_address: string
   dropoff_tbd: boolean
+  /**
+   * Multi-leg / round-trip portal: each leg can carry pax, cargo, or both.
+   * Single one-way trips still use trip-level `cargo_only` as the primary switch.
+   */
+  payload: LegPayloadKind
+  /** Per-leg passengers when `draftNeedsPerLegPayload`. */
+  pax: PaxRow[]
+  /** Per-leg dims text when this leg carries cargo. */
+  cargo_notes: string
+  cargo_weight_lbs: number | ''
+  cargo_dims_status: CargoDimsStatus
 }
 
 export type TripRequestDraft = {
@@ -119,7 +132,187 @@ export function newLeg(partial?: Partial<TripLegDraft>): TripLegDraft {
     pickup_tbd: false,
     dropoff_address: '',
     dropoff_tbd: false,
+    payload: 'cargo',
+    pax: [],
+    cargo_notes: '',
+    cargo_weight_lbs: '',
+    cargo_dims_status: 'known',
     ...partial,
+  }
+}
+
+export function legHasPax(leg: TripLegDraft): boolean {
+  return leg.payload === 'pax' || leg.payload === 'both'
+}
+
+export function legHasCargo(leg: TripLegDraft): boolean {
+  return leg.payload === 'cargo' || leg.payload === 'both'
+}
+
+/** Round trip or 2+ outbound legs → collect pax/cargo per itinerary leg. */
+export function draftNeedsPerLegPayload(draft: TripRequestDraft): boolean {
+  return draft.direction === 'round_trip' || draft.legs.length > 1
+}
+
+/** Display code: KGSP → GSP, else ICAO / ?. */
+export function shortAirportCode(icao: string): string {
+  const c = icao.trim().toUpperCase()
+  if (!c) return '?'
+  if (/^K[A-Z0-9]{3}$/.test(c)) return c.slice(1)
+  return c
+}
+
+/** e.g. GSP-CVG */
+export function legLaneLabel(leg: TripLegDraft): string {
+  return `${shortAirportCode(leg.origin_icao)}-${shortAirportCode(leg.dest_icao)}`
+}
+
+/** Trip includes any passenger-carrying itinerary leg (or !cargo_only on simple trips). */
+export function draftIncludesPax(draft: TripRequestDraft): boolean {
+  if (!draftNeedsPerLegPayload(draft)) return !draft.cargo_only
+  return itineraryLegs(draft).some(legHasPax)
+}
+
+/** Trip includes any freight-carrying itinerary leg (or cargo_only / notes on simple trips). */
+export function draftIncludesCargo(draft: TripRequestDraft): boolean {
+  if (!draftNeedsPerLegPayload(draft)) {
+    return draft.cargo_only || Boolean(draft.cargo_notes.trim())
+  }
+  return itineraryLegs(draft).some(legHasCargo)
+}
+
+export function draftPayloadKind(
+  draft: TripRequestDraft,
+): 'cargo' | 'pax' | 'both' {
+  const pax = draftIncludesPax(draft)
+  const cargo = draftIncludesCargo(draft)
+  if (pax && cargo) return 'both'
+  if (pax) return 'pax'
+  return 'cargo'
+}
+
+export function payloadFromFlags(
+  hasPax: boolean,
+  hasCargo: boolean,
+): LegPayloadKind | null {
+  if (hasPax && hasCargo) return 'both'
+  if (hasPax) return 'pax'
+  if (hasCargo) return 'cargo'
+  return null
+}
+
+/** Keep leg.payload aligned when the trip-level cargo-only switch changes. */
+export function syncLegPayloadFromCargoOnly(
+  draft: TripRequestDraft,
+): TripRequestDraft {
+  const payload: LegPayloadKind = draft.cargo_only ? 'cargo' : 'pax'
+  const patch = (l: TripLegDraft): TripLegDraft => ({
+    ...l,
+    payload,
+    pax:
+      payload === 'cargo'
+        ? []
+        : l.pax.length
+          ? l.pax
+          : [{ name: '', weight_lbs: '', dob: '' }],
+  })
+  return {
+    ...draft,
+    legs: draft.legs.map(patch),
+    return_legs: draft.return_legs.map(patch),
+  }
+}
+
+function mapItineraryLeg(
+  draft: TripRequestDraft,
+  legId: string,
+  fn: (leg: TripLegDraft) => TripLegDraft,
+): TripRequestDraft {
+  const inOutbound = draft.legs.some((l) => l.id === legId)
+  if (inOutbound) {
+    return { ...draft, legs: draft.legs.map((l) => (l.id === legId ? fn(l) : l)) }
+  }
+  return {
+    ...draft,
+    return_legs: draft.return_legs.map((l) => (l.id === legId ? fn(l) : l)),
+  }
+}
+
+/**
+ * Apply a per-leg payload choice and re-derive cargo_only / seed pax rows.
+ */
+export function applyLegPayload(
+  draft: TripRequestDraft,
+  legId: string,
+  payload: LegPayloadKind,
+): TripRequestDraft {
+  const next = mapItineraryLeg(draft, legId, (l) => ({
+    ...l,
+    payload,
+    pax:
+      payload === 'cargo'
+        ? []
+        : l.pax.length
+          ? l.pax
+          : [{ name: '', weight_lbs: '', dob: '' }],
+    cargo_notes: payload === 'pax' ? '' : l.cargo_notes,
+    cargo_weight_lbs: payload === 'pax' ? '' : l.cargo_weight_lbs,
+  }))
+  const hasPax = itineraryLegs(next).some(legHasPax)
+  return {
+    ...next,
+    cargo_only: !hasPax,
+    pax: hasPax
+      ? next.pax.length
+        ? next.pax
+        : [{ name: '', weight_lbs: '', dob: '' }]
+      : [],
+  }
+}
+
+/** Patch fields on one itinerary leg (outbound or return). */
+export function patchItineraryLeg(
+  draft: TripRequestDraft,
+  legId: string,
+  patch: Partial<TripLegDraft>,
+): TripRequestDraft {
+  return mapItineraryLeg(draft, legId, (l) => ({ ...l, ...patch }))
+}
+
+/**
+ * Collapse per-leg pax/cargo into trip-level fields for estimate / routing /
+ * summary consumers that still read draft.pax + draft.cargo_notes.
+ */
+export function foldPerLegPayloadIntoDraft(
+  draft: TripRequestDraft,
+): TripRequestDraft {
+  if (!draftNeedsPerLegPayload(draft)) return draft
+  const legs = itineraryLegs(draft)
+  const pax = legs.filter(legHasPax).flatMap((l) => l.pax)
+  const cargoLegs = legs.filter(legHasCargo)
+  const lines = cargoLegs
+    .map((l) => l.cargo_notes.trim())
+    .filter(Boolean)
+  const weightHit = cargoLegs.find(
+    (l) => l.cargo_weight_lbs !== '' && Number(l.cargo_weight_lbs) > 0,
+  )
+  const anyNotYet = cargoLegs.some((l) => l.cargo_dims_status === 'not_yet')
+  const allStandard =
+    cargoLegs.length > 0 &&
+    cargoLegs.every((l) => l.cargo_dims_status === 'standard')
+  return {
+    ...draft,
+    cargo_only: !legs.some(legHasPax),
+    pax,
+    cargo_notes: lines.join('\n'),
+    cargo_weight_lbs: weightHit?.cargo_weight_lbs ?? '',
+    cargo_dims_status: anyNotYet
+      ? 'not_yet'
+      : allStandard
+        ? 'standard'
+        : cargoLegs.length
+          ? 'known'
+          : draft.cargo_dims_status,
   }
 }
 
@@ -132,6 +325,11 @@ export function mirrorLeg(leg: TripLegDraft): TripLegDraft {
     dropoff_address: leg.pickup_address,
     pickup_tbd: leg.dropoff_tbd,
     dropoff_tbd: leg.pickup_tbd,
+    payload: leg.payload,
+    pax: leg.pax.map((p) => ({ ...p })),
+    cargo_notes: leg.cargo_notes,
+    cargo_weight_lbs: leg.cargo_weight_lbs,
+    cargo_dims_status: leg.cargo_dims_status,
   })
 }
 
@@ -159,6 +357,11 @@ export function syncReturnLegs(
       id: prev.id,
       date: prev.date,
       pickup_time: prev.pickup_time,
+      payload: prev.payload,
+      pax: prev.pax,
+      cargo_notes: prev.cargo_notes,
+      cargo_weight_lbs: prev.cargo_weight_lbs,
+      cargo_dims_status: prev.cargo_dims_status,
     }
   })
 }
@@ -202,10 +405,14 @@ export function emptyTripRequestDraft(): TripRequestDraft {
   }
 }
 
-/** Cargo needs weight when freight is on the request (cargo-only or notes present). */
+/** Cargo needs weight when freight is on the request. */
 export function draftNeedsCargoWeight(draft: TripRequestDraft): boolean {
-  if (draft.cargo_dims_status === 'not_yet') return false
-  return draft.cargo_only || Boolean(draft.cargo_notes.trim())
+  const folded = foldPerLegPayloadIntoDraft(draft)
+  if (folded.cargo_dims_status === 'not_yet') return false
+  if (draftNeedsPerLegPayload(draft)) {
+    return draftIncludesCargo(draft)
+  }
+  return folded.cargo_only || Boolean(folded.cargo_notes.trim())
 }
 
 /**
@@ -213,9 +420,39 @@ export function draftNeedsCargoWeight(draft: TripRequestDraft): boolean {
  * the required cargo_weight_lbs field when provided.
  */
 export function cargoPiecesFromDraft(draft: TripRequestDraft): Piece[] {
-  const parsed = parseDims(draft.cargo_notes || '', { unit: draft.dim_unit })
+  const folded = foldPerLegPayloadIntoDraft(draft)
+  if (draftNeedsPerLegPayload(draft)) {
+    const pieces: Piece[] = []
+    for (const leg of itineraryLegs(draft).filter(legHasCargo)) {
+      if (leg.cargo_dims_status === 'not_yet') continue
+      const parsed = parseDims(leg.cargo_notes || '', { unit: draft.dim_unit })
+      const fallback =
+        leg.cargo_weight_lbs === '' ? 0 : Number(leg.cargo_weight_lbs)
+      if (!parsed.pieces.length) {
+        if (fallback > 0) {
+          pieces.push({
+            l_in: 0,
+            w_in: 0,
+            h_in: 0,
+            weight_lbs: fallback,
+            count: 1,
+            stackable: false,
+          })
+        }
+        continue
+      }
+      for (const p of parsed.pieces) {
+        pieces.push({
+          ...p,
+          weight_lbs: p.weight_lbs > 0 ? p.weight_lbs : fallback,
+        })
+      }
+    }
+    return pieces
+  }
+  const parsed = parseDims(folded.cargo_notes || '', { unit: folded.dim_unit })
   const fallback =
-    draft.cargo_weight_lbs === '' ? 0 : Number(draft.cargo_weight_lbs)
+    folded.cargo_weight_lbs === '' ? 0 : Number(folded.cargo_weight_lbs)
   if (!parsed.pieces.length) {
     if (fallback > 0) {
       return [
@@ -286,20 +523,30 @@ export function laneFromDraft(draft: TripRequestDraft): string {
 }
 
 export function summaryFromDraft(draft: TripRequestDraft): string {
+  const folded = foldPerLegPayloadIntoDraft(draft)
   const bits: string[] = []
-  bits.push(draft.cargo_only ? 'cargo' : `${draft.pax.length || 0} pax`)
-  if (!draft.cargo_only && draft.pax_details_deferred) bits.push('pax TBD')
-  bits.push(draft.service_mode)
-  bits.push(draft.timing === 'asap' ? 'ASAP (<4h)' : 'scheduled')
-  if (draft.direction === 'round_trip') {
+  if (draftNeedsPerLegPayload(draft)) {
+    const legBits = itineraryLegs(draft).map((l, i) => {
+      const kind =
+        l.payload === 'both' ? 'pax+cargo' : l.payload === 'pax' ? 'pax' : 'cargo'
+      return `L${i + 1} ${legLaneLabel(l)} ${kind}`
+    })
+    bits.push(legBits.join(', '))
+  } else {
+    bits.push(folded.cargo_only ? 'cargo' : `${folded.pax.length || 0} pax`)
+  }
+  if (!folded.cargo_only && folded.pax_details_deferred) bits.push('pax TBD')
+  bits.push(folded.service_mode)
+  bits.push(folded.timing === 'asap' ? 'ASAP (<4h)' : 'scheduled')
+  if (folded.direction === 'round_trip') {
     bits.push(
-      `RT${draft.hours_on_ground !== '' ? ` ${draft.hours_on_ground}h ground` : ''}`,
+      `RT${folded.hours_on_ground !== '' ? ` ${folded.hours_on_ground}h ground` : ''}`,
     )
   }
-  if (draft.hazmat) bits.push('hazmat')
-  if (draft.cargo_dims_status === 'not_yet') bits.push('dims TBD')
-  if (draft.cargo_dims_status === 'standard') bits.push('standard cargo')
-  const lift = forkliftFromDraft(draft)
+  if (folded.hazmat) bits.push('hazmat')
+  if (folded.cargo_dims_status === 'not_yet') bits.push('dims TBD')
+  if (folded.cargo_dims_status === 'standard') bits.push('standard cargo')
+  const lift = forkliftFromDraft(folded)
   if (lift.summary_bit) bits.push(lift.summary_bit)
   return bits.join(' · ')
 }
@@ -401,58 +648,141 @@ export function validateTripRequest(
     }
   }
 
-  if (!draft.cargo_only) {
-    if (draft.pax.length < 1) {
-      issues.push({ field: 'pax', message: 'Add at least one passenger' })
-    }
-    if (requirePaxDetails) {
-      if (draft.pax_details_deferred) {
+  if (draftNeedsPerLegPayload(draft)) {
+    itineraryLegs(draft).forEach((leg, i) => {
+      const prefix = `Leg ${i + 1} ${legLaneLabel(leg)}`
+      if (!legHasPax(leg) && !legHasCargo(leg)) {
         issues.push({
-          field: 'pax_details_deferred',
-          message:
-            'Passenger names, weights, and DOBs are required before booking — uncheck “pax unverified” and fill each passenger, or use the soft estimate first',
-        })
-      } else {
-        draft.pax.forEach((p, i) => {
-          if (!p.name.trim()) {
-            issues.push({
-              field: `pax.${i}.name`,
-              message: `Passenger ${i + 1}: name required`,
-            })
-          }
-          if (p.weight_lbs === '' || Number(p.weight_lbs) <= 0) {
-            issues.push({
-              field: `pax.${i}.weight`,
-              message: `Passenger ${i + 1}: estimated weight required`,
-            })
-          }
-          if (!p.dob) {
-            issues.push({
-              field: `pax.${i}.dob`,
-              message: `Passenger ${i + 1}: DOB required`,
-            })
-          }
+          field: `leg.${i}.payload`,
+          message: `${prefix}: choose passengers, cargo, or both`,
         })
       }
+      if (legHasPax(leg)) {
+        if (leg.pax.length < 1) {
+          issues.push({
+            field: `leg.${i}.pax`,
+            message: `${prefix}: add at least one passenger`,
+          })
+        }
+        if (requirePaxDetails) {
+          if (draft.pax_details_deferred) {
+            issues.push({
+              field: 'pax_details_deferred',
+              message:
+                'Passenger names, weights, and DOBs are required before booking — uncheck “pax unverified” and fill each passenger, or use the soft estimate first',
+            })
+          } else {
+            leg.pax.forEach((p, pi) => {
+              if (!p.name.trim()) {
+                issues.push({
+                  field: `leg.${i}.pax.${pi}.name`,
+                  message: `${prefix} passenger ${pi + 1}: name required`,
+                })
+              }
+              if (p.weight_lbs === '' || Number(p.weight_lbs) <= 0) {
+                issues.push({
+                  field: `leg.${i}.pax.${pi}.weight`,
+                  message: `${prefix} passenger ${pi + 1}: estimated weight required`,
+                })
+              }
+              if (!p.dob) {
+                issues.push({
+                  field: `leg.${i}.pax.${pi}.dob`,
+                  message: `${prefix} passenger ${pi + 1}: DOB required`,
+                })
+              }
+            })
+          }
+        }
+      }
+      if (legHasCargo(leg) && leg.cargo_dims_status !== 'not_yet') {
+        const parsed = parseDims(leg.cargo_notes || '', { unit: draft.dim_unit })
+        const fieldWeightOk =
+          leg.cargo_weight_lbs !== '' && Number(leg.cargo_weight_lbs) > 0
+        const pieces = parsed.pieces.map((p) => ({
+          ...p,
+          weight_lbs:
+            p.weight_lbs > 0
+              ? p.weight_lbs
+              : fieldWeightOk
+                ? Number(leg.cargo_weight_lbs)
+                : 0,
+        }))
+        const hasPiece =
+          pieces.length > 0 ||
+          (fieldWeightOk && Boolean(leg.cargo_notes.trim() || fieldWeightOk))
+        if (!leg.cargo_notes.trim() && !fieldWeightOk) {
+          issues.push({
+            field: `leg.${i}.cargo`,
+            message: `${prefix}: add cargo dims and weight (or standard cargo)`,
+          })
+        } else if (!fieldWeightOk && !piecesHaveWeights(pieces)) {
+          issues.push({
+            field: `leg.${i}.cargo_weight`,
+            message: `${prefix}: cargo weight required (lb each)`,
+          })
+        } else if (hasPiece && pieces.some((p) => p.weight_lbs <= 0) && !fieldWeightOk) {
+          issues.push({
+            field: `leg.${i}.cargo_weight`,
+            message: `${prefix}: every cargo piece needs a weight in lb`,
+          })
+        }
+      }
+    })
+  } else {
+    if (draftIncludesPax(draft)) {
+      if (draft.pax.length < 1) {
+        issues.push({ field: 'pax', message: 'Add at least one passenger' })
+      }
+      if (requirePaxDetails) {
+        if (draft.pax_details_deferred) {
+          issues.push({
+            field: 'pax_details_deferred',
+            message:
+              'Passenger names, weights, and DOBs are required before booking — uncheck “pax unverified” and fill each passenger, or use the soft estimate first',
+          })
+        } else {
+          draft.pax.forEach((p, i) => {
+            if (!p.name.trim()) {
+              issues.push({
+                field: `pax.${i}.name`,
+                message: `Passenger ${i + 1}: name required`,
+              })
+            }
+            if (p.weight_lbs === '' || Number(p.weight_lbs) <= 0) {
+              issues.push({
+                field: `pax.${i}.weight`,
+                message: `Passenger ${i + 1}: estimated weight required`,
+              })
+            }
+            if (!p.dob) {
+              issues.push({
+                field: `pax.${i}.dob`,
+                message: `Passenger ${i + 1}: DOB required`,
+              })
+            }
+          })
+        }
+      }
     }
-  }
 
-  if (draftNeedsCargoWeight(draft)) {
-    const pieces = cargoPiecesFromDraft(draft)
-    const fieldWeightOk =
-      draft.cargo_weight_lbs !== '' && Number(draft.cargo_weight_lbs) > 0
-    const parsedOk = piecesHaveWeights(pieces)
-    if (!fieldWeightOk && !parsedOk) {
-      issues.push({
-        field: 'cargo_weight',
-        message:
-          'Cargo weight required (lb each) — e.g. 48x40x60 @ 150ea or enter Weight each',
-      })
-    } else if (!fieldWeightOk && pieces.some((p) => p.weight_lbs <= 0)) {
-      issues.push({
-        field: 'cargo_weight',
-        message: 'Every cargo piece needs a weight in lb',
-      })
+    if (draftNeedsCargoWeight(draft)) {
+      const pieces = cargoPiecesFromDraft(draft)
+      const fieldWeightOk =
+        draft.cargo_weight_lbs !== '' && Number(draft.cargo_weight_lbs) > 0
+      const parsedOk = piecesHaveWeights(pieces)
+      if (!fieldWeightOk && !parsedOk) {
+        issues.push({
+          field: 'cargo_weight',
+          message:
+            'Cargo weight required (lb each) — e.g. 48x40x60 @ 150ea or enter Weight each',
+        })
+      } else if (!fieldWeightOk && pieces.some((p) => p.weight_lbs <= 0)) {
+        issues.push({
+          field: 'cargo_weight',
+          message: 'Every cargo piece needs a weight in lb',
+        })
+      }
     }
   }
 

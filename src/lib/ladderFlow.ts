@@ -13,6 +13,7 @@ import {
   type BandShortlist,
 } from '@/domain/shortlistBands'
 import type { TripRequestRecord } from '@/domain/tripRequest'
+import { draftPayloadKind } from '@/domain/tripRequest'
 import { getClient } from '@/lib/clientStore'
 import { fboFeesForAirport } from '@/lib/fboStore'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
@@ -46,9 +47,7 @@ function resolveAirport(icaoRaw: string) {
 function payloadKindOfRequest(
   row: TripRequestRecord,
 ): 'cargo' | 'pax' | 'both' {
-  if (row.cargo_only) return 'cargo'
-  if (row.pax.length) return row.cargo_notes.trim() ? 'both' : 'pax'
-  return 'cargo'
+  return draftPayloadKind(row)
 }
 
 /** Create Trip draft→routed with closest piston / turboprop / jet shortlist. */
