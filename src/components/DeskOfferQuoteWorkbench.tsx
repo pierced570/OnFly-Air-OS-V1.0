@@ -15,7 +15,6 @@ import {
   type ClientEmailSelection,
 } from '@/components/ClientEmailRecipientsBubble'
 import { ClientLogisticsQuotePreview } from '@/components/ClientLogisticsQuotePreview'
-import { OfferQuoteFactsBlock } from '@/components/OfferQuoteFactsBlock'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
 import {
   buildLogisticsQuoteOption,
@@ -26,8 +25,14 @@ import {
   hardQuoteClientStatusLabel,
 } from '@/domain/hardQuoteClientStatus'
 import { DISCLOSURE_295_24_TEMPLATE } from '@/domain/offers'
-import { DEFAULT_OFFER_MARGIN_PCT } from '@/domain/offerQuotePreview'
-import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
+import {
+  DEFAULT_OFFER_MARGIN_PCT,
+  formatMinutes,
+} from '@/domain/offerQuotePreview'
+import {
+  DEFAULT_QUICK_TURN_MIN,
+  buildDeskOfferQuoteTimeline,
+} from '@/domain/offerQuoteTiming'
 import {
   offerQuoteFacts,
   offerRecipientStatus,
@@ -39,9 +44,7 @@ import {
   submitDeskManualQuote,
   updateHardQuoteClientPricing,
 } from '@/lib/offerFlow'
-import {
-  offerQuotePreviewFor,
-} from '@/lib/offerPricing'
+import { offerQuotePreviewFor } from '@/lib/offerPricing'
 import { getTaxRates } from '@/lib/taxRatesStore'
 import {
   getTrip,
@@ -55,11 +58,18 @@ type Props = {
   onClose?: () => void
 }
 
+function feeBadgeLabel(feeScope: string | null | undefined): string | null {
+  if (feeScope === 'aircraft_and_fees') return 'All fees in'
+  if (feeScope === 'aircraft_only') return 'Aircraft only'
+  return null
+}
+
 export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [clientEdits, setClientEdits] = useState<Record<string, number>>({})
   const [marginEdits, setMarginEdits] = useState<Record<string, number>>({})
   /** Which field the desk last edited — drives forward vs reverse tax math. */
@@ -164,8 +174,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const liveTrip = trip
 
   const picked = quoteableIds.filter((oid) => selected[oid])
-  // Margin is applied later when building client totals — not edited on this
-  // early waterfall stage (operator quotes → hard quote).
   const marginPct =
     liveTrip.offer_margin_pct != null &&
     Number.isFinite(liveTrip.offer_margin_pct)
@@ -176,6 +184,10 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
     picked.length > 0 &&
     emailSel.to.length > 0 &&
     picked.every((oid) => (confirmedTypes[oid] ?? '').trim())
+
+  const needsTypeConfirm = picked.some(
+    (oid) => !(confirmedTypes[oid] ?? '').trim(),
+  )
 
   const clientPreviewOptions =
     clientQuotePreview && canPreviewClientQuote
@@ -238,7 +250,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
       sendMargin = p.margin_pct
     }
     if (liveTrip.client_id) {
-      // Remember extras the desk typed — do not treat quote To as invoice AP.
       rememberEmailsOnClient(liveTrip.client_id, '', emailSel.cc, emailSel.bcc)
     }
     setSendBusy(true)
@@ -257,137 +268,214 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
       .finally(() => setSendBusy(false))
   }
 
-  return (
-    <div className="mt-3 space-y-4 rounded-xl border border-gold/50 bg-ink/50 px-3.5 py-3.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
-            Compare &amp; price for client
-          </div>
-          <p className="mt-0.5 text-xs text-muted">
-            Select which operator quotes to present, set client total or margin
-            %, then preview the email.
-          </p>
-        </div>
-        {onClose ? (
-          <button
-            type="button"
-            className="text-xs text-muted hover:text-cream"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        ) : null}
-      </div>
+  const quoteable = liveTrip.offers.filter((o) => {
+    const status = offerRecipientStatus(o.state)
+    if (status === 'no' && o.declined_acked_at) return false
+    if (status === 'stood_down' || status === 'expired') return false
+    return o.state === 'quoted' || o.state === 'selected'
+  })
+  const awaiting = liveTrip.offers.filter((o) => {
+    const status = offerRecipientStatus(o.state)
+    if (status === 'no' && o.declined_acked_at) return false
+    if (status === 'stood_down' || status === 'expired') return false
+    return o.state !== 'quoted' && o.state !== 'selected'
+  })
 
-      {error ? <p className="text-sm text-late">{error}</p> : null}
-
-      {(() => {
-        const quoteable = liveTrip.offers.filter((o) => {
-          const status = offerRecipientStatus(o.state)
-          if (status === 'no' && o.declined_acked_at) return false
-          if (status === 'stood_down' || status === 'expired') return false
-          return o.state === 'quoted' || o.state === 'selected'
-        })
-        const awaiting = liveTrip.offers.filter((o) => {
-          const status = offerRecipientStatus(o.state)
-          if (status === 'no' && o.declined_acked_at) return false
-          if (status === 'stood_down' || status === 'expired') return false
-          return o.state !== 'quoted' && o.state !== 'selected'
-        })
-
-        function renderQuoteCard(
-          o: (typeof liveTrip.offers)[number],
-          selectable: boolean,
-        ) {
-          const status = offerRecipientStatus(o.state)
-          const facts = offerQuoteFacts(o)
-          const hqOpt = liveTrip.hard_quote?.options?.find(
-            (opt) => opt.offer_id === o.id,
+  function renderQuoteCard(
+    o: (typeof liveTrip.offers)[number],
+    selectable: boolean,
+  ) {
+    const status = offerRecipientStatus(o.state)
+    const facts = offerQuoteFacts(o)
+    const hqOpt = liveTrip.hard_quote?.options?.find(
+      (opt) => opt.offer_id === o.id,
+    )
+    const lock = pricingLock[o.id] ?? (hqOpt != null ? 'total' : 'margin')
+    const draftMargin = marginEdits[o.id] ?? marginPct
+    const draftTotal = clientEdits[o.id] ?? hqOpt?.client_total ?? null
+    const preview =
+      o.price_net != null
+        ? offerQuotePreviewFor(
+            o,
+            liveTrip,
+            0,
+            lock === 'total' ? draftTotal : null,
+            draftMargin,
           )
-          const lock =
-            pricingLock[o.id] ?? (hqOpt != null ? 'total' : 'margin')
-          const draftMargin = marginEdits[o.id] ?? marginPct
-          const draftTotal =
-            clientEdits[o.id] ?? hqOpt?.client_total ?? null
-          const preview =
-            o.price_net != null
-              ? offerQuotePreviewFor(
-                  o,
-                  liveTrip,
-                  0,
-                  lock === 'total' ? draftTotal : null,
-                  draftMargin,
-                )
-              : null
-          const cand =
-            liveTrip.candidates.find((c) => c.aircraft_id === o.aircraft_id) ??
-            liveTrip.candidates.find((c) => c.tail === o.tail)
-          const mtowLbs = cand?.mtow_lbs ?? null
-          const exemptThresh = fetExemptMtowThreshold(getTaxRates())
-          const canManual =
-            status !== 'no' && hardQuoteStatus !== 'accepted'
-          const inHardQuote = Boolean(hqOpt)
-          const included = Boolean(selected[o.id])
-          return (
-            <li
-              key={o.id}
-              className={[
-                'flex min-w-[16rem] flex-1 flex-col gap-3 rounded-md border px-3 py-3',
-                selectable && included
-                  ? 'border-gold/60 bg-gold/5 ring-1 ring-gold/25'
-                  : 'border-border/50 bg-ink/40',
-              ].join(' ')}
-            >
-              {selectable &&
-              (showQuoteComposer || !liveTrip.hard_quote) ? (
-                <label className="flex cursor-pointer items-start gap-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={included}
-                    onChange={(e) =>
-                      setSelected((s) => ({
-                        ...s,
-                        [o.id]: e.target.checked,
-                      }))
-                    }
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-gold">
-                      {o.operator_name}
-                    </span>
-                    <span className="text-[11px] text-gold/80">
-                      {included
-                        ? 'Included in client quote'
-                        : 'Tap to include'}
-                    </span>
-                  </span>
-                </label>
-              ) : (
-                <div className="text-sm font-semibold text-gold">
-                  {o.operator_name}
-                </div>
-              )}
+        : null
+    const cand =
+      liveTrip.candidates.find((c) => c.aircraft_id === o.aircraft_id) ??
+      liveTrip.candidates.find((c) => c.tail === o.tail)
+    const mtowLbs = cand?.mtow_lbs ?? null
+    const exemptThresh = fetExemptMtowThreshold(getTaxRates())
+    const canManual = status !== 'no' && hardQuoteStatus !== 'accepted'
+    const inHardQuote = Boolean(hqOpt)
+    const included = Boolean(selected[o.id])
+    const isOpen = Boolean(expanded[o.id])
+    const turn = o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN
+    const timeline =
+      o.time_to_position_min != null && o.live_leg_min != null
+        ? buildDeskOfferQuoteTimeline({
+            lane: liveTrip.lane,
+            timeToPositionMin: o.time_to_position_min,
+            quickTurnMin: turn,
+            liveLegMin: o.live_leg_min,
+          })
+        : null
+    const feeLabel = feeBadgeLabel(o.fee_scope)
+    const summaryBits = [
+      facts?.type_name,
+      facts?.tail,
+      facts ? `NET $${Math.round(facts.price_net).toLocaleString('en-US')}` : null,
+    ].filter(Boolean)
 
-              {facts ? (
-                <OfferQuoteFactsBlock
-                  facts={facts}
-                  bare
-                  fetExempt={preview?.fet_exempt}
-                  mtowLbs={mtowLbs}
-                  fetExemptThresholdLbs={exemptThresh}
-                />
-              ) : (
-                <div className="text-[11px] text-muted">No quote yet</div>
-              )}
+    return (
+      <li
+        key={o.id}
+        className={[
+          'rounded-md border px-3 py-2.5',
+          selectable && included
+            ? 'border-gold/60 bg-gold/5 ring-1 ring-gold/25'
+            : 'border-border/50 bg-ink/40',
+        ].join(' ')}
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {selectable && (showQuoteComposer || !liveTrip.hard_quote) ? (
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={included}
+                onChange={(e) =>
+                  setSelected((s) => ({
+                    ...s,
+                    [o.id]: e.target.checked,
+                  }))
+                }
+              />
+              <span className="text-sm font-semibold text-gold">
+                {o.operator_name}
+              </span>
+            </label>
+          ) : (
+            <div className="text-sm font-semibold text-gold">
+              {o.operator_name}
+            </div>
+          )}
+
+          <div className="min-w-0 flex-1 text-xs text-cream/85">
+            {summaryBits.join(' · ') || 'No quote yet'}
+          </div>
+
+          {timeline ? (
+            <span className="rounded border border-gold/45 bg-gold/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold">
+              {timeline.deliversBadge}
+            </span>
+          ) : null}
+
+          {selectable || facts ? (
+            <button
+              type="button"
+              className="text-xs text-muted hover:text-cream"
+              onClick={() =>
+                setExpanded((m) => ({ ...m, [o.id]: !m[o.id] }))
+              }
+            >
+              {isOpen ? 'Collapse ▲' : 'Expand ▼'}
+            </button>
+          ) : null}
+        </div>
+
+        {isOpen ? (
+          <div className="mt-3 space-y-3 border-t border-border/40 pt-3">
+            {timeline ? (
+              <div className="space-y-1.5">
+                <div className="grid gap-2 sm:grid-cols-4">
+                  {timeline.milestones.map((m) => (
+                    <div
+                      key={m.key}
+                      className={[
+                        'rounded-md border px-2.5 py-2',
+                        m.key === 'delivered'
+                          ? 'border-gold/50 bg-gold/10'
+                          : 'border-border/50 bg-ink/50',
+                      ].join(' ')}
+                    >
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                        {m.label}
+                      </div>
+                      <div className="avionic mt-0.5 text-sm text-cream">
+                        {m.clock}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] leading-relaxed text-muted">
+                  {timeline.chainHint}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="space-y-2 rounded-md border border-border/40 bg-ink/30 px-3 py-2.5">
+                <div className="text-[11px] uppercase tracking-wider text-muted">
+                  Operator · wholesale
+                </div>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <div className="avionic text-xl text-cream">
+                    $
+                    {facts
+                      ? Math.round(facts.price_net).toLocaleString('en-US')
+                      : '—'}
+                  </div>
+                  {feeLabel ? (
+                    <span className="rounded border border-border/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
+                      {feeLabel}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  <span className="rounded border border-border/50 px-1.5 py-0.5 avionic text-cream/85">
+                    TTP {formatMinutes(o.time_to_position_min)}
+                  </span>
+                  <span className="rounded border border-border/50 px-1.5 py-0.5 avionic text-cream/85">
+                    Turn {formatMinutes(turn)}
+                  </span>
+                  <span className="rounded border border-border/50 px-1.5 py-0.5 avionic text-cream/85">
+                    Live {formatMinutes(o.live_leg_min)}
+                  </span>
+                </div>
+                {preview?.fet_exempt ? (
+                  <div className="text-xs text-onplan">
+                    FET-exempt — MTOW
+                    {mtowLbs != null ? ` ${Math.round(mtowLbs)} lbs` : ''} ≤{' '}
+                    {Math.round(exemptThresh).toLocaleString()} lbs (IRC §4281)
+                  </div>
+                ) : null}
+                {canManual ? (
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-gold hover:text-gold-lt"
+                    onClick={() =>
+                      setManualQuoteOfferId((id) =>
+                        id === o.id ? null : o.id,
+                      )
+                    }
+                  >
+                    {manualQuoteOfferId === o.id
+                      ? 'Cancel'
+                      : o.price_net != null
+                        ? 'Edit operator quote'
+                        : 'Enter quote'}
+                  </button>
+                ) : null}
+              </div>
 
               {preview && hardQuoteStatus !== 'accepted' ? (
-                <div className="space-y-2 border-t border-border/40 pt-2">
+                <div className="space-y-2 rounded-md border border-gold/30 bg-gold/5 px-3 py-2.5">
                   <div className="text-[11px] uppercase tracking-wider text-gold">
-                    Client price
+                    Client · retail
                   </div>
-                  <div className="grid gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <label className="block text-xs text-muted">
                       Margin %
                       <input
@@ -395,9 +483,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                         inputMode="decimal"
                         className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
                         value={String(
-                          lock === 'margin'
-                            ? draftMargin
-                            : preview.margin_pct,
+                          lock === 'margin' ? draftMargin : preview.margin_pct,
                         )}
                         onChange={(e) => {
                           const v = e.target.value.replace(/,/g, '')
@@ -445,18 +531,18 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   </div>
                   <div className="space-y-0.5 font-mono text-[11px] text-cream/85">
                     <div>
-                      Air ${preview.client_air.toFixed(0)} · margin{' '}
-                      {preview.margin_pct}% (+$
-                      {preview.margin_dollars.toFixed(0)})
+                      Air + margin {preview.margin_pct}% ($
+                      {preview.client_air.toFixed(0)})
                     </div>
                     {preview.tax_lines.map((line) => (
                       <div key={`${line.code}-${line.note}`}>
                         {formatTaxLineDesk(line)}
                       </div>
                     ))}
-                    <div className="pt-0.5 text-gold">
-                      Client sees ${preview.client_total.toFixed(0)}
-                    </div>
+                  </div>
+                  <div className="text-lg font-semibold text-gold">
+                    Client sees $
+                    {Math.round(preview.client_total).toLocaleString('en-US')}
                   </div>
                   {inHardQuote ? (
                     <button
@@ -502,87 +588,99 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                   ) : null}
                 </div>
               ) : preview && hardQuoteStatus === 'accepted' ? (
-                <div className="border-t border-border/40 pt-2 font-mono text-[11px] text-cream/85">
-                  Client ${preview.client_total.toFixed(0)} · Accepted
+                <div className="rounded-md border border-border/40 px-3 py-2.5 font-mono text-[11px] text-cream/85">
+                  Client $
+                  {Math.round(preview.client_total).toLocaleString('en-US')} ·
+                  Accepted
                 </div>
-              ) : null}
+              ) : (
+                <div className="rounded-md border border-border/40 px-3 py-2.5 text-xs text-muted">
+                  Enter an operator quote to price for the client.
+                </div>
+              )}
+            </div>
 
-              {canManual ? (
-                <button
-                  type="button"
-                  className="self-start text-xs font-medium text-gold hover:text-gold-lt"
-                  onClick={() =>
-                    setManualQuoteOfferId((id) =>
-                      id === o.id ? null : o.id,
+            {manualQuoteOfferId === o.id ? (
+              <OfferQuoteForm
+                lane={liveTrip.lane}
+                busy={manualQuoteBusy}
+                submitLabel={
+                  o.price_net != null ? 'Update quote' : 'Save quote'
+                }
+                intro=""
+                initialTypeName={o.type_name || ''}
+                initialTail={o.tail || ''}
+                initialPriceNet={o.price_net ?? undefined}
+                initialTtpMin={o.time_to_position_min ?? undefined}
+                initialQuickTurnMin={o.quick_turn_min ?? undefined}
+                initialLiveLegMin={o.live_leg_min ?? undefined}
+                onSubmit={(values) => {
+                  setManualQuoteBusy(true)
+                  void submitDeskManualQuote(liveTrip.id, o.id, values)
+                    .then(() => {
+                      setManualQuoteOfferId(null)
+                      setSelected((s) => ({ ...s, [o.id]: true }))
+                      setExpanded((m) => ({ ...m, [o.id]: true }))
+                      setError(null)
+                    })
+                    .catch((e) =>
+                      setError(e instanceof Error ? e.message : String(e)),
                     )
-                  }
-                >
-                  {manualQuoteOfferId === o.id
-                    ? 'Cancel'
-                    : o.price_net != null
-                      ? 'Edit operator quote'
-                      : 'Enter quote'}
-                </button>
-              ) : null}
-
-              {manualQuoteOfferId === o.id ? (
-                <OfferQuoteForm
-                  lane={liveTrip.lane}
-                  busy={manualQuoteBusy}
-                  submitLabel={
-                    o.price_net != null ? 'Update quote' : 'Save quote'
-                  }
-                  intro=""
-                  initialTypeName={o.type_name || ''}
-                  initialTail={o.tail || ''}
-                  initialPriceNet={o.price_net ?? undefined}
-                  initialTtpMin={o.time_to_position_min ?? undefined}
-                  initialQuickTurnMin={o.quick_turn_min ?? undefined}
-                  initialLiveLegMin={o.live_leg_min ?? undefined}
-                  onSubmit={(values) => {
-                    setManualQuoteBusy(true)
-                    void submitDeskManualQuote(liveTrip.id, o.id, values)
-                      .then(() => {
-                        setManualQuoteOfferId(null)
-                        setSelected((s) => ({ ...s, [o.id]: true }))
-                        setError(null)
-                      })
-                      .catch((e) =>
-                        setError(e instanceof Error ? e.message : String(e)),
-                      )
-                      .finally(() => setManualQuoteBusy(false))
-                  }}
-                />
-              ) : null}
-            </li>
-          )
-        }
-
-        return (
-          <div className="space-y-4">
-            {quoteable.length ? (
-              <ul className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-stretch">
-                {quoteable.map((o) => renderQuoteCard(o, true))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted">
-                No operator quotes in yet — wait for Submitted quotes, or enter
-                one manually below.
-              </p>
-            )}
-            {awaiting.length ? (
-              <div className="space-y-2">
-                <div className="text-[11px] uppercase tracking-wider text-muted">
-                  Awaiting quote
-                </div>
-                <ul className="flex flex-col gap-3 lg:flex-row lg:flex-wrap">
-                  {awaiting.map((o) => renderQuoteCard(o, false))}
-                </ul>
-              </div>
+                    .finally(() => setManualQuoteBusy(false))
+                }}
+              />
             ) : null}
           </div>
-        )
-      })()}
+        ) : null}
+      </li>
+    )
+  }
+
+  return (
+    <div className="mt-3 space-y-4 rounded-xl border border-gold/50 bg-ink/50 px-3.5 py-3.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
+            Quotes submitted · {quoteable.length}
+          </div>
+          <p className="mt-0.5 text-xs text-muted">
+            Check to include in client quote · expand for pricing &amp; ETAs.
+          </p>
+        </div>
+        {onClose ? (
+          <button
+            type="button"
+            className="text-xs text-muted hover:text-cream"
+            onClick={onClose}
+          >
+            Close compare
+          </button>
+        ) : null}
+      </div>
+
+      {error ? <p className="text-sm text-late">{error}</p> : null}
+
+      {quoteable.length ? (
+        <ul className="flex flex-col gap-2">
+          {quoteable.map((o) => renderQuoteCard(o, true))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted">
+          No operator quotes in yet — wait for Submitted quotes, or enter one
+          manually below.
+        </p>
+      )}
+
+      {awaiting.length ? (
+        <div className="space-y-2">
+          <div className="text-[11px] uppercase tracking-wider text-muted">
+            Awaiting quote
+          </div>
+          <ul className="flex flex-col gap-2">
+            {awaiting.map((o) => renderQuoteCard(o, false))}
+          </ul>
+        </div>
+      ) : null}
 
       {showQuoteComposer ? (
         <div className="space-y-3 border-t border-gold/30 pt-3">
@@ -610,9 +708,10 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               setEmailSel(next)
               setClientQuotePreview(false)
             }}
+            layout="compact"
             embedded
           />
-          {picked.length > 0 ? (
+          {needsTypeConfirm ? (
             <div className="space-y-2">
               <div className="text-xs text-muted">
                 Confirm aircraft type before send
@@ -620,6 +719,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
               {picked.map((oid) => {
                 const o = trip.offers.find((x) => x.id === oid)
                 if (!o) return null
+                if ((confirmedTypes[oid] ?? '').trim()) return null
                 return (
                   <AircraftTypeSelect
                     key={oid}
@@ -684,9 +784,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                 setClientQuotePreview(true)
               }}
             >
-              {trip.hard_quote
-                ? `Preview client quote (${picked.length || 0})`
-                : `Preview client quote (${picked.length || 0})`}
+              {`Preview client quote (${picked.length || 0})`}
             </button>
           )}
         </div>

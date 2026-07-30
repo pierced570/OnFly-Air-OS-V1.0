@@ -29,10 +29,15 @@ type Props = {
   clientId?: string | null
   value: ClientEmailSelection
   onChange: (next: ClientEmailSelection) => void
-  /** Optional title override. */
+  /** Optional title override (ignored for compact layout). */
   title?: string
   /** Skip outer gold card when nested in another panel. */
   embedded?: boolean
+  /**
+   * `default` — titled card with stacked fields (invoice / ETA).
+   * `compact` — submitted-quotes hard-quote row: inline help + side-by-side fields.
+   */
+  layout?: 'default' | 'compact'
 }
 
 function normalize(email: string): string {
@@ -135,17 +140,14 @@ function contactLabel(c: ClientContact): string {
   return name ? `${name} · ${c.email}` : c.email
 }
 
-export function ClientEmailRecipientsBubble({
-  clientId,
-  value,
-  onChange,
-  title = 'Client emails — quote & ETA loop',
-  embedded = false,
-}: Props) {
+function useClientEmailContacts(
+  clientId: string | null | undefined,
+  value: ClientEmailSelection,
+) {
   useSyncExternalStore(subscribeClients, listClients, listClients)
   const client = clientId ? getClient(clientId) : undefined
 
-  const contacts = useMemo(() => {
+  return useMemo(() => {
     const fromProfile = client?.contacts ?? []
     const extras: Array<{ id: string; name: string; email: string }> = []
     const seen = new Set(fromProfile.map((c) => normalize(c.email)))
@@ -171,6 +173,131 @@ export function ClientEmailRecipientsBubble({
       ...extras,
     ]
   }, [client, value])
+}
+
+function EmailFields({
+  value,
+  onChange,
+  columns,
+}: {
+  value: ClientEmailSelection
+  onChange: (next: ClientEmailSelection) => void
+  columns?: boolean
+}) {
+  return (
+    <div
+      className={
+        columns
+          ? 'grid gap-2 sm:grid-cols-3'
+          : 'grid gap-2'
+      }
+    >
+      {(
+        [
+          ['to', 'To'],
+          ['cc', 'CC'],
+          ['bcc', 'BCC'],
+        ] as const
+      ).map(([key, label]) => (
+        <label key={key} className="block text-[11px] text-muted">
+          {label}
+          <input
+            className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 font-mono text-xs text-cream"
+            name={`onfly-client-email-${key}`}
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            value={value[key].join(', ')}
+            placeholder="name@client.com"
+            onChange={(e) => {
+              const emails = uniq(e.target.value.split(/[,;\s]+/))
+              const next: ClientEmailSelection = {
+                to:
+                  key === 'to'
+                    ? emails
+                    : value.to.filter((x) => !emails.includes(x)),
+                cc:
+                  key === 'cc'
+                    ? emails
+                    : value.cc.filter((x) => !emails.includes(x)),
+                bcc:
+                  key === 'bcc'
+                    ? emails
+                    : value.bcc.filter((x) => !emails.includes(x)),
+              }
+              onChange(next)
+            }}
+          />
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function ContactPills({
+  contacts,
+  value,
+  onChange,
+}: {
+  contacts: Array<{ id: string; name: string; email: string }>
+  value: ClientEmailSelection
+  onChange: (next: ClientEmailSelection) => void
+}) {
+  if (!contacts.length) return null
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {contacts.map((c) => {
+        const email = normalize(c.email)
+        const bucket = bucketOf(email, value)
+        const on = bucket !== 'off'
+        return (
+          <button
+            key={c.id}
+            type="button"
+            title="Click to cycle To / CC / BCC"
+            onClick={() =>
+              onChange(setBucket(value, email, cycleBucket(bucket)))
+            }
+            className={[
+              'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
+              on
+                ? 'border-gold bg-gold/25 text-cream'
+                : 'border-border bg-ink/40 text-muted hover:text-cream',
+            ].join(' ')}
+          >
+            <span className="font-medium">
+              {bucket === 'off' ? '·' : bucket.toUpperCase()}
+            </span>{' '}
+            {contactLabel(c as ClientContact)}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export function ClientEmailRecipientsBubble({
+  clientId,
+  value,
+  onChange,
+  title = 'Client emails — quote & ETA loop',
+  embedded = false,
+  layout = 'default',
+}: Props) {
+  const contacts = useClientEmailContacts(clientId, value)
+
+  if (layout === 'compact') {
+    const help = contacts.length
+      ? 'Tap contacts to cycle To → CC → BCC → off'
+      : 'Tap contacts to cycle To → CC → BCC → off · none saved yet, add below'
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] text-muted">{help}</p>
+        <ContactPills contacts={contacts} value={value} onChange={onChange} />
+        <EmailFields value={value} onChange={onChange} columns />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -179,7 +306,8 @@ export function ClientEmailRecipientsBubble({
           ? 'space-y-2'
           : 'rounded-xl border border-gold/35 bg-gold/5 p-3'
       }
-    >      <div className="text-[11px] font-medium uppercase tracking-wider text-gold">
+    >
+      <div className="text-[11px] font-medium uppercase tracking-wider text-gold">
         {title}
       </div>
       <p className="mt-1 text-[11px] text-muted">
@@ -187,33 +315,8 @@ export function ClientEmailRecipientsBubble({
       </p>
 
       {contacts.length ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {contacts.map((c) => {
-            const email = normalize(c.email)
-            const bucket = bucketOf(email, value)
-            const on = bucket !== 'off'
-            return (
-              <button
-                key={c.id}
-                type="button"
-                title="Click to cycle To / CC / BCC"
-                onClick={() =>
-                  onChange(setBucket(value, email, cycleBucket(bucket)))
-                }
-                className={[
-                  'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
-                  on
-                    ? 'border-gold bg-gold/25 text-cream'
-                    : 'border-border bg-ink/40 text-muted hover:text-cream',
-                ].join(' ')}
-              >
-                <span className="font-medium">
-                  {bucket === 'off' ? '·' : bucket.toUpperCase()}
-                </span>{' '}
-                {contactLabel(c as ClientContact)}
-              </button>
-            )
-          })}
+        <div className="mt-2">
+          <ContactPills contacts={contacts} value={value} onChange={onChange} />
         </div>
       ) : (
         <p className="mt-2 text-xs text-muted">
@@ -221,36 +324,8 @@ export function ClientEmailRecipientsBubble({
         </p>
       )}
 
-      <div className="mt-3 grid gap-2">
-        {(
-          [
-            ['to', 'To'],
-            ['cc', 'CC'],
-            ['bcc', 'BCC'],
-          ] as const
-        ).map(([key, label]) => (
-          <label key={key} className="block text-[11px] text-muted">
-            {label}
-            <input
-              className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 font-mono text-xs text-cream"
-              name={`onfly-client-email-${key}`}
-              autoComplete="off"
-              data-1p-ignore
-              data-lpignore="true"
-              value={value[key].join(', ')}
-              placeholder="name@client.com"
-              onChange={(e) => {
-                const emails = uniq(e.target.value.split(/[,;\s]+/))
-                const next: ClientEmailSelection = {
-                  to: key === 'to' ? emails : value.to.filter((x) => !emails.includes(x)),
-                  cc: key === 'cc' ? emails : value.cc.filter((x) => !emails.includes(x)),
-                  bcc: key === 'bcc' ? emails : value.bcc.filter((x) => !emails.includes(x)),
-                }
-                onChange(next)
-              }}
-            />
-          </label>
-        ))}
+      <div className="mt-3">
+        <EmailFields value={value} onChange={onChange} />
       </div>
     </div>
   )
