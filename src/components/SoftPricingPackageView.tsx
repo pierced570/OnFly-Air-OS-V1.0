@@ -25,6 +25,8 @@ export function SoftPricingPackageView(props: {
   onHardQuote?: () => void
   hardQuoteDone?: boolean
   hardQuoteEmail?: string
+  /** Prefer over backTo — returns to the request form with the same draft. */
+  onEditTrip?: () => void
   backTo?: string
 }) {
   const { pkg } = props
@@ -70,12 +72,22 @@ export function SoftPricingPackageView(props: {
       {/* Dark hero */}
       <header className="overflow-hidden rounded-2xl bg-[#141414] text-cream">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cream/10 px-4 py-3 text-xs sm:px-6">
-          <Link
-            to={props.backTo ?? '/portal/request'}
-            className="text-cream/70 hover:text-gold"
-          >
-            ← Back to trip request
-          </Link>
+          {props.onEditTrip ? (
+            <button
+              type="button"
+              onClick={props.onEditTrip}
+              className="text-cream/70 hover:text-gold"
+            >
+              ← Edit trip request
+            </button>
+          ) : (
+            <Link
+              to={props.backTo ?? '/portal/request'}
+              className="text-cream/70 hover:text-gold"
+            >
+              ← Edit trip request
+            </Link>
+          )}
           <span className="text-cream/50">Soft pricing · not a bookable quote</span>
         </div>
         <div className="grid gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1.2fr_0.8fr]">
