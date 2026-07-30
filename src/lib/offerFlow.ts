@@ -801,7 +801,9 @@ export async function selectOffersAndHardQuote(
     const comms = createCommsAdapter()
     const email = createEmailAdapter()
     const {
+      buildCharterMissionChips,
       buildLogisticsQuoteOption,
+      finalizeLogisticsQuoteOptions,
       laneEndpoints,
       logisticsQuoteTitle,
     } = await import('@/domain/clientLogisticsQuote')
@@ -815,19 +817,27 @@ export async function selectOffersAndHardQuote(
     const ends = laneEndpoints(trip.lane)
     const emailTitle = 'Charter Quote'
     const smsTitle = logisticsQuoteTitle(trip.lane)
-    const logisticsOptions = options.map((o) =>
-      buildLogisticsQuoteOption({
-        offer_id: o.offer_id,
-        label: o.label,
-        type_name: o.type_name,
-        time_to_position_min: o.time_to_position_min,
-        quick_turn_min: o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
-        live_leg_min: o.live_leg_min,
-        client_total: o.client_total,
-        lane: trip.lane,
-        goAtIso: sentAt,
-      }),
+    const logisticsOptions = finalizeLogisticsQuoteOptions(
+      options.map((o, i) =>
+        buildLogisticsQuoteOption({
+          offer_id: o.offer_id,
+          label: o.label,
+          option_index: i,
+          type_name: o.type_name,
+          time_to_position_min: o.time_to_position_min,
+          quick_turn_min: o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
+          live_leg_min: o.live_leg_min,
+          client_total: o.client_total,
+          lane: trip.lane,
+          goAtIso: sentAt,
+        }),
+      ),
     )
+    const missionChips = buildCharterMissionChips({
+      payload_kind: kind,
+      payload_summary: trip.payload_summary,
+      ready_label: trip.ready_label,
+    })
     const acceptPath = `/accept/${accept_token}`
     const acceptUrl = absoluteAppUrl(acceptPath)
     const optionLines = logisticsOptions
@@ -862,6 +872,11 @@ export async function selectOffersAndHardQuote(
             ? DISCLOSURE_295_24_TEMPLATE
             : null,
         refLabel: (trip.code ?? '').trim() || `T-${trip.ref}`,
+        missionChips,
+        intro:
+          logisticsOptions.length === 2
+            ? 'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Pick one and we lock it.'
+            : null,
       }
       const toList = recipients.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))
       if (!toList.length) {
