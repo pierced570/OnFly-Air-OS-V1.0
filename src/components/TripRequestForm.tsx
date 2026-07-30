@@ -182,6 +182,11 @@ export function TripRequestForm({
     const errs = validateTripRequest(next, {
       requireEmail: variant === 'portal',
       requireClient: variant === 'dispatch',
+      // Soft estimate may defer pax identity; hard quote / desk need full details.
+      requirePaxDetails:
+        intent === 'hard_quote' ||
+        variant === 'dispatch' ||
+        !next.pax_details_deferred,
     })
     if (variant === 'portal' && !next.client_name?.trim()) {
       errs.push({ field: 'client_name', message: 'Enter your company name' })
@@ -1120,6 +1125,9 @@ export function TripRequestForm({
                     setDraft((d) => ({
                       ...d,
                       cargo_only,
+                      pax_details_deferred: cargo_only
+                        ? false
+                        : d.pax_details_deferred,
                       pax: cargo_only
                         ? []
                         : d.pax.length
@@ -1272,7 +1280,14 @@ export function TripRequestForm({
               setDraft((d) => ({
                 ...d,
                 cargo_only,
-                pax: cargo_only ? [] : d.pax.length ? d.pax : [{ name: '', weight_lbs: '', dob: '' }],
+                pax_details_deferred: cargo_only
+                  ? false
+                  : d.pax_details_deferred,
+                pax: cargo_only
+                  ? []
+                  : d.pax.length
+                    ? d.pax
+                    : [{ name: '', weight_lbs: '', dob: '' }],
               }))
             }}
           />
@@ -1293,62 +1308,102 @@ export function TripRequestForm({
                 className={inputCls}
               />
             </label>
-            {draft.pax.map((p, i) => (
-              <div
-                key={i}
-                className="grid gap-2 border-t border-border pt-3 sm:grid-cols-3"
-              >
-                <label className={labelCls}>
-                  Name
-                  <input
-                    value={p.name}
-                    onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = { ...pax[i]!, name: e.target.value }
-                        return { ...d, pax }
-                      })
-                    }
-                    className={inputCls}
-                  />
-                </label>
-                <label className={labelCls}>
-                  Est. weight (lb)
-                  <input
-                    type="number"
-                    min={1}
-                    value={p.weight_lbs}
-                    onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = {
-                          ...pax[i]!,
-                          weight_lbs:
-                            e.target.value === '' ? '' : Number(e.target.value),
-                        }
-                        return { ...d, pax }
-                      })
-                    }
-                    className={inputCls}
-                  />
-                </label>
-                <label className={labelCls}>
-                  DOB
-                  <input
-                    type="date"
-                    value={p.dob}
-                    onChange={(e) =>
-                      setDraft((d) => {
-                        const pax = [...d.pax]
-                        pax[i] = { ...pax[i]!, dob: e.target.value }
-                        return { ...d, pax }
-                      })
-                    }
-                    className={inputCls}
-                  />
-                </label>
-              </div>
-            ))}
+            <label
+              className={[
+                'flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm',
+                draft.pax_details_deferred
+                  ? 'border-gold bg-gold/10 text-ink'
+                  : 'border-border bg-white text-[var(--text)]',
+              ].join(' ')}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={draft.pax_details_deferred}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    pax_details_deferred: e.target.checked,
+                  }))
+                }
+              />
+              <span>
+                <span className="font-medium">
+                  Pax unverified right now — I&apos;ll tell OnFly Air prior to
+                  booking
+                </span>
+                <span className="mt-1 block text-xs text-muted">
+                  Soft estimate only needs headcount. Names, estimated weights,
+                  and DOBs are required before we can book.
+                </span>
+              </span>
+            </label>
+            {draft.pax_details_deferred ? (
+              <p className="rounded-md border border-gold/40 bg-gold/5 px-3 py-2 text-xs text-[var(--text)]">
+                Holding {paxCount || 1} passenger
+                {(paxCount || 1) === 1 ? '' : 's'} without identity details.
+                Dispatch will collect name / weight / DOB before booking.
+              </p>
+            ) : (
+              draft.pax.map((p, i) => (
+                <div
+                  key={i}
+                  className="grid gap-2 border-t border-border pt-3 sm:grid-cols-3"
+                >
+                  <label className={labelCls}>
+                    Name
+                    <input
+                      value={p.name}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = { ...pax[i]!, name: e.target.value }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    Est. weight (lb)
+                    <input
+                      type="number"
+                      min={1}
+                      value={p.weight_lbs}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = {
+                            ...pax[i]!,
+                            weight_lbs:
+                              e.target.value === ''
+                                ? ''
+                                : Number(e.target.value),
+                          }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    DOB
+                    <input
+                      type="date"
+                      value={p.dob}
+                      onChange={(e) =>
+                        setDraft((d) => {
+                          const pax = [...d.pax]
+                          pax[i] = { ...pax[i]!, dob: e.target.value }
+                          return { ...d, pax }
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                </div>
+              ))
+            )}
           </div>
         )}
 
