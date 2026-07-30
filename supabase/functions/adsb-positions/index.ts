@@ -537,6 +537,10 @@ function noData(tail: string) {
     laddBlocked: true,
     lastTakeoffAt: null,
     lastLandingAt: null,
+    takeoffIsActual: false,
+    landingIsActual: false,
+    originIcao: null as string | null,
+    destinationIcao: null as string | null,
     phase: 'no_data' as const,
   }
 }
