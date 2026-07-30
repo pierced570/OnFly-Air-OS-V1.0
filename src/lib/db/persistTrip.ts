@@ -354,13 +354,22 @@ export async function deleteOfferFromDb(offerId: string): Promise<boolean> {
       db().from('offers').delete().eq('id', offerId).select('id'),
   )
   if (Array.isArray(deleted) && deleted.length > 0) return true
-  // Already gone — treat as success so hydrate stops resurrecting via tombstone.
-  const row = await safeQuery<{ id: string }>(
-    'offers.delete_check',
-    () =>
-      db().from('offers').select('id').eq('id', offerId).maybeSingle(),
-  )
-  return row == null
+  // Distinguish missing row (done) from query failure (keep retrying).
+  try {
+    const { data, error } = await db()
+      .from('offers')
+      .select('id')
+      .eq('id', offerId)
+      .maybeSingle()
+    if (error) {
+      console.warn('[db] offers.delete_check:', error.message)
+      return false
+    }
+    return data == null
+  } catch (e) {
+    console.warn('[db] offers.delete_check:', e)
+    return false
+  }
 }
 
 /** True when every offer magic_token is readable via anon (public offer board). */
@@ -557,18 +566,24 @@ export async function deleteTripFromDb(tripId: string): Promise<boolean> {
         .select('id'),
   )
   if (Array.isArray(updated) && updated.length > 0) return true
-  // Already discarded or missing — treat as done so hydrate stops retrying.
-  const row = await safeQuery<{ discarded_at: string | null }>(
-    'trips.discard_check',
-    () =>
-      db()
-        .from('trips')
-        .select('discarded_at')
-        .eq('id', tripId)
-        .maybeSingle(),
-  )
-  if (!row) return true
-  return row.discarded_at != null
+
+  // Distinguish missing row (done) from query failure (keep retrying).
+  try {
+    const { data, error } = await db()
+      .from('trips')
+      .select('discarded_at')
+      .eq('id', tripId)
+      .maybeSingle()
+    if (error) {
+      console.warn('[db] trips.discard_check:', error.message)
+      return false
+    }
+    if (!data) return true
+    return data.discarded_at != null
+  } catch (e) {
+    console.warn('[db] trips.discard_check:', e)
+    return false
+  }
 }
 
 /** Append desk offer_removed to the durable event log (best-effort). */
