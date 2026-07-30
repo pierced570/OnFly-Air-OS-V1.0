@@ -942,6 +942,7 @@ export default function DispatchCenterPage() {
             code: t.code,
             lane: t.lane,
             state: t.state,
+            request_id: t.request_id,
             client_name,
             service_pattern: t.service_pattern,
             forklift_required: t.forklift_required,

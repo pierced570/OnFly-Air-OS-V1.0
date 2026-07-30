@@ -176,7 +176,7 @@ export async function createRoutedTripFromRequest(
     forklift_required: row.forklift_required,
   })
 
-  updateRequestStatus(row.id, 'in_review')
+  updateRequestStatus(row.id, 'quoted')
   return { trip, shortlist }
 }
 

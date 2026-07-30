@@ -125,6 +125,7 @@ export function buildPipeline(input: {
     ref: number
     lane: string
     state: TripState
+    request_id?: string | null
     quick?: { po?: string } | null
     legs: Array<{ status: string }>
   }>
@@ -139,9 +140,15 @@ export function buildPipeline(input: {
     out: [],
   })
   const out = empty()
+  const claimedRequestIds = new Set(
+    input.trips
+      .map((t) => t.request_id?.trim())
+      .filter((id): id is string => Boolean(id)),
+  )
 
   for (const r of input.requests) {
     if (r.status !== 'submitted' && r.status !== 'in_review') continue
+    if (claimedRequestIds.has(r.id)) continue
     out.inbound.push({
       kind: 'request',
       id: r.id,
@@ -161,7 +168,10 @@ export function buildPipeline(input: {
     })
   }
 
+  const seenTripIds = new Set<string>()
   for (const t of input.trips) {
+    if (seenTripIds.has(t.id)) continue
+    seenTripIds.add(t.id)
     const stage = stageForTripState(t.state)
     const legsDone = t.legs.filter((l) => l.status === 'done').length
     const legBit = t.legs.length ? ` · ${legsDone}/${t.legs.length} legs` : ''
