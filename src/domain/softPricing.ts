@@ -168,6 +168,11 @@ export type SoftLegTiming = {
   avg_gs_kts: number
 }
 
+/** Repo + live — when the aircraft reaches the destination after Go. */
+export function destinationFromGoMinutes(t: SoftLegTiming): number {
+  return t.repo_min + t.live_min
+}
+
 export function buildSoftLegTiming(
   liveNm: number,
   avgGsKts: number,
@@ -564,7 +569,7 @@ export function buildSoftPricingPackage(input: {
       defaultSimilarMissions(origin_display, dest_display, live_nm),
     fit_summary,
     pricing_logic_overview:
-      'We assume a 2.5 hr repositioning leg to reach you. Live leg = distance ÷ average ground speed. Return home ≈ live leg + 1 hr. Billable time × class hourly rate.',
+      'We assume a 2.5 hr repositioning leg to reach you. Live leg uses distance and average ground speed for each class. Return home ≈ live leg + 1 hr. All-in ranges reflect typical class rates — not a bookable quote.',
     math_cards: [
       {
         title: '1. Repositioning',
@@ -575,8 +580,8 @@ export function buildSoftPricingPackage(input: {
         body: `${live_nm} NM ÷ average ground speed. Averages come from our own trip logs: 180 kt is a Cessna 310 / Aerostar day, 260 kt a PC-12, 420 kt a Lear 35A.`,
       },
       {
-        title: '3. Return home',
-        body: 'Return ≈ live leg + 1 hr for routing and descent into base. Repo + live + return, times the class hourly rate, gives the range above.',
+        title: '3. At your destination',
+        body: 'From Go, destination arrival is repositioning plus the live leg for that class. Final price still depends on the actual aircraft we book — this page only shows estimated all-in ranges.',
       },
     ],
     disclaimer: SOFT_PRICING_DISCLAIMER,

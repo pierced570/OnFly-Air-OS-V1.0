@@ -7,6 +7,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { createLlmAdapter } from '@/adapters/llm'
 import {
+  destinationFromGoMinutes,
   formatHoursMinutes,
   type SoftClassQuote,
   type SoftPricingPackage,
@@ -118,8 +119,9 @@ export function SoftPricingPackageView(props: {
               <span className="font-semibold text-cream">
                 2.5 hr repositioning leg
               </span>{' '}
-              to reach you. Live leg = distance ÷ average ground speed. Return
-              home ≈ live leg + 1 hr. Billable time × class hourly rate.
+              to reach you. Live leg uses distance and class average ground
+              speed. Destination arrival from Go is repo plus the live leg —
+              ranges above are estimates only, not a bookable quote.
             </p>
           </aside>
         </div>
@@ -356,10 +358,10 @@ function SoftClassCard({ quote }: { quote: SoftClassQuote }) {
           label="Return"
           value={`${formatHoursMinutes(t.home_min)} (live + 1h)`}
         />
-        <Row
-          label="Billable"
-          value={`${formatHoursMinutes(t.total_block_min)} × $${quote.hourly_low.toLocaleString('en-US')}–${quote.hourly_high.toLocaleString('en-US')}/hr`}
-        />
+        <p className="avionic pt-0.5 text-ink">
+          At your destination{' '}
+          {formatHoursMinutes(destinationFromGoMinutes(t))} from Go
+        </p>
         <Row
           label="Door"
           value={`${quote.fit.door_w_in}×${quote.fit.door_h_in} in`}

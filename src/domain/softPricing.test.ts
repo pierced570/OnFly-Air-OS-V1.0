@@ -5,6 +5,7 @@ import {
   SOFT_REPO_HOURS,
   buildSoftLegTiming,
   buildSoftPricingPackage,
+  destinationFromGoMinutes,
   doorFitsWithSpare,
   formatHoursMinutes,
   flightMinutesFromNmGs,
@@ -36,6 +37,7 @@ describe('softPricing', () => {
     expect(t.repo_min).toBe(Math.round(SOFT_REPO_HOURS * 60))
     expect(t.live_min).toBe(60)
     expect(t.home_min).toBe(60 + Math.round(SOFT_HOME_EXTRA_HOURS * 60))
+    expect(destinationFromGoMinutes(t)).toBe(t.repo_min + t.live_min)
     expect(flightMinutesFromNmGs(360, 130)).toBe(166)
   })
 
