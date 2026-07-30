@@ -530,7 +530,6 @@ function persistTombstones(): void {
     /* ignore */
   }
 }
-
 let refSeq = 2000
 const listeners = new Set<() => void>()
 let snapshot: TripStoreRow[] = []
@@ -1111,7 +1110,7 @@ export function deleteTrip(id: string): boolean {
   void import('@/lib/db/persistTrip')
     .then(async (m) => {
       // Keep tombstone until a successful hydrate confirms the trip is gone.
-      // Clearing early let live hydrate resurrect when discard raced or failed.
+      // Clearing on discard-ok races an in-flight poll and resurrects the card.
       await m.deleteTripFromDb(id)
     })
     .catch((e) => console.warn('[trips] discard in db failed', id, e))
@@ -1164,7 +1163,7 @@ export function removeOfferFromTrip(tripId: string, offerId: string): boolean {
         previousCount: before,
         at,
       })
-      // Tombstone stays until hydrate confirms the offer is gone.
+      // Tombstone clears only when a non-empty hydrate omits this offer.
     })
     .catch((e) => console.warn('[trips] offer delete in db failed', offerId, e))
   return true
@@ -1202,6 +1201,7 @@ export function replaceTripsFromDb(
   for (const r of rows) {
     if (deletedTripIds.has(r.id)) {
       // Still present in DB after desk delete — keep out of UI and retry soft-delete.
+      // Do not clear the tombstone on discard-ok (in-flight hydrate race).
       void import('@/lib/db/persistTrip')
         .then(async (m) => {
           await m.deleteTripFromDb(r.id)
@@ -1244,6 +1244,9 @@ export function replaceTripsFromDb(
 
     if (existing) {
       // Preserve richer session overlays until DB catches up.
+      if (!r.request_id && existing.request_id) {
+        r.request_id = existing.request_id
+      }
       if (!r.events.length && existing.events.length) r.events = existing.events
       else if (r.events.length && existing.events.length) {
         r.events = mergeTripEvents(r.events, existing.events)
@@ -1296,6 +1299,13 @@ export function replaceTripsFromDb(
         }
       }
     }
+    if (!r.request_id) {
+      const fromEvent = [...r.events]
+        .reverse()
+        .find((e) => e.kind === 'created_from_request')
+      const rid = fromEvent?.payload?.request_id
+      if (typeof rid === 'string' && rid.trim()) r.request_id = rid.trim()
+    }
     if (!r.code || !isValidTripCode(r.code)) {
       r.code = allocateTripCode(r.id)
     } else {
@@ -1322,6 +1332,7 @@ export function replaceTripsFromDb(
       syncedFromDbIds.delete(id)
     }
   }
+
 
   bump()
   // Push any local-only trips that never made it to DB (never re-push tombstoned).

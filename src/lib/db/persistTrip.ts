@@ -80,6 +80,7 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
         quick: trip.quick ?? null,
         hard_quote: trip.hard_quote ?? null,
         candidates: trip.candidates.slice(0, 8),
+        request_id: trip.request_id ?? null,
       },
     }),
   )
@@ -121,6 +122,7 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
           portal_pickup_address: trip.portal_pickup_address ?? null,
           portal_dropoff_address: trip.portal_dropoff_address ?? null,
           portal_pax_names: trip.portal_pax_names ?? [],
+          request_id: trip.request_id ?? null,
         },
       })
       .eq('id', trip.id),

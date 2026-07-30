@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   ASAP_MAX_HOURS,
   buildReturnLegs,
+  draftNeedsPerLegPayload,
+  draftPayloadKind,
   emptyTripRequestDraft,
   forkliftFromDraft,
   isAsapReady,
+  newLeg,
   summaryFromDraft,
   laneFromDraft,
   syncReturnLegs,
@@ -143,6 +146,25 @@ describe('tripRequest', () => {
     expect(issues.some((i) => i.field === 'pax.0.dob')).toBe(true)
   })
 
+  it('soft estimate may defer pax identity when flagged', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KCAK'
+    d.legs[0]!.dest_icao = 'KMDW'
+    d.cargo_only = false
+    d.pax_details_deferred = true
+    d.pax = [{ name: '', weight_lbs: '', dob: '' }]
+    expect(
+      validateTripRequest(d, { requirePaxDetails: false }).length,
+    ).toBe(0)
+    expect(summaryFromDraft(d)).toContain('pax TBD')
+    expect(
+      validateTripRequest(d, { requirePaxDetails: true }).some(
+        (i) => i.field === 'pax_details_deferred',
+      ),
+    ).toBe(true)
+  })
+
   it('d2d requires pickup + delivery addresses; ICAO optional', () => {
     const d = emptyTripRequestDraft()
     d.email = 'a@b.co'
@@ -174,6 +196,52 @@ describe('tripRequest', () => {
     )
     d.legs[0]!.pickup_address = '100 Industrial Pkwy, Akron OH'
     d.legs[0]!.dropoff_address = 'KMDW FBO ramp'
+    expect(validateTripRequest(d).length).toBe(0)
+  })
+
+  it('multi-leg can mix pax and cargo per leg', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.legs[0]!.origin_icao = 'KGSP'
+    d.legs[0]!.dest_icao = 'KCVG'
+    d.legs[0]!.payload = 'pax'
+    d.legs[0]!.pax = [
+      { name: 'Alex Tech', weight_lbs: 180, dob: '1990-01-01' },
+    ]
+    d.legs.push({
+      ...newLeg(),
+      origin_icao: 'KCVG',
+      dest_icao: 'KMHT',
+      payload: 'cargo',
+      cargo_notes: '1 box 12x12x12 @ 75ea',
+      cargo_weight_lbs: 75,
+    })
+    d.cargo_only = false
+    expect(draftPayloadKind(d)).toBe('both')
+    expect(summaryFromDraft(d)).toContain('L1 GSP-CVG pax')
+    expect(summaryFromDraft(d)).toContain('L2 CVG-MHT cargo')
+    expect(validateTripRequest(d).length).toBe(0)
+  })
+
+  it('round trip breaks pax/cargo into outbound + return legs', () => {
+    const d = emptyTripRequestDraft()
+    d.email = 'a@b.co'
+    d.direction = 'round_trip'
+    d.hours_on_ground = 4
+    d.legs[0]!.origin_icao = 'KGSP'
+    d.legs[0]!.dest_icao = 'KCVG'
+    d.legs[0]!.payload = 'pax'
+    d.legs[0]!.pax = [
+      { name: 'Alex Tech', weight_lbs: 180, dob: '1990-01-01' },
+    ]
+    d.return_legs = buildReturnLegs(d.legs)
+    d.return_legs[0]!.payload = 'cargo'
+    d.return_legs[0]!.cargo_notes = '1 box 12x12x12 @ 75ea'
+    d.return_legs[0]!.cargo_weight_lbs = 75
+    d.cargo_only = false
+    expect(draftNeedsPerLegPayload(d)).toBe(true)
+    expect(summaryFromDraft(d)).toContain('L1 GSP-CVG pax')
+    expect(summaryFromDraft(d)).toContain('L2 CVG-GSP cargo')
     expect(validateTripRequest(d).length).toBe(0)
   })
 })

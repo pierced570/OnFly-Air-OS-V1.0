@@ -11,7 +11,7 @@ import {
   type PortalEstimateBundle,
 } from '@/domain/portalEstimate'
 import { generateCandidates } from '@/domain/routing'
-import { cargoPiecesFromDraft } from '@/domain/tripRequest'
+import { cargoPiecesFromDraft, draftPayloadKind } from '@/domain/tripRequest'
 import { loadPricingPriors, priorRatePerNm } from '@/lib/pricingPriorsStore'
 import { BUILTIN_RECOMMEND_MATRIX } from '@/domain/recommendMatrix'
 import { getTaxRates, loadTaxRates } from '@/lib/taxRatesStore'
@@ -44,13 +44,7 @@ export async function estimatePortalRequest(
     )
   }
 
-  const payloadKind = row.cargo_only
-    ? 'cargo'
-    : row.pax.length
-      ? row.cargo_notes.trim()
-        ? 'both'
-        : 'pax'
-      : 'cargo'
+  const payloadKind = draftPayloadKind(row)
 
   const parsedPieces = cargoPiecesFromDraft(row)
   const pieces = payloadKind === 'pax' ? [] : parsedPieces

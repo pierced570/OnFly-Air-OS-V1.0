@@ -125,7 +125,8 @@ describe('tripStore delete vs live hydrate', () => {
     expect(getTrip(trip.id)?.offers.map((o) => o.id)).toEqual([otherId])
   })
 
-  it('prunes previously synced trips missing from hydrate (soft-deleted ghosts)', () => {
+  it('holds trip tombstone through discard-ok then stale hydrate', async () => {
+    const persist = await import('@/lib/db/persistTrip')
     const trip = createTripFromCandidates({
       lane: 'KCAK→KHPN',
       payload_summary: 'cargo',
@@ -133,11 +134,45 @@ describe('tripStore delete vs live hydrate', () => {
       candidates: [cand('N700GG')],
       payload_kind: 'cargo',
     })
+    const ghost = cloneRow(trip)
+    // Seed as previously hydrated so prune path is exercised too.
+    replaceTripsFromDb([cloneRow(trip)])
+
+    expect(deleteTrip(trip.id)).toBe(true)
+    expect(getTrip(trip.id)).toBeNull()
+
+    await vi.waitFor(() => {
+      expect(persist.deleteTripFromDb).toHaveBeenCalled()
+    })
+
+    // Stale in-flight poll still returns the row — must stay deleted.
+    replaceTripsFromDb([ghost])
+    expect(getTrip(trip.id)).toBeNull()
+
+    // Confirmed absent from desk hydrate — still gone.
+    replaceTripsFromDb([
+      {
+        ...cloneRow(trip),
+        id: crypto.randomUUID(),
+        ref: trip.ref + 1,
+      },
+    ])
+    expect(getTrip(trip.id)).toBeNull()
+  })
+
+  it('prunes previously synced trips missing from hydrate (soft-deleted ghosts)', () => {
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KHPN',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [cand('N800HH')],
+      payload_kind: 'cargo',
+    })
     const other = createTripFromCandidates({
       lane: 'KGSP→KCVG',
       payload_summary: 'cargo',
       ready_label: 'ASAP',
-      candidates: [cand('N800HH')],
+      candidates: [cand('N900II')],
       payload_kind: 'cargo',
     })
     // First hydrate marks both as synced-from-DB.
@@ -157,7 +192,7 @@ describe('tripStore delete vs live hydrate', () => {
       lane: 'KCAK→KHPN',
       payload_summary: 'cargo',
       ready_label: 'ASAP',
-      candidates: [cand('N900II')],
+      candidates: [cand('N111JJ')],
       payload_kind: 'cargo',
     })
     replaceTripsFromDb([cloneRow(trip)])

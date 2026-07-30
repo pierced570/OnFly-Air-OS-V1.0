@@ -11,10 +11,10 @@ export const STANDARD_TOOLING = {
   label: 'standard tooling',
   /** Desk section label */
   ui_label: 'Standard cargo',
-  /** Dims for routing / fit (12×12×12 @ 50 lb) */
-  dims_text: '1 piece 12x12x12 @ 50',
+  /** Dims for routing / fit (12×12×12 @ 75 lb) */
+  dims_text: '1 piece 12x12x12 @ 75',
   /** Full phrase on offer / payload summary */
-  summary: 'standard tooling (12×12×12 @ 50 lb)',
+  summary: 'standard tooling (12×12×12 @ 75 lb)',
 } as const
 
 /** Desk L / W / H / weight boxes (inches + lb). */
@@ -29,7 +29,7 @@ export const STANDARD_CARGO_DEFAULTS: StandardCargoDims = {
   length: '12',
   width: '12',
   height: '12',
-  weight: '50',
+  weight: '75',
 }
 
 /** Strip label so dimsParser can read the piece line. */

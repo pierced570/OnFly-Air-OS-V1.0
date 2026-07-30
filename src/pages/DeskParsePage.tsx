@@ -1055,7 +1055,7 @@ export default function DeskParsePage() {
                 {STANDARD_TOOLING.ui_label}
               </div>
               <p className="mt-1 text-[11px] text-muted">
-                Tools default to 12×12×12 @ 50 lb.
+                Tools default to 12×12×12 @ 75 lb.
               </p>
             </div>
             <StandardCargoFields
