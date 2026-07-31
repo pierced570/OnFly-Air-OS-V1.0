@@ -1,6 +1,6 @@
 /**
  * In-session financial ledger.
- * Seeds from CSV fixture; edits persist as localStorage overrides (and best-effort DB later).
+ * Seeds from CSV fixture; edits persist as localStorage overrides + best-effort Supabase.
  */
 
 import fixture from '@/fixtures/financials.json'
@@ -15,6 +15,7 @@ import {
 } from '@/domain/financials'
 import { referralFlightMonthKey } from '@/domain/referrals'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
+import { persistFinancialRecord } from '@/lib/db/persistFinancial'
 
 const OVERRIDES_KEY = 'onfly.financials.overrides.v1'
 
@@ -49,10 +50,42 @@ function rebuild() {
     .sort((a, b) => (b.date_of_flight ?? '').localeCompare(a.date_of_flight ?? ''))
 }
 
-function bump() {
+function bump(persistId?: string) {
   rebuild()
   persistOverrides()
   for (const l of listeners) l()
+  if (persistId) schedulePersist(persistId)
+}
+
+const persistQueued = new Set<string>()
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+
+function schedulePersist(id: string): void {
+  persistQueued.add(id)
+  if (persistTimer) return
+  persistTimer = setTimeout(() => {
+    persistTimer = null
+    const ids = [...persistQueued]
+    persistQueued.clear()
+    for (const id of ids) void flushPersist(id)
+  }, 0)
+}
+
+async function flushPersist(id: string): Promise<void> {
+  const row = records.get(id)
+  if (!row) return
+  const result = await persistFinancialRecord(row)
+  if (!result.ok) return
+  if (
+    result.vendor_lines &&
+    result.vendor_lines.some(
+      (l, i) => l.id !== (row.vendor_lines[i]?.id ?? ''),
+    )
+  ) {
+    row.vendor_lines = result.vendor_lines
+    applyOverride(id, { vendor_lines: result.vendor_lines })
+    persistOverrides()
+  }
 }
 
 function loadOverrides(): void {
@@ -192,7 +225,25 @@ export function upsertFinancial(row: FinancialRecord): void {
   const normalized = normalizeRecord(row)
   records.set(normalized.id, normalized)
   applyOverride(normalized.id, normalized)
-  bump()
+  bump(normalized.id)
+}
+
+/**
+ * Overlay rows loaded from Supabase. DB wins over fixture for matching ids;
+ * fixture-only rows remain until edited/persisted.
+ */
+export function replaceFinancialsFromDb(rows: FinancialRecord[]): void {
+  if (!rows.length) return
+  for (const raw of rows) {
+    const normalized = normalizeRecord(raw)
+    records.set(normalized.id, normalized)
+    // Keep localStorage in sync so a cold boot before hydrate still shows DB edits
+    // once hydrate has run at least once in this browser.
+    applyOverride(normalized.id, normalized)
+  }
+  rebuild()
+  persistOverrides()
+  for (const l of listeners) l()
 }
 
 function commitVendorLines(
@@ -220,7 +271,7 @@ function commitVendorLines(
     pay_terms: rolled.pay_terms,
     is_legacy: false,
   })
-  bump()
+  bump(id)
   return computeFields(row)
 }
 
@@ -336,14 +387,14 @@ export function updateFinancialField(
         vendor_paid: rolled.vendor_paid,
         bill_logged_in_qb: rolled.bill_logged_in_qb,
       })
-      bump()
+      bump(id)
       return
     }
   }
 
   Object.assign(row, patch)
   applyOverride(id, patch)
-  bump()
+  bump(id)
 }
 
 /** Batch-update several fields on one row (trip identity edit). */
@@ -418,13 +469,13 @@ export function updateFinancialRecord(
     })
     Object.assign(row, rolled)
     applyOverride(id, rolled)
-    bump()
+    bump(id)
     return computeFields(row)
   }
 
   Object.assign(row, next)
   applyOverride(id, next)
-  bump()
+  bump(id)
   return computeFields(row)
 }
 
@@ -455,15 +506,22 @@ export function markReferralMonthPaidOut(opts: {
   if (!needle || !opts.monthKey) return 0
   const paid = opts.paid !== false
   let n = 0
+  const touched: string[] = []
   for (const row of records.values()) {
     if ((row.referral_name ?? '').trim().toLowerCase() !== needle) continue
     if (referralFlightMonthKey(row.date_of_flight) !== opts.monthKey) continue
     if (row.referral_paid_out === paid) continue
     row.referral_paid_out = paid
     applyOverride(row.id, { referral_paid_out: paid })
+    touched.push(row.id)
     n += 1
   }
-  if (n) bump()
+  if (n) {
+    rebuild()
+    persistOverrides()
+    for (const l of listeners) l()
+    for (const id of touched) schedulePersist(id)
+  }
   return n
 }
 
