@@ -141,7 +141,13 @@ function Chip({
 
 function chipTone(chip: string): 'muted' | 'gold' | 'late' {
   if (chip.includes('forklift required')) return 'late'
-  if (chip.includes('courier') || chip.includes('forklift')) return 'gold'
+  if (
+    chip.includes('courier') ||
+    chip.includes('forklift') ||
+    chip.includes('AWB')
+  ) {
+    return 'gold'
+  }
   return 'muted'
 }
 
@@ -947,6 +953,7 @@ export default function DispatchCenterPage() {
             service_pattern: t.service_pattern,
             forklift_required: t.forklift_required,
             forklift_recommended: t.forklift_recommended,
+            awb_needed: t.awb_needed,
             quick: t.quick,
             legs: t.legs,
             offers: t.offers.map((o) => ({

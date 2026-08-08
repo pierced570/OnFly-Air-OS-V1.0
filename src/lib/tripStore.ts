@@ -456,6 +456,12 @@ export type TripStoreRow = {
   hard_deadline_at?: string | null
   forklift_recommended?: boolean
   forklift_required?: boolean
+  /**
+   * INTL cargo: desk still needs to create a House Air Waybill.
+   * Set when availability is sent (or on book); cleared when AWB is done.
+   */
+  awb_needed?: boolean
+  awb_cleared_at?: string | null
   /** Client portal street / door addresses (pickup & drop-off cards). */
   portal_pickup_address?: string | null
   portal_dropoff_address?: string | null

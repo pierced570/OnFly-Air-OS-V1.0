@@ -326,6 +326,15 @@ export async function sendAvailabilityPings(
     }
   }
   await persistOffersTrip(tripId)
+  // INTL cargo: flag AWB creation once availability goes out.
+  if (targeted.length > missedNames.length) {
+    try {
+      const { flagAwbIfNeeded } = await import('@/lib/awbFlagFlow')
+      flagAwbIfNeeded(tripId)
+    } catch (e) {
+      console.warn('[offers] AWB flag failed', e)
+    }
+  }
   const requireDelivery = opts?.requireDelivery !== false
   if (requireDelivery && targeted.length > 0 && missedNames.length > 0) {
     throw new Error(
