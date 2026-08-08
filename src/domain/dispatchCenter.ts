@@ -186,6 +186,7 @@ type TripInput = {
   service_pattern?: string | null
   forklift_required?: boolean
   forklift_recommended?: boolean
+  awb_needed?: boolean
   quick?: {
     po?: string
     client_name?: string
@@ -233,6 +234,7 @@ function missionChips(t: TripInput): string[] | undefined {
   if (t.service_pattern) chips.push(t.service_pattern)
   if (t.forklift_required) chips.push('forklift required')
   else if (t.forklift_recommended) chips.push('forklift recommended')
+  if (t.awb_needed) chips.push('AWB needed')
   if (
     t.service_pattern === 'D2D' ||
     t.service_pattern === 'D2A' ||
