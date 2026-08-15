@@ -16,7 +16,10 @@ import {
   availabilityPingHtml,
   availabilityPingSmsWithLink,
   availabilityPingWithLink,
+  missionGoEmail,
+  missionGoSms,
   standDownBody,
+  standDownEmail,
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
 import { absoluteAppUrl, appPublicUrl } from '@/lib/appUrl'
@@ -1182,6 +1185,61 @@ function canSms(cell: string | null | undefined, isMock?: boolean): boolean {
   return Boolean(cell?.trim()) && !isMock
 }
 
+/**
+ * Notify one operator of win or stand-down on the same channel(s) used for
+ * the original trip-offer request (SMS / email / both).
+ */
+async function notifyOperatorBookOutcome(
+  offer: OfferRow,
+  kind: 'won' | 'stood_down',
+  lane: string,
+): Promise<void> {
+  const email = createEmailAdapter()
+  const smsLive = isSmsDeliveryEnabled()
+  let channel = normalizeQuoteLinkChannel(offer.quote_link_channel)
+  if (!smsLive && channel === 'sms') channel = 'email'
+
+  const go = missionGoEmail({
+    lane,
+    tail: offer.tail,
+    typeName: offer.type_name,
+  })
+  const down = standDownEmail(lane)
+  const smsBody =
+    kind === 'won'
+      ? missionGoSms(lane, offer.tail || 'TBD')
+      : standDownBody(lane)
+  const mail = kind === 'won' ? go : down
+
+  if (
+    smsLive &&
+    channelIncludesSms(channel) &&
+    canSms(offer.contact_cell, offer.contact_cell_is_mock)
+  ) {
+    try {
+      const comms = createCommsAdapter()
+      await comms.send({
+        channel: 'sms',
+        to: offer.contact_cell!,
+        body: smsBody,
+      })
+    } catch (e) {
+      console.warn('[book] operator SMS failed', offer.operator_name, e)
+    }
+  }
+  if (channelIncludesEmail(channel) && offer.contact_email?.includes('@')) {
+    try {
+      await email.send({
+        to: offer.contact_email.trim(),
+        subject: mail.subject,
+        text: mail.text,
+      })
+    } catch (e) {
+      console.warn('[book] operator email failed', offer.operator_name, e)
+    }
+  }
+}
+
 export async function acceptHardQuote(
   token: string,
   opts?: { actor?: string },
@@ -1231,13 +1289,15 @@ export async function acceptHardQuote(
       }
     }
   }
-  const comms = createCommsAdapter()
   const email = createEmailAdapter()
   const fresh = getTrip(trip.id)!
   const selected = fresh.offers.find((o) => o.state === 'selected')
   const { portalTrackingUrlForTrip } = await import('@/lib/etaSheetSender')
   const trackPath = portalTrackingUrlForTrip(fresh.id)
 
+  // Client loop — SMS tracking tip when we have cells (invoice/ETA emails are
+  // desk-confirmed on Approved with preset To + contact picker).
+  const comms = createCommsAdapter()
   for (const cell of recipientCells(fresh)) {
     await comms.send({
       channel: 'sms',
@@ -1246,12 +1306,8 @@ export async function acceptHardQuote(
     })
   }
 
-  if (selected && canSms(selected.contact_cell, selected.contact_cell_is_mock)) {
-    await comms.send({
-      channel: 'sms',
-      to: selected.contact_cell,
-      body: `OnFly: mission is a go for ${fresh.lane}. Tail ${selected.tail} assigned. Dispatch will confirm details.`,
-    })
+  if (selected) {
+    await notifyOperatorBookOutcome(selected, 'won', fresh.lane)
   }
 
   for (const o of fresh.offers) {
@@ -1259,15 +1315,10 @@ export async function acceptHardQuote(
     if (
       o.state === 'available' ||
       o.state === 'quoted' ||
-      o.state === 'pinged'
+      o.state === 'pinged' ||
+      o.state === 'selected'
     ) {
-      if (canSms(o.contact_cell, o.contact_cell_is_mock)) {
-        await comms.send({
-          channel: 'sms',
-          to: o.contact_cell,
-          body: standDownBody(fresh.lane),
-        })
-      }
+      await notifyOperatorBookOutcome(o, 'stood_down', fresh.lane)
       mutateTrip(trip.id, (t) => {
         const row = t.offers.find((x) => x.id === o.id)!
         row.state = 'stood_down'

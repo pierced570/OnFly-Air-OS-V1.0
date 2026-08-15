@@ -87,6 +87,48 @@ export function standDownBody(lane: string): string {
   return `OnFly trip ${lane} is covered — thank you for the fast response. You're first in line on the next one.`
 }
 
+/** Email subject/body when an operator does not get the trip. */
+export function standDownEmail(lane: string): { subject: string; text: string } {
+  return {
+    subject: `OnFly update — ${lane}`,
+    text: [
+      `Thanks for quoting ${lane}.`,
+      '',
+      'Another carrier is covering this one. We appreciate the fast turnaround — you\'re first in line on the next fit.',
+      '',
+      '— OnFly Air dispatch',
+    ].join('\n'),
+  }
+}
+
+/** SMS when the operator wins the trip. */
+export function missionGoSms(lane: string, tail: string): string {
+  const t = tail.trim() || 'TBD'
+  return `OnFly: mission is a go for ${lane}. Tail ${t} assigned. Dispatch will confirm details.`
+}
+
+/** Email when the operator wins the trip. */
+export function missionGoEmail(opts: {
+  lane: string
+  tail?: string | null
+  typeName?: string | null
+}): { subject: string; text: string } {
+  const lane = opts.lane.trim() || 'your trip'
+  const tail = (opts.tail ?? '').trim() || 'TBD'
+  const type = (opts.typeName ?? '').trim()
+  return {
+    subject: `OnFly — you're on ${lane}`,
+    text: [
+      `Mission is a go for ${lane}.`,
+      '',
+      `Aircraft: ${type ? `${type} · ` : ''}${tail}`,
+      'Dispatch will confirm details and timing shortly.',
+      '',
+      '— OnFly Air dispatch',
+    ].join('\n'),
+  }
+}
+
 export const DISCLOSURE_295_24_TEMPLATE =
   'Part 295.24 disclosure: The air carrier providing this charter is a certificated Part 135 operator. OnFly Air acts as broker and is not the air carrier.'
 
