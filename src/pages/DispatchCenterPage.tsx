@@ -537,6 +537,9 @@ function OfferTripList({
   const [quotingTripId, setQuotingTripId] = useState<string | null>(
     () => (isQuotes || isSubmitted ? (focusTripId ?? null) : null),
   )
+  const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
+    null,
+  )
   const [updateError, setUpdateError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -545,8 +548,20 @@ function OfferTripList({
     if (isOffers && searchParams.get('update') === '1') {
       setUpdatingTripId(focusTripId)
       setAddingTripId(null)
+      setQuotingTripId(null)
+      setManualQuoteOfferId(null)
     } else if (isOffers && searchParams.get('add') === '1') {
       setAddingTripId(focusTripId)
+      setUpdatingTripId(null)
+      setQuotingTripId(null)
+      setManualQuoteOfferId(null)
+    } else if (
+      (isOffers || isSubmitted || isQuotes) &&
+      searchParams.get('manualQuote')
+    ) {
+      setManualQuoteOfferId(searchParams.get('manualQuote'))
+      setQuotingTripId(focusTripId)
+      setAddingTripId(null)
       setUpdatingTripId(null)
     }
   }, [focusTripId, searchParams, isQuotes, isSubmitted, isOffers])
@@ -557,7 +572,10 @@ function OfferTripList({
       Boolean(
         tripId && cards.some((c) => c.trip_id === tripId || c.id === tripId),
       )
-    if (quotingTripId && !stillHere(quotingTripId)) setQuotingTripId(null)
+    if (quotingTripId && !stillHere(quotingTripId)) {
+      setQuotingTripId(null)
+      setManualQuoteOfferId(null)
+    }
     if (updatingTripId && !stillHere(updatingTripId)) setUpdatingTripId(null)
     if (addingTripId && !stillHere(addingTripId)) setAddingTripId(null)
   }, [cards, quotingTripId, updatingTripId, addingTripId])
@@ -593,7 +611,7 @@ function OfferTripList({
             />
             {c.recipients &&
             c.recipients.length > 0 &&
-            !((isQuotes || isSubmitted) && quoting) ? (
+            !((isQuotes || isSubmitted || isOffers) && quoting) ? (
               <ul className="mt-3 space-y-3 border-t border-border/40 pt-3">
                 {isOffers ? (
                   <>
@@ -664,6 +682,23 @@ function OfferTripList({
                                 Acknowledge
                               </button>
                             ) : null}
+                            {r.status !== 'no' &&
+                            r.status !== 'stood_down' &&
+                            c.trip_id ? (
+                              <button
+                                type="button"
+                                className="font-semibold text-gold hover:text-gold-lt"
+                                onClick={() => {
+                                  setUpdatingTripId(null)
+                                  setAddingTripId(null)
+                                  setUpdateError(null)
+                                  setManualQuoteOfferId(r.offer_id)
+                                  setQuotingTripId(c.trip_id!)
+                                }}
+                              >
+                                Add quote manually
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="text-muted hover:text-cream"
@@ -712,7 +747,7 @@ function OfferTripList({
                   </>
                 )}
               </ul>
-            ) : isOffers ? (
+            ) : isOffers && !quoting ? (
               <p className="mt-3 text-sm text-muted">
                 Not sent to any operators yet — use Send to more operators.
               </p>
@@ -740,11 +775,15 @@ function OfferTripList({
                 onClose={() => setAddingTripId(null)}
               />
             ) : null}
-            {quoting && (isQuotes || isSubmitted) && c.trip_id ? (
+            {quoting && c.trip_id ? (
               <DeskOfferQuoteWorkbench
-                key={`quote-${c.trip_id}`}
+                key={`quote-${c.trip_id}-${manualQuoteOfferId ?? 'none'}`}
                 tripId={c.trip_id}
-                onClose={() => setQuotingTripId(null)}
+                initialManualOfferId={manualQuoteOfferId}
+                onClose={() => {
+                  setQuotingTripId(null)
+                  setManualQuoteOfferId(null)
+                }}
               />
             ) : null}
             <div className="mt-3.5 flex flex-wrap gap-2">
@@ -761,6 +800,7 @@ function OfferTripList({
                     setUpdatingTripId(null)
                     setAddingTripId(null)
                     setUpdateError(null)
+                    setManualQuoteOfferId(null)
                     setQuotingTripId(quoting ? null : c.trip_id!)
                   }}
                 >
@@ -769,6 +809,31 @@ function OfferTripList({
                     : isSubmitted
                       ? 'Compare & price for client'
                       : 'Compare & price quotes'}
+                </button>
+              ) : null}
+              {isOffers && c.trip_id && c.recipients && c.recipients.length > 0 ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-lg px-3.5 py-2.5 text-sm font-semibold',
+                    quoting
+                      ? 'border border-gold/50 bg-transparent text-gold hover:bg-gold/10'
+                      : 'border border-gold/50 bg-gold/10 text-gold hover:bg-gold/20',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setAddingTripId(null)
+                    setUpdateError(null)
+                    if (quoting) {
+                      setQuotingTripId(null)
+                      setManualQuoteOfferId(null)
+                    } else {
+                      setManualQuoteOfferId(null)
+                      setQuotingTripId(c.trip_id!)
+                    }
+                  }}
+                >
+                  {quoting ? 'Close quotes' : 'Add quote manually'}
                 </button>
               ) : null}
               {isOffers && c.trip_id ? (
@@ -783,6 +848,7 @@ function OfferTripList({
                   onClick={() => {
                     setUpdatingTripId(null)
                     setQuotingTripId(null)
+                    setManualQuoteOfferId(null)
                     setUpdateError(null)
                     setAddingTripId(adding ? null : c.trip_id!)
                   }}
@@ -802,6 +868,7 @@ function OfferTripList({
                   onClick={() => {
                     setAddingTripId(null)
                     setQuotingTripId(null)
+                    setManualQuoteOfferId(null)
                     setUpdateError(null)
                     setUpdatingTripId(editing ? null : c.trip_id!)
                   }}
