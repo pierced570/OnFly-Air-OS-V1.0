@@ -32,6 +32,13 @@ export async function runOnBookedAutomations(
   attachManifestDocument(trip)
 
   try {
+    const { flagAwbIfNeeded } = await import('@/lib/awbFlagFlow')
+    flagAwbIfNeeded(tripId)
+  } catch (e) {
+    console.warn('[onBooked] AWB flag failed', e)
+  }
+
+  try {
     const { ensureFinancialFromBookedTrip } = await import(
       '@/lib/ensureFinancialFromTrip'
     )

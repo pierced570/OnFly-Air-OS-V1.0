@@ -2,7 +2,9 @@
 
 /* ── Brand tokens ─────────────────────────────────────────── */
 /* Dispatcher dark (default). --ink / --cream are semantic page/text so
-   existing bg-ink + text-cream utilities flip under light appearance. */
+   existing bg-ink + text-cream utilities flip under light appearance.
+   Re-bind --color-* on each theme root so Tailwind utilities resolve against
+   that island (nested client previews must not inherit flipped desk tokens). */
 [data-theme="dispatcher"],
 [data-theme="dispatcher"][data-appearance="dark"] {
   --ink: #0c0c0e;
@@ -25,6 +27,21 @@
   --text: var(--cream);
   --bg: var(--ink);
   color-scheme: dark;
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-gold: var(--gold);
+  --color-gold-lt: var(--gold-lt);
+  --color-cream: var(--cream);
+  --color-muted: var(--muted);
+  --color-attn: var(--attn);
+  --color-late: var(--late);
+  --color-onplan: var(--onplan);
+  --color-vfr: var(--vfr);
+  --color-mvfr: var(--mvfr);
+  --color-ifr: var(--ifr);
+  --color-lifr: var(--lifr);
 }
 
 /* Dispatcher light — warm cream desk, same gold accents.
@@ -50,6 +67,21 @@ html[data-appearance="light"] [data-theme="dispatcher"] {
   --text: #141414;
   --bg: #f4efe6;
   color-scheme: light;
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-gold: var(--gold);
+  --color-gold-lt: var(--gold-lt);
+  --color-cream: var(--cream);
+  --color-muted: var(--muted);
+  --color-attn: var(--attn);
+  --color-late: var(--late);
+  --color-onplan: var(--onplan);
+  --color-vfr: var(--vfr);
+  --color-mvfr: var(--mvfr);
+  --color-ifr: var(--ifr);
+  --color-lifr: var(--lifr);
 }
 
 /* Gold CTAs need near-black labels even when --ink is the light page color */
@@ -58,7 +90,9 @@ html[data-appearance="light"] [data-theme="dispatcher"] .bg-gold {
   color: var(--brand-ink);
 }
 
-[data-theme="client"] {
+/* Client surfaces stay cream + near-black even when nested in light desk. */
+[data-theme="client"],
+html[data-appearance="light"] [data-theme="client"] {
   --ink: #0c0c0e;
   --surface: #f7f2e3;
   --surface-2: #ffffff;
@@ -78,6 +112,21 @@ html[data-appearance="light"] [data-theme="dispatcher"] .bg-gold {
   --text: var(--ink);
   --bg: var(--cream);
   color-scheme: light;
+  --color-ink: #0c0c0e;
+  --color-surface: #f7f2e3;
+  --color-surface-2: #ffffff;
+  --color-border: #e5dfd0;
+  --color-gold: #c9a227;
+  --color-gold-lt: #e3b341;
+  --color-cream: #f7f2e3;
+  --color-muted: #6b6560;
+  --color-attn: #c9a227;
+  --color-late: #c0392b;
+  --color-onplan: #2e7d32;
+  --color-vfr: #2e7d32;
+  --color-mvfr: #1e88e5;
+  --color-ifr: #c0392b;
+  --color-lifr: #8e24aa;
 }
 
 @theme {

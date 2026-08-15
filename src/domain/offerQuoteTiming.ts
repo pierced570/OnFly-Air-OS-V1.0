@@ -8,6 +8,10 @@ import { lookupAirport } from '@/domain/airports'
 
 export const DEFAULT_QUICK_TURN_MIN = 40
 
+/** Grey reference placeholders on the operator quote form (not prefilled). */
+export const REFERENCE_TTP_MIN = 90
+export const REFERENCE_LIVE_LEG_MIN = 75
+
 export type HrsMins = { hours: number; minutes: number }
 
 export function totalMinutesFromHrsMins(h: HrsMins): number {

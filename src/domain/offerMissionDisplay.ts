@@ -4,6 +4,7 @@
  */
 
 import { formatAirportShort, lookupAirport } from '@/domain/airports'
+import { STANDARD_TOOLING } from '@/domain/standardTooling'
 
 export type OfferAirportLine = {
   icao: string
@@ -92,7 +93,10 @@ export function parsePayloadSummary(summary: string): {
 } {
   const raw = summary.trim()
   if (!raw) {
-    return { passengers: 'None listed', cargo: 'No cargo submitted' }
+    return {
+      passengers: 'None listed',
+      cargo: STANDARD_TOOLING.operator_assumed,
+    }
   }
 
   const paxMatch = raw.match(
@@ -118,7 +122,8 @@ export function parsePayloadSummary(summary: string): {
     .replace(/^cargo(?:\s+only)?\s*[·+\-–,]*\s*/i, '')
     .trim()
   if (isEmptyCargo(cargo)) {
-    cargo = 'No cargo submitted'
+    // Nothing entered → assume standard small cargo/tools with dims + weight.
+    cargo = STANDARD_TOOLING.operator_assumed
   }
 
   return { passengers, cargo }
@@ -168,7 +173,8 @@ export function buildOfferMissionBadges(opts: {
   if (opts.nm != null && opts.nm > 0) {
     badges.push({ label: `${Math.round(opts.nm)} NM` })
   }
-  const cargo = scrubOpsNoiseFromCargo(opts.payload_summary)
+  // Use parsed cargo (assumes standard small cargo/tools when empty).
+  const cargo = parsePayloadSummary(opts.payload_summary).cargo
   const pc = cargo.match(/(\d+)\s*(?:pc|pcs|piece|pieces|skid|skids|pallet|pallets)\b/i)
   if (pc) {
     badges.push({
