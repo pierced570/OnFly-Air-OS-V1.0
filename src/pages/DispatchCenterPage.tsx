@@ -12,7 +12,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { BookedTripActionsPanel } from '@/components/BookedTripActionsPanel'
 import { LiveTrackingCardActions } from '@/components/LiveTrackingCardActions'
@@ -53,18 +53,20 @@ import {
   subscribeTrips,
 } from '@/lib/tripStore'
 
-const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
-const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
 
-type ToolId = 'scratchpad' | 'parse' | 'quick' | 'chat' | 'newtrip'
+type ToolId = 'quick' | 'chat' | 'newtrip'
 
 /** Work tools drawer — Quick Dispatch + Start new request (scratchpad) are top-of-page. */
-const TOOLS: { id: Exclude<ToolId, 'quick'>; label: string; hint: string }[] = [
-  { id: 'scratchpad', label: 'Scratchpad', hint: 'Live phone notes' },
-  { id: 'parse', label: 'Parse & shortlist', hint: 'Notes → operators' },
+const TOOLS: {
+  id: ToolId | 'scratchpad' | 'parse'
+  label: string
+  hint: string
+}[] = [
+  { id: 'scratchpad', label: 'Scratchpad', hint: 'Same full-page notes as pre-login' },
+  { id: 'parse', label: 'Parse & shortlist', hint: 'Same desk flow as login → parse' },
   { id: 'newtrip', label: 'Start new request', hint: 'Full trip request form' },
   { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
 ]
@@ -820,6 +822,7 @@ function OfferTripList({
 const DRAWER_IDS = new Set<string>(DISPATCH_DRAWERS.map((d) => d.id))
 
 export default function DispatchCenterPage() {
+  const nav = useNavigate()
   const [searchParams] = useSearchParams()
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -840,11 +843,7 @@ export default function DispatchCenterPage() {
         : 'requests',
   )
   const [tool, setTool] = useState<ToolId | null>(() =>
-    toolParam === 'quick' ||
-    toolParam === 'scratchpad' ||
-    toolParam === 'parse' ||
-    toolParam === 'chat' ||
-    toolParam === 'newtrip'
+    toolParam === 'quick' || toolParam === 'chat' || toolParam === 'newtrip'
       ? toolParam
       : null,
   )
@@ -852,11 +851,18 @@ export default function DispatchCenterPage() {
 
   // Deep link from desk send / share: /dispatch?drawer=offers&focus=<tripId>
   // Quick Dispatch: /dispatch?tool=quick
+  // Scratchpad / parse use the same routes as pre-login: / and /desk
   useEffect(() => {
+    if (toolParam === 'scratchpad') {
+      nav('/', { replace: true })
+      return
+    }
+    if (toolParam === 'parse') {
+      nav('/desk', { replace: true })
+      return
+    }
     if (
       toolParam === 'quick' ||
-      toolParam === 'scratchpad' ||
-      toolParam === 'parse' ||
       toolParam === 'chat' ||
       toolParam === 'newtrip'
     ) {
@@ -866,7 +872,7 @@ export default function DispatchCenterPage() {
     if (!drawerParam || !DRAWER_IDS.has(drawerParam)) return
     setTool(null)
     setOpenDrawer(drawerParam as DispatchDrawerId)
-  }, [drawerParam, toolParam])
+  }, [drawerParam, toolParam, nav])
 
   // Pull operator Yes/No / quotes into this browser without a manual refresh.
   useEffect(() => startLiveTripRefresh(4000), [])
@@ -993,8 +999,6 @@ export default function DispatchCenterPage() {
 
   if (tool) {
     const Tool = {
-      scratchpad: ScratchPadPage,
-      parse: DeskParsePage,
       quick: QuickDispatchPage,
       chat: ChatPage,
       newtrip: NewTripPage,
@@ -1021,14 +1025,7 @@ export default function DispatchCenterPage() {
               <p className="p-6 text-sm text-muted">Loading tool…</p>
             }
           >
-            {tool === 'scratchpad' ? (
-              <ScratchPadPage
-                embedded
-                onParse={() => setTool('parse')}
-              />
-            ) : (
-              <Tool />
-            )}
+            <Tool />
           </Suspense>
         </div>
       </div>
@@ -1049,10 +1046,7 @@ export default function DispatchCenterPage() {
         <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              setOpenDrawer('requests')
-              setTool('scratchpad')
-            }}
+            onClick={() => nav('/')}
             className="rounded-lg border border-gold/55 bg-transparent px-4 py-2.5 text-sm font-semibold text-gold hover:bg-gold/10"
           >
             Start new request
@@ -1090,10 +1084,17 @@ export default function DispatchCenterPage() {
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setTool('parse')}
+              onClick={() => nav('/desk')}
               className="rounded-lg bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt"
             >
               Parse & shortlist
+            </button>
+            <button
+              type="button"
+              onClick={() => nav('/')}
+              className="rounded-lg border border-gold/50 px-3 py-2 text-xs font-medium text-gold hover:bg-gold/10"
+            >
+              Open scratchpad
             </button>
             <button
               type="button"
@@ -1169,9 +1170,15 @@ export default function DispatchCenterPage() {
               key={t.id}
               type="button"
               onClick={() => {
-                // Scratchpad stays tied to the Trip requests waterfall —
-                // Back from the tool lands on that drawer, not a blank center.
-                if (t.id === 'scratchpad') setOpenDrawer('requests')
+                // Same destinations as pre-login: scratchpad = /, parse = /desk
+                if (t.id === 'scratchpad') {
+                  nav('/')
+                  return
+                }
+                if (t.id === 'parse') {
+                  nav('/desk')
+                  return
+                }
                 setTool(t.id)
               }}
               className="rounded-xl border border-border/70 bg-surface-2 px-3 py-3 text-left hover:border-gold/40"
