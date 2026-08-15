@@ -139,7 +139,7 @@ export function renderLogisticsQuoteEmailHtml(
   return `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#ece8df;font-family:Georgia,'Times New Roman',serif;color:#0c0c0e">
   <div style="max-width:680px;margin:0 auto;padding:20px 12px">
-    <div style="background:#fff;border:1px solid #e5dfd0;border-radius:12px;overflow:hidden">
+    <div style="background:#f7f2e3;border:1px solid #e5dfd0;border-radius:12px;overflow:hidden">
       <div style="background:#0c0c0e;padding:18px 20px">
         <table style="width:100%;border-collapse:collapse">
           <tr>
@@ -196,7 +196,6 @@ function renderOptionCard(
 ): string {
   const recommended = Boolean(opt.recommended)
   const border = recommended ? '#c9a227' : '#e5dfd0'
-  const bg = recommended ? '#fffdf6' : '#fff'
   const badge = opt.recommended_badge
     ? `<div style="margin:-14px -14px 10px;padding:5px 12px;background:#c9a227;color:#0c0c0e;font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;border-radius:10px 10px 0 0">${escapeHtml(opt.recommended_badge)}</div>`
     : ''
@@ -206,9 +205,10 @@ function renderOptionCard(
       ? `<table style="width:100%;border-collapse:separate;border-spacing:4px 0;margin:0 0 10px"><tr>${opt.milestones
           .map((m) => {
             const hi = m.key === 'delivered'
-            return `<td style="width:25%;vertical-align:top;background:${hi ? '#0c0c0e' : '#f3ebda'};border-radius:6px;padding:6px 6px">
+            const ring = hi ? 'border:1px solid #c9a227;' : ''
+            return `<td style="width:25%;vertical-align:top;background:#f7f2e3;${ring}border-radius:6px;padding:6px 6px">
               <div style="font-size:8px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${hi ? '#c9a227' : '#6b6560'}">${escapeHtml(m.label)}</div>
-              <div style="margin-top:2px;font-size:14px;font-weight:700;font-family:ui-monospace,Menlo,monospace;color:${hi ? '#c9a227' : '#0c0c0e'}">${escapeHtml(m.clock)}</div>
+              <div style="margin-top:2px;font-size:14px;font-weight:700;font-family:ui-monospace,Menlo,monospace;color:#0c0c0e">${escapeHtml(m.clock)}</div>
             </td>`
           })
           .join('')}</tr></table>`
@@ -218,12 +218,10 @@ function renderOptionCard(
     ? `${acceptUrl.trim()}${acceptUrl.includes('?') ? '&' : '?'}option=${encodeURIComponent(opt.offer_id)}`
     : null
   const cta = acceptHref
-    ? recommended
-      ? `<a href="${escapeAttr(acceptHref)}" style="display:inline-block;background:#0c0c0e;color:#c9a227;text-decoration:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:13px">Accept ${escapeHtml(opt.option_number_label)}</a>`
-      : `<a href="${escapeAttr(acceptHref)}" style="display:inline-block;background:#fff;color:#c9a227;border:1px solid #c9a227;text-decoration:none;padding:8px 14px;border-radius:8px;font-weight:700;font-size:13px">Accept ${escapeHtml(opt.option_number_label)}</a>`
+    ? `<a href="${escapeAttr(acceptHref)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:13px">Accept ${escapeHtml(opt.option_number_label)}</a>`
     : ''
 
-  return `<div style="margin:0 0 12px;padding:14px;border:2px solid ${border};border-radius:12px;background:${bg}">
+  return `<div style="margin:0 0 12px;padding:14px;border:1px solid ${border};border-radius:12px;background:#fff">
   ${badge}
   <table style="width:100%;border-collapse:collapse;margin:0 0 10px">
     <tr>
