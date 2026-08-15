@@ -52,6 +52,7 @@ import {
   recommendForDeskDraft,
   sendDeskTripOffers,
   syncDeskDraftDerived,
+  withAutofilledStandardCargo,
   type DeskDraft,
   type DeskLeg,
 } from '@/lib/scratchDeskFlow'
@@ -141,7 +142,10 @@ export default function DeskParsePage() {
   }
 
   async function applyRecommend(next: DeskDraft) {
-    const synced = syncDeskDraftDerived(next)
+    const synced = withAutofilledStandardCargo(next)
+    if (synced.pieces_text !== next.pieces_text) {
+      setDraft(synced)
+    }
     const rec = await recommendForDeskDraft(synced)
     setCandidates(rec.candidates)
     setRecError(rec.error ?? null)
@@ -1055,11 +1059,12 @@ export default function DeskParsePage() {
                 {STANDARD_TOOLING.ui_label}
               </div>
               <p className="mt-1 text-[11px] text-muted">
-                Tools default to 12×12×12 @ 75 lb.
+                Left blank → autofills 12×12×12 @ 75 lb (standard tooling).
               </p>
             </div>
             <StandardCargoFields
               piecesText={draft.pieces_text}
+              showDefaultsWhenBlank={draft.payload_kind !== 'pax'}
               onDimsChange={(dims) => {
                 const pieces_text = composeStandardCargoDims(dims)
                 const next = syncDeskDraftDerived({ ...draft, pieces_text })
@@ -1429,12 +1434,19 @@ const dimBox =
 
 function StandardCargoFields({
   piecesText,
+  showDefaultsWhenBlank = true,
   onDimsChange,
 }: {
   piecesText: string
+  /** When blank, show 12×12×12 @ 75 as real values (cargo missions). */
+  showDefaultsWhenBlank?: boolean
   onDimsChange: (dims: StandardCargoDims) => void
 }) {
-  const dims = parseStandardCargoDims(piecesText)
+  const parsed = parseStandardCargoDims(piecesText)
+  const dims =
+    !piecesText.trim() && showDefaultsWhenBlank
+      ? STANDARD_CARGO_DEFAULTS
+      : parsed
 
   function patchDim(key: keyof StandardCargoDims, value: string) {
     onDimsChange({ ...dims, [key]: value })
