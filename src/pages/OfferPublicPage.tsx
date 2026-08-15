@@ -19,6 +19,7 @@ import {
 /**
  * Operator trip-offer board — Yes/No, then cream quote form matching desk UI.
  * Never recommend a tail; never say "bid".
+ * After a quote is in, the magic link is locked (email/SMS reopen = confirmation only).
  */
 export default function OfferPublicPage() {
   const { token } = useParams()
@@ -27,7 +28,9 @@ export default function OfferPublicPage() {
     offer: OfferRow
   } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [step, setStep] = useState<'avail' | 'quote' | 'no' | 'done'>('avail')
+  const [step, setStep] = useState<
+    'avail' | 'quote' | 'no' | 'done' | 'closed' | 'expired'
+  >('avail')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,8 +46,10 @@ export default function OfferPublicPage() {
           return
         }
         const st = hit.offer.state
-        if (st === 'quoted') setStep('done')
+        if (st === 'quoted' || st === 'selected') setStep('done')
         else if (st === 'unavailable') setStep('no')
+        else if (st === 'stood_down') setStep('closed')
+        else if (st === 'expired') setStep('expired')
         else if (st === 'available') setStep('quote')
         else setStep('avail')
       })
@@ -89,6 +94,7 @@ export default function OfferPublicPage() {
   const { trip } = found
   const ready = trip.ready_label || 'scheduled'
   const asap = /asap/i.test(ready)
+  const alreadySelected = found.offer.state === 'selected'
 
   async function onAvail(yes: boolean) {
     setBusy(true)
@@ -97,6 +103,10 @@ export default function OfferPublicPage() {
       const r = await respondOfferAvailability(token!, yes)
       if (!r.ok) {
         setError(r.reason)
+        if (/already submitted/i.test(r.reason)) setStep('done')
+        else if (/unavailable/i.test(r.reason)) setStep('no')
+        else if (/closed/i.test(r.reason)) setStep('closed')
+        else if (/expired/i.test(r.reason)) setStep('expired')
         return
       }
       setStep(yes ? 'quote' : 'no')
@@ -137,9 +147,11 @@ export default function OfferPublicPage() {
               setError(null)
               void submitOperatorQuote(token!, values)
                 .then(() => setStep('done'))
-                .catch((err) =>
-                  setError(err instanceof Error ? err.message : String(err)),
-                )
+                .catch((err) => {
+                  const msg = err instanceof Error ? err.message : String(err)
+                  setError(msg)
+                  if (/already submitted/i.test(msg)) setStep('done')
+                })
                 .finally(() => setBusy(false))
             }}
           />
@@ -155,10 +167,13 @@ export default function OfferPublicPage() {
         data-theme="client"
       >
         <div className="mx-auto max-w-lg rounded-2xl border border-[#E4DDD0] bg-white px-5 py-6 shadow-sm">
-          <h1 className="text-xl font-semibold">Quote submitted</h1>
+          <h1 className="text-xl font-semibold">
+            {alreadySelected ? "You're selected" : 'Quote submitted'}
+          </h1>
           <p className="mt-2 text-sm text-[#6F675C]">
-            Dispatch has been notified. We&apos;ll confirm by your preferred
-            channel.
+            {alreadySelected
+              ? 'Dispatch has this trip with your operation. This link is closed — contact OnFly if anything changes.'
+              : "Dispatch has your quote. This link is closed so it can't be submitted again from email or text. Contact OnFly dispatch if you need to change it."}
           </p>
         </div>
       </div>
@@ -176,6 +191,40 @@ export default function OfferPublicPage() {
           <p className="mt-2 text-sm text-[#6F675C]">
             Marked unavailable. You&apos;re still in line for the next trip that
             fits.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'closed') {
+    return (
+      <div
+        className="min-h-dvh bg-[#F9F7F2] px-4 py-10 text-ink"
+        data-theme="client"
+      >
+        <div className="mx-auto max-w-lg rounded-2xl border border-[#E4DDD0] bg-white px-5 py-6 shadow-sm">
+          <h1 className="text-xl font-semibold">Trip offer closed</h1>
+          <p className="mt-2 text-sm text-[#6F675C]">
+            This offer is no longer open for your operation. Thanks for
+            standing by.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'expired') {
+    return (
+      <div
+        className="min-h-dvh bg-[#F9F7F2] px-4 py-10 text-ink"
+        data-theme="client"
+      >
+        <div className="mx-auto max-w-lg rounded-2xl border border-[#E4DDD0] bg-white px-5 py-6 shadow-sm">
+          <h1 className="text-xl font-semibold">Link expired</h1>
+          <p className="mt-2 text-sm text-[#6F675C]">
+            This trip offer link has expired. Ask OnFly dispatch if you still
+            want in.
           </p>
         </div>
       </div>
