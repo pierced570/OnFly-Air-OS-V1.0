@@ -249,9 +249,18 @@ export default function AcceptPage() {
                   setAcceptedLabel(opt.option_number_label)
                   setAccepted(true)
                 })
-                .catch((e) =>
-                  setError(e instanceof Error ? e.message : String(e)),
-                )
+                .catch((e) => {
+                  const raw = e instanceof Error ? e.message : String(e)
+                  // Never show RingCentral / SMS plumbing to clients — booking
+                  // may already have succeeded; desk sees console.warn logs.
+                  if (/ringcentral|sms failed|send-sms|parameter \[from\]/i.test(raw)) {
+                    console.warn('[accept] suppressed client-facing notify error', raw)
+                    setAcceptedLabel(opt.option_number_label)
+                    setAccepted(true)
+                    return
+                  }
+                  setError(raw)
+                })
                 .finally(() => setBusyId(null))
             },
             onDeny: () => {
