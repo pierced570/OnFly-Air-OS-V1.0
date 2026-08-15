@@ -5,10 +5,12 @@ import { addClient } from '@/lib/clientStore'
 import { setScratchPadBody } from '@/lib/scratchPadStore'
 import {
   deskDraftFromExtract,
+  emptyDeskDraft,
   newDeskLeg,
   parseScratchToDeskDraft,
   recommendForDeskDraft,
   syncDeskDraftDerived,
+  withAutofilledStandardCargo,
 } from '@/lib/scratchDeskFlow'
 
 describe('scratch desk parse', () => {
@@ -155,5 +157,64 @@ Ready ASAP`),
     )
     // No hazmat on draft — still scores; SE pistons should be filtered/gated by rules.
     expect(rec.error).toBeUndefined()
+  })
+
+  it('autofills standard 12×12×12 @ 75 when cargo dims are blank', async () => {
+    const blank = withAutofilledStandardCargo(
+      emptyDeskDraft({
+        cargo_only: true,
+        pieces_text: '',
+        legs: [
+          newDeskLeg({
+            origin_icao: 'KCVG',
+            dest_icao: 'KHPN',
+            origin_text: 'KCVG',
+            dest_text: 'KHPN',
+          }),
+        ],
+      }),
+    )
+    expect(blank.pieces_text).toMatch(/standard tooling/i)
+    expect(blank.pieces_text).toMatch(/12x12x12 @ 75/i)
+
+    const rec = await recommendForDeskDraft(
+      emptyDeskDraft({
+        cargo_only: true,
+        pieces_text: '',
+        legs: [
+          newDeskLeg({
+            origin_icao: 'KCVG',
+            dest_icao: 'KHPN',
+            origin_text: 'KCVG',
+            dest_text: 'KHPN',
+          }),
+        ],
+      }),
+    )
+    expect(rec.error).toBeUndefined()
+    expect(rec.lane).toBe('KCVG→KHPN')
+  })
+
+  it('does not invent cargo on pure pax drafts', () => {
+    const pax = withAutofilledStandardCargo(
+      syncDeskDraftDerived(
+        emptyDeskDraft({
+          cargo_only: false,
+          pax_count: 2,
+          pieces_text: '',
+          legs: [
+            newDeskLeg({
+              origin_icao: 'KCVG',
+              dest_icao: 'KHPN',
+              origin_text: 'KCVG',
+              dest_text: 'KHPN',
+              pax: 2,
+            }),
+          ],
+        }),
+      ),
+    )
+    expect(pax.payload_kind).toBe('pax')
+    expect(pax.pieces_text).toBe('')
   })
 })

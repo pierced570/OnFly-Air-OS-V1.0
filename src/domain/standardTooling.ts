@@ -75,6 +75,23 @@ export function composeStandardCargoDims(d: StandardCargoDims): string {
   return line
 }
 
+/** Pieces line for desk when dispatcher leaves Standard cargo blank. */
+export function standardCargoPiecesText(): string {
+  return composeStandardCargoDims(STANDARD_CARGO_DEFAULTS)
+}
+
+/**
+ * True when Standard cargo boxes are blank / unusable for routing —
+ * dispatcher left the defaults as placeholders only.
+ */
+export function needsStandardCargoAutofill(piecesText: string): boolean {
+  const t = piecesText.trim()
+  if (!t) return true
+  // Label alone without dims still needs the fixed piece line.
+  if (/^standard tooling$/i.test(t)) return true
+  return false
+}
+
 export function isStandardToolingPieces(piecesText: string): boolean {
   const t = piecesText.trim()
   if (!t) return false

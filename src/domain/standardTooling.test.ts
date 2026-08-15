@@ -6,8 +6,10 @@ import {
   mentionsRoundTrip,
   mentionsScheduledTiming,
   mentionsTools,
+  needsStandardCargoAutofill,
   operatorMissionSummary,
   parseStandardCargoDims,
+  standardCargoPiecesText,
   toolingDimsForParse,
 } from './standardTooling'
 
@@ -87,5 +89,17 @@ describe('standardTooling', () => {
       height: '60',
       weight: '800',
     })
+  })
+
+  it('knows when blank pieces need standard cargo autofill', () => {
+    expect(needsStandardCargoAutofill('')).toBe(true)
+    expect(needsStandardCargoAutofill('   ')).toBe(true)
+    expect(needsStandardCargoAutofill('standard tooling')).toBe(true)
+    expect(
+      needsStandardCargoAutofill(
+        `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`,
+      ),
+    ).toBe(false)
+    expect(standardCargoPiecesText()).toMatch(/12x12x12 @ 75/i)
   })
 })
