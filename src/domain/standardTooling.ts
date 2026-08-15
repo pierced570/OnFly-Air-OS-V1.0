@@ -75,6 +75,32 @@ export function composeStandardCargoDims(d: StandardCargoDims): string {
   return line
 }
 
+/** Pieces line when dispatcher leaves Standard cargo blank. */
+export function standardCargoPiecesText(): string {
+  return composeStandardCargoDims(STANDARD_CARGO_DEFAULTS)
+}
+
+/** True when Standard cargo is blank / unusable for routing. */
+export function needsStandardCargoAutofill(piecesText: string): boolean {
+  const t = piecesText.trim()
+  if (!t) return true
+  if (/^standard tooling$/i.test(t)) return true
+  return false
+}
+
+/**
+ * Prefer the labeled standard-tooling line when a single composed piece is
+ * exactly 12×12×12 @ 75; otherwise keep the free-text dims (incl. multi-piece).
+ */
+export function normalizeDeskPiecesText(composed: string): string {
+  const t = composed.trim()
+  if (!t) return ''
+  if (isStandardToolingPieces(t) && !/[;\n]/.test(t)) {
+    return standardCargoPiecesText()
+  }
+  return t
+}
+
 export function isStandardToolingPieces(piecesText: string): boolean {
   const t = piecesText.trim()
   if (!t) return false

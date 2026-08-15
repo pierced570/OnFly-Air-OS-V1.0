@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { isSmsDeliveryEnabled } from '@/adapters/comms'
 import { AirportSelect } from '@/components/AirportSelect'
+import { DimsTripleInput } from '@/components/DimsTripleInput'
 import PhoneInput from '@/components/PhoneInput'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
 import type { EndpointKind } from '@/domain/missionMode'
@@ -17,11 +18,9 @@ import {
 } from '@/domain/quoteLinkChannel'
 import type { Candidate } from '@/domain/routing'
 import {
-  STANDARD_CARGO_DEFAULTS,
   STANDARD_TOOLING,
-  composeStandardCargoDims,
-  parseStandardCargoDims,
-  type StandardCargoDims,
+  normalizeDeskPiecesText,
+  toolingDimsForParse,
 } from '@/domain/standardTooling'
 import {
   addClient,
@@ -52,6 +51,7 @@ import {
   recommendForDeskDraft,
   sendDeskTripOffers,
   syncDeskDraftDerived,
+  withAutofilledStandardCargo,
   type DeskDraft,
   type DeskLeg,
 } from '@/lib/scratchDeskFlow'
@@ -141,7 +141,10 @@ export default function DeskParsePage() {
   }
 
   async function applyRecommend(next: DeskDraft) {
-    const synced = syncDeskDraftDerived(next)
+    const synced = withAutofilledStandardCargo(next)
+    if (synced.pieces_text !== next.pieces_text) {
+      setDraft(synced)
+    }
     const rec = await recommendForDeskDraft(synced)
     setCandidates(rec.candidates)
     setRecError(rec.error ?? null)
@@ -1014,13 +1017,22 @@ export default function DeskParsePage() {
                       <input
                         type="number"
                         min={0}
+                        inputMode="numeric"
                         className={input}
-                        value={leg.pax}
-                        onChange={(e) =>
+                        value={leg.pax || ''}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          if (raw === '') {
+                            patchLeg(leg.id, { pax: 0 })
+                            return
+                          }
+                          const n = Number(raw)
+                          if (!Number.isFinite(n)) return
                           patchLeg(leg.id, {
-                            pax: Number(e.target.value) || 0,
+                            pax: Math.max(0, Math.floor(n)),
                           })
-                        }
+                        }}
                       />
                     </label>
                   )}
@@ -1055,16 +1067,24 @@ export default function DeskParsePage() {
                 {STANDARD_TOOLING.ui_label}
               </div>
               <p className="mt-1 text-[11px] text-muted">
-                Tools default to 12×12×12 @ 75 lb.
+                Left blank → autofills 12×12×12 @ 75 lb. Use + Add cargo for
+                another piece.
               </p>
             </div>
-            <StandardCargoFields
-              piecesText={draft.pieces_text}
-              onDimsChange={(dims) => {
-                const pieces_text = composeStandardCargoDims(dims)
+            <DimsTripleInput
+              unit="in"
+              value={toolingDimsForParse(draft.pieces_text)}
+              placeholders={{ l: '12', w: '12', h: '12', weight: '75' }}
+              onChange={(composed) => {
+                const pieces_text = normalizeDeskPiecesText(composed)
                 const next = syncDeskDraftDerived({ ...draft, pieces_text })
                 setDraft(next)
-                if (dims.length && dims.width && dims.height && dims.weight) {
+                const rowsOk = composed
+                  .split(/[;\n]+/)
+                  .map((p) => p.trim())
+                  .filter(Boolean)
+                  .every((p) => /\d+\s*[x×]\s*\d+\s*[x×]\s*\d+/i.test(p))
+                if (rowsOk && pieces_text.trim()) {
                   setBusy(true)
                   void applyRecommend(next).finally(() => setBusy(false))
                 }
@@ -1420,84 +1440,6 @@ export default function DeskParsePage() {
           </section>
         </>
       )}
-    </div>
-  )
-}
-
-const dimBox =
-  'mt-1 w-full rounded-md border border-border bg-ink px-2 py-2.5 text-center avionic text-sm text-cream outline-none focus:border-gold placeholder:text-muted'
-
-function StandardCargoFields({
-  piecesText,
-  onDimsChange,
-}: {
-  piecesText: string
-  onDimsChange: (dims: StandardCargoDims) => void
-}) {
-  const dims = parseStandardCargoDims(piecesText)
-
-  function patchDim(key: keyof StandardCargoDims, value: string) {
-    onDimsChange({ ...dims, [key]: value })
-  }
-
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <label className={label}>
-        Length (in)
-        <input
-          type="number"
-          min={0}
-          step="any"
-          inputMode="decimal"
-          className={dimBox}
-          value={dims.length}
-          placeholder={STANDARD_CARGO_DEFAULTS.length}
-          onChange={(e) => patchDim('length', e.target.value)}
-          aria-label="Standard cargo length inches"
-        />
-      </label>
-      <label className={label}>
-        Width (in)
-        <input
-          type="number"
-          min={0}
-          step="any"
-          inputMode="decimal"
-          className={dimBox}
-          value={dims.width}
-          placeholder={STANDARD_CARGO_DEFAULTS.width}
-          onChange={(e) => patchDim('width', e.target.value)}
-          aria-label="Standard cargo width inches"
-        />
-      </label>
-      <label className={label}>
-        Height (in)
-        <input
-          type="number"
-          min={0}
-          step="any"
-          inputMode="decimal"
-          className={dimBox}
-          value={dims.height}
-          placeholder={STANDARD_CARGO_DEFAULTS.height}
-          onChange={(e) => patchDim('height', e.target.value)}
-          aria-label="Standard cargo height inches"
-        />
-      </label>
-      <label className={label}>
-        Weight (lb)
-        <input
-          type="number"
-          min={0}
-          step="any"
-          inputMode="decimal"
-          className={dimBox}
-          value={dims.weight}
-          placeholder={STANDARD_CARGO_DEFAULTS.weight}
-          onChange={(e) => patchDim('weight', e.target.value)}
-          aria-label="Standard cargo weight pounds"
-        />
-      </label>
     </div>
   )
 }

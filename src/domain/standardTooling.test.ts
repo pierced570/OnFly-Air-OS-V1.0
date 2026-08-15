@@ -6,8 +6,11 @@ import {
   mentionsRoundTrip,
   mentionsScheduledTiming,
   mentionsTools,
+  needsStandardCargoAutofill,
+  normalizeDeskPiecesText,
   operatorMissionSummary,
   parseStandardCargoDims,
+  standardCargoPiecesText,
   toolingDimsForParse,
 } from './standardTooling'
 
@@ -87,5 +90,16 @@ describe('standardTooling', () => {
       height: '60',
       weight: '800',
     })
+  })
+
+  it('normalizes single standard piece; keeps multi-piece free text', () => {
+    expect(needsStandardCargoAutofill('')).toBe(true)
+    expect(standardCargoPiecesText()).toMatch(/12x12x12 @ 75/i)
+    expect(normalizeDeskPiecesText('12x12x12 @ 75ea')).toMatch(
+      /standard tooling/i,
+    )
+    expect(
+      normalizeDeskPiecesText('12x12x12 @ 75ea; 48x40x60 @ 800ea'),
+    ).toBe('12x12x12 @ 75ea; 48x40x60 @ 800ea')
   })
 })

@@ -24,7 +24,9 @@ import {
 import { generateCandidates, type Candidate } from '@/domain/routing'
 import {
   mentionsRoundTrip,
+  needsStandardCargoAutofill,
   operatorMissionSummary,
+  standardCargoPiecesText,
   todayLocalDate,
   toolingDimsForParse,
 } from '@/domain/standardTooling'
@@ -394,6 +396,23 @@ export function syncDeskDraftDerived(draft: DeskDraft): DeskDraft {
   }
 }
 
+/**
+ * When Standard cargo is blank on a cargo / both mission, fill 12×12×12 @ 75 lb
+ * so recommend + send don't block on empty placeholders.
+ */
+export function withAutofilledStandardCargo(draft: DeskDraft): DeskDraft {
+  const synced = syncDeskDraftDerived(draft)
+  if (synced.payload_kind === 'pax') return synced
+  if (!needsStandardCargoAutofill(synced.pieces_text)) {
+    const parsed = parseDims(toolingDimsForParse(synced.pieces_text || '')).pieces
+    if (parsed.length) return synced
+  }
+  return syncDeskDraftDerived({
+    ...synced,
+    pieces_text: standardCargoPiecesText(),
+  })
+}
+
 /** Blank desk draft — A2A until endpoints/cargo say otherwise. */
 export function emptyDeskDraft(partial?: Partial<DeskDraft>): DeskDraft {
   return syncDeskDraftDerived({
@@ -452,7 +471,7 @@ export async function recommendForDeskDraft(
     matrix?: RecommendMatrixConfig
   },
 ): Promise<DeskRecommendResult> {
-  const draft = syncDeskDraftDerived(draftIn)
+  const draft = withAutofilledStandardCargo(draftIn)
   const client = draft.client_id ? getClient(draft.client_id) : undefined
   const client_rules = clientRulesForRouting(client, draft.payload_kind)
   const rule_chips = draft.client_id ? clientRuleChips(draft.client_id) : []
@@ -619,7 +638,7 @@ export async function sendDeskTripOffers(opts: {
   contactOverrides?: Record<string, OfferContactOverride>
 }): Promise<TripStoreRow> {
   if (!opts.candidates.length) throw new Error('Select at least one operator')
-  const draft = syncDeskDraftDerived(opts.draft)
+  const draft = withAutofilledStandardCargo(opts.draft)
   const leg0 = draft.legs[0]
   const lane =
     draft.legs
