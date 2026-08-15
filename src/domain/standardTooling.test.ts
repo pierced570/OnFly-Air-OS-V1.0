@@ -7,6 +7,7 @@ import {
   mentionsScheduledTiming,
   mentionsTools,
   needsStandardCargoAutofill,
+  normalizeDeskPiecesText,
   operatorMissionSummary,
   parseStandardCargoDims,
   standardCargoPiecesText,
@@ -91,7 +92,7 @@ describe('standardTooling', () => {
     })
   })
 
-  it('knows when blank pieces need standard cargo autofill', () => {
+  it('normalizes single standard piece; keeps multi-piece free text', () => {
     expect(needsStandardCargoAutofill('')).toBe(true)
     expect(needsStandardCargoAutofill('   ')).toBe(true)
     expect(needsStandardCargoAutofill('standard tooling')).toBe(true)
@@ -101,5 +102,11 @@ describe('standardTooling', () => {
       ),
     ).toBe(false)
     expect(standardCargoPiecesText()).toMatch(/12x12x12 @ 75/i)
+    expect(normalizeDeskPiecesText('12x12x12 @ 75ea')).toMatch(
+      /standard tooling/i,
+    )
+    expect(
+      normalizeDeskPiecesText('12x12x12 @ 75ea; 48x40x60 @ 800ea'),
+    ).toBe('12x12x12 @ 75ea; 48x40x60 @ 800ea')
   })
 })

@@ -21,6 +21,13 @@ type Props = {
   className?: string
   /** Show qty + weight helpers around the L×W×H triple. */
   showQtyWeight?: boolean
+  /** Override dim/weight placeholders (desk standard cargo uses 12 / 75). */
+  placeholders?: {
+    l?: string
+    w?: string
+    h?: string
+    weight?: string
+  }
 }
 
 function rowsEqual(a: DimsTripleRow[], b: DimsTripleRow[]): boolean {
@@ -45,8 +52,13 @@ export function DimsTripleInput({
   unit,
   className = '',
   showQtyWeight = true,
+  placeholders,
 }: Props) {
   const [rows, setRows] = useState<DimsTripleRow[]>(() => parseDimsLines(value))
+  const phL = placeholders?.l ?? (unit === 'ft' ? '4' : '48')
+  const phW = placeholders?.w ?? (unit === 'ft' ? '3.5' : '40')
+  const phH = placeholders?.h ?? (unit === 'ft' ? '5' : '60')
+  const phWt = placeholders?.weight ?? '800'
 
   // Re-hydrate from parent (clear / load request). Keep trailing empty rows
   // the user just added via "+ Add cargo".
@@ -160,7 +172,7 @@ export function DimsTripleInput({
                     inputMode="decimal"
                     value={row.l}
                     onChange={(e) => patchRow(index, { l: e.target.value })}
-                    placeholder={unit === 'ft' ? '4' : '48'}
+                    placeholder={phL}
                     className={box}
                     aria-label={`Cargo ${index + 1} length in ${unitLabel}`}
                   />
@@ -177,7 +189,7 @@ export function DimsTripleInput({
                     inputMode="decimal"
                     value={row.w}
                     onChange={(e) => patchRow(index, { w: e.target.value })}
-                    placeholder={unit === 'ft' ? '3.5' : '40'}
+                    placeholder={phW}
                     className={box}
                     aria-label={`Cargo ${index + 1} width in ${unitLabel}`}
                   />
@@ -194,7 +206,7 @@ export function DimsTripleInput({
                     inputMode="decimal"
                     value={row.h}
                     onChange={(e) => patchRow(index, { h: e.target.value })}
-                    placeholder={unit === 'ft' ? '5' : '60'}
+                    placeholder={phH}
                     className={box}
                     aria-label={`Cargo ${index + 1} height in ${unitLabel}`}
                   />
@@ -212,7 +224,7 @@ export function DimsTripleInput({
                     onChange={(e) =>
                       patchRow(index, { weight: e.target.value })
                     }
-                    placeholder="800"
+                    placeholder={phWt}
                     className={box}
                     aria-label={`Cargo ${index + 1} weight pounds each`}
                   />

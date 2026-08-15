@@ -217,4 +217,28 @@ Ready ASAP`),
     expect(pax.payload_kind).toBe('pax')
     expect(pax.pieces_text).toBe('')
   })
+
+  it('does not require cargo when pax is set (partial dims ignored)', async () => {
+    const draft = syncDeskDraftDerived(
+      emptyDeskDraft({
+        cargo_only: false,
+        pax_count: 2,
+        // Partial typing used to flip payload to "both" and hard-fail recommend.
+        pieces_text: '12',
+        legs: [
+          newDeskLeg({
+            origin_icao: 'KCLT',
+            dest_icao: 'KDFW',
+            origin_text: 'KCLT',
+            dest_text: 'KDFW',
+            pax: 2,
+          }),
+        ],
+      }),
+    )
+    expect(draft.payload_kind).toBe('pax')
+    const rec = await recommendForDeskDraft(draft)
+    expect(rec.error).toBeUndefined()
+    expect(rec.lane).toBe('KCLT→KDFW')
+  })
 })
