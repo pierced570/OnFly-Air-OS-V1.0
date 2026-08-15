@@ -6,6 +6,7 @@ import {
   formatOfferDestinationConfirm,
   formatOfferQuoteSummary,
   formatOfferSentAt,
+  listSubmittedQuotes,
   offerRecipientStatus,
   offerRecipientStatusLabel,
 } from './offerRecipients'
@@ -24,6 +25,48 @@ describe('offerRecipients', () => {
     )
     expect(offerRecipientStatusLabel('awaiting', { notified: true })).toBe(
       'Notified — awaiting reply',
+    )
+  })
+
+  it('lists all submitted quotes including stood-down losers', () => {
+    const rows = listSubmittedQuotes([
+      {
+        id: 'o1',
+        operator_name: 'Alpha',
+        state: 'stood_down',
+        price_net: 5200,
+        type_name: 'King Air 200',
+        tail: 'N100AA',
+      },
+      {
+        id: 'o2',
+        operator_name: 'Bravo',
+        state: 'selected',
+        price_net: 4800,
+        type_name: 'PC-12',
+        tail: 'N200BB',
+      },
+      {
+        id: 'o3',
+        operator_name: 'Silent',
+        state: 'pinged',
+        price_net: null,
+      },
+      {
+        id: 'o4',
+        operator_name: 'NoPrice',
+        state: 'stood_down',
+        price_net: null,
+      },
+    ])
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.operator_name).toBe('Bravo')
+    expect(rows[0]?.status).toBe('selected')
+    expect(rows[1]?.operator_name).toBe('Alpha')
+    expect(rows[1]?.status).toBe('stood_down')
+    expect(rows[1]?.status_label).toBe('Stood down')
+    expect(rows.map((r) => r.status_label).join(' ').toLowerCase()).not.toContain(
+      'bid',
     )
   })
 

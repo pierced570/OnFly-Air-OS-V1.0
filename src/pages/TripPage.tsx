@@ -19,6 +19,8 @@ import { EtaSheetPanel } from '@/components/EtaSheetPanel'
 import { ParticipantsPanel } from '@/components/ParticipantsPanel'
 import { TripPassengersPanel } from '@/components/TripPassengersPanel'
 import { TripThreadPanel } from '@/components/TripThreadPanel'
+import { SubmittedQuotesHistory } from '@/components/SubmittedQuotesHistory'
+import { listSubmittedQuotes } from '@/domain/offerRecipients'
 import {
   acknowledgeCheckpoint,
   listCheckpoints,
@@ -115,6 +117,7 @@ export default function TripPage() {
   const nextStates = (
     ['in_progress', 'delivered', 'invoiced', 'closed', 'cancelled', 'lost'] as const
   ).filter((to) => canTransition(trip.state, to))
+  const quoteHistory = listSubmittedQuotes(trip.offers)
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-8">
@@ -447,6 +450,12 @@ export default function TripPage() {
       )}
 
       <TripThreadPanel trip={trip} />
+
+      {quoteHistory.length > 0 ? (
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <SubmittedQuotesHistory rows={quoteHistory} />
+        </section>
+      ) : null}
 
       <section className="rounded-lg border border-border bg-surface p-4">
         <h2 className="text-xs uppercase tracking-wider text-muted">Event log</h2>
