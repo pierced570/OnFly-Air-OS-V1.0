@@ -311,3 +311,57 @@ export function offerQuoteFacts(o: {
     fee_label,
   }
 }
+
+/** Offers that actually submitted a quote — winner + stood-down losers. */
+export type SubmittedQuoteRow = {
+  offer_id: string
+  operator_name: string
+  status: OfferRecipientStatus
+  status_label: string
+  quote_facts: OfferQuoteFacts
+}
+
+/**
+ * Ledger of every operator quote on a trip (selected + stood down + still
+ * quoted). Sorted: Selected first, then NET ascending. Pure — no UI.
+ */
+export function listSubmittedQuotes(
+  offers: Array<{
+    id: string
+    operator_name: string
+    state: OfferStateLike
+    price_net?: number | null
+    time_to_position_min?: number | null
+    quick_turn_min?: number | null
+    live_leg_min?: number | null
+    fee_scope?: string | null
+    type_name?: string | null
+    tail?: string | null
+  }>,
+): SubmittedQuoteRow[] {
+  const rows: SubmittedQuoteRow[] = []
+  for (const o of offers) {
+    if (
+      o.state !== 'quoted' &&
+      o.state !== 'selected' &&
+      o.state !== 'stood_down'
+    ) {
+      continue
+    }
+    const facts = offerQuoteFacts(o)
+    if (!facts) continue
+    const status = offerRecipientStatus(o.state)
+    rows.push({
+      offer_id: o.id,
+      operator_name: o.operator_name,
+      status,
+      status_label: offerRecipientStatusLabel(status),
+      quote_facts: facts,
+    })
+  }
+  return rows.sort((a, b) => {
+    if (a.status === 'selected' && b.status !== 'selected') return -1
+    if (b.status === 'selected' && a.status !== 'selected') return 1
+    return a.quote_facts.price_net - b.quote_facts.price_net
+  })
+}

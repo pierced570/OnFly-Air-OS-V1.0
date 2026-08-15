@@ -142,6 +142,15 @@ describe('dispatchCenter', () => {
               price_net: 5000,
               magic_token: 'tok',
             },
+            {
+              id: 'o-lose',
+              operator_name: 'Delta Airlift',
+              state: 'stood_down',
+              type_name: 'King Air 200',
+              tail: 'N99DA',
+              price_net: 5400,
+              magic_token: 'tok-lose',
+            },
           ],
         },
         {
@@ -166,6 +175,24 @@ describe('dispatchCenter', () => {
           lane: 'KATL→KMIA',
           state: 'in_progress',
           legs: [{ status: 'active' }],
+          offers: [
+            {
+              id: 'o-live-win',
+              operator_name: 'Echo Jets',
+              state: 'selected',
+              price_net: 6100,
+              type_name: 'CJ3',
+              tail: 'N7EJ',
+              magic_token: 'tok-live',
+            },
+            {
+              id: 'o-live-lose',
+              operator_name: 'Foxtrot',
+              state: 'stood_down',
+              price_net: 6400,
+              magic_token: 'tok-live-lose',
+            },
+          ],
         },
       ],
     })
@@ -182,10 +209,17 @@ describe('dispatchCenter', () => {
       client_total: 6000,
       po: 'PO-9001',
     })
+    expect(buckets.approved[0]?.quote_history).toHaveLength(2)
+    expect(buckets.approved[0]?.quote_history?.[0]?.status).toBe('selected')
+    expect(buckets.approved[0]?.quote_history?.[1]?.operator_name).toBe(
+      'Delta Airlift',
+    )
+    expect(buckets.approved[0]?.quote_history?.[1]?.status).toBe('stood_down')
     expect(buckets.quotes).toHaveLength(1)
     expect(buckets.quotes[0]?.approvable).toBe(true)
     expect(buckets.quotes[0]?.approve_offer_id).toBe('o-q')
     expect(buckets.tracking).toHaveLength(1)
+    expect(buckets.tracking[0]?.quote_history).toHaveLength(2)
     expect(buckets.tracking[0]?.deletable).toBe(false)
     expect(buckets.tracking[0]?.code).toBe('T-5')
     expect(buckets.tracking[0]?.meta).toBe('Live')

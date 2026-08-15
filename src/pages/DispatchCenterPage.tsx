@@ -19,6 +19,7 @@ import { LiveTrackingCardActions } from '@/components/LiveTrackingCardActions'
 import { DeskOfferQuoteWorkbench } from '@/components/DeskOfferQuoteWorkbench'
 import { OfferAddOperatorPanel } from '@/components/OfferAddOperatorPanel'
 import { OfferQuoteFactsBlock } from '@/components/OfferQuoteFactsBlock'
+import { SubmittedQuotesHistory } from '@/components/SubmittedQuotesHistory'
 import {
   DISPATCH_DRAWERS,
   buildDispatchDrawers,
@@ -380,6 +381,14 @@ function CardList({
                   </div>
                 ) : null}
               </dl>
+            ) : null}
+            {(showBookedActions || showTrackingActions) &&
+            c.quote_history &&
+            c.quote_history.length > 0 ? (
+              <SubmittedQuotesHistory
+                rows={c.quote_history}
+                className="mt-3 border-t border-border/40 pt-3"
+              />
             ) : null}
             {showBookedActions && tripId ? (
               <BookedTripActionsPanel tripId={tripId} />

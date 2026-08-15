@@ -8,11 +8,13 @@ import type { TripState } from '@/domain/stateMachine'
 import {
   describeOfferDestination,
   formatOfferSentAt,
+  listSubmittedQuotes,
   offerQuoteFacts,
   offerRecipientStatus,
   offerRecipientStatusLabel,
   type OfferQuoteFacts,
   type OfferRecipientStatus,
+  type SubmittedQuoteRow,
 } from '@/domain/offerRecipients'
 
 export const DISPATCH_DRAWERS = [
@@ -46,14 +48,14 @@ export const DISPATCH_DRAWERS = [
     label: 'Approved trips',
     shortLabel: 'Approved',
     blurb:
-      'Booked — confirm invoice + tracking recipients (client presets), then start live tracking',
+      'Booked — confirm invoice + tracking recipients; all submitted quotes stay on the card',
   },
   {
     id: 'tracking',
     label: 'Live tracking',
     shortLabel: 'Live tracking',
     blurb:
-      'In progress — portal, chat, then Log as complete when the mission is done',
+      'In progress — portal, chat, quote history, then Log as complete when done',
   },
 ] as const
 
@@ -101,6 +103,11 @@ export type DispatchCard = {
     client_total: number | null
     po: string | null
   } | null
+  /**
+   * All operator quotes that were submitted (selected + stood down).
+   * Populated on Approved / Live tracking so losers stay visible.
+   */
+  quote_history?: SubmittedQuoteRow[]
   /** Structured quote facts (submitted quotes stage). */
   quote_facts?: OfferQuoteFacts | null
 }
@@ -447,6 +454,11 @@ export function buildDispatchDrawers(input: {
           ? mapRecipients(t, drawer, { quotedOnly: true })
           : undefined
 
+    const quote_history =
+      drawer === 'approved' || drawer === 'tracking'
+        ? listSubmittedQuotes(t.offers ?? [])
+        : undefined
+
     out[drawer].push({
       kind: 'trip',
       id: t.id,
@@ -476,6 +488,7 @@ export function buildDispatchDrawers(input: {
           : undefined,
       chips: drawer === 'tracking' ? undefined : chips,
       booking,
+      quote_history,
     })
   }
 
