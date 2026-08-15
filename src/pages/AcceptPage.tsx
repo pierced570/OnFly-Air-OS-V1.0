@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { ClientLogisticsQuotePreview } from '@/components/ClientLogisticsQuotePreview'
 import {
@@ -13,6 +13,7 @@ import {
   hardQuoteClientStatusLabel,
 } from '@/domain/hardQuoteClientStatus'
 import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
+import { resolveTripByAcceptToken } from '@/lib/db/hydrateTrips'
 import {
   acceptHardQuoteOption,
   declineHardQuote,
@@ -22,19 +23,56 @@ import {
   listTripsStable,
   payloadKindOf,
   subscribeTrips,
+  type TripStoreRow,
 } from '@/lib/tripStore'
 
 export default function AcceptPage() {
   const { token } = useParams()
   const [searchParams] = useSearchParams()
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
-  const trip = token ? getTripByAcceptToken(token) : null
+  const [resolved, setResolved] = useState<TripStoreRow | null>(() =>
+    token ? getTripByAcceptToken(token) : null,
+  )
+  const [loading, setLoading] = useState(() =>
+    Boolean(token && !getTripByAcceptToken(token)),
+  )
   const [accepted, setAccepted] = useState(false)
   const [declined, setDeclined] = useState(false)
   const [acceptedLabel, setAcceptedLabel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  useEffect(() => {
+    let cancelled = false
+    const trimmed = (token ?? '').trim()
+    if (!trimmed) {
+      setResolved(null)
+      setLoading(false)
+      return
+    }
+    const local = getTripByAcceptToken(trimmed)
+    if (local) {
+      setResolved(local)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    void resolveTripByAcceptToken(trimmed)
+      .then((hit) => {
+        if (cancelled) return
+        setResolved(hit)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token])
+
+  // Stay in sync after accept/decline mutates the store.
+  const live = token ? getTripByAcceptToken(token) : null
+  const trip = live ?? resolved
   const highlightOptionId = searchParams.get('option')
   const hq = trip?.hard_quote ?? null
 
@@ -77,10 +115,22 @@ export default function AcceptPage() {
     )
   }, [trip, hq])
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#ECE8DF] p-8 text-ink" data-theme="client">
+        <p>Loading quote…</p>
+      </div>
+    )
+  }
+
   if (!trip || !hq) {
     return (
       <div className="min-h-screen bg-[#ECE8DF] p-8 text-ink" data-theme="client">
         <p>This accept link is invalid or expired.</p>
+        <p className="mt-2 text-sm text-muted">
+          Ask OnFly dispatch to resend the quote — the link may not have saved
+          when it was first emailed.
+        </p>
       </div>
     )
   }

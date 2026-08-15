@@ -8,6 +8,7 @@ import { normalizeTripPassengers } from '@/domain/tripPassengers'
 import { getClient } from '@/lib/clientStore'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import {
+  getTripByAcceptToken,
   getTripByOfferToken,
   replaceTripsFromDb,
   type OfferRow,
@@ -231,6 +232,43 @@ export async function resolveOfferByToken(token: string): Promise<{
   const mapped = mapTripShellRow(tripDb as Record<string, unknown>, offers)
   replaceTripsFromDb([mapped])
   return getTripByOfferToken(trimmed)
+}
+
+/**
+ * Public client accept page: resolve accept_token from session, else load that
+ * trip from Supabase so clients on another device can open the email link.
+ */
+export async function resolveTripByAcceptToken(
+  token: string,
+): Promise<TripStoreRow | null> {
+  const trimmed = token.trim()
+  if (!trimmed) return null
+  const local = getTripByAcceptToken(trimmed)
+  if (local) return local
+  if (!canPersist()) return null
+
+  const tripRows = await safeQuery('trips.by_accept_token', () =>
+    db()
+      .from('trips')
+      .select(TRIP_PUBLIC_SELECT)
+      .eq('accept_token', trimmed)
+      .is('discarded_at', null)
+      .limit(1),
+  )
+  const tripDb = Array.isArray(tripRows) ? tripRows[0] : null
+  if (!tripDb) return null
+  const tripId = String((tripDb as { id: string }).id)
+
+  const allOffers = await safeQuery('offers.for_accept_trip', () =>
+    db().from('offers').select('*').eq('trip_id', tripId),
+  )
+  const offers = (Array.isArray(allOffers) ? allOffers : []).map((r) =>
+    mapOfferDbRow(r as Record<string, unknown>, tripId),
+  )
+
+  const mapped = mapTripShellRow(tripDb as Record<string, unknown>, offers)
+  replaceTripsFromDb([mapped])
+  return getTripByAcceptToken(trimmed)
 }
 
 export async function hydrateTrips(): Promise<number> {

@@ -791,6 +791,10 @@ export async function selectOffersAndHardQuote(
     })
   })
 
+  // Accept links must resolve on other devices — flush token + hard_quote
+  // before email/SMS go out.
+  await flushPersistTrip(tripId)
+
   const recipients = resolveHardQuoteRecipients(trip, toEmails)
   const ccEmails = [
     ...new Set(
