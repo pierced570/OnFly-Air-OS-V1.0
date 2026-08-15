@@ -38,32 +38,33 @@ describe('offerMissionDisplay', () => {
     })
   })
 
-  it('shows No cargo submitted when cargo empty; strips A2A ops noise', () => {
+  it('assumes standard small cargo/tools when cargo empty; strips A2A ops noise', () => {
+    const assumed = 'standard small cargo/tools (12×12×12 @ 75 lb)'
     expect(parsePayloadSummary('2 pax · A2A')).toEqual({
       passengers: '2 passengers',
-      cargo: 'No cargo submitted',
+      cargo: assumed,
     })
     expect(parsePayloadSummary('2 passengers · A2A')).toEqual({
       passengers: '2 passengers',
-      cargo: 'No cargo submitted',
+      cargo: assumed,
     })
     expect(parsePayloadSummary('A2A')).toEqual({
       passengers: 'None listed',
-      cargo: 'No cargo submitted',
+      cargo: assumed,
     })
     expect(parsePayloadSummary('')).toEqual({
       passengers: 'None listed',
-      cargo: 'No cargo submitted',
+      cargo: assumed,
     })
     expect(parsePayloadSummary('2 pax')).toEqual({
       passengers: '2 passengers',
-      cargo: 'No cargo submitted',
+      cargo: assumed,
     })
     expect(
       parsePayloadSummary('2 pax · A2A · forklift required · ground courier'),
     ).toEqual({
       passengers: '2 passengers',
-      cargo: 'No cargo submitted',
+      cargo: assumed,
     })
   })
 
@@ -101,5 +102,16 @@ describe('offerMissionDisplay', () => {
       lane: 'KCAK→KHPN',
       payload_summary: 'cargo only · 1 skid',
     })).toBe('KCAK → KHPN · cargo only')
+  })
+
+  it('badge dims/weight for assumed standard cargo when payload has no pieces', () => {
+    const badges = buildOfferMissionBadges({
+      lane: 'KCAK→KSHV',
+      payload_summary: '3 pax · A2A',
+      ready_label: 'ASAP',
+    })
+    expect(badges.map((b) => b.label)).toEqual(
+      expect.arrayContaining(['1 PC', '12x12x12 IN', '75 LB', 'READY ASAP']),
+    )
   })
 })

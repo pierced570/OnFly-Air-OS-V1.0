@@ -7,14 +7,19 @@
 import { composeDimsLine, parseDimsTriple } from '@/domain/dimsParser'
 
 export const STANDARD_TOOLING = {
-  /** Operator-facing name */
+  /** Desk / parse name (pieces text) */
   label: 'standard tooling',
   /** Desk section label */
   ui_label: 'Standard cargo',
   /** Dims for routing / fit (12×12×12 @ 75 lb) */
   dims_text: '1 piece 12x12x12 @ 75',
-  /** Full phrase on offer / payload summary */
+  /** Full phrase on offer / payload summary (desk + historical) */
   summary: 'standard tooling (12×12×12 @ 75 lb)',
+  /**
+   * Operator trip-offer cargo line when nothing was entered —
+   * assumed standard small cargo/tools with known dims + weight.
+   */
+  operator_assumed: 'standard small cargo/tools (12×12×12 @ 75 lb)',
 } as const
 
 /** Desk L / W / H / weight boxes (inches + lb). */
@@ -136,6 +141,9 @@ export function operatorMissionSummary(opts: {
     } else {
       parts.push(pieces)
     }
+  } else {
+    // Nothing entered → assume standard small cargo/tools with dims + weight.
+    parts.push(STANDARD_TOOLING.operator_assumed)
   }
-  return parts.join(' + ') || 'cargo'
+  return parts.join(' + ')
 }
