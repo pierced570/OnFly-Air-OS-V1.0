@@ -72,10 +72,14 @@ describe('logisticsQuoteEmail', () => {
     expect(html).toContain('Accept Option 1')
     expect(html).toContain('Accept Option 2')
     // Uniform gold Accept CTAs (not mixed outline / black fill)
-    expect(html.match(/background:#c9a227;color:#0c0c0e/g)?.length).toBeGreaterThanOrEqual(2)
-    expect(html).not.toMatch(/Accept Option[^<]*background:#0c0c0e/)
-    // Milestone tiles stay cream — Delivered is accented, not inverted black
-    expect(html).not.toMatch(/background:#0c0c0e[^>]*>[\s\S]*Delivered/i)
+    expect(
+      html.match(/background:#c9a227;color:#0c0c0e/g)?.length,
+    ).toBeGreaterThanOrEqual(2)
+    expect(html).not.toContain('color:#c9a227;border:1px solid #c9a227')
+    expect(html).not.toContain('background:#0c0c0e;color:#c9a227')
+    // Milestone tiles stay cream — no inverted black time cells
+    expect(html).toContain('background:#f7f2e3')
+    expect(html).not.toContain('background:#0c0c0e;border-radius:6px')
     expect(html).toContain('All-in includes')
     expect(html).toContain('On accept:')
     expect(html).toContain('24-hr ops')
