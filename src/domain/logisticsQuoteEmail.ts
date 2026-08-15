@@ -76,7 +76,7 @@ export function renderLogisticsQuoteEmailText(
     lines.push(`Review & accept: ${input.acceptUrl}`, '')
   }
   if (input.disclosureText?.trim()) {
-    lines.push('Part 295.24 disclosure:', input.disclosureText.trim(), '')
+    lines.push(input.disclosureText.trim(), '')
   }
   lines.push(
     'Included: repositioning, crew, fuel, FET, and segment fees where applicable.',
@@ -102,10 +102,7 @@ export function renderLogisticsQuoteEmailHtml(
     .join('')
 
   const disclosure = input.disclosureText?.trim()
-    ? `<div style="margin-top:20px;padding:14px 16px;border:1px solid #e5dfd0;border-radius:8px;background:#fff">
-        <div style="font-weight:600;font-size:13px;margin-bottom:6px;color:#0c0c0e">Part 295.24 disclosure</div>
-        <p style="margin:0;font-size:12px;color:#6b6560;line-height:1.5">${escapeHtml(input.disclosureText.trim())}</p>
-      </div>`
+    ? `<p style="margin:12px 0 0;padding:8px 4px 0;border-top:1px solid #e5dfd0;font-size:9px;line-height:1.35;color:#8a8680">${escapeHtml(input.disclosureText.trim())}</p>`
     : ''
 
   const logoBlock = input.logoUrl?.trim()
@@ -185,7 +182,6 @@ export function renderLogisticsQuoteEmailHtml(
         </table>
 
         <p style="margin:14px 4px 0;font-size:11px;line-height:1.5;color:#9a948a">${escapeHtml(validity)}</p>
-        ${disclosure}
       </div>
 
       <div style="background:#0c0c0e;padding:18px 22px;margin-top:18px">
@@ -203,6 +199,7 @@ export function renderLogisticsQuoteEmailHtml(
       </div>
     </div>
     ${track}
+    ${disclosure}
   </div>
 </body></html>`
 }
