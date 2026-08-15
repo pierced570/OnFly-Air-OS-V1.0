@@ -446,6 +446,34 @@ export async function respondOfferAvailability(
   const found = getTripByOfferToken(token)
   if (!found) return { ok: false, reason: 'invalid offer token' }
   const { trip, offer } = found
+
+  // Already terminal for the operator magic link — no second Yes/No or re-open.
+  if (offer.state === 'quoted' || offer.state === 'selected') {
+    return {
+      ok: false,
+      reason:
+        'Your quote is already submitted. Contact OnFly dispatch if you need to change it.',
+    }
+  }
+  if (offer.state === 'unavailable') {
+    return {
+      ok: false,
+      reason: 'You already marked unavailable for this trip offer.',
+    }
+  }
+  if (offer.state === 'stood_down') {
+    return {
+      ok: false,
+      reason: 'This trip offer is closed for your operation.',
+    }
+  }
+  if (offer.state === 'expired') {
+    return {
+      ok: false,
+      reason: 'This trip offer link has expired.',
+    }
+  }
+
   const now = new Date().toISOString()
   mutateTrip(trip.id, (t) => {
     const o = t.offers.find((x) => x.id === offer.id)!
@@ -497,6 +525,19 @@ async function applyOfferQuote(
   if (!offer) throw new Error('offer not found')
   if (offer.state === 'unavailable' || offer.state === 'stood_down') {
     throw new Error('cannot quote a declined or stood-down offer')
+  }
+  if (offer.state === 'expired') {
+    throw new Error('this trip offer link has expired')
+  }
+  // Operator magic link is one-shot — email/SMS reopen cannot overwrite.
+  // Desk manual entry may still correct a phone quote.
+  if (
+    meta.source === 'operator' &&
+    (offer.state === 'quoted' || offer.state === 'selected')
+  ) {
+    throw new Error(
+      'Your quote is already submitted. Contact OnFly dispatch if you need to change it.',
+    )
   }
   if (['booked', 'in_progress', 'delivered', 'invoiced', 'closed'].includes(trip.state)) {
     throw new Error(`cannot quote from trip state ${trip.state}`)
