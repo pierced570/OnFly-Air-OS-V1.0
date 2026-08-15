@@ -25,6 +25,20 @@ export function hrsMinsFromTotal(totalMin: number): HrsMins {
   return { hours: Math.floor(t / 60), minutes: t % 60 }
 }
 
+/**
+ * Controlled input display for hrs/mins boxes — blank when that part is 0
+ * so operators can backspace zeros (never stuck on a forced "0").
+ */
+export function hrsMinsFieldDisplay(
+  totalMinutes: number | null | undefined,
+  part: 'hours' | 'minutes',
+): string {
+  if (totalMinutes == null) return ''
+  const { hours, minutes } = hrsMinsFromTotal(totalMinutes)
+  const n = part === 'hours' ? hours : minutes
+  return n === 0 ? '' : String(n)
+}
+
 /** First origin→dest pair from a desk lane string. */
 export function parseLaneAirports(lane: string): {
   originIcao: string

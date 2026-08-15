@@ -1,5 +1,6 @@
 import { offerInput, offerLabel } from '@/components/OfferBoardChrome'
 import {
+  hrsMinsFieldDisplay,
   hrsMinsFromTotal,
   totalMinutesFromHrsMins,
 } from '@/domain/offerQuoteTiming'
@@ -65,14 +66,20 @@ export function HrsMinsInput({
             inputMode="numeric"
             min={0}
             className={fieldClass}
-            value={empty || (hours === 0 && minutes === 0) ? '' : hours}
+            value={hrsMinsFieldDisplay(totalMinutes, 'hours')}
             placeholder={
               placeholderTotalMinutes != null ? String(ph.hours) : '0'
             }
             required={required}
             onChange={(e) => {
               const raw = e.target.value
-              emit(raw === '' ? 0 : Number(raw) || 0, minutes)
+              if (raw === '') {
+                emit(0, minutes)
+                return
+              }
+              const n = Number(raw)
+              if (!Number.isFinite(n)) return
+              emit(Math.max(0, Math.floor(n)), minutes)
             }}
             aria-label={`${label || 'Duration'} hours`}
           />
@@ -92,14 +99,20 @@ export function HrsMinsInput({
             min={0}
             max={59}
             className={fieldClass}
-            value={empty || (hours === 0 && minutes === 0) ? '' : minutes}
+            value={hrsMinsFieldDisplay(totalMinutes, 'minutes')}
             placeholder={
               placeholderTotalMinutes != null ? String(ph.minutes) : '0'
             }
             required={required}
             onChange={(e) => {
               const raw = e.target.value
-              emit(hours, raw === '' ? 0 : Number(raw) || 0)
+              if (raw === '') {
+                emit(hours, 0)
+                return
+              }
+              const n = Number(raw)
+              if (!Number.isFinite(n)) return
+              emit(hours, Math.min(59, Math.max(0, Math.floor(n))))
             }}
             aria-label={`${label || 'Duration'} minutes`}
           />
