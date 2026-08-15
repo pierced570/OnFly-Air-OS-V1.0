@@ -10,6 +10,10 @@ import {
   type EtaSheetEmailStop,
   type EtaSheetEmailTemplate,
 } from '@/domain/etaSheetEmail'
+import {
+  DEFAULT_QUICK_TURN_MIN,
+  buildDeskOfferQuoteTimeline,
+} from '@/domain/offerQuoteTiming'
 import { formatClientLocal } from '@/domain/timeFmt'
 import { invoiceEmailLogoUrl } from '@/lib/invoiceEmailLogo'
 import type { EtaSheetContext } from '@/lib/etaSheet'
@@ -164,21 +168,59 @@ function milestonesFromTrip(
     if (out.length) return out
   }
 
-  // Fallback from sheet lines (Quick Dispatch without rich chain types).
-  return sheet.lines.map((l) => {
-    const from = shortIcao(l.pickup_location)
-    const to = shortIcao(l.where_going)
-    const label =
-      /wheel|air|live/i.test(l.leg_label) || /wheel|air|live/i.test(l.event)
-        ? `Wheels up · ${from} → Landing · ${to}`
-        : l.leg_label || l.event || `${from} → ${to}`
-    return {
-      label,
-      detail: l.event && l.event !== l.leg_label ? l.event : null,
-      projected: l.est_display || l.arrive_time_zulu || null,
-      actual: l.actual_display,
-    }
-  })
+  // Fallback from sheet lines (Quick Dispatch / legs without rich chain types).
+  if (sheet.lines.length) {
+    return sheet.lines.map((l) => {
+      const from = shortIcao(l.pickup_location)
+      const to = shortIcao(l.where_going)
+      const label =
+        /wheel|air|live/i.test(l.leg_label) || /wheel|air|live/i.test(l.event)
+          ? `Wheels up · ${from}`
+          : l.leg_label || l.event || `${from} → ${to}`
+      const projectedRaw = l.est_display || l.arrive_time_zulu || null
+      let projected = projectedRaw
+      if (projectedRaw && /^\d{4}-\d{2}-\d{2}T/.test(projectedRaw)) {
+        const tz =
+          trip.eta_chain[0]?.to.tz ||
+          trip.eta_chain[0]?.from.tz ||
+          'America/New_York'
+        projected = formatClientLocal(projectedRaw, tz).display
+      }
+      return {
+        label,
+        detail:
+          to !== '—' && !/wheel/i.test(label) ? `Toward ${to}` : null,
+        projected,
+        actual: l.actual_display,
+      }
+    })
+  }
+
+  // Last resort: selected offer TTP / live leg → desk quote milestones.
+  const selected =
+    trip.offers.find((o) => o.state === 'selected') ??
+    trip.offers.find((o) => o.state === 'quoted')
+  if (
+    selected?.time_to_position_min != null &&
+    selected.live_leg_min != null &&
+    Number.isFinite(selected.time_to_position_min) &&
+    Number.isFinite(selected.live_leg_min)
+  ) {
+    const timeline = buildDeskOfferQuoteTimeline({
+      lane: trip.lane,
+      timeToPositionMin: selected.time_to_position_min,
+      quickTurnMin: selected.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
+      liveLegMin: selected.live_leg_min,
+    })
+    return timeline.milestones.map((m) => ({
+      label: m.label,
+      detail: null,
+      projected: m.clock,
+      actual: null,
+    }))
+  }
+
+  return []
 }
 
 export function buildEtaSheetEmailTemplate(opts: {
