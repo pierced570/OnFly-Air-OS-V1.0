@@ -1945,24 +1945,17 @@ export async function createInvoiceForTrip(
   if (!(total > 0)) return null
   const { createAccountingAdapter } = await import('@/adapters/accounting')
   const { getClient, listInvoiceEmails } = await import('@/lib/clientStore')
-  const { allocateNextPoForClient } = await import('@/lib/allocateNextPo')
   const { ONFLY_INFO_BCC } = await import('@/domain/onflyEmails')
   const { invoiceTripFacts } = await import('@/lib/invoiceTripFacts')
+  const { resolveTripPoNumber } = await import('@/domain/tripPo')
   const acct = createAccountingAdapter()
   const client = t.client_id ? getClient(t.client_id) : undefined
   const clientName =
     t.quick?.client_name ?? client?.name ?? 'Client'
-  let po =
-    opts?.poNumber?.trim() ||
-    t.po_number?.trim() ||
-    t.quick?.po?.trim() ||
-    ''
-  if (!po) {
-    po = await allocateNextPoForClient({
-      clientId: t.client_id,
-      clientName,
-    })
-  }
+  const po =
+    opts?.poNumber?.trim() || resolveTripPoNumber(t) || ''
+  // Do not invent CLI0001 / sequential POs here — desk must enter the real PO.
+  if (!po) return null
   mutateTrip(tripId, (row) => {
     row.po_number = po
     if (row.quick) row.quick.po = po
@@ -2194,17 +2187,23 @@ export async function sendTripInvoiceEmail(
     trip = trips.get(tripId)
   }
   if (!trip) throw new Error('trip not found')
+  const { resolveTripPoNumber } = await import('@/domain/tripPo')
+  const poReady = resolveTripPoNumber(trip)
+  if (!poReady) {
+    throw new Error('Enter PO # before sending the invoice')
+  }
   if (!trip.invoice) {
     await createInvoiceForTrip(tripId, {
       skipEmail: true,
       to: opts.to,
       cc: opts.cc,
       bcc: opts.bcc,
+      poNumber: poReady,
     })
     trip = trips.get(tripId)
   }
   if (!trip?.invoice) {
-    throw new Error('Could not create invoice — client total missing?')
+    throw new Error('Could not create invoice — client total or PO # missing?')
   }
   const { createAccountingAdapter } = await import('@/adapters/accounting')
   const { getClient } = await import('@/lib/clientStore')
@@ -2213,10 +2212,7 @@ export async function sendTripInvoiceEmail(
   const client = trip.client_id ? getClient(trip.client_id) : undefined
   const clientName =
     trip.quick?.client_name ?? client?.name ?? 'Client'
-  const po =
-    trip.po_number?.trim() ||
-    trip.quick?.po?.trim() ||
-    trip.invoice.qb_invoice_id
+  const po = resolveTripPoNumber(trip) || poReady
   const to = [...new Set(opts.to.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')))]
   if (!to.length) throw new Error('Add at least one To email for the invoice')
   const cc = [

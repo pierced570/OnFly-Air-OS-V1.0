@@ -51,6 +51,7 @@ import { getTaxRates } from '@/lib/taxRatesStore'
 import {
   getTrip,
   listTripsStable,
+  mutateTrip,
   payloadKindOf,
   subscribeTrips,
 } from '@/lib/tripStore'
@@ -99,6 +100,7 @@ export function DeskOfferQuoteWorkbench({
   const [confirmedTypes, setConfirmedTypes] = useState<Record<string, string>>(
     {},
   )
+  const [poDraft, setPoDraft] = useState('')
 
   useEffect(() => {
     if (!initialManualOfferId) return
@@ -109,6 +111,12 @@ export function DeskOfferQuoteWorkbench({
   useEffect(() => {
     setEmailSel(defaultClientEmailSelection(trip?.client_id))
   }, [trip?.client_id])
+
+  useEffect(() => {
+    setPoDraft(
+      trip?.po_number?.trim() || trip?.quick?.po?.trim() || '',
+    )
+  }, [trip?.id, trip?.po_number, trip?.quick?.po])
 
   useEffect(() => {
     if (!trip) return
@@ -197,11 +205,68 @@ export function DeskOfferQuoteWorkbench({
   const canPreviewClientQuote =
     picked.length > 0 &&
     emailSel.to.length > 0 &&
-    picked.every((oid) => (confirmedTypes[oid] ?? '').trim())
+    picked.every((oid) => (confirmedTypes[oid] ?? '').trim()) &&
+    Boolean(poDraft.trim())
 
   const needsTypeConfirm = picked.some(
     (oid) => !(confirmedTypes[oid] ?? '').trim(),
   )
+
+  function persistPoDraft() {
+    const cleaned = poDraft.trim()
+    mutateTrip(liveTrip.id, (t) => {
+      t.po_number = cleaned || null
+      if (t.quick) t.quick.po = cleaned || null
+    })
+  }
+
+  function sendHardQuoteNow() {
+    if (!poDraft.trim()) {
+      setError('Enter PO # before sending the hard quote')
+      return
+    }
+    persistPoDraft()
+    const totals: Record<string, number> = {}
+    const typeNamesByOffer: Record<string, string> = {}
+    let sendMargin = marginPct
+    for (const oid of picked) {
+      const o = liveTrip.offers.find((x) => x.id === oid)!
+      const hqOpt = liveTrip.hard_quote?.options?.find(
+        (opt) => opt.offer_id === oid,
+      )
+      const lock =
+        pricingLock[oid] ?? (hqOpt != null ? 'total' : 'margin')
+      const draftMargin = marginEdits[oid] ?? marginPct
+      const draftTotal = clientEdits[oid] ?? hqOpt?.client_total ?? null
+      const p = offerQuotePreviewFor(
+        o,
+        liveTrip,
+        0,
+        lock === 'total' ? draftTotal : null,
+        draftMargin,
+      )
+      totals[oid] = p.client_total
+      typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
+      sendMargin = p.margin_pct
+    }
+    if (liveTrip.client_id) {
+      rememberEmailsOnClient(liveTrip.client_id, '', emailSel.cc, emailSel.bcc)
+    }
+    setSendBusy(true)
+    void selectOffersAndHardQuote(liveTrip.id, picked, totals, emailSel.to, {
+      ccEmails: emailSel.cc,
+      bccEmails: emailSel.bcc,
+      marginPct: sendMargin,
+      typeNamesByOffer,
+    })
+      .then(() => {
+        setComposeAnotherQuote(false)
+        setClientQuotePreview(false)
+        setError(null)
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setSendBusy(false))
+  }
 
   const clientPreviewOptions =
     clientQuotePreview && canPreviewClientQuote
@@ -249,49 +314,6 @@ export function DeskOfferQuoteWorkbench({
 
   const kind = payloadKindOf(liveTrip)
   const showPaxDisclosure = kind === 'pax' || kind === 'both'
-
-  function sendHardQuoteNow() {
-    const totals: Record<string, number> = {}
-    const typeNamesByOffer: Record<string, string> = {}
-    let sendMargin = marginPct
-    for (const oid of picked) {
-      const o = liveTrip.offers.find((x) => x.id === oid)!
-      const hqOpt = liveTrip.hard_quote?.options?.find(
-        (opt) => opt.offer_id === oid,
-      )
-      const lock =
-        pricingLock[oid] ?? (hqOpt != null ? 'total' : 'margin')
-      const draftMargin = marginEdits[oid] ?? marginPct
-      const draftTotal = clientEdits[oid] ?? hqOpt?.client_total ?? null
-      const p = offerQuotePreviewFor(
-        o,
-        liveTrip,
-        0,
-        lock === 'total' ? draftTotal : null,
-        draftMargin,
-      )
-      totals[oid] = p.client_total
-      typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
-      sendMargin = p.margin_pct
-    }
-    if (liveTrip.client_id) {
-      rememberEmailsOnClient(liveTrip.client_id, '', emailSel.cc, emailSel.bcc)
-    }
-    setSendBusy(true)
-    void selectOffersAndHardQuote(liveTrip.id, picked, totals, emailSel.to, {
-      ccEmails: emailSel.cc,
-      bccEmails: emailSel.bcc,
-      marginPct: sendMargin,
-      typeNamesByOffer,
-    })
-      .then(() => {
-        setComposeAnotherQuote(false)
-        setClientQuotePreview(false)
-        setError(null)
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setSendBusy(false))
-  }
 
   const quoteable = liveTrip.offers.filter((o) => {
     const status = offerRecipientStatus(o.state)
@@ -744,6 +766,21 @@ export function DeskOfferQuoteWorkbench({
             layout="compact"
             embedded
           />
+          <label className="block text-xs text-muted">
+            PO #{' '}
+            <span className="text-late">(required — goes on invoice / booking)</span>
+            <input
+              type="text"
+              className="mt-1 w-full rounded border border-border bg-ink px-2 py-1.5 font-mono text-sm text-cream"
+              value={poDraft}
+              placeholder="Client PO / DocNumber"
+              onChange={(e) => {
+                setPoDraft(e.target.value)
+                setClientQuotePreview(false)
+              }}
+              onBlur={persistPoDraft}
+            />
+          </label>
           {needsTypeConfirm ? (
             <div className="space-y-2">
               <div className="text-xs text-muted">
