@@ -63,7 +63,7 @@ export function renderLogisticsQuoteEmailText(
   }
   for (const opt of input.options) {
     lines.push(
-      `${opt.recommended_badge ? `${opt.recommended_badge} — ` : ''}${opt.option_number_label} · ${opt.aircraft_type}`,
+      `${opt.option_number_label} · ${opt.aircraft_type}`,
       ...opt.milestones.map((m) => `${m.label}: ${m.clock}`),
       `${opt.flight_time_label} · ${opt.door_to_door_label}`,
       `Price: $${opt.price.toLocaleString('en-US')} (${opt.all_in_note || CLIENT_QUOTE_ALL_IN_NOTE})`,
@@ -194,12 +194,6 @@ function renderOptionCard(
   opt: LogisticsQuoteOptionView,
   acceptUrl?: string | null,
 ): string {
-  const recommended = Boolean(opt.recommended)
-  const border = recommended ? '#c9a227' : '#e5dfd0'
-  const badge = opt.recommended_badge
-    ? `<div style="margin:-14px -14px 10px;padding:5px 12px;background:#c9a227;color:#0c0c0e;font-size:9px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;border-radius:10px 10px 0 0">${escapeHtml(opt.recommended_badge)}</div>`
-    : ''
-
   const milestones =
     opt.milestones.length > 0
       ? `<table style="width:100%;border-collapse:separate;border-spacing:4px 0;margin:0 0 10px"><tr>${opt.milestones
@@ -221,8 +215,7 @@ function renderOptionCard(
     ? `<a href="${escapeAttr(acceptHref)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:13px">Accept ${escapeHtml(opt.option_number_label)}</a>`
     : ''
 
-  return `<div style="margin:0 0 12px;padding:14px;border:1px solid ${border};border-radius:12px;background:#fff">
-  ${badge}
+  return `<div style="margin:0 0 12px;padding:14px;border:1px solid #e5dfd0;border-radius:12px;background:#fff">
   <table style="width:100%;border-collapse:collapse;margin:0 0 10px">
     <tr>
       <td style="vertical-align:baseline;padding-right:10px">

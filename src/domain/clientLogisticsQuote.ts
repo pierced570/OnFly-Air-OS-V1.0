@@ -53,9 +53,12 @@ export type LogisticsQuoteOptionView = {
   delivered_summary: string | null
   flight_time_label: string
   door_to_door_label: string
-  /** Earliest delivery among the set. */
-  recommended: boolean
-  recommended_badge: string | null
+  /**
+   * Desk-only rank flags among the option set.
+   * Never render these on client email / accept surfaces.
+   */
+  fastest: boolean
+  cheapest: boolean
   /** Sort key — earlier delivery wins. */
   delivered_at_ms: number | null
   price: number
@@ -112,17 +115,10 @@ function optionNumberLabel(index: number): string {
   return `Option ${index + 1}`
 }
 
-function aircraftBlurb(opts: {
-  recommended: boolean
-  cheapest: boolean
-  only: boolean
-}): string {
-  if (opts.only) return 'Ready to launch on your schedule'
-  if (opts.recommended) {
-    return 'Fastest launch — closest aircraft to your pickup'
-  }
-  if (opts.cheapest) return 'Lower price, later start'
-  return 'Alternate aircraft option'
+/** Neutral client blurb — no cheapest/fastest push on the quote. */
+function aircraftBlurb(only: boolean): string {
+  if (only) return 'Ready to launch on your schedule'
+  return 'Aircraft option'
 }
 
 /** Parse trip payload_summary into compact mission chips (best-effort). */
@@ -237,11 +233,7 @@ export function buildLogisticsQuoteOption(input: {
     label: input.label,
     option_number_label: optionNumberLabel(idx),
     aircraft_type: (input.type_name ?? '').trim() || 'Aircraft',
-    aircraft_blurb: aircraftBlurb({
-      recommended: false,
-      cheapest: false,
-      only: true,
-    }),
+    aircraft_blurb: aircraftBlurb(true),
     departure_label: originLabel,
     destination_label: destLabel,
     ttp_min: ttp ?? null,
@@ -264,8 +256,8 @@ export function buildLogisticsQuoteOption(input: {
     delivered_summary: deliveredSummary,
     flight_time_label: `Flight time ${formatMinutes(live ?? null)}`,
     door_to_door_label: `Est. total door-to-door ${formatMinutes(doorMin)}`,
-    recommended: false,
-    recommended_badge: null,
+    fastest: false,
+    cheapest: false,
     delivered_at_ms: timing
       ? timing.destEtaUtc
           .plus({ minutes: DEFAULT_DEST_HANDOFF_MIN })
@@ -277,7 +269,10 @@ export function buildLogisticsQuoteOption(input: {
   }
 }
 
-/** Mark earliest delivery as recommended; refresh blurbs vs price. */
+/**
+ * Rank options for desk (fastest / cheapest). Client surfaces must not show
+ * these flags — no "Recommended" badge on email or accept.
+ */
 export function finalizeLogisticsQuoteOptions(
   options: LogisticsQuoteOptionView[],
 ): LogisticsQuoteOptionView[] {
@@ -287,27 +282,31 @@ export function finalizeLogisticsQuoteOptions(
     withTimes.length > 0
       ? Math.min(...withTimes.map((o) => o.delivered_at_ms!))
       : null
-  const cheapest = Math.min(...options.map((o) => o.price))
+  const lowestPrice = Math.min(...options.map((o) => o.price))
   const only = options.length === 1
+  // Single option: nothing to compare — leave flags off.
+  const rank = options.length > 1
 
   return options.map((o, i) => {
-    const recommended =
-      earliestMs != null && o.delivered_at_ms === earliestMs
-    const isCheapest = o.price === cheapest && !recommended
+    const fastest =
+      rank && earliestMs != null && o.delivered_at_ms === earliestMs
+    const cheapest = rank && o.price === lowestPrice
     return {
       ...o,
       option_number_label: optionNumberLabel(i),
-      recommended,
-      recommended_badge: recommended
-        ? 'Recommended · Earliest delivery'
-        : null,
-      aircraft_blurb: aircraftBlurb({
-        recommended,
-        cheapest: isCheapest,
-        only,
-      }),
+      fastest,
+      cheapest,
+      aircraft_blurb: aircraftBlurb(only),
     }
   })
+}
+
+/** Desk-only labels for an option (never send to client UI). */
+export function deskRankLabels(opt: Pick<LogisticsQuoteOptionView, 'fastest' | 'cheapest'>): string[] {
+  const labels: string[] = []
+  if (opt.fastest) labels.push('Fastest')
+  if (opt.cheapest) labels.push('Cheapest')
+  return labels
 }
 
 export function formatTtpFromGo(

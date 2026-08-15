@@ -120,20 +120,11 @@ export function ClientLogisticsQuotePreview({
         <ul className="space-y-3">
           {options.map((opt) => {
             const actions = interactive ? optionActions?.(opt) : null
-            const recommended = Boolean(opt.recommended)
             return (
               <li
                 key={opt.offer_id}
-                className={[
-                  'overflow-hidden rounded-xl border bg-white',
-                  recommended ? 'border-[#C9A227]' : 'border-[#E5DFD0]',
-                ].join(' ')}
+                className="overflow-hidden rounded-xl border border-[#E5DFD0] bg-white"
               >
-                {opt.recommended_badge ? (
-                  <div className="bg-[#C9A227] px-3 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#0C0C0E]">
-                    {opt.recommended_badge}
-                  </div>
-                ) : null}
                 <div className="space-y-2.5 px-3.5 py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <div className="min-w-0 text-base font-semibold text-[#0C0C0E]">

@@ -19,6 +19,7 @@ import { OfferQuoteForm } from '@/components/OfferQuoteForm'
 import {
   buildCharterMissionChips,
   buildLogisticsQuoteOption,
+  deskRankLabels,
   finalizeLogisticsQuoteOptions,
   logisticsQuoteTitle,
 } from '@/domain/clientLogisticsQuote'
@@ -239,6 +240,45 @@ export function DeskOfferQuoteWorkbench({
         )
       : []
 
+  /** Desk-only cheapest/fastest among quoteable offers with a price. */
+  const deskRankByOfferId = (() => {
+    const rows = quoteableIds
+      .map((oid) => {
+        const o = liveTrip.offers.find((x) => x.id === oid)
+        if (!o || o.price_net == null) return null
+        const hqOpt = liveTrip.hard_quote?.options?.find(
+          (opt) => opt.offer_id === oid,
+        )
+        const lock =
+          pricingLock[oid] ?? (hqOpt != null ? 'total' : 'margin')
+        const draftMargin = marginEdits[oid] ?? marginPct
+        const draftTotal = clientEdits[oid] ?? hqOpt?.client_total ?? null
+        const p = offerQuotePreviewFor(
+          o,
+          liveTrip,
+          0,
+          lock === 'total' ? draftTotal : null,
+          draftMargin,
+        )
+        return buildLogisticsQuoteOption({
+          offer_id: oid,
+          label: o.operator_name || oid,
+          type_name: o.type_name,
+          time_to_position_min: o.time_to_position_min,
+          quick_turn_min: o.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
+          live_leg_min: o.live_leg_min,
+          client_total: p.client_total,
+          lane: liveTrip.lane,
+          goAtIso: new Date().toISOString(),
+        })
+      })
+      .filter((x): x is NonNullable<typeof x> => x != null)
+    const ranked = finalizeLogisticsQuoteOptions(rows)
+    return Object.fromEntries(
+      ranked.map((r) => [r.offer_id, deskRankLabels(r)]),
+    ) as Record<string, string[]>
+  })()
+
   const previewMissionChips = buildCharterMissionChips({
     payload_kind: payloadKindOf(liveTrip),
     payload_summary: liveTrip.payload_summary,
@@ -390,6 +430,16 @@ export function DeskOfferQuoteWorkbench({
           <div className="min-w-0 flex-1 text-xs text-cream/85">
             {summaryBits.join(' · ') || 'No quote yet'}
           </div>
+
+          {(deskRankByOfferId[o.id] ?? []).map((label) => (
+            <span
+              key={label}
+              className="rounded border border-cream/25 bg-ink px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cream/90"
+              title="Desk only — not shown to the client"
+            >
+              {label}
+            </span>
+          ))}
 
           {timeline ? (
             <span className="rounded border border-gold/45 bg-gold/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold">
@@ -779,7 +829,7 @@ export function DeskOfferQuoteWorkbench({
               <ClientLogisticsQuotePreview
                 title={logisticsQuoteTitle(trip.lane)}
                 options={clientPreviewOptions}
-                previewBanner="Client preview — branded email / accept link (no operator names or margins)"
+                previewBanner="Client preview — branded email / accept link (no operator names, margins, or cheapest/fastest flags)"
                 disclosureText={
                   showPaxDisclosure ? DISCLOSURE_295_24_TEMPLATE : null
                 }
