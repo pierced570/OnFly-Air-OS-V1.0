@@ -273,15 +273,6 @@ export function ClientLogisticsQuotePreview({
           {validityNote?.trim() ||
             'ETAs assume ready-now at quote send. Quote valid for 4 hours unless withdrawn sooner.'}
         </p>
-
-        {disclosureText ? (
-          <div className="rounded-md border border-[#E5DFD0] bg-white p-4 text-sm text-[#0C0C0E]">
-            <div className="font-medium text-[#0C0C0E]">
-              Part 295.24 disclosure
-            </div>
-            <p className="mt-2 text-[#6B6560]">{disclosureText}</p>
-          </div>
-        ) : null}
       </div>
 
       <footer className="bg-[#0C0C0E] px-5 py-4 text-[#F7F2E3]">
@@ -307,6 +298,12 @@ export function ClientLogisticsQuotePreview({
           >
             {trackingHintUrl}
           </a>
+        </p>
+      ) : null}
+
+      {disclosureText?.trim() ? (
+        <p className="border-t border-[#E5DFD0] bg-[#F9F7F2] px-5 py-2 text-[9px] leading-snug text-[#8A8680]">
+          {disclosureText.trim()}
         </p>
       ) : null}
     </div>
