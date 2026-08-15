@@ -58,6 +58,8 @@ import {
 type Props = {
   tripId: string
   onClose?: () => void
+  /** Open the desk manual-quote form for this offer on mount. */
+  initialManualOfferId?: string | null
 }
 
 function feeBadgeLabel(feeScope: string | null | undefined): string | null {
@@ -66,7 +68,11 @@ function feeBadgeLabel(feeScope: string | null | undefined): string | null {
   return null
 }
 
-export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
+export function DeskOfferQuoteWorkbench({
+  tripId,
+  onClose,
+  initialManualOfferId = null,
+}: Props) {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
   const [error, setError] = useState<string | null>(null)
@@ -85,7 +91,7 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const [clientQuotePreview, setClientQuotePreview] = useState(false)
   const [sendBusy, setSendBusy] = useState(false)
   const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
-    null,
+    initialManualOfferId,
   )
   const [manualQuoteBusy, setManualQuoteBusy] = useState(false)
   const [pricingBusy, setPricingBusy] = useState(false)
@@ -93,6 +99,12 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
   const [confirmedTypes, setConfirmedTypes] = useState<Record<string, string>>(
     {},
   )
+
+  useEffect(() => {
+    if (!initialManualOfferId) return
+    setManualQuoteOfferId(initialManualOfferId)
+    setExpanded((m) => ({ ...m, [initialManualOfferId]: true }))
+  }, [initialManualOfferId])
 
   useEffect(() => {
     setEmailSel(defaultClientEmailSelection(trip?.client_id))
@@ -385,7 +397,29 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
             </span>
           ) : null}
 
-          {selectable || facts ? (
+          {canManual ? (
+            <button
+              type="button"
+              className={[
+                'rounded-md px-2.5 py-1 text-xs font-semibold',
+                manualQuoteOfferId === o.id
+                  ? 'border border-gold/50 bg-transparent text-gold hover:bg-gold/10'
+                  : 'bg-gold text-ink hover:bg-gold-lt',
+              ].join(' ')}
+              onClick={() => {
+                setExpanded((m) => ({ ...m, [o.id]: true }))
+                setManualQuoteOfferId((id) => (id === o.id ? null : o.id))
+              }}
+            >
+              {manualQuoteOfferId === o.id
+                ? 'Cancel'
+                : o.price_net != null
+                  ? 'Edit quote'
+                  : 'Add quote manually'}
+            </button>
+          ) : null}
+
+          {selectable || facts || canManual ? (
             <button
               type="button"
               className="text-xs text-muted hover:text-cream"
@@ -463,23 +497,6 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
                     {mtowLbs != null ? ` ${Math.round(mtowLbs)} lbs` : ''} ≤{' '}
                     {Math.round(exemptThresh).toLocaleString()} lbs (IRC §4281)
                   </div>
-                ) : null}
-                {canManual ? (
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-gold hover:text-gold-lt"
-                    onClick={() =>
-                      setManualQuoteOfferId((id) =>
-                        id === o.id ? null : o.id,
-                      )
-                    }
-                  >
-                    {manualQuoteOfferId === o.id
-                      ? 'Cancel'
-                      : o.price_net != null
-                        ? 'Edit operator quote'
-                        : 'Enter quote'}
-                  </button>
                 ) : null}
               </div>
 
@@ -654,10 +671,12 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
-            Quotes submitted · {quoteable.length}
+            Quotes · {quoteable.length} in
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            Check to include in client quote · expand for pricing &amp; ETAs.
+            Add quotes manually from a phone call, or wait for operators.
+            Check to include in the client quote · expand for pricing &amp;
+            ETAs.
           </p>
         </div>
         {onClose ? (
@@ -679,8 +698,9 @@ export function DeskOfferQuoteWorkbench({ tripId, onClose }: Props) {
         </ul>
       ) : (
         <p className="text-sm text-muted">
-          No operator quotes in yet — wait for Submitted quotes, or enter one
-          manually below.
+          No operator quotes in yet — use{' '}
+          <span className="text-gold">Add quote manually</span> on an awaiting
+          operator below, or wait for Submitted quotes.
         </p>
       )}
 
