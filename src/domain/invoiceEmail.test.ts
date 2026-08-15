@@ -2,15 +2,30 @@ import { describe, expect, it } from 'vitest'
 import {
   INVOICE_EMAIL_SUBJECT,
   formatInvoiceUsd,
+  invoiceEmailSubject,
+  invoicePoDisplay,
+  isInvoicePoPlaceholder,
   renderInvoiceEmailHtml,
   renderInvoiceEmailText,
 } from './invoiceEmail'
 
 describe('invoiceEmail', () => {
-  it('matches payment-request subject + OFA branded layout', () => {
-    expect(INVOICE_EMAIL_SUBJECT('00346')).toBe(
-      'Invoice payment request from OnFly Air LLC',
+  it('puts real PO in subject and never sends placeholders', () => {
+    expect(invoiceEmailSubject('00346')).toBe(
+      'New payment request from OnFly Air LLC - PO #00346',
     )
+    expect(INVOICE_EMAIL_SUBJECT('PO #PSA99')).toBe(
+      'New payment request from OnFly Air LLC - PO #PSA99',
+    )
+    expect(invoiceEmailSubject('(INSERT INVOICE)')).toBe(
+      'New payment request from OnFly Air LLC',
+    )
+    expect(isInvoicePoPlaceholder('INSERT INVOICE')).toBe(true)
+    expect(isInvoicePoPlaceholder('00346')).toBe(false)
+    expect(invoicePoDisplay('PO #00346')).toBe('00346')
+  })
+
+  it('matches payment-request subject + OFA branded layout', () => {
     const html = renderInvoiceEmailHtml({
       poNumber: '00346',
       clientName: 'PSA Airlines',
@@ -29,7 +44,7 @@ describe('invoiceEmail', () => {
         'Drop Off at DFW',
       ],
     })
-    expect(html).toContain('Invoice payment request from OnFly Air LLC')
+    expect(html).toContain('New payment request from OnFly Air LLC')
     expect(html).toContain('PSA Airlines · KNQA → KDFW')
     expect(html).toContain('PO #00346')
     expect(html).toContain('$10,600.00')

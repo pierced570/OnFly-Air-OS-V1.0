@@ -5,8 +5,8 @@
  * Optional: CHARTER_CONTRACT_URL for Jotform sign link
  * BCC: info@onflyair.com
  *
- * Real QB mode uses native QBO /invoice/{id}/send (View and pay).
- * This function powers mock demos + Resend fallback with matching OFA UI.
+ * Used for mock + real QB delivery so subject/body are filled from the trip
+ * (PO, tail, itinerary) — not the QBO company email template placeholders.
  */
 
 const corsHeaders = {
@@ -58,7 +58,22 @@ Deno.serve(async (req) => {
     const to = asList(body.to)
     const cc = asList(body.cc)
     const bcc = [...new Set([...asList(body.bcc), 'info@onflyair.com'])]
-    const po = String(body.po_number ?? '').trim() || 'Invoice'
+    const poRaw = String(body.po_number ?? '').trim()
+    const poDisplay =
+      poRaw.replace(/^PO\s*#?\s*/i, '').trim().replace(/^[(\[{]+|[)\]}]+$/g, '').trim() ||
+      poRaw ||
+      'Invoice'
+    if (
+      !poRaw ||
+      /^(INSERT\s*INVOICE|ENTER\s*(PO|INVOICE|TAIL|FBO|ETA)|TBD|TODO|N\/?A)$/i.test(
+        poDisplay,
+      )
+    ) {
+      return json(
+        { error: 'po_number required — refuse placeholder PO in subject' },
+        400,
+      )
+    }
     const pdf = String(body.pdf_base64 ?? '').trim()
     if (!to.length) return json({ error: 'to required' }, 400)
     if (!pdf) return json({ error: 'pdf_base64 required' }, 400)
@@ -68,9 +83,9 @@ Deno.serve(async (req) => {
       Deno.env.get('CHARTER_CONTRACT_URL')?.trim() ||
       ''
 
-    const subject = 'Invoice payment request from OnFly Air LLC'
+    const subject = `New payment request from OnFly Air LLC - PO #${poDisplay}`
     const html = renderInvoiceHtml({
-      po,
+      po: poDisplay,
       client: body.client_name?.trim(),
       logoUrl: resolveLogoUrl(body.logo_url),
       amountUsd: body.amount_usd ?? null,
@@ -100,7 +115,7 @@ Deno.serve(async (req) => {
         html,
         attachments: [
           {
-            filename: `Invoice-${po}.pdf`,
+            filename: `Invoice-${poDisplay}.pdf`,
             content: pdf,
           },
         ],
@@ -234,7 +249,7 @@ function renderInvoiceHtml(opts: {
       <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:8px;overflow:hidden">
         <tr>
           <td style="padding:8px 28px 28px;background:#ffffff">
-            <h1 style="font-size:22px;margin:0 0 10px;color:#2a2a2e;font-weight:700;line-height:1.3">Invoice payment request from OnFly Air LLC</h1>
+            <h1 style="font-size:22px;margin:0 0 10px;color:#2a2a2e;font-weight:700;line-height:1.3">New payment request from OnFly Air LLC</h1>
             ${headline ? `<p style="margin:0 0 4px;font-size:14px;color:#6b6560;line-height:1.5">${escapeHtml(headline)}</p>` : ''}
             <p style="margin:0 0 16px;font-size:14px;color:#6b6560;line-height:1.5">PO #${poDisplay}</p>
             <p style="margin:0 0 22px;font-size:15px;line-height:1.5">

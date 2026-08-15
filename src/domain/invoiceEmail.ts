@@ -5,8 +5,37 @@
  * Pure TS (no React / adapters).
  */
 
-export const INVOICE_EMAIL_SUBJECT = (_po?: string) =>
-  'Invoice payment request from OnFly Air LLC'
+/** Strip PO# / PO prefix for display + subject. */
+export function invoicePoDisplay(po?: string | null): string {
+  const raw = (po ?? '').trim()
+  if (!raw) return ''
+  return raw.replace(/^PO\s*#?\s*/i, '').trim() || raw
+}
+
+/** True when PO is missing or still a human placeholder (never send as-is). */
+export function isInvoicePoPlaceholder(po?: string | null): boolean {
+  const d = invoicePoDisplay(po)
+    .replace(/^[(\[{]+|[)\]}]+$/g, '')
+    .trim()
+  if (!d) return true
+  return /^(INSERT\s*INVOICE|ENTER\s*(PO|INVOICE|TAIL|FBO|ETA)|TBD|TODO|N\/?A)$/i.test(
+    d,
+  )
+}
+
+/**
+ * Client-facing payment-request subject — always includes real PO when known.
+ * Matches the QBO-style line ops expect: "… - PO #00346".
+ */
+export function invoiceEmailSubject(po?: string | null): string {
+  const base = 'New payment request from OnFly Air LLC'
+  const display = invoicePoDisplay(po)
+  if (!display || isInvoicePoPlaceholder(display)) return base
+  return `${base} - PO #${display}`
+}
+
+/** @deprecated Prefer invoiceEmailSubject */
+export const INVOICE_EMAIL_SUBJECT = (po?: string) => invoiceEmailSubject(po)
 
 export type InvoiceEmailItineraryLine = string
 
@@ -40,10 +69,7 @@ export function formatInvoiceUsd(amount: number): string {
 }
 
 export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
-  const poRaw = tpl.poNumber.trim() || 'Invoice'
-  const poDisplay = escapeHtml(
-    poRaw.replace(/^PO\s*#?\s*/i, '').trim() || poRaw,
-  )
+  const poDisplay = escapeHtml(invoicePoDisplay(tpl.poNumber) || 'Invoice')
   const client = tpl.clientName?.trim()
   const lane = tpl.lane?.trim() || ''
   const support = escapeHtml(tpl.supportEmail?.trim() || 'info@onflyair.com')
@@ -121,7 +147,7 @@ export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
       <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:8px;overflow:hidden">
         <tr>
           <td style="padding:8px 28px 28px;background:#ffffff">
-            <h1 style="font-size:22px;margin:0 0 10px;color:#2a2a2e;font-weight:700;line-height:1.3">Invoice payment request from OnFly Air LLC</h1>
+            <h1 style="font-size:22px;margin:0 0 10px;color:#2a2a2e;font-weight:700;line-height:1.3">New payment request from OnFly Air LLC</h1>
             ${
               headlineBits
                 ? `<p style="margin:0 0 4px;font-size:14px;color:#6b6560;line-height:1.5">${escapeHtml(headlineBits)}</p>`
@@ -181,8 +207,7 @@ export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
 }
 
 export function renderInvoiceEmailText(tpl: InvoiceEmailTemplate): string {
-  const po = tpl.poNumber.trim() || 'Invoice'
-  const poDisplay = po.replace(/^PO\s*#?\s*/i, '').trim() || po
+  const poDisplay = invoicePoDisplay(tpl.poNumber) || 'Invoice'
   const client = tpl.clientName?.trim()
   const lane = tpl.lane?.trim()
   const support = tpl.supportEmail?.trim() || 'info@onflyair.com'
@@ -191,7 +216,7 @@ export function renderInvoiceEmailText(tpl: InvoiceEmailTemplate): string {
       ? formatInvoiceUsd(tpl.amountUsd)
       : null
   const lines = [
-    'Invoice payment request from OnFly Air LLC',
+    'New payment request from OnFly Air LLC',
     '',
     [client, lane].filter(Boolean).join(' · '),
     `PO #${poDisplay}`,
