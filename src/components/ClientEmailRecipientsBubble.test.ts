@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   defaultClientEmailSelection,
   defaultInvoiceEmailSelection,
+  parseEmailList,
 } from '@/components/ClientEmailRecipientsBubble'
 import {
   __resetClientsForTests,
@@ -9,6 +10,19 @@ import {
   addClientContact,
   updateClientContact,
 } from '@/lib/clientStore'
+
+describe('parseEmailList', () => {
+  it('keeps only addresses with @ after split', () => {
+    expect(parseEmailList('ops@client.com, ap@client.com')).toEqual([
+      'ops@client.com',
+      'ap@client.com',
+    ])
+    expect(parseEmailList('ops@client.com; still-typing')).toEqual([
+      'ops@client.com',
+    ])
+    expect(parseEmailList('not-an-email')).toEqual([])
+  })
+})
 
 describe('defaultClientEmailSelection', () => {
   beforeEach(() => {

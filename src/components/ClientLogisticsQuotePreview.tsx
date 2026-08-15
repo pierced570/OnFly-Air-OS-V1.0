@@ -64,29 +64,29 @@ export function ClientLogisticsQuotePreview({
   return (
     <div
       className={[
-        'overflow-hidden rounded-xl border border-[#E5DFD0] bg-white text-ink shadow-sm',
+        'overflow-hidden rounded-xl border border-[#E5DFD0] bg-white text-[#0C0C0E] shadow-sm',
         className ?? '',
       ].join(' ')}
       data-theme="client"
     >
       {previewBanner ? (
-        <div className="border-b border-gold/40 bg-gold/15 px-4 py-2 text-xs font-medium text-ink">
+        <div className="border-b border-[#C9A227]/40 bg-[#C9A227]/15 px-4 py-2 text-xs font-medium text-[#0C0C0E]">
           {previewBanner}
         </div>
       ) : null}
 
-      <header className="bg-ink px-5 py-5 text-cream">
+      <header className="bg-[#0C0C0E] px-5 py-5 text-[#F7F2E3]">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="text-[12px] font-semibold tracking-[0.16em] text-gold">
+          <div className="text-[12px] font-semibold tracking-[0.16em] text-[#C9A227]">
             ONFLY AIR
           </div>
           {refLabel?.trim() ? (
-            <div className="rounded-full border border-gold px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gold">
+            <div className="rounded-full border border-[#C9A227] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#C9A227]">
               Quote · {refLabel.trim()}
             </div>
           ) : null}
         </div>
-        <h2 className="mt-4 text-2xl font-semibold leading-snug tracking-tight text-cream">
+        <h2 className="mt-4 text-2xl font-semibold leading-snug tracking-tight text-[#F7F2E3]">
           {title}
         </h2>
         {missionChips?.length ? (
@@ -94,15 +94,17 @@ export function ClientLogisticsQuotePreview({
             {missionChips.map((c) => (
               <span
                 key={c.label}
-                className="rounded-full bg-[#1A1A1C] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cream"
+                className="rounded-full bg-[#1A1A1C] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#F7F2E3]"
               >
                 {c.label}
               </span>
             ))}
           </div>
         ) : null}
-        <p className="mt-3 text-sm leading-relaxed text-cream/65">{introText}</p>
-        <p className="mt-2 text-xs text-cream/45">
+        <p className="mt-3 text-sm leading-relaxed text-[#F7F2E3]/65">
+          {introText}
+        </p>
+        <p className="mt-2 text-xs text-[#F7F2E3]/45">
           Operated by a vetted Part 135 carrier
         </p>
       </header>
@@ -118,30 +120,30 @@ export function ClientLogisticsQuotePreview({
                 className={[
                   'overflow-hidden rounded-xl border-2 bg-white',
                   recommended
-                    ? 'border-gold bg-[#FFFDF6]'
+                    ? 'border-[#C9A227] bg-[#FFFDF6]'
                     : 'border-[#E5DFD0]',
                 ].join(' ')}
               >
                 {opt.recommended_badge ? (
-                  <div className="bg-gold px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink">
+                  <div className="bg-[#C9A227] px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#0C0C0E]">
                     {opt.recommended_badge}
                   </div>
                 ) : null}
                 <div className="space-y-3 px-4 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-lg font-semibold text-ink">
+                      <div className="text-lg font-semibold text-[#0C0C0E]">
                         {opt.option_number_label} · {opt.aircraft_type}
                       </div>
-                      <p className="mt-1 text-sm text-muted">
+                      <p className="mt-1 text-sm text-[#6B6560]">
                         {opt.aircraft_blurb}
                       </p>
                     </div>
                     <div className="text-right">
-                      <div className="avionic text-3xl font-semibold text-ink">
+                      <div className="avionic text-3xl font-semibold text-[#0C0C0E]">
                         {money(opt.price)}
                       </div>
-                      <div className="mt-0.5 text-[11px] font-semibold text-onplan">
+                      <div className="mt-0.5 text-[11px] font-semibold text-[#2E7D32]">
                         {opt.all_in_note || CLIENT_QUOTE_TAXES_NOTE}
                       </div>
                     </div>
@@ -157,14 +159,14 @@ export function ClientLogisticsQuotePreview({
                             className={[
                               'rounded-lg px-2.5 py-2',
                               hi
-                                ? 'bg-ink text-gold'
-                                : 'bg-[#F3EBDA] text-ink',
+                                ? 'bg-[#0C0C0E] text-[#C9A227]'
+                                : 'bg-[#F3EBDA] text-[#0C0C0E]',
                             ].join(' ')}
                           >
                             <div
                               className={[
                                 'text-[10px] font-semibold uppercase tracking-wider',
-                                hi ? 'text-gold' : 'text-muted',
+                                hi ? 'text-[#C9A227]' : 'text-[#6B6560]',
                               ].join(' ')}
                             >
                               {m.label}
@@ -179,13 +181,13 @@ export function ClientLogisticsQuotePreview({
                   ) : null}
 
                   {opt.delivered_summary ? (
-                    <p className="text-sm leading-relaxed text-muted">
+                    <p className="text-sm leading-relaxed text-[#6B6560]">
                       {opt.delivered_summary}
                     </p>
                   ) : null}
 
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-xs text-muted">
+                    <div className="text-xs text-[#6B6560]">
                       {opt.flight_time_label} · {opt.door_to_door_label}
                     </div>
                     {interactive && actions?.onAccept ? (
@@ -195,8 +197,8 @@ export function ClientLogisticsQuotePreview({
                         className={[
                           'rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50',
                           recommended
-                            ? 'bg-ink text-gold'
-                            : 'border border-gold bg-white text-gold',
+                            ? 'bg-[#0C0C0E] text-[#C9A227]'
+                            : 'border border-[#C9A227] bg-white text-[#C9A227]',
                         ].join(' ')}
                         onClick={actions.onAccept}
                       >
@@ -209,8 +211,8 @@ export function ClientLogisticsQuotePreview({
                         className={[
                           'rounded-lg px-4 py-2.5 text-sm font-semibold',
                           recommended
-                            ? 'bg-ink text-gold'
-                            : 'border border-gold text-gold',
+                            ? 'bg-[#0C0C0E] text-[#C9A227]'
+                            : 'border border-[#C9A227] text-[#C9A227]',
                         ].join(' ')}
                       >
                         Accept {opt.option_number_label}
@@ -224,7 +226,7 @@ export function ClientLogisticsQuotePreview({
                         <button
                           type="button"
                           disabled={actions.busy}
-                          className="rounded-md border border-border px-3 py-2 text-xs font-medium text-ink disabled:opacity-50"
+                          className="rounded-md border border-[#E5DFD0] px-3 py-2 text-xs font-medium text-[#0C0C0E] disabled:opacity-50"
                           onClick={actions.onDeny}
                         >
                           Deny all options
@@ -232,7 +234,7 @@ export function ClientLogisticsQuotePreview({
                       ) : null}
                       {actions.changeRequestHref ? (
                         <a
-                          className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-xs font-medium text-ink"
+                          className="rounded-md border border-[#C9A227]/40 bg-[#C9A227]/10 px-3 py-2 text-xs font-medium text-[#0C0C0E]"
                           href={actions.changeRequestHref}
                         >
                           Add details / Change request
@@ -248,49 +250,52 @@ export function ClientLogisticsQuotePreview({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl bg-[#F7F2E3] px-4 py-3">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-ink">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#0C0C0E]">
               Included
             </div>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted">
+            <p className="mt-1.5 text-xs leading-relaxed text-[#6B6560]">
               Repositioning, crew, fuel, FET, and segment fees where applicable
               — all-in client total.
             </p>
           </div>
           <div className="rounded-xl bg-[#F7F2E3] px-4 py-3">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-ink">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#0C0C0E]">
               On acceptance
             </div>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted">
+            <p className="mt-1.5 text-xs leading-relaxed text-[#6B6560]">
               Trip confirmation, ETA sheet, and a live tracking link for your
               loop.
             </p>
           </div>
         </div>
 
-        <p className="text-[11px] leading-relaxed text-muted">
+        <p className="text-[11px] leading-relaxed text-[#6B6560]">
           {validityNote?.trim() ||
             'ETAs assume ready-now at quote send. Quote valid for 4 hours unless withdrawn sooner.'}
         </p>
       </div>
 
-      <footer className="bg-ink px-5 py-4 text-cream">
+      <footer className="bg-[#0C0C0E] px-5 py-4 text-[#F7F2E3]">
         <div className="flex flex-wrap items-start justify-between gap-3 text-xs leading-relaxed">
           <div>
             Questions or need it faster?
-            <div className="mt-0.5 font-semibold text-gold">
+            <div className="mt-0.5 font-semibold text-[#C9A227]">
               24-hr ops · {BRAND_PHONE}
             </div>
           </div>
-          <div className="text-cream/65 sm:text-right">
+          <div className="text-[#F7F2E3]/65 sm:text-right">
             {dispatcherLine?.trim() || `OnFly Air dispatch · ${BRAND_EMAIL}`}
           </div>
         </div>
       </footer>
 
       {trackingHintUrl?.trim() ? (
-        <p className="bg-[#ECE8DF] px-5 py-3 text-center text-xs text-muted">
+        <p className="bg-[#ECE8DF] px-5 py-3 text-center text-xs text-[#6B6560]">
           Once booked, watch it move live:{' '}
-          <a className="font-semibold text-ink underline" href={trackingHintUrl}>
+          <a
+            className="font-semibold text-[#0C0C0E] underline"
+            href={trackingHintUrl}
+          >
             {trackingHintUrl}
           </a>
         </p>

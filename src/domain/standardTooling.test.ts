@@ -49,6 +49,23 @@ describe('standardTooling', () => {
     ).toBe(`2 pax + ${STANDARD_TOOLING.summary}`)
   })
 
+  it('operator summary assumes standard small cargo/tools when pieces blank', () => {
+    expect(
+      operatorMissionSummary({
+        pieces_text: '',
+        pax_count: 3,
+        cargo_only: false,
+      }),
+    ).toBe(`3 pax + ${STANDARD_TOOLING.operator_assumed}`)
+    expect(
+      operatorMissionSummary({
+        pieces_text: '   ',
+        pax_count: 0,
+        cargo_only: true,
+      }),
+    ).toBe(STANDARD_TOOLING.operator_assumed)
+  })
+
   it('round-trips standard cargo L/W/H/weight boxes', () => {
     const fromTools = parseStandardCargoDims(
       `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`,
