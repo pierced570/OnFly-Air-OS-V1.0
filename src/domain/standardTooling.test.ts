@@ -94,6 +94,13 @@ describe('standardTooling', () => {
 
   it('normalizes single standard piece; keeps multi-piece free text', () => {
     expect(needsStandardCargoAutofill('')).toBe(true)
+    expect(needsStandardCargoAutofill('   ')).toBe(true)
+    expect(needsStandardCargoAutofill('standard tooling')).toBe(true)
+    expect(
+      needsStandardCargoAutofill(
+        `${STANDARD_TOOLING.label} ${STANDARD_TOOLING.dims_text}`,
+      ),
+    ).toBe(false)
     expect(standardCargoPiecesText()).toMatch(/12x12x12 @ 75/i)
     expect(normalizeDeskPiecesText('12x12x12 @ 75ea')).toMatch(
       /standard tooling/i,
