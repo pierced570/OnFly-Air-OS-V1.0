@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { clearAwbFlag, tripNeedsAwb } from '@/lib/awbFlagFlow'
 import {
   createInvoiceForTrip,
   getTrip,
@@ -183,6 +184,24 @@ export default function TripPage() {
       <div className="rounded-lg border border-border bg-surface p-3">
         <PipelineStrip state={trip.state} />
       </div>
+
+      {tripNeedsAwb(trip) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold/40 bg-gold/10 px-4 py-3">
+          <div>
+            <div className="text-sm font-medium text-gold">AWB needed</div>
+            <p className="mt-0.5 text-xs text-cream/90">
+              International cargo — create a House Air Waybill for this trip.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="min-h-10 rounded-md bg-gold px-3 py-2 text-xs font-medium text-ink"
+            onClick={() => clearAwbFlag(trip.id)}
+          >
+            Mark AWB created
+          </button>
+        </div>
+      )}
 
       <EtaSheetPanel trip={trip} />
 

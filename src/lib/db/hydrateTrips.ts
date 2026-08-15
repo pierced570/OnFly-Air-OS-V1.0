@@ -186,6 +186,9 @@ function mapTripShellRow(
     passengers: Array.isArray(meta.passengers)
       ? normalizeTripPassengers(meta.passengers)
       : undefined,
+    awb_needed: Boolean(meta.awb_needed),
+    awb_cleared_at:
+      typeof meta.awb_cleared_at === 'string' ? meta.awb_cleared_at : null,
   }
 }
 
