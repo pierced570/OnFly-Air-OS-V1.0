@@ -12,7 +12,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { BookedTripActionsPanel } from '@/components/BookedTripActionsPanel'
 import { LiveTrackingCardActions } from '@/components/LiveTrackingCardActions'
@@ -53,18 +53,20 @@ import {
   subscribeTrips,
 } from '@/lib/tripStore'
 
-const ScratchPadPage = lazy(() => import('@/pages/ScratchPadPage'))
-const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
 const QuickDispatchPage = lazy(() => import('@/pages/QuickDispatchPage'))
 const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NewTripPage = lazy(() => import('@/pages/NewTripPage'))
 
-type ToolId = 'scratchpad' | 'parse' | 'quick' | 'chat' | 'newtrip'
+type ToolId = 'quick' | 'chat' | 'newtrip'
 
 /** Work tools drawer — Quick Dispatch + Start new request (scratchpad) are top-of-page. */
-const TOOLS: { id: Exclude<ToolId, 'quick'>; label: string; hint: string }[] = [
-  { id: 'scratchpad', label: 'Scratchpad', hint: 'Live phone notes' },
-  { id: 'parse', label: 'Parse & shortlist', hint: 'Notes → operators' },
+const TOOLS: {
+  id: ToolId | 'scratchpad' | 'parse'
+  label: string
+  hint: string
+}[] = [
+  { id: 'scratchpad', label: 'Scratchpad', hint: 'Same full-page notes as pre-login' },
+  { id: 'parse', label: 'Parse & shortlist', hint: 'Same desk flow as login → parse' },
   { id: 'newtrip', label: 'Start new request', hint: 'Full trip request form' },
   { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
 ]
@@ -141,7 +143,13 @@ function Chip({
 
 function chipTone(chip: string): 'muted' | 'gold' | 'late' {
   if (chip.includes('forklift required')) return 'late'
-  if (chip.includes('courier') || chip.includes('forklift')) return 'gold'
+  if (
+    chip.includes('courier') ||
+    chip.includes('forklift') ||
+    chip.includes('AWB')
+  ) {
+    return 'gold'
+  }
   return 'muted'
 }
 
@@ -537,6 +545,9 @@ function OfferTripList({
   const [quotingTripId, setQuotingTripId] = useState<string | null>(
     () => (isQuotes || isSubmitted ? (focusTripId ?? null) : null),
   )
+  const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
+    null,
+  )
   const [updateError, setUpdateError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -545,8 +556,20 @@ function OfferTripList({
     if (isOffers && searchParams.get('update') === '1') {
       setUpdatingTripId(focusTripId)
       setAddingTripId(null)
+      setQuotingTripId(null)
+      setManualQuoteOfferId(null)
     } else if (isOffers && searchParams.get('add') === '1') {
       setAddingTripId(focusTripId)
+      setUpdatingTripId(null)
+      setQuotingTripId(null)
+      setManualQuoteOfferId(null)
+    } else if (
+      (isOffers || isSubmitted || isQuotes) &&
+      searchParams.get('manualQuote')
+    ) {
+      setManualQuoteOfferId(searchParams.get('manualQuote'))
+      setQuotingTripId(focusTripId)
+      setAddingTripId(null)
       setUpdatingTripId(null)
     }
   }, [focusTripId, searchParams, isQuotes, isSubmitted, isOffers])
@@ -557,7 +580,10 @@ function OfferTripList({
       Boolean(
         tripId && cards.some((c) => c.trip_id === tripId || c.id === tripId),
       )
-    if (quotingTripId && !stillHere(quotingTripId)) setQuotingTripId(null)
+    if (quotingTripId && !stillHere(quotingTripId)) {
+      setQuotingTripId(null)
+      setManualQuoteOfferId(null)
+    }
     if (updatingTripId && !stillHere(updatingTripId)) setUpdatingTripId(null)
     if (addingTripId && !stillHere(addingTripId)) setAddingTripId(null)
   }, [cards, quotingTripId, updatingTripId, addingTripId])
@@ -593,7 +619,7 @@ function OfferTripList({
             />
             {c.recipients &&
             c.recipients.length > 0 &&
-            !((isQuotes || isSubmitted) && quoting) ? (
+            !((isQuotes || isSubmitted || isOffers) && quoting) ? (
               <ul className="mt-3 space-y-3 border-t border-border/40 pt-3">
                 {isOffers ? (
                   <>
@@ -664,6 +690,23 @@ function OfferTripList({
                                 Acknowledge
                               </button>
                             ) : null}
+                            {r.status !== 'no' &&
+                            r.status !== 'stood_down' &&
+                            c.trip_id ? (
+                              <button
+                                type="button"
+                                className="font-semibold text-gold hover:text-gold-lt"
+                                onClick={() => {
+                                  setUpdatingTripId(null)
+                                  setAddingTripId(null)
+                                  setUpdateError(null)
+                                  setManualQuoteOfferId(r.offer_id)
+                                  setQuotingTripId(c.trip_id!)
+                                }}
+                              >
+                                Add quote manually
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="text-muted hover:text-cream"
@@ -712,7 +755,7 @@ function OfferTripList({
                   </>
                 )}
               </ul>
-            ) : isOffers ? (
+            ) : isOffers && !quoting ? (
               <p className="mt-3 text-sm text-muted">
                 Not sent to any operators yet — use Send to more operators.
               </p>
@@ -740,11 +783,15 @@ function OfferTripList({
                 onClose={() => setAddingTripId(null)}
               />
             ) : null}
-            {quoting && (isQuotes || isSubmitted) && c.trip_id ? (
+            {quoting && c.trip_id ? (
               <DeskOfferQuoteWorkbench
-                key={`quote-${c.trip_id}`}
+                key={`quote-${c.trip_id}-${manualQuoteOfferId ?? 'none'}`}
                 tripId={c.trip_id}
-                onClose={() => setQuotingTripId(null)}
+                initialManualOfferId={manualQuoteOfferId}
+                onClose={() => {
+                  setQuotingTripId(null)
+                  setManualQuoteOfferId(null)
+                }}
               />
             ) : null}
             <div className="mt-3.5 flex flex-wrap gap-2">
@@ -761,6 +808,7 @@ function OfferTripList({
                     setUpdatingTripId(null)
                     setAddingTripId(null)
                     setUpdateError(null)
+                    setManualQuoteOfferId(null)
                     setQuotingTripId(quoting ? null : c.trip_id!)
                   }}
                 >
@@ -769,6 +817,31 @@ function OfferTripList({
                     : isSubmitted
                       ? 'Compare & price for client'
                       : 'Compare & price quotes'}
+                </button>
+              ) : null}
+              {isOffers && c.trip_id && c.recipients && c.recipients.length > 0 ? (
+                <button
+                  type="button"
+                  className={[
+                    'rounded-lg px-3.5 py-2.5 text-sm font-semibold',
+                    quoting
+                      ? 'border border-gold/50 bg-transparent text-gold hover:bg-gold/10'
+                      : 'border border-gold/50 bg-gold/10 text-gold hover:bg-gold/20',
+                  ].join(' ')}
+                  onClick={() => {
+                    setUpdatingTripId(null)
+                    setAddingTripId(null)
+                    setUpdateError(null)
+                    if (quoting) {
+                      setQuotingTripId(null)
+                      setManualQuoteOfferId(null)
+                    } else {
+                      setManualQuoteOfferId(null)
+                      setQuotingTripId(c.trip_id!)
+                    }
+                  }}
+                >
+                  {quoting ? 'Close quotes' : 'Add quote manually'}
                 </button>
               ) : null}
               {isOffers && c.trip_id ? (
@@ -783,6 +856,7 @@ function OfferTripList({
                   onClick={() => {
                     setUpdatingTripId(null)
                     setQuotingTripId(null)
+                    setManualQuoteOfferId(null)
                     setUpdateError(null)
                     setAddingTripId(adding ? null : c.trip_id!)
                   }}
@@ -802,6 +876,7 @@ function OfferTripList({
                   onClick={() => {
                     setAddingTripId(null)
                     setQuotingTripId(null)
+                    setManualQuoteOfferId(null)
                     setUpdateError(null)
                     setUpdatingTripId(editing ? null : c.trip_id!)
                   }}
@@ -820,6 +895,7 @@ function OfferTripList({
 const DRAWER_IDS = new Set<string>(DISPATCH_DRAWERS.map((d) => d.id))
 
 export default function DispatchCenterPage() {
+  const nav = useNavigate()
   const [searchParams] = useSearchParams()
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -840,11 +916,7 @@ export default function DispatchCenterPage() {
         : 'requests',
   )
   const [tool, setTool] = useState<ToolId | null>(() =>
-    toolParam === 'quick' ||
-    toolParam === 'scratchpad' ||
-    toolParam === 'parse' ||
-    toolParam === 'chat' ||
-    toolParam === 'newtrip'
+    toolParam === 'quick' || toolParam === 'chat' || toolParam === 'newtrip'
       ? toolParam
       : null,
   )
@@ -852,11 +924,18 @@ export default function DispatchCenterPage() {
 
   // Deep link from desk send / share: /dispatch?drawer=offers&focus=<tripId>
   // Quick Dispatch: /dispatch?tool=quick
+  // Scratchpad / parse use the same routes as pre-login: / and /desk
   useEffect(() => {
+    if (toolParam === 'scratchpad') {
+      nav('/', { replace: true })
+      return
+    }
+    if (toolParam === 'parse') {
+      nav('/desk', { replace: true })
+      return
+    }
     if (
       toolParam === 'quick' ||
-      toolParam === 'scratchpad' ||
-      toolParam === 'parse' ||
       toolParam === 'chat' ||
       toolParam === 'newtrip'
     ) {
@@ -866,7 +945,7 @@ export default function DispatchCenterPage() {
     if (!drawerParam || !DRAWER_IDS.has(drawerParam)) return
     setTool(null)
     setOpenDrawer(drawerParam as DispatchDrawerId)
-  }, [drawerParam, toolParam])
+  }, [drawerParam, toolParam, nav])
 
   // Pull operator Yes/No / quotes into this browser without a manual refresh.
   useEffect(() => startLiveTripRefresh(4000), [])
@@ -947,6 +1026,7 @@ export default function DispatchCenterPage() {
             service_pattern: t.service_pattern,
             forklift_required: t.forklift_required,
             forklift_recommended: t.forklift_recommended,
+            awb_needed: t.awb_needed,
             quick: t.quick,
             legs: t.legs,
             offers: t.offers.map((o) => ({
@@ -993,8 +1073,6 @@ export default function DispatchCenterPage() {
 
   if (tool) {
     const Tool = {
-      scratchpad: ScratchPadPage,
-      parse: DeskParsePage,
       quick: QuickDispatchPage,
       chat: ChatPage,
       newtrip: NewTripPage,
@@ -1021,14 +1099,7 @@ export default function DispatchCenterPage() {
               <p className="p-6 text-sm text-muted">Loading tool…</p>
             }
           >
-            {tool === 'scratchpad' ? (
-              <ScratchPadPage
-                embedded
-                onParse={() => setTool('parse')}
-              />
-            ) : (
-              <Tool />
-            )}
+            <Tool />
           </Suspense>
         </div>
       </div>
@@ -1049,10 +1120,7 @@ export default function DispatchCenterPage() {
         <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              setOpenDrawer('requests')
-              setTool('scratchpad')
-            }}
+            onClick={() => nav('/')}
             className="rounded-lg border border-gold/55 bg-transparent px-4 py-2.5 text-sm font-semibold text-gold hover:bg-gold/10"
           >
             Start new request
@@ -1090,10 +1158,17 @@ export default function DispatchCenterPage() {
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setTool('parse')}
+              onClick={() => nav('/desk')}
               className="rounded-lg bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt"
             >
               Parse & shortlist
+            </button>
+            <button
+              type="button"
+              onClick={() => nav('/')}
+              className="rounded-lg border border-gold/50 px-3 py-2 text-xs font-medium text-gold hover:bg-gold/10"
+            >
+              Open scratchpad
             </button>
             <button
               type="button"
@@ -1169,9 +1244,15 @@ export default function DispatchCenterPage() {
               key={t.id}
               type="button"
               onClick={() => {
-                // Scratchpad stays tied to the Trip requests waterfall —
-                // Back from the tool lands on that drawer, not a blank center.
-                if (t.id === 'scratchpad') setOpenDrawer('requests')
+                // Same destinations as pre-login: scratchpad = /, parse = /desk
+                if (t.id === 'scratchpad') {
+                  nav('/')
+                  return
+                }
+                if (t.id === 'parse') {
+                  nav('/desk')
+                  return
+                }
                 setTool(t.id)
               }}
               className="rounded-xl border border-border/70 bg-surface-2 px-3 py-3 text-left hover:border-gold/40"

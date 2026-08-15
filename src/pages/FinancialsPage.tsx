@@ -237,7 +237,9 @@ export default function FinancialsPage() {
         <p className="mt-1 text-sm text-muted">
           {rows.length} records · open <span className="text-gold">Edit</span> on
           any row to fix wrong trip / money data
-          {editedCount > 0 ? ` · ${editedCount} correction(s) saved in this browser` : ''}
+          {editedCount > 0
+            ? ` · ${editedCount} correction(s) saved to this workspace`
+            : ''}
           {' · '}
           QBO create with ACH View &amp; pay · native QuickBooks send
         </p>
@@ -246,9 +248,9 @@ export default function FinancialsPage() {
       <div className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2.5 text-sm text-cream">
         <span className="font-medium text-gold">Fix wrong data:</span> click{' '}
         <span className="avionic text-gold">Edit</span> on a trip row → change date,
-        PO, client, route, aircraft, tail, amounts, tax, funded-by, notes. Blur a
-        field to save. Margin / investor math recalculates on money edits (legacy
-        rows unlock automatically).
+        PO, client, route, aircraft, tail, amounts, tax, funded-by, notes. Leave a
+        field to save (synced to the ledger). Margin / investor math recalculates
+        on money edits (legacy rows unlock automatically).
         {editedCount > 0 && (
           <button
             type="button"
@@ -256,7 +258,7 @@ export default function FinancialsPage() {
             onClick={() => {
               if (
                 window.confirm(
-                  `Discard ${editedCount} local correction(s) and reload saved values?`,
+                  `Discard ${editedCount} local correction(s) and reload fixture defaults? DB values reload on next refresh.`,
                 )
               ) {
                 clearFinancialOverrides()
@@ -1367,7 +1369,7 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
         OFA profit{' '}
         <span className="avionic text-cream">{usd(r.ofa_profit_per_trip)}</span>
         {' · '}
-        Edits save in this browser until Supabase ledger sync lands.
+        Edits sync to the ledger (and this browser) after you leave a field.
       </p>
     </div>
   )
@@ -1696,6 +1698,7 @@ function ClientDrawer({
         <label className="text-xs text-muted">
           Charged ($)
           <input
+            key={`chg-${r.id}-${r.client_invoiced_amount}`}
             type="number"
             className={field}
             defaultValue={r.client_invoiced_amount}
@@ -1711,6 +1714,7 @@ function ClientDrawer({
         <label className="text-xs text-muted">
           Tax total ($)
           <input
+            key={`tax-${r.id}-${r.tax_total}`}
             type="number"
             className={field}
             defaultValue={r.tax_total}
@@ -1722,6 +1726,7 @@ function ClientDrawer({
         <label className="text-xs text-muted">
           Deposited
           <select
+            key={`dep-${r.id}-${r.deposited_to ?? ''}`}
             className={field}
             defaultValue={r.deposited_to ?? ''}
             onChange={(e) =>
@@ -1737,6 +1742,7 @@ function ClientDrawer({
         <label className="text-xs text-muted">
           ACH / Check #
           <input
+            key={`ach-${r.id}-${r.check_deposit_number ?? ''}`}
             className={field}
             defaultValue={r.check_deposit_number ?? ''}
             onBlur={(e) =>

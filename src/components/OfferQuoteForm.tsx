@@ -20,6 +20,8 @@ import {
 } from '@/domain/offerMissionDisplay'
 import {
   DEFAULT_QUICK_TURN_MIN,
+  REFERENCE_LIVE_LEG_MIN,
+  REFERENCE_TTP_MIN,
   computeOfferQuoteTiming,
   type ZuluLocal,
 } from '@/domain/offerQuoteTiming'
@@ -78,7 +80,7 @@ const creamInput =
   'mt-1.5 w-full min-h-12 rounded-xl border border-[#D9D2C3] bg-white px-3 py-3 text-base text-ink outline-none focus:border-gold placeholder:text-[#9A9285]'
 const creamLabel = 'block text-sm font-medium text-ink'
 const creamHrs =
-  'mt-1 w-full min-h-11 rounded-lg border border-[#D9D2C3] bg-white px-2 py-2 text-center text-base text-ink avionic outline-none focus:border-gold'
+  'mt-1 w-full min-h-11 rounded-lg border border-[#D9D2C3] bg-white px-2 py-2 text-center text-base text-ink avionic outline-none focus:border-gold placeholder:text-[#9A9285]'
 
 function TimeChip({
   title,
@@ -112,11 +114,14 @@ function CreamTimeRow({
   title,
   hint,
   totalMinutes,
+  placeholderTotalMinutes,
   onChange,
 }: {
   title: string
   hint: string
-  totalMinutes: number
+  totalMinutes: number | null
+  /** Grey reference values until the operator enters their own. */
+  placeholderTotalMinutes: number
   onChange: (n: number) => void
 }) {
   return (
@@ -129,6 +134,7 @@ function CreamTimeRow({
         <HrsMinsInput
           label="Duration"
           totalMinutes={totalMinutes}
+          placeholderTotalMinutes={placeholderTotalMinutes}
           onChange={onChange}
           required
           labelClassName="sr-only"
@@ -164,13 +170,21 @@ export function OfferQuoteForm({
   onSubmit,
 }: Props) {
   const showWait = roundTrip ?? isRoundTripLane(lane)
+  const operatorEmptyTimes = variant === 'operator'
   const [typeName, setTypeName] = useState(initialTypeName)
   const [tail, setTail] = useState(initialTail)
-  const [ttp, setTtp] = useState(initialTtpMin ?? 90)
-  const [quickTurn, setQuickTurn] = useState(
-    initialQuickTurnMin ?? DEFAULT_QUICK_TURN_MIN,
+  // Operator: start empty with grey reference placeholders — they enter their own.
+  // Desk: keep working defaults so dispatchers can quote quickly.
+  const [ttp, setTtp] = useState<number | null>(
+    initialTtpMin ?? (operatorEmptyTimes ? null : REFERENCE_TTP_MIN),
   )
-  const [live, setLive] = useState(initialLiveLegMin ?? 75)
+  const [quickTurn, setQuickTurn] = useState<number | null>(
+    initialQuickTurnMin ??
+      (operatorEmptyTimes ? null : DEFAULT_QUICK_TURN_MIN),
+  )
+  const [live, setLive] = useState<number | null>(
+    initialLiveLegMin ?? (operatorEmptyTimes ? null : REFERENCE_LIVE_LEG_MIN),
+  )
   const [priceText, setPriceText] = useState(
     initialPriceNet != null ? String(initialPriceNet) : '',
   )
@@ -186,9 +200,9 @@ export function OfferQuoteForm({
     () =>
       computeOfferQuoteTiming({
         lane,
-        timeToPositionMin: ttp,
-        quickTurnMin: quickTurn,
-        liveLegMin: live,
+        timeToPositionMin: ttp ?? REFERENCE_TTP_MIN,
+        quickTurnMin: quickTurn ?? DEFAULT_QUICK_TURN_MIN,
+        liveLegMin: live ?? REFERENCE_LIVE_LEG_MIN,
       }),
     [lane, ttp, quickTurn, live],
   )
@@ -210,6 +224,16 @@ export function OfferQuoteForm({
     const price = Math.round(Number(priceText.replace(/,/g, '')))
     if (!Number.isFinite(price) || !(price > 0)) {
       setLocalError('Enter a price greater than zero')
+      return
+    }
+    if (ttp == null || quickTurn == null || live == null) {
+      setLocalError(
+        'Enter your times for position, turn, and live leg (grey numbers are reference only)',
+      )
+      return
+    }
+    if (!(live > 0)) {
+      setLocalError('Live leg must be greater than zero')
       return
     }
     const maxWait = Math.max(0, Number(maxWaitText) || 0)
@@ -343,26 +367,30 @@ export function OfferQuoteForm({
           <section>
             <h2 className="text-lg font-semibold">Your times</h2>
             <p className="mt-1 text-sm text-[#6F675C]">
-              Hours and minutes for each. We use these to sequence the trip and
-              build the client&apos;s ETA sheet.
+              Hours and minutes for each. Grey numbers are reference only —
+              enter your own. We use these to sequence the trip and build the
+              client&apos;s ETA sheet.
             </p>
             <div className="mt-2">
               <CreamTimeRow
                 title="Time to position"
                 hint={`How long until you can be at ${originIcao || 'origin'}, wheels on the ramp`}
                 totalMinutes={ttp}
+                placeholderTotalMinutes={REFERENCE_TTP_MIN}
                 onChange={setTtp}
               />
               <CreamTimeRow
                 title="Turn time"
                 hint="Load pax/freight and fuel if needed, ready to depart"
                 totalMinutes={quickTurn}
+                placeholderTotalMinutes={DEFAULT_QUICK_TURN_MIN}
                 onChange={setQuickTurn}
               />
               <CreamTimeRow
                 title="Live leg"
                 hint={`Today's flight time ${originIcao || 'origin'} → ${destIcao || 'destination'} in this aircraft`}
                 totalMinutes={live}
+                placeholderTotalMinutes={REFERENCE_LIVE_LEG_MIN}
                 onChange={setLive}
               />
             </div>

@@ -14,6 +14,7 @@ import {
 } from '@/lib/clientStore'
 import { replaceFbosFromDb, type FboRow } from '@/lib/fboStore'
 import { hydrateTrips } from '@/lib/db/hydrateTrips'
+import { hydrateFinancialsFromDb } from '@/lib/db/hydrateFinancials'
 import { replaceIntakeFromDb, type IntakeDraft } from '@/lib/intakeStore'
 import { replaceLeadsFromDb } from '@/lib/leadStore'
 import { replaceNeedsInfoFromDb, type NeedsInfoTask } from '@/lib/needsInfoStore'
@@ -290,6 +291,7 @@ export async function hydrateOperatingData(): Promise<{
   }
 
   const trips = await hydrateTrips()
+  await hydrateFinancialsFromDb()
 
   const intakeRows = await safeQuery('intake_drafts', () =>
     db()
