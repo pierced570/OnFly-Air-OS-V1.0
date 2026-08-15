@@ -6,9 +6,11 @@ import {
   offerBtnYes,
 } from '@/components/OfferBoardChrome'
 import { OfferQuoteForm } from '@/components/OfferQuoteForm'
+import { OperatorSubmittedQuoteView } from '@/components/OperatorSubmittedQuoteView'
 import { haversineNm } from '@/domain/geo'
 import { lookupAirport } from '@/domain/airports'
 import { isRoundTripLane, parseLaneAirports } from '@/domain/offerMissionDisplay'
+import { operatorSubmittedQuoteSnapshot } from '@/domain/operatorSubmittedQuote'
 import { resolveOfferByToken } from '@/lib/db/hydrateTrips'
 import type { OfferRow, TripStoreRow } from '@/lib/tripStore'
 import {
@@ -19,7 +21,8 @@ import {
 /**
  * Operator trip-offer board — Yes/No, then cream quote form matching desk UI.
  * Never recommend a tail; never say "bid".
- * After a quote is in, the magic link is locked (email/SMS reopen = confirmation only).
+ * After a quote is in, reopening the magic link shows the submitted quote
+ * read-only (cannot re-submit via email/SMS).
  */
 export default function OfferPublicPage() {
   const { token } = useParams()
@@ -71,6 +74,11 @@ export default function OfferPublicPage() {
     return Math.round(haversineNm(o.lat, o.lon, d.lat, d.lon))
   }, [found])
 
+  const submittedSnapshot = useMemo(
+    () => (found ? operatorSubmittedQuoteSnapshot(found.offer) : null),
+    [found],
+  )
+
   if (loading) {
     return (
       <div className="min-h-dvh bg-[#F9F7F2] px-4 py-6 text-base text-ink">
@@ -94,7 +102,6 @@ export default function OfferPublicPage() {
   const { trip } = found
   const ready = trip.ready_label || 'scheduled'
   const asap = /asap/i.test(ready)
-  const alreadySelected = found.offer.state === 'selected'
 
   async function onAvail(yes: boolean) {
     setBusy(true)
@@ -160,20 +167,36 @@ export default function OfferPublicPage() {
     )
   }
 
-  if (step === 'done') {
+  if (step === 'done' || (step === 'closed' && submittedSnapshot)) {
+    if (submittedSnapshot) {
+      return (
+        <div
+          className="min-h-dvh bg-[#F9F7F2] px-4 py-6 sm:py-10"
+          data-theme="client"
+        >
+          <div className="mx-auto w-full max-w-lg">
+            <OperatorSubmittedQuoteView
+              lane={trip.lane}
+              tripCode={trip.code || `T-${trip.ref}`}
+              payloadSummary={trip.payload_summary}
+              readyLabel={ready}
+              liveNm={liveNm}
+              snapshot={submittedSnapshot}
+            />
+          </div>
+        </div>
+      )
+    }
     return (
       <div
         className="min-h-dvh bg-[#F9F7F2] px-4 py-10 text-ink"
         data-theme="client"
       >
         <div className="mx-auto max-w-lg rounded-2xl border border-[#E4DDD0] bg-white px-5 py-6 shadow-sm">
-          <h1 className="text-xl font-semibold">
-            {alreadySelected ? "You're selected" : 'Quote submitted'}
-          </h1>
+          <h1 className="text-xl font-semibold">Quote submitted</h1>
           <p className="mt-2 text-sm text-[#6F675C]">
-            {alreadySelected
-              ? 'Dispatch has this trip with your operation. This link is closed — contact OnFly if anything changes.'
-              : "Dispatch has your quote. This link is closed so it can't be submitted again from email or text. Contact OnFly dispatch if you need to change it."}
+            Dispatch has your quote. Contact OnFly dispatch if you need to
+            change it.
           </p>
         </div>
       </div>
