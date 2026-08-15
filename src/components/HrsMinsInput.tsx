@@ -6,7 +6,8 @@ import {
 
 type Props = {
   label: string
-  totalMinutes: number
+  /** `null` = empty fields showing grey reference placeholders. */
+  totalMinutes: number | null
   onChange: (totalMinutes: number) => void
   required?: boolean
   /** Override outer label class (e.g. Quick Dispatch uppercase muted). */
@@ -15,6 +16,11 @@ type Props = {
   inputClassName?: string
   /** Where to put hrs/min captions. Default above each box. */
   unitPlacement?: 'above' | 'below' | 'none'
+  /**
+   * When `totalMinutes` is null, show these as grey placeholders
+   * (operator form reference values until they fill in).
+   */
+  placeholderTotalMinutes?: number
 }
 
 /** Two boxes — Hours + Mins — for quote / Quick Dispatch entry. */
@@ -26,8 +32,13 @@ export function HrsMinsInput({
   labelClassName,
   inputClassName,
   unitPlacement = 'above',
+  placeholderTotalMinutes,
 }: Props) {
-  const { hours, minutes } = hrsMinsFromTotal(totalMinutes)
+  const empty = totalMinutes == null
+  const { hours, minutes } = empty
+    ? { hours: 0, minutes: 0 }
+    : hrsMinsFromTotal(totalMinutes)
+  const ph = hrsMinsFromTotal(placeholderTotalMinutes ?? 0)
   const fieldClass = inputClassName ?? offerInput
 
   function emit(nextH: number, nextM: number) {
@@ -53,9 +64,11 @@ export function HrsMinsInput({
             type="number"
             inputMode="numeric"
             min={0}
-            className={[fieldClass, showAbove ? '' : ''].join(' ')}
-            value={hours === 0 && minutes === 0 ? '' : hours}
-            placeholder="0"
+            className={fieldClass}
+            value={empty || (hours === 0 && minutes === 0) ? '' : hours}
+            placeholder={
+              placeholderTotalMinutes != null ? String(ph.hours) : '0'
+            }
             required={required}
             onChange={(e) => {
               const raw = e.target.value
@@ -79,8 +92,10 @@ export function HrsMinsInput({
             min={0}
             max={59}
             className={fieldClass}
-            value={hours === 0 && minutes === 0 ? '' : minutes}
-            placeholder="0"
+            value={empty || (hours === 0 && minutes === 0) ? '' : minutes}
+            placeholder={
+              placeholderTotalMinutes != null ? String(ph.minutes) : '0'
+            }
             required={required}
             onChange={(e) => {
               const raw = e.target.value

@@ -24,6 +24,21 @@ describe('offerQuoteTiming', () => {
     expect(hrsMinsFromTotal(75)).toEqual({ hours: 1, minutes: 15 })
   })
 
+  it('exposes operator reference placeholders', async () => {
+    const {
+      REFERENCE_TTP_MIN,
+      REFERENCE_LIVE_LEG_MIN,
+      DEFAULT_QUICK_TURN_MIN: turn,
+    } = await import('./offerQuoteTiming')
+    expect(REFERENCE_TTP_MIN).toBe(90)
+    expect(turn).toBe(40)
+    expect(REFERENCE_LIVE_LEG_MIN).toBe(75)
+    expect(hrsMinsFromTotal(REFERENCE_TTP_MIN)).toEqual({
+      hours: 1,
+      minutes: 30,
+    })
+  })
+
   it('chains TTP → quick turn → live with Zulu + local', () => {
     const now = DateTime.utc(2026, 7, 26, 18, 0, 0)
     const t = computeOfferQuoteTiming({
