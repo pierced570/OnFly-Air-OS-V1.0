@@ -1018,13 +1018,22 @@ export default function DeskParsePage() {
                       <input
                         type="number"
                         min={0}
+                        inputMode="numeric"
                         className={input}
-                        value={leg.pax}
-                        onChange={(e) =>
+                        value={leg.pax || ''}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          if (raw === '') {
+                            patchLeg(leg.id, { pax: 0 })
+                            return
+                          }
+                          const n = Number(raw)
+                          if (!Number.isFinite(n)) return
                           patchLeg(leg.id, {
-                            pax: Number(e.target.value) || 0,
+                            pax: Math.max(0, Math.floor(n)),
                           })
-                        }
+                        }}
                       />
                     </label>
                   )}
