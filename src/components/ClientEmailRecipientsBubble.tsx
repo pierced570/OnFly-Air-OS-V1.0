@@ -1,9 +1,9 @@
 /**
  * Desk bubble to pick who is looped into a client quote / ETA thread.
- * Saved contacts toggle To / CC / BCC.
+ * Saved contacts toggle To / CC / BCC; fields are free-typeable.
  */
 
-import { useMemo, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import {
   getClient,
@@ -46,6 +46,11 @@ function normalize(email: string): string {
 
 function uniq(emails: string[]): string[] {
   return [...new Set(emails.map(normalize).filter((e) => e.includes('@')))]
+}
+
+/** Parse a typed To/CC/BCC field into valid emails (comma / semicolon / space). */
+export function parseEmailList(raw: string): string[] {
+  return uniq(raw.split(/[,;\s]+/))
 }
 
 export function emptyClientEmailSelection(): ClientEmailSelection {
@@ -175,6 +180,30 @@ function useClientEmailContacts(
   }, [client, value])
 }
 
+type FieldKey = 'to' | 'cc' | 'bcc'
+
+function applyFieldEmails(
+  value: ClientEmailSelection,
+  key: FieldKey,
+  emails: string[],
+): ClientEmailSelection {
+  // Keep this field's list; drop those addresses from the other buckets.
+  return {
+    to:
+      key === 'to'
+        ? emails
+        : value.to.filter((x) => !emails.includes(x)),
+    cc:
+      key === 'cc'
+        ? emails
+        : value.cc.filter((x) => !emails.includes(x)),
+    bcc:
+      key === 'bcc'
+        ? emails
+        : value.bcc.filter((x) => !emails.includes(x)),
+  }
+}
+
 function EmailFields({
   value,
   onChange,
@@ -184,6 +213,23 @@ function EmailFields({
   onChange: (next: ClientEmailSelection) => void
   columns?: boolean
 }) {
+  // Local draft while typing — parent only stores valid @ emails, so committing
+  // on every keystroke used to wipe incomplete input (couldn't type "name@…").
+  const [editing, setEditing] = useState<{
+    key: FieldKey
+    text: string
+  } | null>(null)
+
+  function displayValue(key: FieldKey): string {
+    if (editing?.key === key) return editing.text
+    return value[key].join(', ')
+  }
+
+  function commit(key: FieldKey, text: string) {
+    onChange(applyFieldEmails(value, key, parseEmailList(text)))
+    setEditing(null)
+  }
+
   return (
     <div
       className={
@@ -202,30 +248,25 @@ function EmailFields({
         <label key={key} className="block text-[11px] text-muted">
           {label}
           <input
-            className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 font-mono text-xs text-cream"
+            className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 font-mono text-xs text-cream outline-none placeholder:text-muted focus:border-gold"
             name={`onfly-client-email-${key}`}
             autoComplete="off"
             data-1p-ignore
             data-lpignore="true"
-            value={value[key].join(', ')}
+            value={displayValue(key)}
             placeholder="name@client.com"
-            onChange={(e) => {
-              const emails = uniq(e.target.value.split(/[,;\s]+/))
-              const next: ClientEmailSelection = {
-                to:
-                  key === 'to'
-                    ? emails
-                    : value.to.filter((x) => !emails.includes(x)),
-                cc:
-                  key === 'cc'
-                    ? emails
-                    : value.cc.filter((x) => !emails.includes(x)),
-                bcc:
-                  key === 'bcc'
-                    ? emails
-                    : value.bcc.filter((x) => !emails.includes(x)),
+            onFocus={() =>
+              setEditing({ key, text: value[key].join(', ') })
+            }
+            onChange={(e) => setEditing({ key, text: e.target.value })}
+            onBlur={() => {
+              if (editing?.key === key) commit(key, editing.text)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                ;(e.target as HTMLInputElement).blur()
               }
-              onChange(next)
             }}
           />
         </label>
@@ -288,8 +329,8 @@ export function ClientEmailRecipientsBubble({
 
   if (layout === 'compact') {
     const help = contacts.length
-      ? 'Tap contacts to cycle To → CC → BCC → off'
-      : 'Tap contacts to cycle To → CC → BCC → off · none saved yet, add below'
+      ? 'Type emails below, or tap contacts to cycle To → CC → BCC → off'
+      : 'Type emails in To / CC / BCC below · none saved on this client yet'
     return (
       <div className="space-y-2">
         <p className="text-[11px] text-muted">{help}</p>
@@ -311,7 +352,8 @@ export function ClientEmailRecipientsBubble({
         {title}
       </div>
       <p className="mt-1 text-[11px] text-muted">
-        Tap to cycle <span className="text-cream">To → CC → BCC → off</span>
+        Type addresses below, or tap contacts to cycle{' '}
+        <span className="text-cream">To → CC → BCC → off</span>
       </p>
 
       {contacts.length ? (
@@ -320,7 +362,7 @@ export function ClientEmailRecipientsBubble({
         </div>
       ) : (
         <p className="mt-2 text-xs text-muted">
-          No saved contacts on this client yet — add emails below.
+          No saved contacts on this client yet — type emails below.
         </p>
       )}
 
