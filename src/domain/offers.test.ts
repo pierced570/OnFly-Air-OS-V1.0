@@ -5,9 +5,13 @@ import {
   availabilityPingHtml,
   availabilityPingSmsWithLink,
   availabilityPingWithLink,
+  missionGoEmail,
+  missionGoSms,
   parseAvailabilityReply,
   quoteSubmittedDeskSms,
   quoteSubmittedDeskEmail,
+  standDownBody,
+  standDownEmail,
 } from './offers'
 
 describe('offers language', () => {
@@ -108,5 +112,22 @@ describe('offers language', () => {
     expect(text).toContain('/trips/abc')
     expect(text.toLowerCase()).not.toContain('bid')
     expect(text).toMatch(/email notification only/i)
+  })
+
+  it('mission-go and stand-down copy never say bid', () => {
+    expect(missionGoSms('KCAK→KHPN', 'N100AA')).toContain('mission is a go')
+    expect(missionGoSms('KCAK→KHPN', 'N100AA').toLowerCase()).not.toContain('bid')
+    const go = missionGoEmail({
+      lane: 'KCAK→KHPN',
+      tail: 'N100AA',
+      typeName: 'King Air 200',
+    })
+    expect(go.subject).toContain("you're on")
+    expect(go.text.toLowerCase()).not.toContain('bid')
+    expect(standDownBody('KCAK→KHPN')).toContain('is covered')
+    const down = standDownEmail('KCAK→KHPN')
+    expect(down.subject).toContain('OnFly update')
+    expect(down.text.toLowerCase()).toContain('another carrier')
+    expect(down.text.toLowerCase()).not.toContain('bid')
   })
 })

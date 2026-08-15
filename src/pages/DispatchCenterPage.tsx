@@ -41,6 +41,7 @@ import {
 import { getClient, listClients, subscribeClients } from '@/lib/clientStore'
 import {
   acknowledgeDeclinedOffer,
+  deskApproveTrip,
   updateTripOfferRequest,
 } from '@/lib/offerFlow'
 import { startLiveTripRefresh } from '@/lib/liveTripRefresh'
@@ -519,6 +520,9 @@ function OfferTripList({
   onAcknowledgeDeclined,
   onDeleteCard,
   onDeleteOffer,
+  onApproveCard,
+  onApproveOffer,
+  approvingId,
 }: {
   cards: DispatchCard[]
   focusTripId?: string | null
@@ -527,6 +531,9 @@ function OfferTripList({
   onAcknowledgeDeclined: (tripId: string, offerId: string) => void
   onDeleteCard: (card: DispatchCard) => void
   onDeleteOffer: (tripId: string, offerId: string, name: string) => void
+  onApproveCard?: (card: DispatchCard) => void
+  onApproveOffer?: (tripId: string, offerId: string, name: string) => void
+  approvingId?: string | null
 }) {
   const isQuotes = mode === 'quotes'
   const isOffers = mode === 'offers'
@@ -699,7 +706,27 @@ function OfferTripList({
                     </li>
                     {c.recipients.map((r) => (
                       <li key={r.offer_id} className="px-0.5 py-1">
-                        <div className="font-semibold text-gold">{r.name}</div>
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <div className="font-semibold text-gold">{r.name}</div>
+                          {isQuotes &&
+                          c.approvable &&
+                          c.trip_id &&
+                          r.quote_facts &&
+                          onApproveOffer ? (
+                            <button
+                              type="button"
+                              disabled={approvingId === r.offer_id}
+                              className="text-xs font-semibold text-gold hover:text-gold-lt disabled:opacity-40"
+                              onClick={() =>
+                                onApproveOffer(c.trip_id!, r.offer_id, r.name)
+                              }
+                            >
+                              {approvingId === r.offer_id
+                                ? 'Approving…'
+                                : 'Approve this option'}
+                            </button>
+                          ) : null}
+                        </div>
                         {r.quote_facts ? (
                           <OfferQuoteFactsBlock facts={r.quote_facts} />
                         ) : (
@@ -748,6 +775,16 @@ function OfferTripList({
               />
             ) : null}
             <div className="mt-3.5 flex flex-wrap gap-2">
+              {isQuotes && c.approvable && onApproveCard ? (
+                <button
+                  type="button"
+                  disabled={approvingId === c.id}
+                  className="rounded-lg bg-gold px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
+                  onClick={() => onApproveCard(c)}
+                >
+                  {approvingId === c.id ? 'Approving…' : 'Approve trip'}
+                </button>
+              ) : null}
               {(isQuotes || isSubmitted) && c.trip_id ? (
                 <button
                   type="button"
@@ -755,7 +792,9 @@ function OfferTripList({
                     'rounded-lg px-3.5 py-2.5 text-sm font-semibold',
                     quoting
                       ? 'border border-gold/50 bg-transparent text-gold hover:bg-gold/10'
-                      : 'bg-gold text-ink hover:bg-gold-lt',
+                      : isQuotes && c.approvable
+                        ? 'border border-gold/50 bg-transparent text-gold hover:bg-gold/10'
+                        : 'bg-gold text-ink hover:bg-gold-lt',
                   ].join(' ')}
                   onClick={() => {
                     setUpdatingTripId(null)
@@ -820,7 +859,7 @@ function OfferTripList({
 const DRAWER_IDS = new Set<string>(DISPATCH_DRAWERS.map((d) => d.id))
 
 export default function DispatchCenterPage() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const requests = useSyncExternalStore(subscribeRequests, listRequests, listRequests)
   const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
@@ -849,6 +888,8 @@ export default function DispatchCenterPage() {
       : null,
   )
   const [pushError, setPushError] = useState<string | null>(null)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [approveError, setApproveError] = useState<string | null>(null)
 
   // Deep link from desk send / share: /dispatch?drawer=offers&focus=<tripId>
   // Quick Dispatch: /dispatch?tool=quick
@@ -925,6 +966,56 @@ export default function DispatchCenterPage() {
       return
     }
     void removeOfferFromTrip(tripId, offerId)
+  }
+
+  function approveWaterfallCard(card: DispatchCard) {
+    const tripId = card.trip_id ?? (card.kind === 'trip' ? card.id : null)
+    if (!tripId || !card.approvable) return
+    if (
+      !window.confirm(
+        `Approve trip?\n\n${card.title}\n\nBooks the trip with the selected / quoted operator, notifies win/stand-down on their offer channel, and moves it to Approved. Invoice + tracking emails stay on Approved for you to confirm recipients.`,
+      )
+    ) {
+      return
+    }
+    setApproveError(null)
+    setApprovingId(card.id)
+    void deskApproveTrip(tripId, card.approve_offer_id)
+      .then((booked) => {
+        setOpenDrawer('approved')
+        const next = new URLSearchParams(searchParams)
+        next.set('drawer', 'approved')
+        next.set('focus', booked.id)
+        setSearchParams(next, { replace: true })
+      })
+      .catch((e) =>
+        setApproveError(e instanceof Error ? e.message : String(e)),
+      )
+      .finally(() => setApprovingId(null))
+  }
+
+  function approveOfferRow(tripId: string, offerId: string, name: string) {
+    if (
+      !window.confirm(
+        `Approve trip with ${name}?\n\nBooks the trip, stands other operators down on their offer channel, and moves to Approved.`,
+      )
+    ) {
+      return
+    }
+    setApproveError(null)
+    setApprovingId(offerId)
+    void deskApproveTrip(tripId, offerId)
+      .then((booked) => {
+        setOpenDrawer('approved')
+        const next = new URLSearchParams(searchParams)
+        next.set('drawer', 'approved')
+        next.set('focus', booked.id)
+        setSearchParams(next, { replace: true })
+      })
+      .catch((e) =>
+        setApproveError(e instanceof Error ? e.message : String(e)),
+      )
+      .finally(() => setApprovingId(null))
   }
 
   const buckets = useMemo(
@@ -1075,6 +1166,12 @@ export default function DispatchCenterPage() {
         }}
       />
 
+      {approveError ? (
+        <p className="rounded-lg border border-late/40 bg-late/10 px-3 py-2 text-sm text-late">
+          {approveError}
+        </p>
+      ) : null}
+
       {scratchPreview ? (
         <div className="rounded-xl border border-gold/40 bg-gold/5 px-3.5 py-3">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-gold">
@@ -1143,6 +1240,13 @@ export default function DispatchCenterPage() {
               }}
               onDeleteCard={removeWaterfallCard}
               onDeleteOffer={removeOfferRow}
+              onApproveCard={
+                d.id === 'quotes' ? approveWaterfallCard : undefined
+              }
+              onApproveOffer={
+                d.id === 'quotes' ? approveOfferRow : undefined
+              }
+              approvingId={d.id === 'quotes' ? approvingId : null}
             />
           ) : (
             <CardList

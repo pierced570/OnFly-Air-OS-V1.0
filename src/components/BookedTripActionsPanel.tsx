@@ -110,7 +110,8 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           {trip.hard_quote?.total != null
             ? ` ($${Math.round(trip.hard_quote.total).toLocaleString('en-US')})`
             : ''}
-          .
+          . Defaults to the client&apos;s preset invoice emails — add To/CC/BCC from
+          their contact list before send.
         </p>
         <AircraftTypeSelect
           draft={draftType}
@@ -159,6 +160,8 @@ export function BookedTripActionsPanel({ tripId }: Props) {
         <div className="text-sm font-medium text-cream">2. Send ETA sheet</div>
         <p className="text-[11px] text-muted">
           Timing + tracking link from the approved trip — no payment details.
+          Defaults to the client&apos;s preset tracker emails; add contacts from
+          their list before send.
         </p>
         {sheet ? (
           <div className="font-mono text-[11px] text-cream/80 space-y-0.5">
