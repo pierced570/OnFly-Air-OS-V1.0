@@ -1067,8 +1067,8 @@ export default function DeskParsePage() {
                 {STANDARD_TOOLING.ui_label}
               </div>
               <p className="mt-1 text-[11px] text-muted">
-                Left blank → autofills 12×12×12 @ 75 lb. Use + Add cargo for
-                another piece.
+                Optional — leave blank for pax-only. Cargo-only blanks use
+                12×12×12 @ 75 lb. + Add cargo for another piece.
               </p>
             </div>
             <DimsTripleInput

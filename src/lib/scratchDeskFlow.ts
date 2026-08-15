@@ -24,7 +24,6 @@ import {
 import { generateCandidates, type Candidate } from '@/domain/routing'
 import {
   mentionsRoundTrip,
-  needsStandardCargoAutofill,
   operatorMissionSummary,
   standardCargoPiecesText,
   todayLocalDate,
@@ -362,15 +361,21 @@ export function syncDeskDraftDerived(draft: DeskDraft): DeskDraft {
   const pax = draft.cargo_only
     ? 0
     : Math.max(draft.pax_count, leg0?.pax ?? 0, ...legs.map((l) => l.pax))
+  // Cargo is optional — only count pieces that actually parse (partial typing
+  // like "12" must not flip a pax trip into "both" and block recommend).
+  const hasCargoPieces =
+    parseDims(toolingDimsForParse(draft.pieces_text || '')).pieces.length > 0
   const payload_kind: DeskDraft['payload_kind'] = draft.cargo_only
     ? 'cargo'
     : pax > 0
-      ? draft.pieces_text.trim()
+      ? hasCargoPieces
         ? 'both'
         : 'pax'
-      : draft.payload_kind === 'cargo'
+      : hasCargoPieces
         ? 'cargo'
-        : 'both'
+        : draft.payload_kind === 'cargo'
+          ? 'cargo'
+          : 'both'
   const asap = draft.timing === 'asap'
   return {
     ...draft,
@@ -397,16 +402,17 @@ export function syncDeskDraftDerived(draft: DeskDraft): DeskDraft {
 }
 
 /**
- * When Standard cargo is blank on a cargo / both mission, fill 12×12×12 @ 75 lb
- * so recommend + send don't block on empty placeholders.
+ * Cargo is optional. Pax trips with blank/partial dims stay pax-only.
+ * Cargo-only blanks get standard 12×12×12 @ 75 lb for routing fit.
  */
 export function withAutofilledStandardCargo(draft: DeskDraft): DeskDraft {
   const synced = syncDeskDraftDerived(draft)
-  if (synced.payload_kind === 'pax') return synced
-  if (!needsStandardCargoAutofill(synced.pieces_text)) {
-    const parsed = parseDims(toolingDimsForParse(synced.pieces_text || '')).pieces
-    if (parsed.length) return synced
-  }
+  const parsed = parseDims(
+    toolingDimsForParse(synced.pieces_text || ''),
+  ).pieces
+  if (parsed.length) return synced
+  // Has passengers and not cargo-only → leave cargo blank (not required).
+  if (synced.pax_count > 0 && !synced.cargo_only) return synced
   return syncDeskDraftDerived({
     ...synced,
     pieces_text: standardCargoPiecesText(),
@@ -516,19 +522,14 @@ export async function recommendForDeskDraft(
     }
   }
 
+  // Cargo optional: use parsed pieces when present; otherwise pax-only empty
+  // or (cargo-only) standard tooling already filled by withAutofilledStandardCargo.
   let pieces =
     draft.payload_kind === 'pax'
       ? []
       : parseDims(toolingDimsForParse(draft.pieces_text || '')).pieces
-  if (draft.payload_kind !== 'pax' && !pieces.length) {
-    return {
-      candidates: [],
-      lane,
-      error:
-        'Add cargo (e.g. tools → standard tooling) or dims @ weight — techs count as pax',
-      client_rules_applied,
-      rule_chips,
-    }
+  if (!pieces.length && draft.payload_kind !== 'pax') {
+    pieces = parseDims(toolingDimsForParse(standardCargoPiecesText())).pieces
   }
 
   const fleet = await loadFleetForRouting()
