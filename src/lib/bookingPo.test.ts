@@ -68,7 +68,7 @@ describe('booking PO number', () => {
     )
     mutateTrip(trip.id, (t) => {
       t.po_number = null
-      if (t.quick) t.quick.po = null
+      if (t.quick) t.quick.po = ''
     })
 
     const inv = await createInvoiceForTrip(trip.id, { skipEmail: true })
