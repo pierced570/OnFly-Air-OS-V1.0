@@ -260,8 +260,12 @@ export function replaceClientsFromDb(rows: ClientProfile[]): void {
 /**
  * Ensure financials ledger client names appear in the directory.
  * Merges missing names (does not wipe session/DB clients like "Tester").
+ * Skips names that soft-match an existing directory row (export hydrate).
  */
 export async function ensureClientsDirectorySeeded(): Promise<number> {
+  const { clientDirectoryNamesMatch } = await import(
+    '@/domain/clientExportImport'
+  )
   const fixture = (await import('@/fixtures/financials.json')).default as {
     records: Array<{ client_name?: string; pay_terms?: string | null }>
   }
@@ -274,14 +278,12 @@ export async function ensureClientsDirectorySeeded(): Promise<number> {
     if (!byName.has(name)) byName.set(name, { pay_terms: pay })
   }
 
-  const existingNames = new Set(
-    [...clients.values()].map((c) => c.name.trim().toLowerCase()),
-  )
+  const existing = [...clients.values()]
   let added = 0
   for (const [name, meta] of [...byName.entries()].sort((a, b) =>
     a[0].localeCompare(b[0]),
   )) {
-    if (existingNames.has(name.toLowerCase())) continue
+    if (existing.some((c) => clientDirectoryNamesMatch(c.name, name))) continue
     const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -304,7 +306,7 @@ export async function ensureClientsDirectorySeeded(): Promise<number> {
       qb_customer_id: null,
       profile: { source: 'import' },
     })
-    existingNames.add(name.toLowerCase())
+    existing.push(clients.get(id)!)
     added++
   }
   if (added) {
@@ -446,6 +448,56 @@ export function updateClient(
   if (!row.profile) row.profile = {}
   bump(id)
   return row
+}
+
+/**
+ * Full replace of contacts + profile fields from a clients-export draft.
+ * Used to overwrite blank financials stubs with the CSV directory.
+ */
+export function applyClientExportProfile(
+  id: string,
+  next: {
+    name?: string
+    email?: string
+    invoice_email?: string
+    pay_terms?: string
+    po_prefix?: string | null
+    notes?: string
+    rules?: ClientRules
+    profile?: ClientExtendedProfile
+    contacts: ClientContact[]
+  },
+): ClientProfile | undefined {
+  const row = clients.get(id)
+  if (!row) return undefined
+  if (next.name != null && next.name.trim()) row.name = next.name.trim()
+  if (next.email != null) row.email = next.email
+  if (next.invoice_email != null) row.invoice_email = next.invoice_email
+  if (next.pay_terms != null) row.pay_terms = next.pay_terms
+  if (next.po_prefix !== undefined) row.po_prefix = next.po_prefix
+  if (next.notes != null) row.notes = next.notes
+  if (next.rules) row.rules = { ...DEFAULT_CLIENT_RULES, ...next.rules }
+  if (next.profile) row.profile = { ...row.profile, ...next.profile }
+  row.contacts = next.contacts.map((c) => ({
+    ...c,
+    id: c.id || crypto.randomUUID(),
+    kind: c.kind ?? 'person',
+    notify_prefs: c.notify_prefs ?? defaultPrefs(c.role),
+  }))
+  bump(id)
+  return row
+}
+
+/** Remove a directory row (used to scrub duplicate financials stubs after export hydrate). */
+export function removeClient(id: string): boolean {
+  const row = clients.get(id)
+  if (!row) return false
+  if (row.supabase_id) clientIdAliases.delete(row.supabase_id)
+  clients.delete(id)
+  rebuild()
+  persistLocal()
+  for (const l of listeners) l()
+  return true
 }
 
 /**
