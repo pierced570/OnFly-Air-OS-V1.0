@@ -1,6 +1,7 @@
 /**
  * Upsert financial_records from the fixture JSON (built from the OFA CSV).
- * Usage: npm run import:financials
+ * Rebuild fixture from data/ofa_financials_YYYY-MM-DD.csv then:
+ *   npm run import:financials
  */
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
