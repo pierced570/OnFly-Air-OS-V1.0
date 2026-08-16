@@ -138,7 +138,7 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
   const logo = tpl.logoUrl?.trim()
   // Dark near-black banner — logo art is cream/gold (light); never put it on white.
   const logoBlock = logo
-    ? `<img src="${escapeAttr(logo)}" alt="OnFly Air" width="168" style="display:block;max-width:168px;height:auto;border:0;background:transparent" />`
+    ? `<img src="${escapeAttr(logo)}" alt="OnFly Air" width="148" style="display:block;max-width:148px;height:auto;border:0;background:transparent" />`
     : `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:800;letter-spacing:0.14em"><span style="color:#c9a227">ONFLY</span> <span style="color:#f7f2e3">AIR</span></div>`
 
   const aircraft = escapeHtml(tpl.aircraftType.trim() || 'TBD')
@@ -155,36 +155,45 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
     tpl.etaDisclosure?.trim() || DEFAULT_ETA_DISCLOSURE,
   )
 
+  /** Full-width stacked stop — side-by-side 50% columns crush on mobile email. */
   const stopCard = (stop: EtaSheetEmailStop) => {
     const kind = stop.kind === 'pickup' ? 'PICKUP' : 'DROP-OFF'
     const badge = stop.placeBadge?.trim()
     const lines = stop.addressLines.map((l) => l.trim()).filter(Boolean)
-    return `<td style="width:50%;padding:6px;vertical-align:top">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5dfd0;border-radius:8px">
-        <tr><td style="padding:14px 14px 12px">
-          <div>
-            <span style="display:inline-block;background:#0c0c0e;color:#f7f2e3;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:4px">${kind}</span>
+    return `<tr>
+      <td style="padding:0 0 10px;vertical-align:top">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5dfd0;border-radius:8px">
+          <tr><td style="padding:14px 16px">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+              <tr>
+                <td style="padding:0;vertical-align:middle">
+                  <span style="display:inline-block;background:#0c0c0e;color:#f7f2e3;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:4px">${kind}</span>
+                </td>
+                ${
+                  badge
+                    ? `<td style="padding:0 0 0 6px;vertical-align:middle">
+                  <span style="display:inline-block;background:#c9a227;color:#0c0c0e;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:4px">${escapeHtml(badge)}</span>
+                </td>`
+                    : ''
+                }
+              </tr>
+            </table>
+            <div style="margin-top:10px;font-size:16px;font-weight:700;color:#0c0c0e;line-height:1.35">${escapeHtml(stop.title)}</div>
+            ${lines
+              .map(
+                (l) =>
+                  `<div style="margin-top:4px;font-size:13px;color:#6b6560;line-height:1.45">${escapeHtml(l)}</div>`,
+              )
+              .join('')}
             ${
-              badge
-                ? `<span style="display:inline-block;background:#c9a227;color:#0c0c0e;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:4px;margin-left:6px">${escapeHtml(badge)}</span>`
+              stop.footer?.trim()
+                ? `<div style="margin-top:10px;font-size:12px;color:#0c0c0e;line-height:1.45">${escapeHtml(stop.footer.trim())}</div>`
                 : ''
             }
-          </div>
-          <div style="margin-top:10px;font-size:15px;font-weight:700;color:#0c0c0e;line-height:1.35">${escapeHtml(stop.title)}</div>
-          ${lines
-            .map(
-              (l) =>
-                `<div style="margin-top:4px;font-size:13px;color:#6b6560;line-height:1.45">${escapeHtml(l)}</div>`,
-            )
-            .join('')}
-          ${
-            stop.footer?.trim()
-              ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5dfd0;font-size:12px;color:#0c0c0e;line-height:1.45">${escapeHtml(stop.footer.trim())}</div>`
-              : ''
-          }
-        </td></tr>
-      </table>
-    </td>`
+          </td></tr>
+        </table>
+      </td>
+    </tr>`
   }
 
   // Stages as a list with ETAs — no progress dots (email is static; portal fills stages).
@@ -204,17 +213,17 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
                 ? '#0c0c0e'
                 : '#6b6560'
             return `<tr style="${i % 2 === 0 ? 'background:#fffdf8' : 'background:#ffffff'}">
-        <td style="padding:14px 14px;border-top:1px solid #e5dfd0;vertical-align:top">
-          <div style="font-size:15px;font-weight:700;color:#0c0c0e">${escapeHtml(m.label)}</div>
+        <td style="padding:12px 14px;border-top:1px solid #e5dfd0;vertical-align:top;width:58%">
+          <div style="font-size:14px;font-weight:700;color:#0c0c0e;line-height:1.35;word-break:break-word">${escapeHtml(m.label)}</div>
           ${
             m.detail?.trim()
               ? `<div style="margin-top:3px;font-size:12px;color:#6b6560;line-height:1.4">${escapeHtml(m.detail.trim())}</div>`
               : ''
           }
         </td>
-        <td style="padding:14px 14px;border-top:1px solid #e5dfd0;vertical-align:top;text-align:right;white-space:nowrap">
+        <td style="padding:12px 14px;border-top:1px solid #e5dfd0;vertical-align:top;text-align:right;width:42%">
           <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b6560">${etaLabel}</div>
-          <div style="margin-top:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-weight:700;color:${etaColor}">${escapeHtml(eta || 'Live on portal')}</div>
+          <div style="margin-top:4px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;color:${etaColor};line-height:1.35;word-break:break-word">${escapeHtml(eta || 'Live on portal')}</div>
         </td>
       </tr>`
           })
@@ -229,17 +238,29 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light only" />
+  <meta name="x-apple-disable-message-reformatting" />
   <title>OnFly ETA sheet · PO #${po}</title>
+  <style type="text/css">
+    /* iOS / Apple Mail — keep layout tight on narrow screens */
+    @media only screen and (max-width: 620px) {
+      .of-pad { padding-left: 12px !important; padding-right: 12px !important; }
+      .of-tail { font-size: 28px !important; letter-spacing: 0.04em !important; }
+      .of-po { font-size: 22px !important; }
+      .of-lane { font-size: 15px !important; }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:0;background:#f7f2e3;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0c0c0e">
+<body style="margin:0;padding:0;background:#f7f2e3;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0c0c0e;-webkit-text-size-adjust:100%">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2e3">
     <tr>
-      <td style="background:#0c0c0e;padding:16px 20px;border-bottom:3px solid #c9a227">
+      <td class="of-pad" style="background:#0c0c0e;padding:14px 16px;border-bottom:3px solid #c9a227">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0c0c0e">
           <tr>
-            <td style="vertical-align:middle;background:#0c0c0e">${logoBlock}</td>
-            <td align="right" style="vertical-align:middle;font-size:11px;color:#f7f2e3;letter-spacing:0.06em;text-transform:uppercase;background:#0c0c0e">
-              24-hr ops <span style="color:#c9a227;font-weight:700;text-transform:none;letter-spacing:0">${phone}</span>
+            <td style="vertical-align:middle;background:#0c0c0e;padding:0 0 8px 0">${logoBlock}</td>
+          </tr>
+          <tr>
+            <td style="vertical-align:middle;font-size:11px;color:#f7f2e3;letter-spacing:0.04em;background:#0c0c0e;line-height:1.4">
+              24-hr ops &nbsp;<span style="color:#c9a227;font-weight:700;letter-spacing:0">${phone}</span>
             </td>
           </tr>
         </table>
@@ -247,30 +268,32 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
     </tr>
 
     <tr>
-      <td align="center" style="padding:0 12px">
+      <td align="center" style="padding:0">
         <table role="presentation" width="100%" style="max-width:720px">
           <tr>
-            <td style="padding:22px 8px 8px">
+            <td class="of-pad" style="padding:20px 16px 8px">
               <div style="font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c9a227">${pattern}</div>
-              <div style="margin-top:6px;font-size:26px;font-weight:700;color:#0c0c0e;line-height:1.2;letter-spacing:-0.02em">PO #${po}</div>
-              <div style="margin-top:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:18px;font-weight:700;color:#0c0c0e;line-height:1.35">${lane}</div>
-              <div style="margin-top:8px;font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#6b6560">${prepared}</div>
-              <div style="margin-top:4px;font-size:12px;color:#6b6560;line-height:1.45">
+              <div class="of-po" style="margin-top:6px;font-size:24px;font-weight:700;color:#0c0c0e;line-height:1.2;letter-spacing:-0.02em">PO #${po}</div>
+              <div class="of-lane" style="margin-top:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:16px;font-weight:700;color:#0c0c0e;line-height:1.4;word-break:break-word">${lane}</div>
+              <div style="margin-top:8px;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#6b6560;line-height:1.4">${prepared}</div>
+              <div style="margin-top:6px;font-size:12px;color:#6b6560;line-height:1.45">
                 Track aircraft position and live stage progress on your portal.
               </div>
             </td>
           </tr>
 
           <tr>
-            <td style="padding:12px 0">
+            <td class="of-pad" style="padding:10px 16px">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0c0c0e;border-radius:8px;overflow:hidden">
                 <tr>
-                  <td style="padding:10px 16px 4px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#c9a227">Aircraft</td>
-                  <td align="right" style="padding:10px 16px 4px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(247,242,227,0.55)">Live portal below</td>
+                  <td style="padding:12px 16px 2px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#c9a227">Aircraft</td>
                 </tr>
                 <tr>
-                  <td colspan="2" style="padding:4px 16px 18px">
-                    <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:36px;font-weight:800;letter-spacing:0.06em;line-height:1.1;color:#c9a227">${tail}</div>
+                  <td style="padding:2px 16px 4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(247,242,227,0.55)">Live portal below</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 16px 16px">
+                    <div class="of-tail" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:30px;font-weight:800;letter-spacing:0.05em;line-height:1.15;color:#c9a227;word-break:break-word">${tail}</div>
                     <div style="margin-top:8px;font-size:14px;font-weight:600;color:#f7f2e3;line-height:1.35">${aircraft.toUpperCase()}</div>
                     <div style="margin-top:4px;font-size:12px;color:rgba(247,242,227,0.65);line-height:1.4">${escapeHtml(aircraftBlurb)} &middot; ${lane}</div>
                   </td>
@@ -280,52 +303,56 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
           </tr>
 
           <tr>
-            <td style="padding:4px 0 12px">
+            <td class="of-pad" style="padding:4px 16px 8px">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  ${stopCard(tpl.pickup)}
-                  ${stopCard(tpl.dropoff)}
-                </tr>
+                ${stopCard(tpl.pickup)}
+                ${stopCard(tpl.dropoff)}
               </table>
             </td>
           </tr>
 
           <tr>
-            <td style="padding:0 0 16px">
+            <td class="of-pad" style="padding:0 16px 16px">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5dfd0;border-radius:8px;overflow:hidden">
                 <tr>
-                  <td style="padding:10px 14px;border-bottom:1px solid #e5dfd0;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#6b6560">
+                  <td style="padding:12px 14px 4px;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#6b6560">
                     Trip stages &amp; ETAs
                   </td>
-                  <td align="right" style="padding:10px 14px;border-bottom:1px solid #e5dfd0;font-size:11px;color:#6b6560">${tzNote}</td>
                 </tr>
                 <tr>
-                  <td colspan="2" style="padding:0">
+                  <td style="padding:0 14px 10px;font-size:11px;color:#6b6560;line-height:1.4">
+                    ${tzNote}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:0;border-top:1px solid #e5dfd0">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
                       ${stageList}
                     </table>
                   </td>
                 </tr>
               </table>
-              <p style="margin:14px 4px 0;font-size:12px;color:#6b6560;line-height:1.5">
+              <p style="margin:12px 0 0;font-size:12px;color:#6b6560;line-height:1.5">
                 ${disclosure}
               </p>
             </td>
           </tr>
 
           <tr>
-            <td style="padding:0 0 20px">
+            <td class="of-pad" style="padding:0 16px 20px">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0c0c0e;border-radius:8px">
                 <tr>
-                  <td style="padding:18px 18px;vertical-align:middle">
-                    <div style="font-size:16px;font-weight:700;color:#f7f2e3">Open your tracking portal</div>
-                    <div style="margin-top:6px;font-size:13px;color:#b8b2a6;line-height:1.45;max-width:340px">
+                  <td style="padding:18px 16px 8px">
+                    <div style="font-size:16px;font-weight:700;color:#f7f2e3;line-height:1.3">Open your tracking portal</div>
+                    <div style="margin-top:6px;font-size:13px;color:#b8b2a6;line-height:1.45">
                       Live aircraft position and stage progress update as the trip moves.
                     </div>
                   </td>
-                  <td align="right" style="padding:18px 18px;vertical-align:middle">
-                    <a href="${portalAttr}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-size:13px;font-weight:700;padding:11px 14px;border-radius:6px">Open tracking portal &rarr;</a>
-                    <div style="margin-top:10px;font-size:11px;color:#8a847a;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all">${portalDisplay}</div>
+                </tr>
+                <tr>
+                  <td style="padding:4px 16px 18px">
+                    <a href="${portalAttr}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-size:13px;font-weight:700;padding:12px 16px;border-radius:6px">Open tracking portal &rarr;</a>
+                    <div style="margin-top:10px;font-size:11px;color:#8a847a;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;line-height:1.4">${portalDisplay}</div>
                   </td>
                 </tr>
               </table>
@@ -336,10 +363,10 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
     </tr>
 
     <tr>
-      <td align="center" style="padding:8px 16px 28px;border-top:1px solid #e5dfd0">
-        <div style="font-size:12px;color:#6b6560">
+      <td align="center" class="of-pad" style="padding:8px 16px 28px;border-top:1px solid #e5dfd0">
+        <div style="font-size:12px;color:#6b6560;line-height:1.6">
           <a href="https://onflyair.com" style="color:#6b6560;text-decoration:none">onflyair.com</a>
-          &nbsp;&middot;&nbsp;
+          <br />
           <span style="color:#c9a227">${phone}</span>
           &nbsp;&middot;&nbsp;
           <a href="mailto:${support}" style="color:#0c0c0e;text-decoration:underline">${support}</a>
