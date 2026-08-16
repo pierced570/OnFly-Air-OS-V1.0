@@ -428,7 +428,7 @@ export default function PortalHomePage() {
           <div className="text-xs text-muted">
             Need a new move?{' '}
             <Link to="/portal/request" className="text-gold">
-              Request a quote
+              Request a trip
             </Link>
           </div>
         </section>
