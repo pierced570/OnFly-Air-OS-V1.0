@@ -70,7 +70,8 @@ export function portalSafeQuickFromRow(
     cargo_only: cargoOnly,
     operator_name: '',
     aircraft_type: aircraftType,
-    tail: tail || 'TBD',
+    // Never invent TBD — blank means unassigned (portal shows Pending).
+    tail,
     vendor_cost: 0,
     client_price: 0,
     pay_terms: '',

@@ -9,6 +9,10 @@ import {
   parseLooseDurationMinutes,
 } from '@/domain/quickDispatchChain'
 import {
+  isAssignableAircraftTail,
+  normalizeAircraftTail,
+} from '@/domain/aircraftTail'
+import {
   listBaseGeneratedEmails,
 } from '@/domain/clientBaseEmails'
 import {
@@ -238,8 +242,12 @@ export default function QuickDispatchPage() {
           return
         }
       }
-      if (!operator.trim() || !tail.trim()) {
-        setError('Operator and tail required')
+      if (!operator.trim()) {
+        setError('Operator required')
+        return
+      }
+      if (!isAssignableAircraftTail(tail)) {
+        setError('Real tail number required (not TBD) — needed for live tracking')
         return
       }
 
@@ -262,7 +270,7 @@ export default function QuickDispatchPage() {
         cargo_only: cargoOnly,
         operator_name: operator.trim(),
         aircraft_type: unifyAircraftType(aircraftType) || aircraftType.trim(),
-        tail: tail.trim().toUpperCase(),
+        tail: normalizeAircraftTail(tail),
         vendor_cost: Number(vendorCost) || 0,
         client_price: Number(clientPrice) || 0,
         pay_terms: payTerms,
@@ -330,15 +338,24 @@ export default function QuickDispatchPage() {
         await runOnBookedAutomations(trip.id)
       }
 
+      // Persist booked shell + ETA chain before live transition so magic-link
+      // portal hydrate sees nodes / tail (avoids STANDING BY + Tail TBD).
+      await flushPersistTrip(trip.id)
+
       // Straight into Live tracking — no Approved holding pattern.
       try {
         safeTransitionTrip(trip.id, 'in_progress', 'dispatcher', {
           reason: 'quick_dispatch',
           via: 'quick_dispatch',
         })
-        void flushPersistTrip(trip.id)
+        await flushPersistTrip(trip.id)
       } catch (e) {
         console.warn('[quick-dispatch] start tracking failed', e)
+        setError(
+          e instanceof Error
+            ? `Trip saved but not live yet: ${e.message}`
+            : 'Trip saved but live tracking failed — open trip and push live.',
+        )
       }
 
       nav(`/dispatch?drawer=tracking&focus=${encodeURIComponent(trip.id)}`)
@@ -688,8 +705,12 @@ export default function QuickDispatchPage() {
             if (hit?.type_name && !aircraftType.trim()) {
               setAircraftType(unifyAircraftType(hit.type_name) || hit.type_name)
             }
-            if (hit?.tail && hit.tail !== 'TBD' && !tail.trim()) {
-              setTail(hit.tail)
+            if (
+              hit?.tail &&
+              isAssignableAircraftTail(hit.tail) &&
+              !tail.trim()
+            ) {
+              setTail(normalizeAircraftTail(hit.tail))
             }
           }}
         />
@@ -704,13 +725,17 @@ export default function QuickDispatchPage() {
             />
           </label>
           <label className={label}>
-            Tail number
+            Tail number <span className="text-gold">*</span>
             <input
               className={`${input} avionic uppercase`}
               value={tail}
               onChange={(e) => setTail(e.target.value.toUpperCase())}
               placeholder="N12345"
+              required
             />
+            <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">
+              Required for live ADS-B / portal track — not TBD.
+            </span>
           </label>
         </div>
       </section>

@@ -105,4 +105,30 @@ describe('portal ETA + award hydrate', () => {
     expect(quick?.vendor_cost).toBe(0)
     expect(quick?.client_price).toBe(0)
   })
+
+  it('does not invent TBD when portal trip has no tail', () => {
+    const quick = portalSafeQuickFromRow(
+      { po_number: '000067', aircraft_type: 'C310' },
+      null,
+    )
+    expect(quick?.tail).toBe('')
+    expect(quick?.aircraft_type).toBe('C310')
+    const stub = stubTripFromPortalRow(
+      {
+        id: 't84',
+        ref: 84,
+        state: 'in_progress',
+        lane_label: 'KCAK → KHPN · KHPN → KCAK',
+        po_number: '000067',
+        payload_summary: 'cargo',
+        ready_label: 'ASAP',
+        aircraft_type: 'C310',
+      },
+      [],
+      [],
+    )
+    expect(stub.quick?.tail).toBe('')
+    const view = buildPortalTrackingView(tripToTrackingInput(stub))
+    expect(view.tail).toBeFalsy()
+  })
 })
