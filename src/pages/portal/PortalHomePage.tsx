@@ -34,7 +34,7 @@ import {
   getPortalTrackRow,
   resolvePortalTrackTripId,
 } from '@/lib/portalTrackStore'
-import { canPersist, db, safeQuery } from '@/lib/db/client'
+import { ensurePortalTripTrackingReady } from '@/lib/portalTripHydrate'
 
 function useRequests() {
   return useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -119,93 +119,20 @@ export default function PortalHomePage() {
     }
     let cancelled = false
     void (async () => {
-      const local = getTrip(g.tripId)
-      if (local) {
-        if (!cancelled) setGuestTrip(local)
-        return
-      }
       const id =
         getPortalTrackRow(g.token)?.tripId ??
+        g.tripId ??
         (await resolvePortalTrackTripId(g.token))
-      if (cancelled) return
-      if (id) {
-        const t = getTrip(id)
-        if (t) {
-          setGuestTrip(t)
-          return
-        }
-      }
-      if (!canPersist() || !id) {
-        setGuestTrip(null)
+      if (cancelled || !id) {
+        if (!cancelled) setGuestTrip(null)
         return
       }
-      const [tripRows, legRows] = await Promise.all([
-        safeQuery<Record<string, unknown>[]>('portal_trips.guest', () =>
-          db()
-            .from('portal_trips')
-            .select(
-              'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number',
-            )
-            .eq('id', id)
-            .limit(1),
-        ),
-        safeQuery<Record<string, unknown>[]>('portal_legs.guest', () =>
-          db().from('portal_legs').select('*').eq('trip_id', id).order('seq'),
-        ),
-      ])
-      if (cancelled) return
-      const tripRow = Array.isArray(tripRows) ? tripRows[0] : null
-      if (!tripRow) {
-        setGuestTrip(null)
-        return
-      }
-      // Minimal stub — enough for PortalHomeTripCard via getTrip miss path…
-      // Prefer local store when desk created the trip in this browser.
-      setGuestTrip({
-        id: String(tripRow.id),
-        ref: Number(tripRow.ref ?? 0),
-        code: tripRow.code ? String(tripRow.code) : '',
-        state: tripRow.state as TripStoreRow['state'],
-        lane: String(tripRow.lane_label || tripRow.lane || ''),
-        payload_summary: String(tripRow.payload_summary || ''),
-        ready_label: String(tripRow.ready_label || ''),
-        candidates: [],
-        offers: [],
-        events: [],
-        eta_chain: [],
-        service_pattern:
-          (tripRow.service_pattern as TripStoreRow['service_pattern']) ?? null,
-        promised_delivery: tripRow.promised_delivery
-          ? String(tripRow.promised_delivery)
-          : null,
-        eta_defaults_snapshot: null,
-        thread_number: null,
-        thread_disbanded_at: null,
-        legs: Array.isArray(legRows)
-          ? legRows.map((l, i) => ({
-              id: String(l.id),
-              seq: Number(l.seq ?? i + 1),
-              label: String(l.label || l.type || `Leg ${i + 1}`),
-              status: String(
-                l.status || 'pending',
-              ) as TripStoreRow['legs'][0]['status'],
-              origin: (l.from_ref as { icao?: string } | null)?.icao,
-              dest: (l.to_ref as { icao?: string } | null)?.icao,
-              est_start: l.est_start ? String(l.est_start) : null,
-              est_end: l.est_end ? String(l.est_end) : null,
-              actual_start: l.actual_start ? String(l.actual_start) : null,
-              actual_end: l.actual_end ? String(l.actual_end) : null,
-              party: 'dispatcher',
-              type: String(l.type || ''),
-              one_tap_token: '',
-            }))
-          : [],
-        participants: [],
-        thread: [],
-        documents: [],
-        invoice: null,
-        po_number: tripRow.po_number ? String(tripRow.po_number) : null,
+      const ready = await ensurePortalTripTrackingReady({
+        tripId: id,
+        token: g.token,
       })
+      if (cancelled) return
+      setGuestTrip(ready ?? getTrip(id))
     })()
     return () => {
       cancelled = true

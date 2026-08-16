@@ -28,6 +28,7 @@ import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import {
   createInvoiceForTrip,
   createQuickDispatchTrip,
+  flushPersistTrip,
   safeTransitionTrip,
   sendTripInvoiceEmail,
 } from '@/lib/tripStore'
@@ -332,6 +333,7 @@ export default function QuickDispatchPage() {
           reason: 'quick_dispatch',
           via: 'quick_dispatch',
         })
+        void flushPersistTrip(trip.id)
       } catch (e) {
         console.warn('[quick-dispatch] start tracking failed', e)
       }

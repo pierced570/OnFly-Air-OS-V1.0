@@ -8,7 +8,6 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { PortalTrackingBody } from '@/components/PortalTrackingBody'
 import { PortalShell } from '@/components/PortalShell'
 import {
-  ensureTripInSession,
   getTrip,
   listTripsStable,
   subscribeTrips,
@@ -19,13 +18,14 @@ import {
   getPortalTrackRow,
   resolvePortalTrackTripId,
 } from '@/lib/portalTrackStore'
-import { canPersist, db, safeQuery } from '@/lib/db/client'
+import { canPersist } from '@/lib/db/client'
 import { createAdsbAdapter, type AdsbPosition } from '@/adapters/adsb'
 import {
   buildPortalTrackingView,
   tripToTrackingInput,
   type PortalTrackingView,
 } from '@/domain/portalTracking'
+import { ensurePortalTripTrackingReady } from '@/lib/portalTripHydrate'
 
 const REFRESH_MS = 30_000
 
@@ -74,60 +74,6 @@ function viewFromTrip(
   return buildPortalTrackingView(tripToTrackingInput(trip), { adsb, nowIso })
 }
 
-function mapPortalLegs(
-  legRows: Record<string, unknown>[] | null | undefined,
-): TripStoreRow['legs'] {
-  if (!Array.isArray(legRows)) return []
-  return legRows.map((l, i) => ({
-    id: String(l.id),
-    seq: Number(l.seq ?? i + 1),
-    label: String(l.label || l.type || `Leg ${i + 1}`),
-    status: String(l.status || 'pending') as TripStoreRow['legs'][0]['status'],
-    origin: (l.from_ref as { icao?: string } | null)?.icao,
-    dest: (l.to_ref as { icao?: string } | null)?.icao,
-    est_start: l.est_start ? String(l.est_start) : null,
-    est_end: l.est_end ? String(l.est_end) : null,
-    actual_start: l.actual_start ? String(l.actual_start) : null,
-    actual_end: l.actual_end ? String(l.actual_end) : null,
-    party: 'dispatcher',
-    type: String(l.type || ''),
-    one_tap_token: '',
-  }))
-}
-
-function stubTripFromPortalRow(
-  tripRow: Record<string, unknown>,
-  legs: TripStoreRow['legs'],
-): TripStoreRow {
-  return {
-    id: String(tripRow.id),
-    ref: Number(tripRow.ref ?? 0),
-    code: tripRow.code ? String(tripRow.code) : '',
-    state: tripRow.state as TripStoreRow['state'],
-    lane: String(tripRow.lane_label || tripRow.lane || ''),
-    payload_summary: String(tripRow.payload_summary || ''),
-    ready_label: String(tripRow.ready_label || ''),
-    candidates: [],
-    offers: [],
-    events: [],
-    eta_chain: [],
-    service_pattern:
-      (tripRow.service_pattern as TripStoreRow['service_pattern']) ?? null,
-    promised_delivery: tripRow.promised_delivery
-      ? String(tripRow.promised_delivery)
-      : null,
-    eta_defaults_snapshot: null,
-    thread_number: null,
-    thread_disbanded_at: null,
-    legs,
-    participants: [],
-    thread: [],
-    documents: [],
-    invoice: null,
-    po_number: tripRow.po_number ? String(tripRow.po_number) : null,
-  }
-}
-
 function PortalLoading() {
   return (
     <PortalShell>
@@ -146,6 +92,7 @@ export default function PortalTrackPage() {
   )
   const [resolving, setResolving] = useState(Boolean(token && !tripId))
   const [remoteTrip, setRemoteTrip] = useState<TripStoreRow | null>(null)
+  const [etaReadyTick, setEtaReadyTick] = useState(0)
 
   useEffect(() => {
     if (!token) return
@@ -156,23 +103,16 @@ export default function PortalTrackPage() {
       if (cancelled) return
       setTripId(id)
       if (id) rememberPortalGuestTrack({ token, tripId: id })
-      if (id && !getTrip(id) && canPersist()) {
-        const [tripRows, legRows] = await Promise.all([
-          safeQuery<Record<string, unknown>[]>('portal_trip_by_token', () =>
-            db().rpc('portal_trip_by_token', { p_token: token }),
-          ),
-          safeQuery<Record<string, unknown>[]>('portal_legs_by_token', () =>
-            db().rpc('portal_legs_by_token', { p_token: token }),
-          ),
-        ])
-        const tripRow = Array.isArray(tripRows) ? tripRows[0] : null
-        if (cancelled || !tripRow) {
-          setResolving(false)
-          return
+      if (id && canPersist()) {
+        const ready = await ensurePortalTripTrackingReady({
+          tripId: id,
+          token,
+        })
+        if (cancelled) return
+        if (ready) {
+          setRemoteTrip(ready)
+          setEtaReadyTick((n) => n + 1)
         }
-        setRemoteTrip(
-          stubTripFromPortalRow(tripRow, mapPortalLegs(legRows as never)),
-        )
       }
       setResolving(false)
     })()
@@ -181,19 +121,15 @@ export default function PortalTrackPage() {
     }
   }, [token])
 
-  useEffect(() => {
-    if (remoteTrip && !getTrip(remoteTrip.id)) {
-      ensureTripInSession(remoteTrip)
-    }
-  }, [remoteTrip])
-
   const trip = useMemo(() => {
     if (tripId) {
       const local = getTrip(tripId)
       if (local) return local
     }
     return remoteTrip
-  }, [tripId, remoteTrip, nowIso])
+    // etaReadyTick forces re-read after async ETA hydrate merges into session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId, remoteTrip, nowIso, etaReadyTick])
 
   const input = trip ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail)
@@ -220,7 +156,7 @@ export default function PortalTrackPage() {
     // Re-read after ADS-B apply so Actual vs Forecast picks up chain stamps.
     const live = getTrip(trip.id) ?? trip
     return viewFromTrip(live, adsb, nowIso)
-  }, [trip, adsb, nowIso])
+  }, [trip, adsb, nowIso, etaReadyTick])
 
   if (resolving) return <PortalLoading />
 
@@ -257,40 +193,19 @@ export function PortalTripTrackPage() {
   const { id } = useParams()
   const [remoteTrip, setRemoteTrip] = useState<TripStoreRow | null>(null)
   const [loading, setLoading] = useState(false)
+  const [etaReadyTick, setEtaReadyTick] = useState(0)
 
   useEffect(() => {
     if (!id) return
-    if (getTrip(id)) {
-      setRemoteTrip(null)
-      return
-    }
-    if (!canPersist()) return
     let cancelled = false
     setLoading(true)
     void (async () => {
-      const [tripRows, legRows] = await Promise.all([
-        safeQuery<Record<string, unknown>[]>('portal_trips.by_id', () =>
-          db()
-            .from('portal_trips')
-            .select(
-              'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number',
-            )
-            .eq('id', id)
-            .limit(1),
-        ),
-        safeQuery<Record<string, unknown>[]>('portal_legs.by_trip', () =>
-          db().from('portal_legs').select('*').eq('trip_id', id).order('seq'),
-        ),
-      ])
+      const ready = await ensurePortalTripTrackingReady({ tripId: id })
       if (cancelled) return
-      const tripRow = Array.isArray(tripRows) ? tripRows[0] : null
-      if (!tripRow) {
-        setLoading(false)
-        return
+      if (ready) {
+        setRemoteTrip(ready)
+        setEtaReadyTick((n) => n + 1)
       }
-      setRemoteTrip(
-        stubTripFromPortalRow(tripRow, mapPortalLegs(legRows as never)),
-      )
       setLoading(false)
     })()
     return () => {
@@ -298,13 +213,11 @@ export function PortalTripTrackPage() {
     }
   }, [id])
 
-  useEffect(() => {
-    if (remoteTrip && !getTrip(remoteTrip.id)) {
-      ensureTripInSession(remoteTrip)
-    }
-  }, [remoteTrip])
+  const trip = useMemo(() => {
+    return (id ? getTrip(id) : null) ?? remoteTrip
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, remoteTrip, nowIso, etaReadyTick])
 
-  const trip = (id ? getTrip(id) : null) ?? remoteTrip
   const input = trip ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail)
   const view = trip ? viewFromTrip(trip, adsb, nowIso) : null
