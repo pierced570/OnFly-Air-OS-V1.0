@@ -187,6 +187,14 @@ function mapTripShellRow(
       typeof meta.portal_dropoff_address === 'string'
         ? meta.portal_dropoff_address
         : null,
+    portal_pickup_stop:
+      meta.portal_pickup_stop && typeof meta.portal_pickup_stop === 'object'
+        ? (meta.portal_pickup_stop as TripStoreRow['portal_pickup_stop'])
+        : null,
+    portal_dropoff_stop:
+      meta.portal_dropoff_stop && typeof meta.portal_dropoff_stop === 'object'
+        ? (meta.portal_dropoff_stop as TripStoreRow['portal_dropoff_stop'])
+        : null,
     portal_pax_names: Array.isArray(meta.portal_pax_names)
       ? meta.portal_pax_names.map((n) => String(n).trim()).filter(Boolean)
       : undefined,

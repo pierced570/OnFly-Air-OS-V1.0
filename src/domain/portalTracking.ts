@@ -11,6 +11,13 @@ import {
   projectedDeliveryUtc,
 } from '@/domain/etaChain'
 import { haversineNm } from '@/domain/geo'
+import {
+  formatPortalStopAddress,
+  formatPortalStopTitle,
+  normalizePortalStop,
+  portalStopFromLegacyAddress,
+  type PortalStopLocation,
+} from '@/domain/portalStopLocation'
 import { formatClientLocal, formatZuluLocal } from '@/domain/timeFmt'
 
 export type TrackingMilestoneKind =
@@ -262,6 +269,9 @@ export type PortalTrackingView = {
   /** Street / door addresses (editable on portal). */
   pickupStreet: string | null
   dropoffStreet: string | null
+  /** Structured pickup / drop-off when desk set hangar · FBO · TBD. */
+  pickupStop: PortalStopLocation | null
+  dropoffStop: PortalStopLocation | null
 }
 
 /** One stop on the client itinerary — FBO or door address. */
@@ -336,6 +346,8 @@ export type PortalTrackingTripInput = {
   payload_kind?: 'cargo' | 'pax' | 'both' | null
   pickup_street?: string | null
   dropoff_street?: string | null
+  pickup_stop?: PortalStopLocation | null
+  dropoff_stop?: PortalStopLocation | null
 }
 
 function eventAt(
@@ -1460,6 +1472,12 @@ export function buildPortalTrackingView(
     cargo,
     pickupStreet: trip.pickup_street?.trim() || null,
     dropoffStreet: trip.dropoff_street?.trim() || null,
+    pickupStop: trip.pickup_stop
+      ? normalizePortalStop(trip.pickup_stop)
+      : portalStopFromLegacyAddress(trip.pickup_street),
+    dropoffStop: trip.dropoff_stop
+      ? normalizePortalStop(trip.dropoff_stop)
+      : portalStopFromLegacyAddress(trip.dropoff_street),
   }
 }
 
@@ -1535,6 +1553,8 @@ export function tripToTrackingInput(trip: {
   } | null
   portal_pickup_address?: string | null
   portal_dropoff_address?: string | null
+  portal_pickup_stop?: PortalStopLocation | null
+  portal_dropoff_stop?: PortalStopLocation | null
   portal_pax_names?: string[] | null
   passengers?: Array<{ name?: string }> | null
 }): PortalTrackingTripInput {
@@ -1576,6 +1596,24 @@ export function tripToTrackingInput(trip: {
   // Door addresses from ETA place labels when not ICAO-only.
   let pickupStreet = trip.portal_pickup_address?.trim() || null
   let dropoffStreet = trip.portal_dropoff_address?.trim() || null
+  const pickupStop =
+    trip.portal_pickup_stop
+      ? normalizePortalStop(trip.portal_pickup_stop)
+      : portalStopFromLegacyAddress(pickupStreet)
+  const dropoffStop =
+    trip.portal_dropoff_stop
+      ? normalizePortalStop(trip.portal_dropoff_stop)
+      : portalStopFromLegacyAddress(dropoffStreet)
+  if (!pickupStreet && pickupStop) {
+    pickupStreet =
+      formatPortalStopAddress(pickupStop) ||
+      (pickupStop.kind === 'tbd' ? null : formatPortalStopTitle(pickupStop))
+  }
+  if (!dropoffStreet && dropoffStop) {
+    dropoffStreet =
+      formatPortalStopAddress(dropoffStop) ||
+      (dropoffStop.kind === 'tbd' ? null : formatPortalStopTitle(dropoffStop))
+  }
   for (const leg of trip.eta_chain ?? []) {
     if (
       !pickupStreet &&
@@ -1620,5 +1658,7 @@ export function tripToTrackingInput(trip: {
     payload_kind: payloadKind,
     pickup_street: pickupStreet,
     dropoff_street: dropoffStreet,
+    pickup_stop: pickupStop,
+    dropoff_stop: dropoffStop,
   }
 }

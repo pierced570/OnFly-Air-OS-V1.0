@@ -124,12 +124,22 @@ export function stubTripFromPortalRow(
     portal_dropoff_address: tripRow.portal_dropoff_address
       ? String(tripRow.portal_dropoff_address)
       : null,
+    portal_pickup_stop:
+      tripRow.portal_pickup_stop &&
+      typeof tripRow.portal_pickup_stop === 'object'
+        ? (tripRow.portal_pickup_stop as TripStoreRow['portal_pickup_stop'])
+        : null,
+    portal_dropoff_stop:
+      tripRow.portal_dropoff_stop &&
+      typeof tripRow.portal_dropoff_stop === 'object'
+        ? (tripRow.portal_dropoff_stop as TripStoreRow['portal_dropoff_stop'])
+        : null,
     portal_pax_names: paxNames,
   }
 }
 
 const PORTAL_TRIP_COLS =
-  'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number,tail,aircraft_type,portal_pickup_address,portal_dropoff_address,portal_pax_names,cargo_notes,cargo_only'
+  'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number,tail,aircraft_type,portal_pickup_address,portal_dropoff_address,portal_pickup_stop,portal_dropoff_stop,portal_pax_names,cargo_notes,cargo_only'
 
 function needsPortalFacts(trip: TripStoreRow | null | undefined): boolean {
   if (!trip) return true
@@ -168,6 +178,12 @@ export function mergePortalTripIntoSession(
     }
     if (!t.portal_dropoff_address && remote.portal_dropoff_address) {
       t.portal_dropoff_address = remote.portal_dropoff_address
+    }
+    if (!t.portal_pickup_stop && remote.portal_pickup_stop) {
+      t.portal_pickup_stop = remote.portal_pickup_stop
+    }
+    if (!t.portal_dropoff_stop && remote.portal_dropoff_stop) {
+      t.portal_dropoff_stop = remote.portal_dropoff_stop
     }
     if (!(t.portal_pax_names?.length) && remote.portal_pax_names?.length) {
       t.portal_pax_names = remote.portal_pax_names
