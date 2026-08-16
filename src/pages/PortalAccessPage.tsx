@@ -117,8 +117,12 @@ export default function PortalAccessPage() {
           <Link className="text-gold hover:text-gold-lt" to="/portal" target="_blank">
             client portal
           </Link>
-          . Add an email and pick the company it belongs to — when they use the
-          magic link, they only see that company&apos;s trips.
+          . Prefer company-wide access? Set{' '}
+          <span className="text-cream">Portal access domains</span> on the{' '}
+          <Link className="text-gold hover:text-gold-lt" to="/clients">
+            Clients
+          </Link>{' '}
+          profile (anyone @theirdomain.com). Use this page for one-off emails.
         </p>
       </header>
 

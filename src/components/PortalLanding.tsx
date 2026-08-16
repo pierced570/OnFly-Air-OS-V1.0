@@ -140,7 +140,8 @@ export function PortalLanding() {
                   </button>
                 </form>
                 <p className="mt-3 text-[11px] text-muted">
-                  Only addresses already on your company account can sign in. Not
+                  Use your work email (you@yourcompany.com). Access is granted by
+                  your company&apos;s domain or an address OnFly has on file. Not
                   set up yet? Request a trip below and we&apos;ll take it from
                   there.
                 </p>

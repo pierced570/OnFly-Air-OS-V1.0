@@ -6,6 +6,7 @@ import { PortalShell } from '@/components/PortalShell'
 import {
   clearPortalClient,
   getPortalClient,
+  setPortalClientId,
 } from '@/lib/clientOnboardStore'
 import { listClients, subscribeClients } from '@/lib/clientStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
@@ -99,6 +100,7 @@ export default function PortalHomePage() {
       if (cancelled) return
       setSession(s)
       if (s?.clientId) {
+        setPortalClientId(s.clientId)
         const rows = await listPortalTripsForSession()
         if (!cancelled) setRemoteTrips(rows)
       }
@@ -262,9 +264,9 @@ export default function PortalHomePage() {
         <section className="rounded-md border border-[#C0392B]/40 bg-white p-5">
           <h2 className="font-medium">Email not linked</h2>
           <p className="mt-1 text-sm text-muted">
-            {session.email} isn&apos;t granted portal access yet. Ask OnFly to
-            add your email under Portal access for your company, then sign in
-            again.
+            {session.email} isn&apos;t linked to a company yet. Ask OnFly to add
+            your corporate domain (or this email) under Clients → Portal access
+            domains, then sign in again.
           </p>
         </section>
       ) : null}
