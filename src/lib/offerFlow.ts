@@ -1293,23 +1293,8 @@ export async function acceptHardQuote(
   const { portalTrackingUrlForTrip } = await import('@/lib/etaSheetSender')
   const trackPath = portalTrackingUrlForTrip(fresh.id)
 
-  // Client tracking SMS — best-effort only; never fail the accept UX.
-  try {
-    const comms = createCommsAdapter()
-    for (const cell of recipientCells(fresh)) {
-      try {
-        await comms.send({
-          channel: 'sms',
-          to: cell,
-          body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
-        })
-      } catch (e) {
-        console.warn('[accept] client tracking SMS failed', cell, e)
-      }
-    }
-  } catch (e) {
-    console.warn('[accept] client tracking SMS skipped', e)
-  }
+  // Accept notifies the flying operator (and stand-downs) — never the client.
+  // Client invoice / ETA / tracking emails are desk actions after book.
 
   if (selected) {
     await notifyOperatorBookOutcome(selected, 'won', fresh.lane)
@@ -1337,9 +1322,10 @@ export async function acceptHardQuote(
         `${l.label}: ${l.est_start?.slice(0, 16) ?? '—'} → ${l.est_end?.slice(0, 16) ?? '—'}`,
     )
     .join('\n')
-  const opsRecipients = resolveOpsEmails(fresh)
-  if (opsRecipients.length) {
-    for (const to of opsRecipients) {
+  // OnFly desk participants only — never client AP / supply_chain on accept.
+  const deskRecipients = resolveDeskOpsEmails(fresh)
+  if (deskRecipients.length) {
+    for (const to of deskRecipients) {
       try {
         await email.send({
           to,
@@ -1355,7 +1341,7 @@ export async function acceptHardQuote(
           ].join('\n'),
         })
       } catch (e) {
-        console.warn('[accept] ops mission-go email failed', to, e)
+        console.warn('[accept] desk mission-go email failed', to, e)
       }
     }
   }
@@ -1453,20 +1439,19 @@ export async function declineHardQuote(token: string) {
   return getTrip(trip.id)!
 }
 
-function resolveOpsEmails(trip: NonNullable<ReturnType<typeof getTrip>>): string[] {
+function resolveDeskOpsEmails(
+  trip: NonNullable<ReturnType<typeof getTrip>>,
+): string[] {
   const out: string[] = []
-  if (trip.client_id) {
-    out.push(...listInvoiceEmails(trip.client_id))
-    const c = getClient(trip.client_id)
-    for (const contact of c?.contacts ?? []) {
-      if (contact.role === 'supply_chain' && contact.email) out.push(contact.email)
+  for (const p of trip.participants) {
+    if (p.email && (p.role === 'dispatcher' || p.role === 'ops')) {
+      out.push(p.email)
     }
   }
-  for (const p of trip.participants) {
-    if (p.email && (p.role === 'dispatcher' || p.role === 'ops')) out.push(p.email)
-  }
   return [
-    ...new Set(out.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))),
+    ...new Set(
+      out.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')),
+    ),
   ]
 }
 

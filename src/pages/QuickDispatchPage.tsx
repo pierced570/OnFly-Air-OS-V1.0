@@ -113,7 +113,7 @@ export default function QuickDispatchPage() {
   const [clientPrice, setClientPrice] = useState('')
   const [payTerms, setPayTerms] = useState('Net 30')
 
-  const [sendInvoice, setSendInvoice] = useState(true)
+  const [sendInvoice, setSendInvoice] = useState(false)
   const [invoiceEmail, setInvoiceEmail] = useState('')
   const [invoiceCc, setInvoiceCc] = useState('')
   const [etaEmails, setEtaEmails] = useState('')
@@ -769,7 +769,7 @@ export default function QuickDispatchPage() {
             checked={sendInvoice}
             onChange={(e) => setSendInvoice(e.target.checked)}
           />
-          Send invoice immediately on dispatch
+          Send invoice on dispatch (opt-in — never auto)
         </label>
         <label className={label}>
           Invoice To (email)

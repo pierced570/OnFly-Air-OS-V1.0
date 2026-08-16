@@ -1705,8 +1705,9 @@ export function safeTransitionTrip(
       }),
   )
   if (to === 'delivered') {
-    void createInvoiceForTrip(id).catch((e) =>
-      console.warn('[invoice] auto on delivered failed', e),
+    // Draft only — never auto-email the client. Desk sends from Approved actions.
+    void createInvoiceForTrip(id, { skipEmail: true }).catch((e) =>
+      console.warn('[invoice] auto draft on delivered failed', e),
     )
   }
   return result
@@ -1926,7 +1927,10 @@ export async function createMockInvoiceForTrip(tripId: string): Promise<TripInvo
 export async function createInvoiceForTrip(
   tripId: string,
   opts?: {
-    /** Skip QBO send — desk sends later from Approved actions. */
+    /**
+     * Skip payment-request email. Defaults to true — invoice emails never
+     * auto-send; desk must call sendTripInvoiceEmail explicitly.
+     */
     skipEmail?: boolean
     to?: string[]
     cc?: string[]
@@ -2073,9 +2077,9 @@ export async function createInvoiceForTrip(
     ),
   ]
   const shouldEmail =
-    !opts?.skipEmail &&
+    opts?.skipEmail === false &&
     uniqueTo.length > 0 &&
-    (t.quick?.send_invoice ?? true)
+    t.quick?.send_invoice === true
   if (shouldEmail) {
     try {
       const mail = await buildTripInvoiceMailPayload({
