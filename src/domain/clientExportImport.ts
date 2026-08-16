@@ -11,6 +11,7 @@ import {
   syncBaseEmailFields,
   type ClientBaseRef,
 } from './clientBaseEmails'
+import { withEnsuredPortalDomains } from './portalDomains'
 
 export type ContactRoleDraft = 'requester' | 'ap' | 'supply_chain'
 export type ContactKindDraft = 'person' | 'dl'
@@ -480,7 +481,7 @@ export function profilesFromClientExportCsv(csvText: string): ClientImportDraft[
       const ops = p.contacts.find((c) => c.notify_prefs.request_alert)
       p.email = ops?.email || p.contacts[0]?.email || p.invoice_email || ''
     }
-    out.push(p)
+    out.push(withEnsuredPortalDomains(p) as ClientImportDraft)
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }

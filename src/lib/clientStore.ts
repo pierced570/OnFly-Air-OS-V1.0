@@ -15,6 +15,7 @@ import {
 } from '@/domain/clientBaseEmails'
 import { hardFiltersFromPolicy, normalizeMissionPolicy } from '@/domain/clientOnboard'
 import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
+import { withEnsuredPortalDomains } from '@/domain/portalDomains'
 import type { ClientRules as RoutingClientRules } from '@/domain/routing'
 
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
@@ -280,10 +281,33 @@ export async function ensureClientsDirectorySeeded(): Promise<number> {
 
   const existing = [...clients.values()]
   let added = 0
+  let touched = 0
   for (const [name, meta] of [...byName.entries()].sort((a, b) =>
     a[0].localeCompare(b[0]),
   )) {
-    if (existing.some((c) => clientDirectoryNamesMatch(c.name, name))) continue
+    const hit = existing.find((c) => clientDirectoryNamesMatch(c.name, name))
+    if (hit) {
+      // Prefer longer canonical names (PSA → PSA Airlines) and portal domains.
+      if (name.length > hit.name.length) {
+        hit.name = name
+        touched++
+      }
+      const ensured = withEnsuredPortalDomains(hit)
+      const nextDomains = ensured.profile?.allowed_email_domains ?? []
+      const prev = hit.profile.allowed_email_domains ?? []
+      const same =
+        nextDomains.length === prev.length &&
+        nextDomains.every((d, i) => d === prev[i])
+      if (!same || ensured.profile?.website !== hit.profile.website) {
+        hit.profile = {
+          ...hit.profile,
+          allowed_email_domains: nextDomains.length ? nextDomains : undefined,
+          website: ensured.profile?.website ?? hit.profile.website,
+        }
+        touched++
+      }
+      continue
+    }
     const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -291,7 +315,7 @@ export async function ensureClientsDirectorySeeded(): Promise<number> {
       .slice(0, 40)
     const id = `fin-${slug || crypto.randomUUID().slice(0, 8)}`
     if (clients.has(id)) continue
-    clients.set(id, {
+    const stub = withEnsuredPortalDomains({
       id,
       name,
       email: '',
@@ -306,10 +330,11 @@ export async function ensureClientsDirectorySeeded(): Promise<number> {
       qb_customer_id: null,
       profile: { source: 'import' },
     })
+    clients.set(id, stub as ClientProfile)
     existing.push(clients.get(id)!)
     added++
   }
-  if (added) {
+  if (added || touched) {
     rebuild()
     persistLocal()
     for (const l of listeners) l()
@@ -417,6 +442,12 @@ export function addClient(opts: {
     qb_customer_id: opts.qb_customer_id ?? null,
     profile: { ...(opts.profile ?? {}) },
   }
+  const ensured = withEnsuredPortalDomains(row)
+  row.profile = {
+    ...row.profile,
+    allowed_email_domains: ensured.profile?.allowed_email_domains,
+    website: ensured.profile?.website ?? row.profile.website,
+  }
   clients.set(id, row)
   bump(id)
   return row
@@ -484,8 +515,38 @@ export function applyClientExportProfile(
     kind: c.kind ?? 'person',
     notify_prefs: c.notify_prefs ?? defaultPrefs(c.role),
   }))
+  // Portal domain allowlist: on-file emails + manual + known-client rules (PSA).
+  const ensured = withEnsuredPortalDomains(row)
+  row.profile = {
+    ...row.profile,
+    allowed_email_domains: ensured.profile?.allowed_email_domains,
+    website: ensured.profile?.website ?? row.profile.website,
+  }
   bump(id)
   return row
+}
+
+/** Refresh portal allowlists from emails on file + known-client rules (e.g. PSA). */
+export function ensureAllClientPortalDomains(): number {
+  let n = 0
+  for (const row of clients.values()) {
+    const ensured = withEnsuredPortalDomains(row)
+    const nextDomains = ensured.profile?.allowed_email_domains ?? []
+    const prev = row.profile.allowed_email_domains ?? []
+    const same =
+      nextDomains.length === prev.length &&
+      nextDomains.every((d, i) => d === prev[i])
+    const nextWebsite = ensured.profile?.website
+    if (same && nextWebsite === row.profile.website) continue
+    row.profile = {
+      ...row.profile,
+      allowed_email_domains: nextDomains.length ? nextDomains : undefined,
+      website: nextWebsite ?? row.profile.website,
+    }
+    bump(row.id)
+    n++
+  }
+  return n
 }
 
 /** Remove a directory row (used to scrub duplicate financials stubs after export hydrate). */

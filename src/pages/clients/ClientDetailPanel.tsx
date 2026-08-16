@@ -30,6 +30,8 @@ import {
 } from '@/lib/clientStore'
 import {
   formatPortalDomainList,
+  inferPortalDomainsFromOnFile,
+  mergePortalDomainAllowlist,
   parsePortalDomainList,
   suggestPortalDomainFromWebsite,
 } from '@/domain/portalDomains'
@@ -244,7 +246,7 @@ function InfoTab({
         <label className={label}>
           Portal email domains
           <input
-            className={input}
+            className={`${input} avionic`}
             value={formatPortalDomainList(profile.allowed_email_domains)}
             onChange={(e) => {
               const domains = parsePortalDomainList(e.target.value)
@@ -255,23 +257,53 @@ function InfoTab({
             placeholder="psaairlines.com"
           />
         </label>
-        {suggested &&
-          !(profile.allowed_email_domains ?? []).includes(suggested) && (
-            <button
-              type="button"
-              className="text-xs text-gold"
-              onClick={() => {
-                const domains = parsePortalDomainList(
-                  [...(profile.allowed_email_domains ?? []), suggested].join(
-                    ', ',
-                  ),
-                )
-                patchProfile({ allowed_email_domains: domains })
-              }}
-            >
-              + Add {suggested} from website
-            </button>
-          )}
+        <p className="text-[11px] leading-relaxed text-muted">
+          Only approved emails can open this company&apos;s portal. Anyone with
+          an address at these domains (e.g.{' '}
+          <span className="avionic">name@psaairlines.com</span>) sees this
+          client&apos;s shipments. Exact contacts on file still work one-by-one
+          even if their domain is not listed. Public mailboxes are never
+          allowed.
+        </p>
+        {inferPortalDomainsFromOnFile(client).length > 0 ? (
+          <p className="text-[11px] text-muted">
+            From emails on file:{' '}
+            <span className="avionic text-ink">
+              {formatPortalDomainList(inferPortalDomainsFromOnFile(client))}
+            </span>
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-3">
+          {suggested &&
+            !(profile.allowed_email_domains ?? []).includes(suggested) && (
+              <button
+                type="button"
+                className="text-xs text-gold"
+                onClick={() => {
+                  const domains = parsePortalDomainList(
+                    [...(profile.allowed_email_domains ?? []), suggested].join(
+                      ', ',
+                    ),
+                  )
+                  patchProfile({ allowed_email_domains: domains })
+                }}
+              >
+                + Add {suggested} from website
+              </button>
+            )}
+          <button
+            type="button"
+            className="text-xs text-gold"
+            onClick={() => {
+              const domains = mergePortalDomainAllowlist(client)
+              patchProfile({
+                allowed_email_domains: domains.length ? domains : undefined,
+              })
+            }}
+          >
+            + Sync domains from emails on file
+          </button>
+        </div>
         <label className={label}>
           Notes
           <textarea

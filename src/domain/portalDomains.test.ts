@@ -1,19 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
+  effectivePortalDomains,
   emailMatchesPortalDomains,
   formatPortalDomainList,
+  inferPortalDomainsFromOnFile,
   normalizePortalDomain,
   parsePortalDomainList,
   resolveClientIdByPortalEmail,
   suggestPortalDomainFromWebsite,
+  withEnsuredPortalDomains,
 } from './portalDomains'
 
 describe('portalDomains', () => {
-  it('normalizes domains and rejects public mailboxes', () => {
+  it('normalizes domains and rejects public / operator mailboxes', () => {
     expect(normalizePortalDomain('Acme.com')).toBe('acme.com')
     expect(normalizePortalDomain('@acme.com')).toBe('acme.com')
     expect(normalizePortalDomain('https://www.acme.com/about')).toBe('acme.com')
     expect(normalizePortalDomain('gmail.com')).toBeNull()
+    expect(normalizePortalDomain('onflyair.com')).toBeNull()
     expect(normalizePortalDomain('not a domain')).toBeNull()
   })
 
@@ -66,5 +70,59 @@ describe('portalDomains', () => {
     expect(suggestPortalDomainFromWebsite('https://www.psaairlines.com')).toBe(
       'psaairlines.com',
     )
+  })
+
+  it('infers PSA corporate domain from emails on file without opening aa.com', () => {
+    const psa = {
+      id: 'psa',
+      name: 'PSA Airlines',
+      email: 'DL_PSA_MTXCTRLSupervisors@psaairlines.com',
+      contacts: [
+        { email: 'doug@psaairlines.com' },
+        { email: 'andy@psaairlines.com' },
+        { email: 'sso.accountspayable@aa.com' },
+        { email: 'pierce@onflyair.com' },
+      ],
+      profile: {},
+    }
+    expect(inferPortalDomainsFromOnFile(psa)).toEqual(['psaairlines.com'])
+    expect(effectivePortalDomains(psa)).toEqual(['psaairlines.com'])
+  })
+
+  it('ensures PSA allowlist is only @psaairlines.com for domain login', () => {
+    const raw = {
+      id: 'psa',
+      name: 'PSA Airlines',
+      contacts: [
+        { email: 'ops@psaairlines.com' },
+        { email: 'ap@aa.com' },
+        { email: 'ap2@aa.com' },
+      ],
+      profile: { allowed_email_domains: ['psaairlines.com', 'aa.com'] },
+    }
+    const ensured = withEnsuredPortalDomains(raw)
+    expect(ensured.profile?.allowed_email_domains).toEqual(['psaairlines.com'])
+    expect(
+      resolveClientIdByPortalEmail('new.hire@psaairlines.com', [ensured]),
+    ).toBe('psa')
+    expect(resolveClientIdByPortalEmail('random@aa.com', [ensured])).toBeNull()
+    // Exact contact still works
+    expect(resolveClientIdByPortalEmail('ap@aa.com', [ensured])).toBe('psa')
+  })
+
+  it('uses manual allowlist when set for other clients', () => {
+    const c = {
+      id: 'acme',
+      name: 'Acme Logistics',
+      contacts: [{ email: 'a@acme.com' }, { email: 'b@acme.com' }],
+      profile: { allowed_email_domains: ['acme.com', 'acme-freight.com'] },
+    }
+    expect(effectivePortalDomains(c)).toEqual([
+      'acme.com',
+      'acme-freight.com',
+    ])
+    expect(
+      resolveClientIdByPortalEmail('desk@acme-freight.com', [c]),
+    ).toBe('acme')
   })
 })
