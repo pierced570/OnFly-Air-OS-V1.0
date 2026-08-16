@@ -99,6 +99,12 @@ export type ClientExtendedProfile = {
    * Empty emails → auto `{base}@companyDomain` (see clientBaseEmails).
    */
   bases?: ClientBaseRef[]
+  /**
+   * Corporate email domains that may sign into this client's portal
+   * (e.g. ["acme.com"]). Anyone with XYZ@acme.com links via link_portal_user.
+   * Public mailboxes (gmail, etc.) are never valid entries.
+   */
+  allowed_email_domains?: string[]
   requires_po?: boolean
   /** client = they provide PO; onfly = we generate */
   po_assigned_by?: 'client' | 'onfly' | null

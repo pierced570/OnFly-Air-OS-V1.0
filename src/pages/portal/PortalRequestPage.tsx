@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { SoftPricingPackageView } from '@/components/SoftPricingPackageView'
 import {
@@ -11,7 +11,12 @@ import {
   type TripRequestRecord,
 } from '@/domain/tripRequest'
 import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
-import { getPortalClient } from '@/lib/clientOnboardStore'
+import {
+  getPortalClient,
+  setPortalClientId,
+} from '@/lib/clientOnboardStore'
+import { getClient, type ClientProfile } from '@/lib/clientStore'
+import { getPortalAuthSession } from '@/lib/portalAuth'
 import {
   buildSoftPricingForRequest,
   type SoftPricingPackageResult,
@@ -57,7 +62,23 @@ export default function PortalRequestPage() {
   /** When returning from soft quote, re-seed the form with that submit. */
   const [editDraft, setEditDraft] = useState<TripRequestDraft | null>(null)
   const [formKey, setFormKey] = useState(0)
-  const client = getPortalClient()
+  const [sessionClient, setSessionClient] = useState<ClientProfile | undefined>()
+  const onboardClient = getPortalClient()
+  const client = onboardClient ?? sessionClient
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const s = await getPortalAuthSession()
+      if (cancelled || !s?.clientId) return
+      setPortalClientId(s.clientId)
+      const c = getClient(s.clientId)
+      if (!cancelled && c) setSessionClient(c)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const initial = useMemo(() => {
     if (editDraft) return editDraft

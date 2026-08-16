@@ -18,6 +18,11 @@ import {
   type ContactRole,
 } from '@/lib/clientStore'
 import {
+  formatPortalDomainList,
+  parsePortalDomainList,
+  suggestPortalDomainFromWebsite,
+} from '@/domain/portalDomains'
+import {
   defaultClientOnboardTemplate,
   renderClientOnboardEmailHtml,
   sendClientOnboardInvite,
@@ -260,10 +265,13 @@ export default function ClientsPage() {
             vs who gets invoices.
           </p>
           <p className="mt-2 text-xs text-muted">
-            Portal magic-link logins:{' '}
+            Portal: set{' '}
+            <span className="text-cream/80">Portal access domains</span> on the
+            company profile, or grant one-off emails under{' '}
             <Link to="/admin/portal-access" className="text-gold hover:text-gold-lt">
               Portal access
             </Link>
+            .
           </p>
           {seedNote && (
             <p className="mt-2 text-[11px] text-gold/90">{seedNote}</p>
@@ -504,6 +512,45 @@ function ClientDetail({
                 patchProfile({ website: e.target.value || undefined })
               }
             />
+          </label>
+          <label className={`${label} sm:col-span-2`}>
+            Portal access domains
+            <input
+              className={input}
+              value={formatPortalDomainList(profile.allowed_email_domains)}
+              onChange={(e) => {
+                const domains = parsePortalDomainList(e.target.value)
+                patchProfile({
+                  allowed_email_domains: domains.length ? domains : undefined,
+                })
+              }}
+              placeholder="acme.com, ops.acme.com"
+              autoComplete="off"
+            />
+            <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">
+              Anyone with an email at these domains can magic-link into this
+              company&apos;s portal and see live trips. Public mailboxes
+              (gmail, etc.) are ignored.{' '}
+              {suggestPortalDomainFromWebsite(profile.website) &&
+              !(profile.allowed_email_domains ?? []).includes(
+                suggestPortalDomainFromWebsite(profile.website)!,
+              ) ? (
+                <button
+                  type="button"
+                  className="text-gold hover:text-gold-lt"
+                  onClick={() => {
+                    const d = suggestPortalDomainFromWebsite(profile.website)
+                    if (!d) return
+                    const domains = parsePortalDomainList(
+                      [...(profile.allowed_email_domains ?? []), d].join(', '),
+                    )
+                    patchProfile({ allowed_email_domains: domains })
+                  }}
+                >
+                  Add {suggestPortalDomainFromWebsite(profile.website)}
+                </button>
+              ) : null}
+            </span>
           </label>
           <label className={label}>
             Front desk phone
