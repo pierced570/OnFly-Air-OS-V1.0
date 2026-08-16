@@ -172,8 +172,10 @@ export function PortalTrackingBody({
   const currentStageName = currentStage
     ? clientOpsStageLabel(currentStage)
     : aircraftWhereLabel(view)
+  const tailRaw =
+    (a.tail !== '—' ? a.tail : view.tail)?.trim() || ''
   const tail =
-    (a.tail !== '—' ? a.tail : view.tail)?.trim() || 'TBD'
+    tailRaw && tailRaw.toUpperCase() !== 'TBD' ? tailRaw : 'Pending'
   const originLabel =
     view.flightFacts.originIcao ||
     depFbo?.icao ||
@@ -266,7 +268,14 @@ export function PortalTrackingBody({
                 ? 'Live track'
                 : 'Track'}
           </span>
-          <span className="text-cream/55">{seenAgo || 'STANDING BY'}</span>
+          <span className="text-cream/55">
+            {seenAgo ||
+              (view.state === 'in_progress'
+                ? a.phase === 'positioning'
+                  ? 'AT PICKUP'
+                  : 'LIVE'
+                : 'STANDING BY')}
+          </span>
         </div>
         {showMap ? (
           <PortalAircraftMap
@@ -275,9 +284,13 @@ export function PortalTrackingBody({
           />
         ) : (
           <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-cream/50">
-            {['booked', 'in_progress', 'delivered'].includes(view.state)
-              ? 'Aircraft position appears when the trip is live.'
-              : 'Route map appears once the trip is live.'}
+            {view.state === 'in_progress'
+              ? tail === 'Pending'
+                ? 'Trip is live — assign a real tail on dispatch for ADS-B position.'
+                : 'Waiting for wheels-up or ADS-B lock on this tail.'
+              : view.state === 'booked'
+                ? 'Aircraft position appears when the trip goes live.'
+                : 'Route map appears once the trip is live.'}
           </div>
         )}
         <div className="grid gap-2 px-4 py-3 font-mono text-[11px] text-gold sm:grid-cols-3 sm:text-xs">

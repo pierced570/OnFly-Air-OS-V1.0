@@ -1,5 +1,6 @@
 /**
  * Client+base priority lists — fixture seed + localStorage overrides.
+ * UI calls these "groups" (clients or useful buckets like Heavy Cargo).
  */
 
 import fixture from '@/fixtures/basePriority.json'
@@ -69,6 +70,11 @@ export function listBasePriorityClients(): string[] {
   return [...new Set(snapshot.map((l) => l.client_name))].sort()
 }
 
+/** Alias — Recommend UI labels these as groups, not always clients. */
+export function listBasePriorityGroups(): string[] {
+  return listBasePriorityClients()
+}
+
 export function confirmPriorityMatch(
   listId: string,
   entryId: string,
@@ -126,6 +132,63 @@ export function removePriorityEntry(listId: string, entryId: string): void {
     e.rank = idx + 1
   })
   persist()
+}
+
+export type PriorityEntryPatch = Partial<
+  Pick<
+    BasePriorityEntry,
+    | 'company_name'
+    | 'general_email'
+    | 'contact_phone'
+    | 'company_phone'
+    | 'phone_24hr'
+    | 'call_lines'
+    | 'notes'
+    | 'call_out_time'
+    | 'operator_base_icao'
+    | 'fleet_types_csv'
+    | 'aircraft_locations_csv'
+    | 'caps'
+  >
+>
+
+/** Desk edits on a priority card (phones, notes, fleet snapshot, etc.). */
+export function updatePriorityEntry(
+  listId: string,
+  entryId: string,
+  patch: PriorityEntryPatch,
+): BasePriorityEntry | null {
+  const list = findList(listId)
+  if (!list) return null
+  const e = list.entries.find((x) => x.id === entryId)
+  if (!e) return null
+  if (patch.company_name != null) e.company_name = patch.company_name.trim()
+  if (patch.general_email != null) e.general_email = patch.general_email.trim()
+  if (patch.contact_phone != null) e.contact_phone = patch.contact_phone.trim()
+  if (patch.company_phone != null) e.company_phone = patch.company_phone.trim()
+  if (patch.phone_24hr != null) e.phone_24hr = patch.phone_24hr.trim()
+  if (patch.call_lines != null) {
+    e.call_lines = patch.call_lines
+      .map((c) => ({
+        label: c.label.trim() || 'Phone',
+        phone: c.phone.trim(),
+      }))
+      .filter((c) => c.phone)
+  }
+  if (patch.notes != null) e.notes = patch.notes.trim()
+  if (patch.call_out_time != null) e.call_out_time = patch.call_out_time.trim()
+  if (patch.operator_base_icao != null) {
+    e.operator_base_icao = patch.operator_base_icao.trim().toUpperCase()
+  }
+  if (patch.fleet_types_csv != null) {
+    e.fleet_types_csv = patch.fleet_types_csv.trim()
+  }
+  if (patch.aircraft_locations_csv != null) {
+    e.aircraft_locations_csv = patch.aircraft_locations_csv.trim()
+  }
+  if (patch.caps != null) e.caps = { ...e.caps, ...patch.caps }
+  persist()
+  return e
 }
 
 export function addPriorityEntry(

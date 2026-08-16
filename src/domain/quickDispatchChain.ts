@@ -154,7 +154,12 @@ export function buildQuickDispatchChain(
       branch: 'air',
       label: `Position to ${origin.icao || '?'}`,
       event: 'Aircraft TTP',
-      from: { lat: origin.lat, lon: origin.lon, tz: origin.tz },
+      from: {
+        lat: origin.lat,
+        lon: origin.lon,
+        icao: origin.icao,
+        tz: origin.tz,
+      },
       to: origin,
       est_start: cursor,
       est_end: posEnd,

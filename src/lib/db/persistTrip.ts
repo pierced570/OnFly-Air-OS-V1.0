@@ -504,11 +504,18 @@ export async function syncTripTransition(opts: {
         payload_summary: trip.payload_summary,
         ready_label: trip.ready_label,
         accept_token: trip.hard_quote?.accept_token ?? null,
+        po_number: trip.po_number?.trim() || trip.quick?.po?.trim() || null,
         session_meta: {
           ref: trip.ref,
           code: trip.code,
           offer_margin_pct: trip.offer_margin_pct ?? null,
           client_name: trip.client_name ?? null,
+          quick: trip.quick ?? null,
+          hard_quote: trip.hard_quote ?? null,
+          candidates: trip.candidates.slice(0, 8),
+          service_pattern: trip.service_pattern,
+          promised_delivery: trip.promised_delivery,
+          eta_defaults_snapshot: trip.eta_defaults_snapshot,
         },
       }),
     )

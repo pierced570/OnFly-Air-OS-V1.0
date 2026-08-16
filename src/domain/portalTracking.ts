@@ -5,7 +5,8 @@
 
 import type { AdsbPosition } from '@/adapters/adsb'
 import { proposeAdsbActuals } from '@/domain/adsbActuals'
-import type { ChainLeg, ServicePattern } from '@/domain/etaChain'
+import { lookupAirport } from '@/domain/airports'
+import type { ChainLeg, Place, ServicePattern } from '@/domain/etaChain'
 import {
   deliveryDeltaMin,
   projectedDeliveryUtc,
@@ -19,6 +20,37 @@ import {
   type PortalStopLocation,
 } from '@/domain/portalStopLocation'
 import { formatClientLocal, formatZuluLocal } from '@/domain/timeFmt'
+
+function hasCoords(lat: number | null | undefined, lon: number | null | undefined): boolean {
+  return (
+    lat != null &&
+    lon != null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    !(lat === 0 && lon === 0)
+  )
+}
+
+/** Prefer stored place coords; fall back to airport catalog by ICAO. */
+function resolvePlaceCoords(place: Place | undefined | null): {
+  lat: number
+  lon: number
+  icao: string | null
+} | null {
+  if (!place) return null
+  if (hasCoords(place.lat, place.lon)) {
+    return {
+      lat: place.lat,
+      lon: place.lon,
+      icao: place.icao?.toUpperCase() ?? null,
+    }
+  }
+  const icao = place.icao?.trim().toUpperCase()
+  if (!icao) return null
+  const ap = lookupAirport(icao)
+  if (!ap || !hasCoords(ap.lat, ap.lon)) return null
+  return { lat: ap.lat, lon: ap.lon, icao: ap.icao }
+}
 
 export type TrackingMilestoneKind =
   | 'request_received'
@@ -1121,13 +1153,20 @@ export function buildTrackingStops(
 export function buildFlightFacts(
   trip: PortalTrackingTripInput,
 ): TrackingFlightFacts {
-  const air = trip.eta_chain.find((l) => l.type === 'air_leg')
+  const air =
+    trip.eta_chain.find(
+      (l) =>
+        l.type === 'air_leg' &&
+        (l.actual_start ||
+          trip.legs.find((x) => x.seq === l.seq)?.status === 'active'),
+    ) ?? trip.eta_chain.find((l) => l.type === 'air_leg')
   const originIcao =
     air?.from.icao?.toUpperCase() ??
     trip.legs.find((l) => l.origin)?.origin?.toUpperCase() ??
     null
   const destIcao =
     air?.to.icao?.toUpperCase() ??
+    trip.legs.find((l) => l.type === 'air_leg' && l.dest)?.dest?.toUpperCase() ??
     [...trip.legs].reverse().find((l) => l.dest)?.dest?.toUpperCase() ??
     null
 
@@ -1186,7 +1225,8 @@ export function resolveAircraftPosition(
   adsb: AdsbPosition | null,
   nowIso = new Date().toISOString(),
 ): TrackingAircraftPosition {
-  const tail = trip.tail?.trim() || '—'
+  const rawTail = trip.tail?.trim() || ''
+  const tail = rawTail && rawTail.toUpperCase() !== 'TBD' ? rawTail : '—'
   const air =
     trip.eta_chain.find(
       (l) =>
@@ -1195,13 +1235,15 @@ export function resolveAircraftPosition(
           trip.legs.find((x) => x.seq === l.seq)?.status === 'active'),
     ) ?? trip.eta_chain.find((l) => l.type === 'air_leg')
 
-  const fromIcao = air?.from.icao ?? null
-  const toIcao = air?.to.icao ?? null
+  const fromResolved = resolvePlaceCoords(air?.from)
+  const toResolved = resolvePlaceCoords(air?.to)
+  const fromIcao = fromResolved?.icao ?? air?.from.icao ?? null
+  const toIcao = toResolved?.icao ?? air?.to.icao ?? null
   const route = {
-    fromLat: air?.from.lat ?? null,
-    fromLon: air?.from.lon ?? null,
-    toLat: air?.to.lat ?? null,
-    toLon: air?.to.lon ?? null,
+    fromLat: fromResolved?.lat ?? null,
+    fromLon: fromResolved?.lon ?? null,
+    toLat: toResolved?.lat ?? null,
+    toLon: toResolved?.lon ?? null,
   }
 
   if (adsb && !adsb.laddBlocked && adsb.phase !== 'no_data' && (adsb.lat || adsb.lon)) {
@@ -1213,9 +1255,18 @@ export function resolveAircraftPosition(
           : 'unknown'
     let nmRemaining: number | null = null
     let progressPct: number | null = null
-    if (air && phase === 'airborne') {
-      const total = haversineNm(air.from.lat, air.from.lon, air.to.lat, air.to.lon)
-      const rem = haversineNm(adsb.lat, adsb.lon, air.to.lat, air.to.lon)
+    if (
+      fromResolved &&
+      toResolved &&
+      phase === 'airborne'
+    ) {
+      const total = haversineNm(
+        fromResolved.lat,
+        fromResolved.lon,
+        toResolved.lat,
+        toResolved.lon,
+      )
+      const rem = haversineNm(adsb.lat, adsb.lon, toResolved.lat, toResolved.lon)
       nmRemaining = Math.round(rem)
       progressPct =
         total > 0 ? Math.round(Math.min(99, Math.max(1, ((total - rem) / total) * 100))) : null
@@ -1244,7 +1295,7 @@ export function resolveAircraftPosition(
   }
 
   // ETA-inferred: active or imminent air leg
-  if (air && air.from.lat && air.to.lat) {
+  if (air && fromResolved && toResolved) {
     const start = Date.parse(air.actual_start ?? air.est_start)
     const end = Date.parse(air.actual_end ?? air.est_end)
     const now = Date.parse(nowIso)
@@ -1255,8 +1306,8 @@ export function resolveAircraftPosition(
       return {
         tail,
         phase: 'on_ground',
-        lat: air.to.lat,
-        lon: air.to.lon,
+        lat: toResolved.lat,
+        lon: toResolved.lon,
         altFt: null,
         gsKts: 0,
         summary: `Arrived ${toIcao ?? 'destination'} (from schedule)`,
@@ -1272,8 +1323,12 @@ export function resolveAircraftPosition(
 
     if (hasStarted && end > start) {
       const frac = Math.min(0.99, Math.max(0.01, (now - start) / (end - start)))
-      const pos = interpolateGc(air.from, air.to, frac)
-      const rem = haversineNm(pos.lat, pos.lon, air.to.lat, air.to.lon)
+      const pos = interpolateGc(
+        { lat: fromResolved.lat, lon: fromResolved.lon },
+        { lat: toResolved.lat, lon: toResolved.lon },
+        frac,
+      )
+      const rem = haversineNm(pos.lat, pos.lon, toResolved.lat, toResolved.lon)
       return {
         tail,
         phase: 'airborne',
@@ -1292,13 +1347,15 @@ export function resolveAircraftPosition(
       }
     }
 
-    // Positioning / not yet wheels-up
+    // Positioning / not yet wheels-up — still show route on the map
     const posLeg = trip.eta_chain.find((l) => l.type === 'position')
+    const posAt =
+      resolvePlaceCoords(posLeg?.to) ?? fromResolved
     return {
       tail,
       phase: 'positioning',
-      lat: posLeg?.to.lat ?? air.from.lat,
-      lon: posLeg?.to.lon ?? air.from.lon,
+      lat: posAt.lat,
+      lon: posAt.lon,
       altFt: null,
       gsKts: null,
       summary: `Aircraft positioning to ${fromIcao ?? 'origin'} · wheels-up est ${formatClientLocal(air.est_start, air.from.tz || 'UTC').local}`,
@@ -1309,7 +1366,12 @@ export function resolveAircraftPosition(
       ...route,
       progressPct: null,
       nmRemaining: Math.round(
-        haversineNm(air.from.lat, air.from.lon, air.to.lat, air.to.lon),
+        haversineNm(
+          fromResolved.lat,
+          fromResolved.lon,
+          toResolved.lat,
+          toResolved.lon,
+        ),
       ),
     }
   }
@@ -1321,9 +1383,9 @@ export function resolveAircraftPosition(
     lon: null,
     altFt: null,
     gsKts: null,
-    summary: trip.tail
+    summary: rawTail
       ? 'Live radar unavailable — ETA sheet below stays current'
-      : 'Aircraft assigned at booking — tracking unlocks then',
+      : 'Assign a tail on dispatch for ADS-B — ETA sheet below stays current',
     source: 'none',
     seenAt: null,
     fromIcao: null,
