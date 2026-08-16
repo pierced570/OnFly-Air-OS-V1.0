@@ -215,6 +215,45 @@ function guessPoPrefix(name: string): string | null {
   return null
 }
 
+/** Strip legal suffixes / punctuation for directory name matching. */
+export function normalizeClientDirectoryName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\b(llc|inc|corp|co|ltd|limited)\.?\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Known short ledger labels → export company names.
+ * Financials often stores "PSA" / "Kalitta" while the export uses the full legal name.
+ */
+const DIRECTORY_NAME_ALIASES: Record<string, string> = {
+  psa: 'psa airlines',
+  pdt: 'piedmont airlines',
+  piedmont: 'piedmont airlines',
+  kalitta: 'kalitta air',
+  athelo: 'athelo group',
+  'athelo group': 'athelo group',
+}
+
+function aliasCanonical(norm: string): string {
+  return DIRECTORY_NAME_ALIASES[norm] ?? norm
+}
+
+/** True when two directory names refer to the same client (soft match). */
+export function clientDirectoryNamesMatch(a: string, b: string): boolean {
+  const na = aliasCanonical(normalizeClientDirectoryName(a))
+  const nb = aliasCanonical(normalizeClientDirectoryName(b))
+  if (!na || !nb) return false
+  if (na === nb) return true
+  // Prefix: "Athelo Group" ↔ "Athelo Group LLC", "PSA" ↔ "PSA Airlines"
+  if (na.length >= 3 && nb.startsWith(na)) return true
+  if (nb.length >= 3 && na.startsWith(nb)) return true
+  return false
+}
+
 function collectDomains(emails: string[]): string[] {
   const out: string[] = []
   const seen = new Set<string>()

@@ -6,6 +6,7 @@ import {
   mapContactRole,
   parseBillingAddress,
   profilesFromClientExportCsv,
+  clientDirectoryNamesMatch,
 } from './clientExportImport'
 
 describe('clientExportImport', () => {
@@ -62,5 +63,19 @@ describe('clientExportImport', () => {
     const piedmont = profiles.find((p) => p.name === 'Piedmont Airlines')
     expect(piedmont?.rules.dual_pilot_required).toBe(true)
     expect(piedmont?.profile.billing_address?.city).toBe('Salisbury')
+  })
+
+  it('soft-matches ledger short names to export names', () => {
+    expect(clientDirectoryNamesMatch('Athelo Group', 'Athelo Group LLC')).toBe(
+      true,
+    )
+    expect(clientDirectoryNamesMatch('Kalitta', 'Kalitta Air')).toBe(true)
+    expect(clientDirectoryNamesMatch('PSA', 'PSA Airlines')).toBe(true)
+    expect(clientDirectoryNamesMatch('PDT', 'Piedmont Airlines')).toBe(true)
+    expect(clientDirectoryNamesMatch('Piedmont', 'Piedmont Airlines')).toBe(
+      true,
+    )
+    expect(clientDirectoryNamesMatch('Endeavor Air', 'Endeavor Air')).toBe(true)
+    expect(clientDirectoryNamesMatch('Trans North', 'PSA Airlines')).toBe(false)
   })
 })

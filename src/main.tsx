@@ -41,6 +41,16 @@ function scheduleHydrate() {
           const n = await ensureClientsDirectorySeeded()
           if (n) console.info(`[onfly] seeded ${n} clients from financials fixture`)
         }
+        // Always enrich blanks with the clients-export CSV (contacts, bases, rules).
+        const { ensureClientsExportHydrated } = await import(
+          '@/lib/clientExportSeed'
+        )
+        const en = await ensureClientsExportHydrated()
+        if (en.created || en.updated) {
+          console.info(
+            `[onfly] clients export — created ${en.created}, enriched ${en.updated}, removed ${en.removed}`,
+          )
+        }
       }),
     )
   }

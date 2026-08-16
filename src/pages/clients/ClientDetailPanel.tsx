@@ -3,7 +3,7 @@
  * Diagrams live under each base. Contacts mix people + DLs (incl. base DLs).
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import {
   syncBaseEmailFields,
@@ -65,12 +65,15 @@ export function ClientDetailPanel({
   client: ClientProfile
   onBack?: () => void
 }) {
-  const [tab, setTab] = useState<TabId>('info')
   const profile = client.profile ?? {}
   const mixed = useMemo(
     () => listMixedDirectoryContacts(client.id),
     [client.id, client.contacts, client.profile.bases],
   )
+  const [tab, setTab] = useState<TabId>('info')
+  useEffect(() => {
+    setTab(mixed.length > 0 ? 'contacts' : 'info')
+  }, [client.id])
   const apCount = client.contacts.filter((c) => c.notify_prefs.invoice).length
   const baseCount = profile.bases?.length ?? 0
 
@@ -188,6 +191,26 @@ function InfoTab({
         <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
           Company
         </h3>
+        <label className={label}>
+          Ops email
+          <input
+            className={`${input} avionic`}
+            value={client.email}
+            onChange={(e) => updateClient(client.id, { email: e.target.value })}
+            placeholder="ops@client.com"
+          />
+        </label>
+        <label className={label}>
+          Invoice email
+          <input
+            className={`${input} avionic`}
+            value={client.invoice_email}
+            onChange={(e) =>
+              updateClient(client.id, { invoice_email: e.target.value })
+            }
+            placeholder="ap@client.com"
+          />
+        </label>
         <label className={label}>
           Desk phone (inbound)
           <input

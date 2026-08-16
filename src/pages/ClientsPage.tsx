@@ -10,6 +10,7 @@ import {
   listClients,
   subscribeClients,
 } from '@/lib/clientStore'
+import { ensureClientsExportHydrated } from '@/lib/clientExportSeed'
 import {
   defaultClientOnboardTemplate,
   renderClientOnboardEmailHtml,
@@ -25,7 +26,7 @@ function clientSetupUrl(): string {
   return defaultClientOnboardTemplate().onboardUrl
 }
 
-function ClientInviteCard() {
+function ClientInvitePanel({ onClose }: { onClose: () => void }) {
   const live = isLiveEmailConfigured()
   const realFlag = isRealEmailEnabled()
   const [copied, setCopied] = useState(false)
@@ -60,7 +61,9 @@ function ClientInviteCard() {
           : channel === 'both'
             ? 'email + SMS'
             : 'email'
-      setStatus(`Sent (${via}) to ${result.to}${cell && channel !== 'email' ? ` / ${cell}` : ''}.`)
+      setStatus(
+        `Sent (${via}) to ${result.to}${cell && channel !== 'email' ? ` / ${cell}` : ''}.`,
+      )
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
     } finally {
@@ -76,23 +79,32 @@ function ClientInviteCard() {
         : to.includes('@')
 
   return (
-    <div className="space-y-3 rounded-lg border border-gold/30 bg-gold/10 p-3">
-      <div>
-        <div className="text-xs uppercase tracking-wider text-gold">
-          Send client onboarding
+    <div className="rounded-lg border border-gold/30 bg-gold/10 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-wider text-gold">
+            Invite to onboarding
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            Sends the public{' '}
+            <span className="avionic text-cream">/client</span> form — company,
+            people, pay terms, routing rules.
+            {!live && realFlag
+              ? ' Email delivery needs Supabase keys configured.'
+              : ''}
+          </p>
         </div>
-        <p className="mt-1 text-xs text-muted">
-          Same form customers fill at{' '}
-          <span className="avionic text-cream">/client</span>
-          {' '}— company, people, pay terms, routing rules, lanes.
-          {!live && realFlag
-            ? ' Email delivery needs Supabase keys configured.'
-            : ''}
-        </p>
+        <button
+          type="button"
+          className="shrink-0 text-xs text-muted hover:text-cream"
+          onClick={onClose}
+        >
+          Close
+        </button>
       </div>
 
-      <p className="avionic break-all text-[11px] text-cream">{url}</p>
-      <div className="flex flex-wrap gap-2">
+      <p className="avionic mt-3 break-all text-[11px] text-cream">{url}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
         <button
           type="button"
           className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
@@ -122,7 +134,7 @@ function ClientInviteCard() {
         </button>
       </div>
 
-      <div className="grid gap-2">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <label className={label}>
           Company <span className="normal-case text-muted">(optional)</span>
           <input
@@ -152,29 +164,31 @@ function ClientInviteCard() {
             placeholder="+1…"
           />
         </label>
-        <div className="flex flex-wrap gap-3 text-xs text-cream">
-          {(['email', 'sms', 'both'] as const).map((ch) => (
-            <label key={ch} className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="invite_channel"
-                checked={channel === ch}
-                onChange={() => setChannel(ch)}
-              />
-              {ch === 'both' ? 'Email + SMS' : ch === 'sms' ? 'SMS' : 'Email'}
-            </label>
-          ))}
+        <div className="flex flex-col justify-end gap-2">
+          <div className="flex flex-wrap gap-3 text-xs text-cream">
+            {(['email', 'sms', 'both'] as const).map((ch) => (
+              <label key={ch} className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="invite_channel"
+                  checked={channel === ch}
+                  onChange={() => setChannel(ch)}
+                />
+                {ch === 'both' ? 'Email + SMS' : ch === 'sms' ? 'SMS' : 'Email'}
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={busy || !canSend}
+            onClick={() => void send()}
+            className="rounded-md bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
+          >
+            {busy ? 'Sending…' : 'Send onboarding link'}
+          </button>
         </div>
-        <button
-          type="button"
-          disabled={busy || !canSend}
-          onClick={() => void send()}
-          className="rounded-md bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
-        >
-          {busy ? 'Sending…' : 'Send onboarding link'}
-        </button>
-        {status && <p className="text-[11px] text-muted">{status}</p>}
       </div>
+      {status && <p className="mt-2 text-[11px] text-muted">{status}</p>}
 
       {previewOpen && (
         <div
@@ -212,15 +226,28 @@ export default function ClientsPage() {
   const [q, setQ] = useState('')
   const [newName, setNewName] = useState('')
   const [seedNote, setSeedNote] = useState<string | null>(null)
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   useEffect(() => {
-    void ensureClientsDirectorySeeded().then((n) => {
-      if (n > 0) {
+    void (async () => {
+      // Export first so financials stubs soft-match existing rich rows.
+      const en = await ensureClientsExportHydrated()
+      await ensureClientsDirectorySeeded()
+      // Second pass: scrub any stubs seeded before soft-match existed.
+      const en2 = await ensureClientsExportHydrated()
+      const created = en.created + en2.created
+      const updated = en.updated + en2.updated
+      const removed = en.removed + en2.removed
+      if (created || updated || removed) {
         setSeedNote(
-          `Loaded ${n} clients from the financials ledger — complete profiles here or via /client.`,
+          `Directory export loaded — ${created} new, ${updated} enriched` +
+            (removed ? `, ${removed} blank stubs removed` : '') +
+            '.',
         )
       }
-    })
+      const rich = listClients().find((c) => c.contacts.length > 0)
+      if (rich) setSelectedId((prev) => prev ?? rich.id)
+    })()
   }, [])
 
   const filtered = useMemo(() => {
@@ -229,6 +256,8 @@ export default function ClientsPage() {
     return clients.filter(
       (c) =>
         c.name.toLowerCase().includes(needle) ||
+        c.email.toLowerCase().includes(needle) ||
+        c.invoice_email.toLowerCase().includes(needle) ||
         c.contacts.some((x) => x.email.toLowerCase().includes(needle)),
     )
   }, [clients, q])
@@ -237,23 +266,16 @@ export default function ClientsPage() {
     clients.find((c) => c.id === selectedId) ?? filtered[0] ?? null
 
   return (
-    <div className="flex min-h-full flex-col gap-6 p-4 sm:p-8 lg:flex-row">
-      <aside className="w-full shrink-0 space-y-3 lg:w-80">
-        <header>
-          <div className="text-xs uppercase tracking-[0.2em] text-gold">Directory</div>
+    <div className="flex min-h-full flex-col gap-4 p-4 sm:p-8">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-gold">
+            Directory
+          </div>
           <h1 className="mt-1 text-xl font-semibold text-cream">Clients</h1>
-          <p className="mt-1 text-xs text-muted">
-            Same subjects as the public /client setup form. Flag who rings the phone
-            vs who gets invoices.
-          </p>
-          <p className="mt-2 text-xs text-muted">
-            Portal: set{' '}
-            <span className="text-cream/80">Portal access domains</span> on the
-            company profile, or grant one-off emails under{' '}
-            <Link to="/admin/portal-access" className="text-gold hover:text-gold-lt">
-              Portal access
-            </Link>
-            .
+          <p className="mt-1 max-w-xl text-xs text-muted">
+            Company profile, contacts, bases, billing, and standing rules — same
+            subjects as the public /client form.
           </p>
           {seedNote && (
             <p className="mt-2 text-[11px] text-gold/90">{seedNote}</p>
@@ -263,109 +285,127 @@ export default function ClientsPage() {
               {clients.length} in directory
             </p>
           )}
-        </header>
-
-        <ClientInviteCard />
-
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search client or email…"
-          className={input}
-        />
-
-        <div className="flex gap-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="New client name"
-            className={`${input} min-w-0 flex-1`}
-          />
+        </div>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="shrink-0 rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink"
-            onClick={() => {
-              if (!newName.trim()) return
-              const c = addClient({ name: newName })
-              setNewName('')
-              setSelectedId(c.id)
-            }}
+            className="rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
+            onClick={() => setInviteOpen((v) => !v)}
           >
-            Add
+            {inviteOpen ? 'Hide invite' : 'Invite client'}
           </button>
+          <Link
+            to="/admin/portal-access"
+            className="rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
+          >
+            Portal access
+          </Link>
         </div>
+      </header>
 
-        <ul
-          className={[
-            'space-y-1 overflow-auto',
-            selected ? 'hidden max-h-[40vh] lg:block lg:max-h-[60vh]' : 'max-h-[60vh]',
-          ].join(' ')}
-        >
-          {filtered.length === 0 && (
-            <li className="rounded-md border border-border bg-surface px-3 py-4 text-center text-xs text-muted">
-              No clients yet — send an onboarding link or add a name.
-            </li>
-          )}
-          {filtered.map((c) => {
-            const ring = c.contacts.filter((x) => x.notify_prefs.request_alert).length
-            const inv = c.contacts.filter((x) => x.notify_prefs.invoice).length
-            const ops =
-              c.contacts.find((x) => x.notify_prefs.request_alert)?.email ||
-              c.email ||
-              c.invoice_email
-            return (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(c.id)}
-                  className={[
-                    'w-full rounded-md border px-3 py-3 text-left text-sm sm:py-2',
-                    selected?.id === c.id
-                      ? 'border-gold bg-gold/10 text-cream'
-                      : 'border-border bg-surface text-muted hover:text-cream',
-                  ].join(' ')}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-cream">{c.name}</span>
-                    {c.profile?.needs_vendor_number || c.profile?.vendor_number ? (
-                      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
-                        Vendor #
-                        {c.profile.vendor_number
-                          ? ` ${c.profile.vendor_number}`
-                          : ' required'}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="mt-0.5 truncate font-mono text-[11px] text-muted">
-                    {ops || 'No email'}
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-muted">
-                    {c.contacts.length} contacts · {ring} ring · {inv} AP
-                    {(c.profile?.bases?.length ?? 0) > 0
-                      ? ` · ${c.profile.bases!.length} bases`
-                      : ''}
-                  </div>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      </aside>
+      {inviteOpen && <ClientInvitePanel onClose={() => setInviteOpen(false)} />}
 
-      <main className="min-w-0 flex-1">
-        {!selected ? (
-          <p className="text-sm text-muted lg:block">
-            <span className="lg:hidden">Tap a client above, or add one.</span>
-            <span className="hidden lg:inline">Select or add a client.</span>
-          </p>
-        ) : (
-          <ClientDetailPanel
-            client={selected}
-            onBack={() => setSelectedId(null)}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <aside className="w-full shrink-0 space-y-3 lg:w-80">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search client or email…"
+            className={input}
           />
-        )}
-      </main>
+
+          <div className="flex gap-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="New client name"
+              className={`${input} min-w-0 flex-1`}
+            />
+            <button
+              type="button"
+              className="shrink-0 rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink"
+              onClick={() => {
+                if (!newName.trim()) return
+                const c = addClient({ name: newName })
+                setNewName('')
+                setSelectedId(c.id)
+              }}
+            >
+              Add
+            </button>
+          </div>
+
+          <ul
+            className={[
+              'space-y-1 overflow-auto',
+              selected
+                ? 'hidden max-h-[40vh] lg:block lg:max-h-[calc(100vh-14rem)]'
+                : 'max-h-[60vh]',
+            ].join(' ')}
+          >
+            {filtered.length === 0 && (
+              <li className="rounded-md border border-border bg-surface px-3 py-4 text-center text-xs text-muted">
+                No clients yet — invite someone or add a name.
+              </li>
+            )}
+            {filtered.map((c) => {
+              const ring = c.contacts.filter(
+                (x) => x.notify_prefs.request_alert,
+              ).length
+              const inv = c.contacts.filter((x) => x.notify_prefs.invoice).length
+              const ops =
+                c.contacts.find((x) => x.notify_prefs.request_alert)?.email ||
+                c.email ||
+                c.invoice_email
+              const bases = c.profile?.bases?.length ?? 0
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(c.id)}
+                    className={[
+                      'w-full rounded-md border px-3 py-3 text-left text-sm sm:py-2',
+                      selected?.id === c.id
+                        ? 'border-gold bg-gold/10 text-cream'
+                        : 'border-border bg-surface text-muted hover:text-cream',
+                    ].join(' ')}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-cream">{c.name}</span>
+                      {c.profile?.vendor_number ? (
+                        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted">
+                          Vendor # {c.profile.vendor_number}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-0.5 truncate font-mono text-[11px] text-muted">
+                      {ops || 'No email'}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-muted">
+                      {c.contacts.length} contacts · {ring} ring · {inv} AP
+                      {bases > 0 ? ` · ${bases} bases` : ''}
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          {!selected ? (
+            <p className="text-sm text-muted">
+              <span className="lg:hidden">Tap a client above, or add one.</span>
+              <span className="hidden lg:inline">Select or add a client.</span>
+            </p>
+          ) : (
+            <ClientDetailPanel
+              client={selected}
+              onBack={() => setSelectedId(null)}
+            />
+          )}
+        </main>
+      </div>
     </div>
   )
 }
-
