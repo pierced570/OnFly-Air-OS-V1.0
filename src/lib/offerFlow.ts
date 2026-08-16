@@ -1403,28 +1403,15 @@ export async function acceptHardQuote(
   }
 
   try {
-    const { allocateNextPoForClient } = await import('@/lib/allocateNextPo')
-    const { getClient } = await import('@/lib/clientStore')
     const booked = getTrip(trip.id)!
-    const clientName =
-      booked.quick?.client_name ??
-      (booked.client_id ? getClient(booked.client_id)?.name : undefined) ??
-      'Client'
-    if (!booked.po_number?.trim() && !booked.quick?.po?.trim()) {
-      const po = await allocateNextPoForClient({
-        clientId: booked.client_id,
-        clientName,
-      })
-      mutateTrip(trip.id, (t) => {
-        t.po_number = po
-        if (t.quick) t.quick.po = po
-      })
+    // Never invent a PO here (e.g. CLI0001). Desk enters PO on Approved /
+    // hard-quote composer; invoice draft waits until a real PO exists.
+    if (booked.po_number?.trim() || booked.quick?.po?.trim()) {
+      const { createInvoiceForTrip } = await import('@/lib/tripStore')
+      await createInvoiceForTrip(trip.id, { skipEmail: true })
     }
-    // Create QB invoice (draft) — desk sends from Approved actions with bubble.
-    const { createInvoiceForTrip } = await import('@/lib/tripStore')
-    await createInvoiceForTrip(trip.id, { skipEmail: true })
   } catch (e) {
-    console.warn('[accept] invoice / PO allocate failed', e)
+    console.warn('[accept] invoice create failed', e)
   }
 
   const { runOnBookedAutomations } = await import('@/lib/onBooked')

@@ -71,7 +71,7 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
       payload_summary: trip.payload_summary,
       ready_label: trip.ready_label,
       accept_token: trip.hard_quote?.accept_token ?? null,
-      po_number: trip.quick?.po || null,
+      po_number: trip.po_number?.trim() || trip.quick?.po?.trim() || null,
       session_meta: {
         ref: trip.ref,
         code: trip.code,
@@ -106,7 +106,7 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
         payload_summary: trip.payload_summary,
         ready_label: trip.ready_label,
         accept_token: trip.hard_quote?.accept_token ?? null,
-        po_number: trip.quick?.po || null,
+        po_number: trip.po_number?.trim() || trip.quick?.po?.trim() || null,
         session_meta: {
           ref: trip.ref,
           code: trip.code,

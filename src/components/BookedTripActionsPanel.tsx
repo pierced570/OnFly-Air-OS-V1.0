@@ -26,10 +26,14 @@ import {
 import {
   getTrip,
   listTripsStable,
+  mutateTrip,
   safeTransitionTrip,
   sendTripInvoiceEmail,
   subscribeTrips,
 } from '@/lib/tripStore'
+import { allocateNextPoForClient } from '@/lib/allocateNextPo'
+import { resolveTripPoNumber } from '@/domain/tripPo'
+import { getClient } from '@/lib/clientStore'
 
 type Props = {
   tripId: string
@@ -55,6 +59,9 @@ export function BookedTripActionsPanel({ tripId }: Props) {
   const [confirmedType, setConfirmedType] = useState(() =>
     initialAircraftTypeSelectValue(draftType),
   )
+  const [poDraft, setPoDraft] = useState(
+    () => trip?.po_number?.trim() || trip?.quick?.po?.trim() || '',
+  )
 
   useEffect(() => {
     setInvoiceSel(defaultInvoiceEmailSelection(trip?.client_id))
@@ -65,20 +72,29 @@ export function BookedTripActionsPanel({ tripId }: Props) {
     setConfirmedType((prev) => prev || initialAircraftTypeSelectValue(draftType))
   }, [draftType])
 
+  useEffect(() => {
+    setPoDraft(trip?.po_number?.trim() || trip?.quick?.po?.trim() || '')
+  }, [trip?.po_number, trip?.quick?.po, tripId])
+
   if (!trip) return null
 
   const sheet = computeEtaSheetFromBookedTrip(trip, new Date(), {
     clientFacing: true,
   })
-  const po =
-    trip.po_number?.trim() ||
-    trip.quick?.po?.trim() ||
-    (trip.invoice ? 'QB draft' : '—')
+  const po = resolveTripPoNumber(trip)
   const tail =
     trip.quick?.tail ||
     trip.offers.find((o) => o.state === 'selected')?.tail ||
     'TBD'
   const trackUrl = portalTrackingUrlForTrip(trip.id)
+
+  function savePoDraft() {
+    const cleaned = poDraft.trim()
+    mutateTrip(tripId, (t) => {
+      t.po_number = cleaned || null
+      if (t.quick) t.quick.po = cleaned || null
+    })
+  }
 
   return (
     <div className="mt-3 space-y-3 border-t border-gold/30 pt-3">
@@ -95,9 +111,55 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           </p>
         </div>
         <div className="font-mono text-xs text-cream/85">
-          {po !== '—' ? `PO ${po}` : 'PO pending'} · Tail {tail}
+          {po ? `PO ${po}` : 'PO pending'} · Tail {tail}
           {confirmedType.trim() ? ` · ${confirmedType.trim()}` : ''}
         </div>
+      </div>
+
+      <div className="space-y-2 rounded-md border border-gold/35 bg-gold/5 p-2.5">
+        <label className="block text-xs text-muted">
+          PO # <span className="text-late">(required for invoice)</span>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <input
+              type="text"
+              className="min-w-[10rem] flex-1 rounded border border-border bg-ink px-2 py-1.5 font-mono text-sm text-cream"
+              value={poDraft}
+              placeholder="Client PO / DocNumber"
+              onChange={(e) => setPoDraft(e.target.value)}
+              onBlur={savePoDraft}
+            />
+            <button
+              type="button"
+              className="rounded border border-border px-2.5 py-1.5 text-[11px] text-muted hover:text-cream"
+              onClick={() => {
+                savePoDraft()
+              }}
+            >
+              Save PO
+            </button>
+            <button
+              type="button"
+              className="rounded border border-gold/40 px-2.5 py-1.5 text-[11px] text-gold hover:bg-gold/10"
+              onClick={() => {
+                const client = trip.client_id ? getClient(trip.client_id) : null
+                const clientName =
+                  trip.quick?.client_name ?? client?.name ?? trip.client_name ?? 'Client'
+                void allocateNextPoForClient({
+                  clientId: trip.client_id,
+                  clientName,
+                }).then((next) => {
+                  setPoDraft(next)
+                  mutateTrip(tripId, (t) => {
+                    t.po_number = next
+                    if (t.quick) t.quick.po = next
+                  })
+                })
+              }}
+            >
+              Next PO for client
+            </button>
+          </div>
+        </label>
       </div>
 
       {err ? <p className="text-xs text-late">{err}</p> : null}
@@ -130,10 +192,16 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           disabled={
             busy !== null ||
             invoiceSel.to.length === 0 ||
-            !confirmedType.trim()
+            !confirmedType.trim() ||
+            !poDraft.trim()
           }
           className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
           onClick={() => {
+            savePoDraft()
+            if (!poDraft.trim()) {
+              setErr('Enter PO # before sending the invoice')
+              return
+            }
             setBusy('invoice')
             setErr(null)
             setMsg(null)
