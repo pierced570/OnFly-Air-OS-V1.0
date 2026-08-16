@@ -73,9 +73,47 @@ describe('selectOffersAndHardQuote email recipients', () => {
     const last = getMockSentEmails().at(-1)!
     expect(last.to).toEqual(['to-a@client.com', 'to-b@client.com'])
     expect(last.cc).toEqual(['cc@client.com'])
-    expect(last.bcc).toEqual(['bcc@client.com'])
+    expect(last.bcc).toEqual(
+      expect.arrayContaining(['bcc@client.com', 'info@onflyair.com']),
+    )
+    expect(last.bcc).toHaveLength(2)
     expect(last.cc).not.toContain('to-a@client.com')
     expect(last.cc).not.toContain('to-b@client.com')
+  })
+
+  it('always BCCs info@onflyair.com even when desk leaves BCC empty', async () => {
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KHPN',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [cand('N55555')],
+      payload_kind: 'cargo',
+    })
+    safeTransitionTrip(trip.id, 'offers_out', 'dispatcher', {})
+    mutateTrip(trip.id, (t) => {
+      const o = t.offers[0]!
+      o.state = 'quoted'
+      o.price_net = 4500
+      o.type_name = 'Cessna 310'
+      o.time_to_position_min = 90
+      o.live_leg_min = 75
+      o.fee_scope = 'aircraft_and_fees'
+    })
+
+    const before = getMockSentEmails().length
+    const offerId = getTripOfferId(trip.id)
+    await selectOffersAndHardQuote(
+      trip.id,
+      [offerId],
+      { [offerId]: 12000 },
+      ['ops@client.com'],
+      { bccEmails: [] },
+    )
+
+    expect(getMockSentEmails().length).toBe(before + 1)
+    const last = getMockSentEmails().at(-1)!
+    expect(last.to).toBe('ops@client.com')
+    expect(last.bcc).toEqual(['info@onflyair.com'])
   })
 
   it('drops CC/BCC entries that duplicate a To address', async () => {
@@ -114,7 +152,7 @@ describe('selectOffersAndHardQuote email recipients', () => {
     const last = getMockSentEmails().at(-1)!
     expect(last.to).toBe('same@client.com')
     expect(last.cc).toEqual(['other-cc@client.com'])
-    expect(last.bcc ?? []).toEqual([])
+    expect(last.bcc).toEqual(['info@onflyair.com'])
   })
 })
 

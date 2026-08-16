@@ -22,6 +22,7 @@ import {
   standDownEmail,
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
+import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import { absoluteAppUrl, appPublicUrl } from '@/lib/appUrl'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
@@ -856,9 +857,10 @@ export async function selectOffersAndHardQuote(
         .filter((e) => e.includes('@') && !recipients.includes(e)),
     ),
   ]
+  // Always archive a copy on info@ — desk can add more BCCs, never remove this one.
   const bccEmails = [
     ...new Set(
-      (opts?.bccEmails ?? [])
+      [...(opts?.bccEmails ?? []), ONFLY_INFO_BCC]
         .map((e) => e.trim().toLowerCase())
         .filter(
           (e) =>

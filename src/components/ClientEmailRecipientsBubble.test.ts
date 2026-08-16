@@ -29,7 +29,7 @@ describe('defaultClientEmailSelection', () => {
     __resetClientsForTests()
   })
 
-  it('fills To only from request-alert, leaves CC/BCC empty', () => {
+  it('fills To from request-alert and always BCCs info@', () => {
     const client = addClient({
       name: 'Pierce Co',
       email: 'primary@client.com',
@@ -55,7 +55,7 @@ describe('defaultClientEmailSelection', () => {
     const sel = defaultClientEmailSelection(client.id)
     expect(sel.to).toEqual(['pierce@client.com'])
     expect(sel.cc).toEqual([])
-    expect(sel.bcc).toEqual([])
+    expect(sel.bcc).toEqual(['info@onflyair.com'])
   })
 
   it('falls back to primary email when no request-alert contacts', () => {
@@ -68,7 +68,7 @@ describe('defaultClientEmailSelection', () => {
     const sel = defaultClientEmailSelection(client.id)
     expect(sel.to).toEqual(['solo@client.com'])
     expect(sel.cc).toEqual([])
-    expect(sel.bcc).toEqual([])
+    expect(sel.bcc).toEqual(['info@onflyair.com'])
   })
 
   it('does not put primary into To when request-alert already set', () => {
@@ -83,6 +83,7 @@ describe('defaultClientEmailSelection', () => {
     expect(sel.to).toEqual(['alert@client.com'])
     expect(sel.to).not.toContain('primary@client.com')
     expect(sel.cc).toEqual([])
+    expect(sel.bcc).toEqual(['info@onflyair.com'])
   })
 })
 
