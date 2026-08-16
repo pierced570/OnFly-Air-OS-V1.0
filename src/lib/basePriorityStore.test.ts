@@ -6,6 +6,7 @@ import {
   listBasePriorityGroups,
   listBasePriorityLists,
   movePriorityEntry,
+  updatePriorityEntry,
 } from './basePriorityStore'
 
 describe('basePriorityStore', () => {
@@ -58,5 +59,25 @@ describe('basePriorityStore', () => {
         (l) => l.client_name === 'Test Group' && l.base_icao === 'KDFW',
       ),
     ).toBe(true)
+  })
+
+  it('updates notes and phone lines on an entry', () => {
+    const psa = listBasePriorityLists().find(
+      (l) => l.client_name === 'PSA' && l.base_icao === 'KDFW',
+    )!
+    const entry = psa.entries[0]!
+    updatePriorityEntry(psa.id, entry.id, {
+      notes: 'Call Arthur after 2200Z',
+      call_lines: [
+        { label: 'Main', phone: '(870) 680-2715' },
+        { label: 'After hrs', phone: '(870) 868-1236' },
+      ],
+      fleet_types_csv: 'CJ3 · Citation XL',
+    })
+    const next = listBasePriorityLists().find((l) => l.id === psa.id)!
+    const updated = next.entries.find((e) => e.id === entry.id)!
+    expect(updated.notes).toBe('Call Arthur after 2200Z')
+    expect(updated.call_lines).toHaveLength(2)
+    expect(updated.fleet_types_csv).toContain('CJ3')
   })
 })
