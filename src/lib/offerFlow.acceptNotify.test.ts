@@ -103,5 +103,51 @@ describe('acceptHardQuoteOption notifications', () => {
     expect(
       sent.some((m) => /you.?re on|OnFly update/i.test(m.subject ?? '')),
     ).toBe(true)
+    // Never notify the client on accept — invoice / tracking are desk actions.
+    expect(sent.some((m) => String(m.to).includes('client@'))).toBe(false)
+    expect(
+      sent.some((m) => /invoice|payment request/i.test(m.subject ?? '')),
+    ).toBe(false)
+  })
+
+  it('does not create a sent invoice when hard quote is accepted', async () => {
+    const trip = createTripFromCandidates({
+      lane: 'KCAK→KHPN',
+      payload_summary: 'cargo',
+      ready_label: 'ASAP',
+      candidates: [cand('N33333')],
+      payload_kind: 'cargo',
+    })
+    safeTransitionTrip(trip.id, 'offers_out', 'dispatcher', {})
+    mutateTrip(trip.id, (t) => {
+      t.po_number = 'PSA0042'
+      t.offers.forEach((o) => {
+        o.state = 'quoted'
+        o.price_net = 4500
+        o.type_name = 'Cessna 310'
+        o.time_to_position_min = 90
+        o.live_leg_min = 75
+        o.fee_scope = 'aircraft_and_fees'
+        o.contact_email = 'fly@op.com'
+        o.contact_cell = '+15555550111'
+        o.contact_cell_is_mock = false
+      })
+    })
+    const offerId = getTrip(trip.id)!.offers[0]!.id
+    await selectOffersAndHardQuote(
+      trip.id,
+      [offerId],
+      { [offerId]: 12000 },
+      ['client@example.com'],
+      { notifyClient: false },
+    )
+    const token = getTrip(trip.id)!.hard_quote!.accept_token
+    await acceptHardQuoteOption(token, offerId)
+    const booked = getTrip(trip.id)!
+    expect(booked.state).toBe('booked')
+    // Draft invoice may exist when PO is set — must never be marked sent.
+    if (booked.invoice) {
+      expect(booked.invoice.status).not.toBe('sent')
+    }
   })
 })
