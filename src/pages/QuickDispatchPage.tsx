@@ -845,22 +845,37 @@ export default function QuickDispatchPage() {
         </label>
       </section>
 
-      {/* ETA & tracking — supply chain / bases */}
+      {/* ETA sheet — separate from invoice / AP */}
       <section className="space-y-2">
         <div className="text-xs font-medium uppercase tracking-wider text-muted">
-          ETA &amp; tracking emails
+          ETA sheet email
         </div>
         <p className="text-[11px] text-muted">
-          Goes to people at the company who need the ETA sheet and live tracker
-          — not invoices. Bases (e.g. CAK) auto-add{' '}
-          <span className="avionic text-cream/80">cak@company.com</span> from
-          the client domain when set.
+          Separate from invoice. Who gets the ETA sheet + live tracker on
+          dispatch (supply chain / bases — not AP).
         </p>
+
+        <label className={label}>
+          ETA sheet To (emails)
+          <input
+            className={input}
+            value={etaEmails}
+            onChange={(e) => setEtaEmails(e.target.value)}
+            placeholder="cak@company.com, ops@company.com"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+          />
+          <span className="mt-1 block text-[11px] text-muted">
+            Type who should receive the ETA sheet. Comma-separate multiple
+            addresses. Blank = no ETA email on dispatch.
+          </span>
+        </label>
 
         {baseEmailSuggestions.length > 0 && (
           <div>
             <div className="mb-2 text-xs text-muted">
-              Base mailboxes — click to include
+              Base mailboxes — click to add / remove from ETA sheet To
             </div>
             <div className="flex flex-wrap gap-1.5">
               {baseEmailSuggestions.map((b) => {
@@ -898,7 +913,7 @@ export default function QuickDispatchPage() {
         {etaContacts.length > 0 && (
           <div>
             <div className="mb-2 text-xs text-muted">
-              Supply-chain contacts — click to include
+              Supply-chain contacts — click to add / remove from ETA sheet To
             </div>
             <div className="flex flex-wrap gap-1.5">
               {etaContacts.map((c) => {
@@ -925,23 +940,16 @@ export default function QuickDispatchPage() {
           </div>
         )}
 
-        <label className={label}>
-          Send ETA / tracking to
-          <input
-            className={input}
-            value={etaEmails}
-            onChange={(e) => setEtaEmails(e.target.value)}
-            placeholder="cak@company.com, ops@company.com"
-          />
-          <span className="mt-1 block text-[11px] text-muted">
-            Auto-filled from bases + tracker contacts. Type any email — new
-            addresses save as supply-chain on dispatch. Manage bases on{' '}
+        {(baseEmailSuggestions.length > 0 || etaContacts.length > 0) && (
+          <p className="text-[11px] text-muted">
+            New addresses typed above save as supply-chain on the client.
+            Manage bases on{' '}
             <Link to="/clients" className="text-gold">
               Clients
             </Link>
             .
-          </span>
-        </label>
+          </p>
+        )}
       </section>
 
       <section className="space-y-2">
