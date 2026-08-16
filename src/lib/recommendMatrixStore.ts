@@ -1,6 +1,6 @@
 /**
  * Recommendation matrix store — editable scoring knobs for new-request
- * operator search (New trip + Network → Recommend). Other flows use builtins.
+ * operator search (New trip). Other flows use builtins.
  */
 
 import {

@@ -227,7 +227,7 @@ export async function generateCandidates(
   opts?: {
     targetMargin?: number
     /**
-     * Recommendation matrix knobs (Network → Recommend). When omitted,
+     * Recommendation matrix knobs (defaults / stored scoring). When omitted,
      * builtins apply — same spine Dispatch / Parse use after loading the store.
      */
     matrix?: RecommendMatrixConfig
@@ -590,7 +590,7 @@ export async function generateCandidates(
   add(byPrice[0], 'cheapest')
   add(byTime[0], 'fastest')
   add(byBest[0], 'best')
-  // Cap from recommendation matrix (Network → Recommend settings).
+  // Cap from recommendation matrix shortlist size.
   for (const c of byBest) {
     if (picked.length >= matrix.recommend_limit) break
     add(c, undefined)
