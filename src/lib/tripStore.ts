@@ -2404,7 +2404,13 @@ export async function inviteTripParticipant(
       lane: trip.lane,
       threadNumber: number,
     })
-    await comms.send({ channel: 'sms', to: p.cell, from: number, body })
+    try {
+      await comms.send({ channel: 'sms', to: p.cell, from: number, body })
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e)
+      console.warn('[invite] thread SMS failed', p.name, detail)
+      return { ok: false, channel: 'sms', detail }
+    }
     mutateTrip(tripId, (t) => {
       const row = t.participants.find((x) => x.id === participantId)!
       row.invite_sent_at = new Date().toISOString()

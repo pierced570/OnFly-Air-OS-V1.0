@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ClientLogisticsQuotePreview } from '@/components/ClientLogisticsQuotePreview'
 import {
   buildChangeRequestMailto,
@@ -14,6 +14,7 @@ import {
 } from '@/domain/hardQuoteClientStatus'
 import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
 import { resolveTripByAcceptToken } from '@/lib/db/hydrateTrips'
+import { portalTrackingUrlForTrip } from '@/lib/etaSheetSender'
 import {
   acceptHardQuoteOption,
   declineHardQuote,
@@ -41,6 +42,7 @@ export default function AcceptPage() {
   const [acceptedLabel, setAcceptedLabel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [trackHref, setTrackHref] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -115,6 +117,23 @@ export default function AcceptPage() {
     )
   }, [trip, hq])
 
+  const status = trip
+    ? hardQuoteClientStatus({
+        trip_state: trip.state,
+        client_decision: hq?.client_decision,
+        accepted_at: hq?.accepted_at,
+        declined_at: hq?.declined_at,
+      })
+    : 'pending'
+  const alreadyAccepted = accepted || status === 'accepted'
+  const alreadyDeclined = declined || status === 'declined'
+
+  // One tracking link for the confirmation screen (do not recreate each render).
+  useEffect(() => {
+    if (!alreadyAccepted || !trip || trackHref) return
+    setTrackHref(portalTrackingUrlForTrip(trip.id, 'client-accept@onflyair.com'))
+  }, [alreadyAccepted, trip, trackHref])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#ECE8DF] p-8 text-ink" data-theme="client">
@@ -136,16 +155,14 @@ export default function AcceptPage() {
   }
 
   const isPax = hq.payload_kind === 'pax' || hq.payload_kind === 'both'
-  const status = hardQuoteClientStatus({
-    trip_state: trip.state,
-    client_decision: hq.client_decision,
-    accepted_at: hq.accepted_at,
-    declined_at: hq.declined_at,
-  })
-  const alreadyAccepted = accepted || status === 'accepted'
-  const alreadyDeclined = declined || status === 'declined'
   const title = logisticsQuoteTitle(trip.lane)
   const refLabel = (trip.code ?? '').trim() || null
+  const lockedOptionLabel =
+    acceptedLabel ||
+    options.find((o) => o.offer_id === trip.offers.find((x) => x.state === 'selected')?.id)
+      ?.option_number_label ||
+    options[0]?.option_number_label ||
+    null
 
   const missionChips = buildCharterMissionChips({
     payload_kind: hq.payload_kind ?? payloadKindOf(trip),
@@ -160,6 +177,55 @@ export default function AcceptPage() {
       ]
     : options
 
+  // Accepted — dedicated confirmation (same route, no quote re-show).
+  if (alreadyAccepted) {
+    return (
+      <div
+        className="min-h-screen bg-[#ECE8DF] px-4 py-8 text-ink"
+        data-theme="client"
+      >
+        <div className="mx-auto max-w-xl">
+          <div className="overflow-hidden rounded-xl border border-[#E5DFD0] bg-white shadow-sm">
+            <header className="bg-[#0C0C0E] px-5 py-4 text-[#F7F2E3]">
+              <div className="text-[11px] font-semibold tracking-[0.16em] text-[#C9A227]">
+                ONFLY AIR
+              </div>
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#F7F2E3]">
+                Quote accepted
+              </h1>
+              <p className="mt-1 text-sm text-[#F7F2E3]/60">{title}</p>
+            </header>
+            <div className="space-y-4 px-5 py-5">
+              <p className="text-sm leading-relaxed text-[#0C0C0E]">
+                {lockedOptionLabel
+                  ? `${lockedOptionLabel} is locked in.`
+                  : 'Your option is locked in.'}{' '}
+                A vetted Part 135 carrier is confirmed. Tracking and ETA updates
+                go to your looped-in contacts.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Link
+                  to="/portal"
+                  className="inline-flex items-center justify-center rounded-lg bg-[#C9A227] px-4 py-2.5 text-sm font-semibold text-[#0C0C0E]"
+                >
+                  Go to portal
+                </Link>
+                {trackHref ? (
+                  <a
+                    href={trackHref}
+                    className="inline-flex items-center justify-center rounded-lg border border-[#C9A227] bg-white px-4 py-2.5 text-sm font-semibold text-[#0C0C0E]"
+                  >
+                    Track this trip
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className="min-h-screen bg-[#ECE8DF] px-4 py-8 text-ink"
@@ -169,7 +235,7 @@ export default function AcceptPage() {
         <ClientLogisticsQuotePreview
           title={title}
           options={orderedOptions}
-          interactive={!alreadyAccepted && !alreadyDeclined}
+          interactive={!alreadyDeclined}
           disclosureText={isPax ? hq.disclosure_text : null}
           refLabel={refLabel}
           missionChips={missionChips}
@@ -183,9 +249,18 @@ export default function AcceptPage() {
                   setAcceptedLabel(opt.option_number_label)
                   setAccepted(true)
                 })
-                .catch((e) =>
-                  setError(e instanceof Error ? e.message : String(e)),
-                )
+                .catch((e) => {
+                  const raw = e instanceof Error ? e.message : String(e)
+                  // Never show RingCentral / SMS plumbing to clients — booking
+                  // may already have succeeded; desk sees console.warn logs.
+                  if (/ringcentral|sms failed|send-sms|parameter \[from\]/i.test(raw)) {
+                    console.warn('[accept] suppressed client-facing notify error', raw)
+                    setAcceptedLabel(opt.option_number_label)
+                    setAccepted(true)
+                    return
+                  }
+                  setError(raw)
+                })
                 .finally(() => setBusyId(null))
             },
             onDeny: () => {
@@ -215,28 +290,21 @@ export default function AcceptPage() {
 
         {error ? <p className="text-sm text-[#C0392B]">{error}</p> : null}
 
-        {alreadyAccepted ? (
-          <div className="space-y-2 rounded-md border border-onplan/40 bg-onplan/10 p-4 text-onplan">
-            <p>
-              {hardQuoteClientStatusLabel('accepted')}
-              {acceptedLabel ? ` · ${acceptedLabel}` : ''}.
-            </p>
-            <p className="text-sm text-muted">
-              Mission is a go — a vetted Part 135 carrier is confirmed. Tracking
-              and ETA updates will follow to your looped-in contacts.
-            </p>
-          </div>
-        ) : null}
-
         {alreadyDeclined ? (
-          <div className="space-y-2 rounded-md border border-border bg-white p-4">
-            <p className="font-medium text-ink">
+          <div className="space-y-2 rounded-md border border-[#E5DFD0] bg-white p-4">
+            <p className="font-medium text-[#0C0C0E]">
               {hardQuoteClientStatusLabel('declined')}
             </p>
-            <p className="text-sm text-muted">
+            <p className="text-sm text-[#6B6560]">
               Thanks — we won’t hold this aircraft. Use Add details / Change
               request if you still need a revised option.
             </p>
+            <Link
+              to="/portal"
+              className="inline-flex text-sm font-semibold text-[#C9A227] underline"
+            >
+              Go to portal
+            </Link>
           </div>
         ) : null}
       </div>
