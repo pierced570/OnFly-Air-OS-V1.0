@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   __resetBasePriorityForTests,
   confirmPriorityMatch,
+  ensureBasePriorityList,
+  listBasePriorityGroups,
   listBasePriorityLists,
   movePriorityEntry,
 } from './basePriorityStore'
@@ -41,5 +43,20 @@ describe('basePriorityStore', () => {
     const next = listBasePriorityLists().find((l) => l.id === psa.id)!
     expect(next.entries[0]!.id).toBe(secondId)
     expect(next.entries[1]!.id).toBe(firstId)
+  })
+
+  it('adds a group + base list', () => {
+    const row = ensureBasePriorityList({
+      client_name: 'Test Group',
+      base_icao: 'KDFW',
+      base_label: 'Dallas',
+    })
+    expect(row.id).toContain('test-group')
+    expect(listBasePriorityGroups()).toContain('Test Group')
+    expect(
+      listBasePriorityLists().some(
+        (l) => l.client_name === 'Test Group' && l.base_icao === 'KDFW',
+      ),
+    ).toBe(true)
   })
 })

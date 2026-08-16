@@ -1,5 +1,6 @@
 /**
  * Client+base priority lists — fixture seed + localStorage overrides.
+ * UI calls these "groups" (clients or useful buckets like Heavy Cargo).
  */
 
 import fixture from '@/fixtures/basePriority.json'
@@ -67,6 +68,11 @@ export function getBasePriorityList(listId: string): BasePriorityList | null {
 
 export function listBasePriorityClients(): string[] {
   return [...new Set(snapshot.map((l) => l.client_name))].sort()
+}
+
+/** Alias — Recommend UI labels these as groups, not always clients. */
+export function listBasePriorityGroups(): string[] {
+  return listBasePriorityClients()
 }
 
 export function confirmPriorityMatch(
