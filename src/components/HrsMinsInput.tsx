@@ -16,6 +16,11 @@ type Props = {
   /** `null` = empty fields showing grey reference placeholders. */
   totalMinutes: number | null
   onChange: (totalMinutes: number) => void
+  /**
+   * Marks the duration group for a11y. Never applied as HTML `required` on
+   * Hours or Mins — either box may stay blank (e.g. turn time = 40 min only).
+   * Parents must validate that a total was entered when needed.
+   */
   required?: boolean
   /** Override outer label class (e.g. Quick Dispatch uppercase muted). */
   labelClassName?: string
@@ -90,7 +95,7 @@ export function HrsMinsInput({
             placeholder={
               placeholderTotalMinutes != null ? String(ph.hours) : '0'
             }
-            required={required}
+            aria-required={required || undefined}
             onFocus={() => {
               setHoursFocused(true)
               setHoursDraft(hoursExternal)
@@ -128,7 +133,7 @@ export function HrsMinsInput({
             placeholder={
               placeholderTotalMinutes != null ? String(ph.minutes) : '0'
             }
-            required={required}
+            aria-required={required || undefined}
             onFocus={() => {
               setMinsFocused(true)
               setMinsDraft(minsExternal)

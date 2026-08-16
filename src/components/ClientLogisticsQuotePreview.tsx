@@ -15,7 +15,7 @@ import type {
   CharterQuoteMissionChip,
   LogisticsQuoteOptionView,
 } from '@/domain/clientLogisticsQuote'
-import { CLIENT_QUOTE_TAXES_NOTE } from '@/domain/clientLogisticsQuote'
+import { CLIENT_QUOTE_TAXES_NOTE, PORTAL_ACCEPT_CTA } from '@/domain/clientLogisticsQuote'
 
 function money(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`
@@ -28,13 +28,26 @@ type OptionActions = {
   changeRequestHref?: string
 }
 
+type SharedActions = {
+  busy?: boolean
+  onDeny?: () => void
+  changeRequestHref?: string
+}
+
 type Props = {
   /** Lane headline (city + code). */
   title: string
   options: LogisticsQuoteOptionView[]
   /** Show Accept / Deny / Change request controls (live accept page). */
   interactive?: boolean
+  /**
+   * When not interactive (email / desk preview), link for “Go to portal to accept”.
+   * Real Accept buttons only render when `interactive` + `optionActions.onAccept`.
+   */
+  portalAcceptUrl?: string | null
   optionActions?: (opt: LogisticsQuoteOptionView) => OptionActions | null
+  /** Deny / change request once under all option cards. */
+  sharedActions?: SharedActions | null
   disclosureText?: string | null
   /** Desk banner when previewing before send. */
   previewBanner?: string | null
@@ -54,7 +67,9 @@ export function ClientLogisticsQuotePreview({
   title,
   options,
   interactive = false,
+  portalAcceptUrl,
   optionActions,
+  sharedActions,
   disclosureText,
   previewBanner,
   className,
@@ -68,8 +83,8 @@ export function ClientLogisticsQuotePreview({
   const introText =
     intro?.trim() ||
     (options.length <= 1
-      ? 'All-in price · taxes & fees included. Accept to lock it.'
-      : `${options.length} options · all-in prices. Pick one to lock it.`)
+      ? 'All-in price · taxes & fees included. Go to the portal to accept and lock it.'
+      : `${options.length} options · all-in prices. Go to the portal to pick one and lock it.`)
 
   return (
     <div
@@ -178,28 +193,44 @@ export function ClientLogisticsQuotePreview({
                     {interactive && actions?.onAccept ? (
                       <button
                         type="button"
-                        disabled={actions.busy}
-                        className={`${acceptCtaClass} disabled:opacity-50`}
-                        onClick={actions.onAccept}
+                        aria-busy={actions.busy || undefined}
+                        className={[
+                          acceptCtaClass,
+                          'min-h-11 min-w-[8.5rem] touch-manipulation',
+                          actions.busy ? 'pointer-events-none opacity-50' : '',
+                        ].join(' ')}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          actions.onAccept?.()
+                        }}
                       >
                         {actions.busy
                           ? 'Accepting…'
                           : `Accept ${opt.option_number_label}`}
                       </button>
+                    ) : !interactive && portalAcceptUrl?.trim() ? (
+                      <a
+                        href={portalAcceptUrl.trim()}
+                        className={acceptCtaClass}
+                      >
+                        {PORTAL_ACCEPT_CTA}
+                      </a>
                     ) : !interactive ? (
-                      <div className={acceptCtaClass}>
-                        Accept {opt.option_number_label}
-                      </div>
+                      <div className={acceptCtaClass}>{PORTAL_ACCEPT_CTA}</div>
                     ) : null}
                   </div>
 
-                  {interactive && actions ? (
+                  {interactive &&
+                  (actions?.onDeny || actions?.changeRequestHref) ? (
                     <div className="flex flex-wrap gap-2 border-t border-[#E5DFD0] pt-2">
                       {actions.onDeny ? (
                         <button
                           type="button"
-                          disabled={actions.busy}
-                          className="rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E] disabled:opacity-50"
+                          className={[
+                            'rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]',
+                            actions.busy ? 'pointer-events-none opacity-50' : '',
+                          ].join(' ')}
                           onClick={actions.onDeny}
                         >
                           Deny all options
@@ -220,6 +251,33 @@ export function ClientLogisticsQuotePreview({
             )
           })}
         </ul>
+
+        {interactive &&
+        sharedActions &&
+        (sharedActions.onDeny || sharedActions.changeRequestHref) ? (
+          <div className="flex flex-wrap gap-2 rounded-xl border border-[#E5DFD0] bg-white px-3.5 py-3">
+            {sharedActions.onDeny ? (
+              <button
+                type="button"
+                className={[
+                  'rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]',
+                  sharedActions.busy ? 'pointer-events-none opacity-50' : '',
+                ].join(' ')}
+                onClick={sharedActions.onDeny}
+              >
+                Deny all options
+              </button>
+            ) : null}
+            {sharedActions.changeRequestHref ? (
+              <a
+                className="rounded-md border border-[#C9A227]/45 bg-[#C9A227]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]"
+                href={sharedActions.changeRequestHref}
+              >
+                Add details / Change request
+              </a>
+            ) : null}
+          </div>
+        ) : null}
 
         <p className="text-[10px] leading-snug text-[#8A8680]">
           All-in includes repositioning, crew, fuel, FET &amp; segment fees where
@@ -262,3 +320,4 @@ export function ClientLogisticsQuotePreview({
     </div>
   )
 }
+

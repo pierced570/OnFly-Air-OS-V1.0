@@ -21,6 +21,13 @@ describe('standardTooling', () => {
     expect(mentionsTools('2 Techs + Parts')).toBe(false)
   })
 
+  it('exposes client hard-quote label without dims', () => {
+    expect(STANDARD_TOOLING.client_label).toBe('Standard tools')
+    expect(STANDARD_TOOLING.client_label).not.toMatch(/\d/)
+    expect(STANDARD_TOOLING.summary).toMatch(/12/)
+    expect(STANDARD_TOOLING.operator_assumed).toMatch(/12/)
+  })
+
   it('detects round-trip only when said', () => {
     expect(mentionsRoundTrip('CVG–HPN one way')).toBe(false)
     expect(mentionsRoundTrip('round trip please')).toBe(true)

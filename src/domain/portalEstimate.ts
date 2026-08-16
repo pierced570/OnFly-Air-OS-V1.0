@@ -117,6 +117,7 @@ function taxLineLabel(code: string, note: string): string {
   if (code === 'SEG_FEE_DOM') return note || 'Segment fees'
   if (code === 'INTL_HEAD') return note || 'International head tax'
   if (code === 'FET_EXEMPT_MTOW') return 'FET exemption (MTOW)'
+  if (code === 'FET_NEEDS_MTOW') return 'FET pending MTOW'
   return note || code
 }
 
@@ -201,7 +202,12 @@ export function buildPortalEstimates(
     const price_lines: PortalPriceLine[] = [
       { code: 'AIR', label: 'Air transportation (est.)', amount: air },
       ...totals.tax.lines
-        .filter((l) => l.amount > 0 || l.code === 'FET_EXEMPT_MTOW')
+        .filter(
+          (l) =>
+            l.amount > 0 ||
+            l.code === 'FET_EXEMPT_MTOW' ||
+            l.code === 'FET_NEEDS_MTOW',
+        )
         .map((l) => ({
           code: l.code,
           label: taxLineLabel(l.code, l.note),
