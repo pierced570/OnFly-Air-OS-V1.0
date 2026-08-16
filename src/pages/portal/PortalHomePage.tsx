@@ -29,6 +29,7 @@ import {
   tripToTrackingInput,
 } from '@/domain/portalTracking'
 import {
+  clearPortalGuestTrack,
   readPortalGuestTrack,
   type PortalGuestTrack,
 } from '@/lib/portalGuestTrack'
@@ -88,6 +89,8 @@ export default function PortalHomePage() {
     readPortalGuestTrack(),
   )
   const [guestTrip, setGuestTrip] = useState<TripStoreRow | null>(null)
+  /** False while resolving a remembered track token (avoids empty-state flash). */
+  const [guestReady, setGuestReady] = useState(() => !readPortalGuestTrack())
 
   useEffect(() => {
     const id = window.setInterval(() => setNowLabel(clockLabel()), 30_000)
@@ -118,16 +121,22 @@ export default function PortalHomePage() {
     setGuest(g)
     if (!g || session?.clientId) {
       setGuestTrip(null)
+      setGuestReady(true)
       return
     }
+    setGuestReady(false)
     let cancelled = false
     void (async () => {
       const id =
         getPortalTrackRow(g.token)?.tripId ??
         g.tripId ??
         (await resolvePortalTrackTripId(g.token))
-      if (cancelled || !id) {
-        if (!cancelled) setGuestTrip(null)
+      if (cancelled) return
+      if (!id) {
+        clearPortalGuestTrack()
+        setGuest(null)
+        setGuestTrip(null)
+        setGuestReady(true)
         return
       }
       const ready = await ensurePortalTripTrackingReady({
@@ -135,7 +144,16 @@ export default function PortalHomePage() {
         token: g.token,
       })
       if (cancelled) return
-      setGuestTrip(ready ?? getTrip(id))
+      const trip = ready ?? getTrip(id)
+      if (!trip) {
+        // Stale sessionStorage token — drop it so Sign in / landing work.
+        clearPortalGuestTrack()
+        setGuest(null)
+        setGuestTrip(null)
+      } else {
+        setGuestTrip(trip)
+      }
+      setGuestReady(true)
     })()
     return () => {
       cancelled = true
@@ -254,13 +272,19 @@ export default function PortalHomePage() {
   )
 
   // Dark gate from PDF — magic link + request CTA (no empty Welcome wall).
-  if (!loadingAuth && !signedIn && !guest && !(session && !session.clientId)) {
+  if (
+    !loadingAuth &&
+    guestReady &&
+    !signedIn &&
+    !guest &&
+    !(session && !session.clientId)
+  ) {
     return <PortalLanding />
   }
 
   return (
     <PortalShell headerActions={headerActions}>
-      {loadingAuth ? (
+      {loadingAuth || (!signedIn && !guestReady) ? (
         <p className="text-sm text-muted">Checking session…</p>
       ) : null}
 
@@ -354,7 +378,11 @@ export default function PortalHomePage() {
       ) : null}
 
       {/* Magic-link guest (not signed in) — same chrome, trip from last track token */}
-      {!signedIn && !loadingAuth && !(session && !session.clientId) ? (
+      {!signedIn &&
+      guestReady &&
+      guest &&
+      !loadingAuth &&
+      !(session && !session.clientId) ? (
         <section className="space-y-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -365,9 +393,8 @@ export default function PortalHomePage() {
                 {guestView ? guestSummary : 'Track your shipment'}
               </h1>
               <p className="mt-1 text-sm text-muted">
-                {guest
-                  ? 'Showing the trip from your tracking link. Sign in to see every shipment for your company.'
-                  : 'Use the tracking link from your ETA email, or sign in with the email OnFly has on file.'}
+                Showing the trip from your tracking link. Sign in to see every
+                shipment for your company.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -381,7 +408,7 @@ export default function PortalHomePage() {
             </div>
           </div>
 
-          {guest && guestTrip ? (
+          {guestTrip ? (
             <ul className="space-y-4">
               <li className="overflow-hidden rounded-md border border-ink bg-ink text-cream">
                 <div className="px-4 pb-3 pt-4 sm:px-5">
@@ -418,16 +445,7 @@ export default function PortalHomePage() {
                 </Link>
               </li>
             </ul>
-          ) : (
-            <div className="rounded-md border border-dashed border-border bg-white/60 p-6 text-sm text-muted">
-              No open tracking session in this browser.{' '}
-              <Link to="/portal/login" className="text-gold">
-                Sign in
-              </Link>{' '}
-              for your company&apos;s shipments, or open the link from your ETA
-              email.
-            </div>
-          )}
+          ) : null}
 
           <div className="text-xs text-muted">
             Need a new move?{' '}

@@ -1,9 +1,10 @@
 /**
- * Legacy /portal/login → single-page portal landing (magic link lives there).
+ * Explicit sign-in route — magic-link form (also used when /portal has a
+ * stale guest track and the home gate would otherwise skip the landing).
  */
 
-import { Navigate } from 'react-router-dom'
+import { PortalLanding } from '@/components/PortalLanding'
 
 export default function PortalLoginPage() {
-  return <Navigate to="/portal" replace />
+  return <PortalLanding />
 }
