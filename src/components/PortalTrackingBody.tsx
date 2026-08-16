@@ -1,14 +1,13 @@
 /**
  * Client live-tracking body — route, aircraft position, tail, stage progress.
  * No projected-vs-actual comparison (late teams must not look bad on the portal).
- * OnFly desk (?desk=1 or staff session) can edit pickup / drop-off locations.
+ * Stop / ETA edits live on the OnFly dispatcher Live tracking card — not here.
  */
 
-import { useMemo, useState, useSyncExternalStore } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useMemo, useSyncExternalStore } from 'react'
+import { Link } from 'react-router-dom'
 import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 import { PortalShell } from '@/components/PortalShell'
-import { PortalStopPicker } from '@/components/PortalStopPicker'
 import {
   portalAircraftMapBlocked,
   portalAircraftMapVisible,
@@ -17,19 +16,11 @@ import {
   type PortalTrackingView,
 } from '@/domain/portalTracking'
 import {
-  emptyPortalStop,
   formatPortalStopAddress,
   formatPortalStopTitle,
-  type PortalStopLocation,
 } from '@/domain/portalStopLocation'
 import { listFbos, subscribeFbos } from '@/lib/fboStore'
 import { enrichTrackingStops } from '@/lib/portalTrackingEnrich'
-import { getSession, subscribeStaff } from '@/lib/staffStore'
-import {
-  ensureTripInSession,
-  getTrip,
-  setPortalStopLocations,
-} from '@/lib/tripStore'
 
 function stageStatusLabel(status: OpsForecastRow['status']): string {
   if (status === 'done') return 'Complete'
@@ -59,23 +50,12 @@ function aircraftWhereLabel(view: PortalTrackingView): string {
 export function PortalTrackingBody({
   view,
   backHref = '/portal',
-  tripId = null,
 }: {
   view: PortalTrackingView
   backHref?: string
-  /** When set, OnFly desk can edit pickup / drop-off (staff session or ?desk=1). */
+  /** @deprecated Desk edits moved to OnFly Live tracking — ignored. */
   tripId?: string | null
 }) {
-  const [searchParams] = useSearchParams()
-  const staff = useSyncExternalStore(
-    subscribeStaff,
-    getSession,
-    () => null,
-  )
-  const deskEdit =
-    Boolean(tripId) &&
-    (Boolean(staff) || searchParams.get('desk') === '1')
-
   const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
   const enrichedStops = useMemo(
     () => enrichTrackingStops(view.stops),
@@ -103,59 +83,12 @@ export function PortalTrackingBody({
   const depFbo = enrichedStops.find((s) => s.role === 'departure_fbo')
   const arrFbo = enrichedStops.find((s) => s.role === 'arrival_fbo')
 
-  const pickupIcao =
-    view.pickupStop?.icao ||
-    view.flightFacts.originIcao ||
-    depFbo?.icao ||
-    pickup?.icao ||
-    ''
-  const dropoffIcao =
-    view.dropoffStop?.icao ||
-    view.flightFacts.destIcao ||
-    arrFbo?.icao ||
-    drop?.icao ||
-    ''
-
-  const [editingStops, setEditingStops] = useState(false)
-  const [draftPickup, setDraftPickup] = useState<PortalStopLocation>(
-    () => view.pickupStop ?? emptyPortalStop(pickupIcao),
-  )
-  const [draftDropoff, setDraftDropoff] = useState<PortalStopLocation>(
-    () => view.dropoffStop ?? emptyPortalStop(dropoffIcao),
-  )
-  const [saveNote, setSaveNote] = useState<string | null>(null)
-
   const shareUrl =
     typeof window !== 'undefined' ? window.location.href : backHref
 
   function shareTracking() {
     void navigator.clipboard?.writeText(shareUrl).catch(() => undefined)
     window.alert('Tracking link copied')
-  }
-
-  function openStopEditor() {
-    setDraftPickup(view.pickupStop ?? emptyPortalStop(pickupIcao))
-    setDraftDropoff(view.dropoffStop ?? emptyPortalStop(dropoffIcao))
-    setEditingStops(true)
-    setSaveNote(null)
-  }
-
-  function saveStops() {
-    if (!tripId) return
-    const trip = getTrip(tripId)
-    if (!trip) {
-      // Magic-link session may only have a stub — ensure editable.
-      setSaveNote('Trip not in session — open from Dispatch Live tracking.')
-      return
-    }
-    ensureTripInSession(trip)
-    setPortalStopLocations(
-      tripId,
-      { pickup: draftPickup, dropoff: draftDropoff },
-      'dispatcher',
-    )
-    setEditingStops(false)
-    setSaveNote('Pickup & drop-off saved.')
   }
 
   const seenAgo = (() => {
@@ -242,15 +175,6 @@ export function PortalTrackingBody({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {deskEdit ? (
-            <button
-              type="button"
-              onClick={() => (editingStops ? setEditingStops(false) : openStopEditor())}
-              className="rounded-md border border-ink/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink hover:bg-ink/5"
-            >
-              {editingStops ? 'Close editor' : 'Edit stops'}
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={shareTracking}
@@ -413,12 +337,7 @@ export function PortalTrackingBody({
         )}
       </section>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-2">
-        <InfoCard
-          title="Route"
-          body={`${originLabel} → ${destLabel}`}
-          sub={view.lane}
-        />
+      <section className="mt-6 grid gap-3 sm:grid-cols-3">
         <InfoCard
           title="Aircraft"
           body={`${tail}${view.aircraftType ? ` · ${view.aircraftType}` : ''}`}
@@ -427,56 +346,6 @@ export function PortalTrackingBody({
         <InfoCard title="Pickup" body={pickupTitle} sub={pickupSub} />
         <InfoCard title="Drop-off" body={dropoffTitle} sub={dropoffSub} />
       </section>
-
-      {deskEdit && editingStops ? (
-        <section className="mt-6 space-y-4 rounded-md border border-gold/40 bg-white p-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gold">
-            OnFly desk · pickup & drop-off
-          </div>
-          <p className="text-xs text-muted">
-            Client hangar, field FBO from the directory, or TBD (blank until
-            filled). Name and street address show on the client tracker.
-          </p>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <PortalStopPicker
-              label="Pickup"
-              icao={pickupIcao}
-              value={draftPickup}
-              onChange={setDraftPickup}
-              tone="cream"
-            />
-            <PortalStopPicker
-              label="Drop-off"
-              icao={dropoffIcao}
-              value={draftDropoff}
-              onChange={setDraftDropoff}
-              tone="cream"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
-              onClick={saveStops}
-            >
-              Save stops
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-border px-4 py-2 text-sm text-muted"
-              onClick={() => setEditingStops(false)}
-            >
-              Cancel
-            </button>
-          </div>
-          {saveNote ? (
-            <p className="text-xs text-muted">{saveNote}</p>
-          ) : null}
-        </section>
-      ) : null}
-      {deskEdit && !editingStops && saveNote ? (
-        <p className="mt-3 text-xs text-muted">{saveNote}</p>
-      ) : null}
     </PortalShell>
   )
 }

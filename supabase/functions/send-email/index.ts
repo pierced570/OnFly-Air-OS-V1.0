@@ -23,6 +23,8 @@ type Body = {
   reply_to?: string
   cc?: string | string[]
   bcc?: string | string[]
+  /** SMTP headers — e.g. In-Reply-To / References for ETA sheet thread. */
+  headers?: Record<string, string>
 }
 
 function normalizeEmails(raw: string | string[] | undefined): string[] {
@@ -78,6 +80,15 @@ Deno.serve(async (req) => {
     if (body.reply_to) payload.reply_to = body.reply_to
     if (cc.length) payload.cc = cc
     if (bcc.length) payload.bcc = bcc
+    if (body.headers && typeof body.headers === 'object') {
+      const headers: Record<string, string> = {}
+      for (const [k, v] of Object.entries(body.headers)) {
+        const key = String(k ?? '').trim()
+        const val = String(v ?? '').trim()
+        if (key && val) headers[key] = val
+      }
+      if (Object.keys(headers).length) payload.headers = headers
+    }
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -101,8 +112,33 @@ Deno.serve(async (req) => {
       )
     }
 
+    const id = (result as { id?: string }).id as string
+    let messageId: string | null =
+      (result as { message_id?: string | null }).message_id ?? null
+
+    // Resend send response may omit message_id — retrieve for threading.
+    if (id && !messageId) {
+      try {
+        const getRes = await fetch(`https://api.resend.com/emails/${id}`, {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: 'application/json',
+          },
+        })
+        if (getRes.ok) {
+          const got = (await getRes.json().catch(() => ({}))) as {
+            message_id?: string | null
+          }
+          messageId = got.message_id ?? null
+        }
+      } catch (e) {
+        console.warn('[send-email] message_id lookup failed', e)
+      }
+    }
+
     return json({
-      id: (result as { id?: string }).id as string,
+      id,
+      message_id: messageId,
       provider: 'resend',
     })
   } catch (e) {
