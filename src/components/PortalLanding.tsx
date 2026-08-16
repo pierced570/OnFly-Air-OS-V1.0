@@ -1,12 +1,12 @@
 /**
- * Unsigned portal gate — dark hero + magic-link card + request CTA (PDF mock).
+ * Unsigned portal gate — dark hero + work-email sign-in + request CTA.
  */
 
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BRAND_LOGO_PATH, BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
-import { absoluteAppUrl } from '@/lib/appUrl'
-import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import type { PortalSession } from '@/domain/portalAuth'
+import { promotePortalGuestToSignedIn, signInPortalByWorkEmail } from '@/lib/portalAuth'
 
 const FEATURES = [
   {
@@ -22,17 +22,19 @@ const FEATURES = [
   {
     n: '3',
     title: 'No password to lose',
-    body: 'We email a one-tap sign-in link that lasts 15 minutes.',
+    body: 'Verified work emails open the right company portal — no magic link.',
   },
 ] as const
 
-export function PortalLanding() {
+export function PortalLanding(props?: {
+  onSignedIn?: (session: PortalSession) => void
+}) {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  async function sendLink(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     const addr = email.trim().toLowerCase()
@@ -40,18 +42,12 @@ export function PortalLanding() {
       setError('Enter a work email')
       return
     }
-    if (!isSupabaseConfigured || !supabase) {
-      setError('Portal login requires Supabase configuration')
-      return
-    }
     setBusy(true)
     try {
-      const { error: err } = await supabase.auth.signInWithOtp({
-        email: addr,
-        options: { emailRedirectTo: absoluteAppUrl('/portal') },
-      })
-      if (err) throw err
-      setSent(true)
+      const session = await signInPortalByWorkEmail(addr)
+      promotePortalGuestToSignedIn()
+      props?.onSignedIn?.(session)
+      navigate('/portal', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -109,84 +105,39 @@ export function PortalLanding() {
 
         <section className="space-y-4">
           <div className="rounded-2xl bg-white p-5 text-ink shadow-xl sm:p-6">
-            {!sent ? (
-              <>
-                <h2 className="text-lg font-semibold">See your shipments</h2>
-                <p className="mt-1 text-sm text-muted">
-                  Enter your work email and we&apos;ll send a magic sign-in link
-                  — no password needed.
-                </p>
-                <form onSubmit={sendLink} className="mt-4 space-y-3">
-                  <label className="block text-xs font-medium text-muted">
-                    Work email
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@company.com"
-                      autoComplete="email"
-                      className="mt-1 w-full rounded-lg border border-[#e5dfd0] bg-[#F7F2E3] px-3 py-2.5 text-sm text-ink outline-none focus:border-gold"
-                    />
-                  </label>
-                  {error ? (
-                    <p className="text-sm text-[#C0392B]">{error}</p>
-                  ) : null}
-                  <button
-                    type="submit"
-                    disabled={busy}
-                    className="w-full rounded-lg bg-ink px-4 py-3 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
-                  >
-                    {busy ? 'Sending…' : 'Email me a sign-in link'}
-                  </button>
-                </form>
-                <p className="mt-3 text-[11px] leading-relaxed text-muted">
-                  Only approved work emails can sign in. Access is granted by
-                  your company&apos;s email domain (for example{' '}
-                  <span className="avionic">@psaairlines.com</span> for PSA) or
-                  an exact address OnFly has on file for that client. Personal
-                  mailboxes (Gmail, etc.) are not accepted. Not set up yet?
-                  Request a trip below and we&apos;ll take it from there.
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#2E7D32] text-sm text-white">
-                    ✓
-                  </span>
-                  <div>
-                    <h2 className="text-lg font-semibold">Check your inbox</h2>
-                    <p className="mt-1 text-sm text-muted">
-                      We sent a sign-in link to{' '}
-                      <span className="font-medium text-ink">{email}</span>. It
-                      works once and expires in 15 minutes. After you tap it,
-                      you&apos;ll land on your shipments — open any card for
-                      live tracking.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="rounded-lg border border-border px-3 py-2 text-sm"
-                    onClick={() => {
-                      setSent(false)
-                      setEmail('')
-                    }}
-                  >
-                    Use a different email
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="rounded-lg bg-[#F7F2E3] px-3 py-2 text-sm font-medium disabled:opacity-50"
-                    onClick={() => void sendLink({ preventDefault() {} } as FormEvent)}
-                  >
-                    Resend link
-                  </button>
-                </div>
-              </>
-            )}
+            <h2 className="text-lg font-semibold">See your shipments</h2>
+            <p className="mt-1 text-sm text-muted">
+              Enter your work email to open your company portal — no password
+              or magic link.
+            </p>
+            <form onSubmit={onSubmit} className="mt-4 space-y-3">
+              <label className="block text-xs font-medium text-muted">
+                Work email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  autoComplete="email"
+                  className="mt-1 w-full rounded-lg border border-[#e5dfd0] bg-[#F7F2E3] px-3 py-2.5 text-sm text-ink outline-none focus:border-gold"
+                />
+              </label>
+              {error ? (
+                <p className="text-sm text-[#C0392B]">{error}</p>
+              ) : null}
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full rounded-lg bg-ink px-4 py-3 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
+              >
+                {busy ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+            <p className="mt-3 text-[11px] leading-relaxed text-muted">
+              Verified emails will be routed to the correct client portal.
+              Personal mailboxes (Gmail, etc.) are not accepted. Not set up
+              yet? Request a trip below and we&apos;ll take it from there.
+            </p>
           </div>
 
           <Link

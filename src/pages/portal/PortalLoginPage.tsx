@@ -1,6 +1,6 @@
 /**
- * Explicit sign-in route — magic-link form. Signed-in clients go straight home
- * so login ↔ shipments ↔ track stay one loop.
+ * Explicit sign-in route — work-email domain form. Signed-in clients go straight
+ * home so login ↔ shipments ↔ track stay one loop.
  */
 
 import { Navigate } from 'react-router-dom'
@@ -8,7 +8,7 @@ import { PortalLanding } from '@/components/PortalLanding'
 import { usePortalSession } from '@/hooks/usePortalSession'
 
 export default function PortalLoginPage() {
-  const { signedIn, loading } = usePortalSession()
+  const { signedIn, loading, setSession } = usePortalSession()
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0C0C0E] text-sm text-cream/60">
@@ -17,5 +17,5 @@ export default function PortalLoginPage() {
     )
   }
   if (signedIn) return <Navigate to="/portal" replace />
-  return <PortalLanding />
+  return <PortalLanding onSignedIn={setSession} />
 }

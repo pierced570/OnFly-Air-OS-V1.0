@@ -254,16 +254,14 @@ function InfoTab({
                 allowed_email_domains: domains.length ? domains : undefined,
               })
             }}
-            placeholder="psaairlines.com"
+            placeholder="company.com"
           />
         </label>
         <p className="text-[11px] leading-relaxed text-muted">
-          Only approved emails can open this company&apos;s portal. Anyone with
-          an address at these domains (e.g.{' '}
-          <span className="avionic">name@psaairlines.com</span>) sees this
-          client&apos;s shipments. Exact contacts on file still work one-by-one
-          even if their domain is not listed. Public mailboxes are never
-          allowed.
+          Verified emails will be routed to the correct client portal. Anyone
+          with an address at these domains sees this client&apos;s shipments.
+          Exact contacts on file still work one-by-one even if their domain is
+          not listed. Public mailboxes are never allowed.
         </p>
         {inferPortalDomainsFromOnFile(client).length > 0 ? (
           <p className="text-[11px] text-muted">

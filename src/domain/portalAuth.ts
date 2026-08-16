@@ -1,6 +1,6 @@
 /**
- * Portal auth helpers — magic-link session + client scoping.
- * Pure session logic; Supabase calls live in portalAuth.ts lib.
+ * Portal auth helpers — work-email / domain session + client scoping.
+ * Pure session logic; Supabase / storage live in portalAuth.ts lib.
  */
 
 export type PortalSession = {
