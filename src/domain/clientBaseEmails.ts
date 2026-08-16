@@ -23,8 +23,18 @@ const PUBLIC_EMAIL_DOMAINS = new Set([
 export type ClientBaseRef = {
   icao: string
   label?: string
-  /** Explicit emails for this base; empty → auto-generate from company domain. */
+  /**
+   * All ETA emails for this base (union of supervisor + stores + extras).
+   * Prefer setting supervisor_emails / stores_emails; emails is kept in sync.
+   */
   emails?: string[]
+  /** MX / ops supervisor distribution lists for this base. */
+  supervisor_emails?: string[]
+  /** Stores / parts distribution lists for this base. */
+  stores_emails?: string[]
+  /** Hangar / ramp diagram (public URL). */
+  diagram_url?: string
+  diagram_caption?: string
 }
 
 export type ClientBaseEmailSource = {
@@ -39,6 +49,57 @@ export type ClientBaseEmailSource = {
 /** Normalize ICAO for storage / compare. */
 export function normalizeBaseIcao(icao: string): string {
   return icao.trim().toUpperCase()
+}
+
+/** Dedupe + validate email list. */
+export function normalizeEmailList(
+  raw: string[] | string | null | undefined,
+): string[] {
+  const parts = Array.isArray(raw)
+    ? raw
+    : String(raw ?? '')
+        .split(/[,;\s]+/)
+        .map((s) => s.trim())
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const p of parts) {
+    const e = p.trim()
+    if (!e.includes('@')) continue
+    const key = e.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(e)
+  }
+  return out
+}
+
+/** Union supervisor + stores + emails for ETA send lists. */
+export function baseEmailsUnion(b: ClientBaseRef): string[] {
+  return normalizeEmailList([
+    ...(b.emails ?? []),
+    ...(b.supervisor_emails ?? []),
+    ...(b.stores_emails ?? []),
+  ])
+}
+
+/** Keep `emails` aligned with supervisor/stores (+ any extras already in emails). */
+export function syncBaseEmailFields(b: ClientBaseRef): ClientBaseRef {
+  const supervisor_emails = normalizeEmailList(b.supervisor_emails)
+  const stores_emails = normalizeEmailList(b.stores_emails)
+  const extras = normalizeEmailList(b.emails).filter((e) => {
+    const k = e.toLowerCase()
+    return (
+      !supervisor_emails.some((s) => s.toLowerCase() === k) &&
+      !stores_emails.some((s) => s.toLowerCase() === k)
+    )
+  })
+  return {
+    ...b,
+    icao: normalizeBaseIcao(b.icao),
+    supervisor_emails,
+    stores_emails,
+    emails: [...supervisor_emails, ...stores_emails, ...extras],
+  }
 }
 
 /**
@@ -106,11 +167,7 @@ export function autoGenerateBaseEmail(
 /** Explicit bases, else unique ICAOs from frequent lanes. */
 export function resolveClientBases(source: ClientBaseEmailSource): ClientBaseRef[] {
   const explicit = (source.bases ?? [])
-    .map((b) => ({
-      ...b,
-      icao: normalizeBaseIcao(b.icao),
-      emails: (b.emails ?? []).map((e) => e.trim()).filter((e) => e.includes('@')),
-    }))
+    .map((b) => syncBaseEmailFields(b))
     .filter((b) => b.icao)
   if (explicit.length) {
     const seen = new Set<string>()
@@ -151,14 +208,26 @@ export function listBaseGeneratedEmails(
     (opts?.legIcaos ?? []).map(normalizeBaseIcao).filter(Boolean),
   )
   const matched = legSet.size
-    ? bases.filter((b) => legSet.has(b.icao))
+    ? bases.filter((b) => {
+        const code = b.icao
+        const short =
+          code.length === 4 && code.startsWith('K') ? code.slice(1) : code
+        return (
+          legSet.has(code) ||
+          [...legSet].some((leg) => {
+            const ls =
+              leg.length === 4 && leg.startsWith('K') ? leg.slice(1) : leg
+            return ls === short || ls === code || leg === code
+          })
+        )
+      })
     : []
   const useBases = matched.length ? matched : bases
 
   const out: BaseGeneratedEmail[] = []
   const seen = new Set<string>()
   for (const b of useBases) {
-    const stored = (b.emails ?? []).filter((e) => e.includes('@'))
+    const stored = baseEmailsUnion(b)
     if (stored.length) {
       for (const email of stored) {
         const key = email.toLowerCase()
