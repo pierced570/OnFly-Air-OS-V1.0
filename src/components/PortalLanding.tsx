@@ -157,7 +157,9 @@ export function PortalLanding() {
                     <p className="mt-1 text-sm text-muted">
                       We sent a sign-in link to{' '}
                       <span className="font-medium text-ink">{email}</span>. It
-                      works once and expires in 15 minutes.
+                      works once and expires in 15 minutes. After you tap it,
+                      you&apos;ll land on your shipments — open any card for
+                      live tracking.
                     </p>
                   </div>
                 </div>
