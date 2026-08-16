@@ -1,0 +1,3847 @@
+{
+  "lists": [
+    {
+      "id": "breeze__KPVU",
+      "client_name": "Breeze",
+      "base_icao": "KPVU",
+      "base_label": "Breeze",
+      "entries": [
+        {
+          "id": "745f825f-f0b0-4d21-b731-1aae79a95b64",
+          "rank": 1,
+          "company_name": "AeroDynamic Jets, LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AeroDynamic Jets, LLC",
+          "suggested_operator_id": "0d22edd3-aaaa-4000-8000-0d22edd30000",
+          "general_email": "ops@aerodynamicjets.com",
+          "contact_phone": "1-800-899-6193",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "1-800-899-6193"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KPVU",
+          "fleet_types_csv": "Challenger 300 | Cessna 182 | Citation CJ3",
+          "aircraft_locations_csv": "N798SB Challenger 300 @ KPVU | N25F Cessna 182 @ KPVU | N125DG Citation CJ3 @ KPVU | N125CD Citation CJ3 @ KPVU"
+        },
+        {
+          "id": "6854a31c-673f-4c02-ae41-8c079d20a6aa",
+          "rank": 2,
+          "company_name": "Avcenter, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Avcenter, Inc.",
+          "suggested_operator_id": "007452f2-aaaa-4000-8000-007452f20000",
+          "general_email": "charter@avcenter.com",
+          "contact_phone": "",
+          "company_phone": "(208) 234-2141",
+          "phone_24hr": "",
+          "call_lines": [],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KPIH",
+          "fleet_types_csv": "Citation CJ1 | King Air 200 | Citation XLS | Turbo Commander",
+          "aircraft_locations_csv": "N520DF Citation CJ1 @ KPIH | N155AV King Air 200 @ KPIH | N299AV King Air 200 @ KPIH | N208AV Citation XLS @ KPIH | N499AV Citation XLS @ KPIH | N231AV Turbo Commander @ KPIH | N721TB Turbo Commander @ KPIH"
+        },
+        {
+          "id": "8aca73c9-85af-4305-8706-0a160dd14015",
+          "rank": 3,
+          "company_name": "Precision Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Precision Aviation",
+          "suggested_operator_id": "6d61a1bd-aaaa-4000-8000-6d61a1bd0000",
+          "general_email": "charter@paviation.com",
+          "contact_phone": "208-731-4286",
+          "company_phone": "",
+          "phone_24hr": "208-731-4286",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "208-731-4286"
+            },
+            {
+              "label": "Main",
+              "phone": "208-308-1852"
+            }
+          ],
+          "notes": "Gold | Case by case for HAZMAT, might be possible. Cargo yes but limited due to seats on planes",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2-3 Hrs",
+          "usefulness": 0,
+          "approval_tier": "approved",
+          "operator_base_icao": "KJER/KTWF",
+          "fleet_types_csv": "Citation Ultra | King Air 200 | Kodiak 100",
+          "aircraft_locations_csv": "N204BG Citation Ultra @ KJER/KTWF | N501EB King Air 200 @ KJER/KTWF | N5728G Kodiak 100 @ KJER/KTWF"
+        },
+        {
+          "id": "6d2d2b45-1746-4a8e-8668-1cfaa5fca7d3",
+          "rank": 4,
+          "company_name": "Gem Air, LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Gem Air, LLC",
+          "suggested_operator_id": "43f153b6-aaaa-4000-8000-43f153b60000",
+          "general_email": "flying@gemairflights.com",
+          "contact_phone": "",
+          "company_phone": "(208) 756-7382",
+          "phone_24hr": "",
+          "call_lines": [],
+          "notes": "",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KSLC",
+          "fleet_types_csv": "Islander | Piper Seneca | C-172 | C-206 | Cessna Caravan",
+          "aircraft_locations_csv": "N4438 Islander @ KSLC | N6561B Islander @ KSLC | N801SA Islander @ KSLC | N802SA Islander @ KSLC | N8514C Piper Seneca @ KSLC | N84153 C-172 @ KSLC | N376ME C-206 @ KSLC | N247JP Cessna Caravan @ KSLC | N585SA Cessna Caravan @ KSLC | N843SA Cessna Caravan @ KSLC | N984AC Cessna Caravan @ KSLC"
+        },
+        {
+          "id": "5823197c-1fce-4f79-bc9d-2987f304fa01",
+          "rank": 5,
+          "company_name": "SKYSHARE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "SKYSHARE",
+          "suggested_operator_id": "35f870a2-aaaa-4000-8000-35f870a20000",
+          "general_email": "charter@skyshare.com",
+          "contact_phone": "(855) 759-5683",
+          "company_phone": "",
+          "phone_24hr": "(855) 759-5683",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(855) 759-5683"
+            }
+          ],
+          "notes": "Not really useful after 5pm",
+          "caps": {
+            "pax": true,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs min",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KOGD",
+          "fleet_types_csv": "Gulfstream G200 | Gulfstream GIV | Citation CJ2 | Citation XLS | Embrarer Legacy | Pilatus PC-12",
+          "aircraft_locations_csv": "N612FA Gulfstream G200 @ KOGD | N860CB Gulfstream G200 @ KOGD | N861CB Gulfstream G200 @ KOGD | N450GR Gulfstream GIV @ KOGD | N787JS Gulfstream GIV @ KOGD | N744CB Citation CJ2 @ KOGD | N868CB Citation CJ2 @ KOGD | N871CB Citation CJ2 @ KOGD | N606CB Citation XLS @ KOGD | N766CB Citation XLS @ KOGD | N409KG Embrarer Legacy @ KOGD | N499CB Pilatus PC-12 @ KOGD | N515RP Pilatus PC-12 @ KOGD | N870CB Pilatus PC-12 @ KOGD | N739S Pilatus PC-12 @ KOGD | N863CB Pilatus PC-12 @ KOGD | N418T Pilatus PC-12 @ KOGD | N477KR Pilatus PC-12 @ KOGD | N511DR Pilatus PC-12 @ KOGD | N825NX Pilatus PC-12 @ KOGD | N963CB Pilatus PC-12 @ KOGD"
+        }
+      ]
+    },
+    {
+      "id": "heavy-cargo-carriers__NONE",
+      "client_name": "Heavy Cargo Carriers",
+      "base_icao": null,
+      "base_label": "Heavy Cargo Carriers",
+      "entries": [
+        {
+          "id": "7bbfacd7-6c12-4d74-b2fd-b325a5815e19",
+          "rank": 1,
+          "company_name": "Royal Air Freight, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Royal Air Freight, Inc.",
+          "suggested_operator_id": "1b98c318-aaaa-4000-8000-1b98c3180000",
+          "general_email": "dispatch@royalair.com",
+          "contact_phone": "(800) 445-9724",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Dispatch",
+              "phone": "(800) 445-9724"
+            }
+          ],
+          "notes": "Absolute dickheads but great pricing however will charge like crazy + add $3k min when using them",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "DETROIT, MI",
+          "fleet_types_csv": "Falcon 20 | Falcon 50 | King Air 200 | Embrarer Bandit | Lear 35a | Lear 55 | Lear 60",
+          "aircraft_locations_csv": "N20WK Falcon 20 @ Detroit, MI | N68UP Falcon 20 @ Detroit, MI | N166RA Falcon 20 @ Detroit, MI | N239CD Falcon 20 @ Detroit, MI | N600RA Falcon 20 @ Detroit, MI | N730RA Falcon 20 @ Detroit, MI | N760RA Falcon 20 @ Detroit, MI | N766RA Falcon 20 @ Detroit, MI | N780RA Falcon 20 @ Detroit, MI | N950RA Falcon 50 @ Detroit, MI | N850RA Falcon 50 @ Detroit, MI | N74RA King Air 200 @ Detroit, MI | N220RA King Air 200 @ Detroit, MI | N34A Embrarer Bandit @ Detroit, MI | N49RA Embrarer Bandit @ Detroit, MI | N64DA Embrarer Bandit @ Detroit, MI | N72RA Embrarer Bandit @ Detroit, MI | N73RA Embrarer Bandit @ Detroit, MI | N9RA Lear 35a @ Detroit, MI | N31RA Lear 35a @ Detroit, MI | N41RA Lear 35a @ Detroit, MI | N61RA Lear 35a @ Detroit, MI | N71RA Lear 35a @ Detroit, MI | N76RA Lear 35a @ Detroit, MI | N81RA Lear 35a @ Detroit, MI | N351AS Lear 35a @ Detroit, MI | N417BA Lear 35a @ Detroit, MI | N669RA Lear 35a @ Detroit, MI | N731RA Lear 35a @ Detroit, MI | N804TF Lear 35a @ Detroit, MI | N841TF Lear 35a @ Detroit, MI | N945W Lear 35a @ Detroit, MI | N551RA Lear 55 @ Detroit, MI | N805PC Lear 55 @ Detroit, MI | N860RA Lear 60 @ Detroit, MI"
+        },
+        {
+          "id": "8b9b86f8-c979-4bf7-ae00-1a3e5aadcbf2",
+          "rank": 2,
+          "company_name": "Ameriflight",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Ameriflight",
+          "suggested_operator_id": "06c3da00-aaaa-4000-8000-06c3da000000",
+          "general_email": "amfcharter@ameriflight.com",
+          "contact_phone": "512-417-3045",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Backup Number",
+              "phone": "512-417-3045"
+            },
+            {
+              "label": "Main Number",
+              "phone": "972-426-3075"
+            }
+          ],
+          "notes": "24/7 Midsize Aircraft ASAP Cargo",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KDFW",
+          "fleet_types_csv": "Beech 99 | Metroliner | Beech 1900 | SAAB 340 | Emb. Brasilia",
+          "aircraft_locations_csv": "N189WA Beech 99 @ KDFW | N191WA Beech 99 @ KDFW | N802BA Beech 99 @ KDFW | N20FW Beech 99 @ KDFW | N21FW Beech 99 @ KDFW | N34AK Beech 99 @ KDFW | N1924T Beech 99 @ KDFW | N7862R Beech 99 @ KDFW | N192WA Beech 99 @ KDFW | N197WA Beech 99 @ KDFW | N4299A Beech 99 @ KDFW | N51RP Beech 99 @ KDFW | N52RP Beech 99 @ KDFW | N68TA Beech 99 @ KDFW | N96AV Beech 99 @ KDFW | N104BE Beech 99 @ KDFW | N106SX Beech 99 @ KDFW | N108SX Beech 99 @ KDFW | N131GP Beech 99 @ KDFW | N174AV Beech 99 @ KDFW | N190WA Beech 99 @ KDFW | N191AV Beech 99 @ KDFW | N193SU Beech 99 @ KDFW | N196WA Beech 99 @ KDFW | N204AF Beech 99 @ KDFW | N206AV Beech 99 @ KDFW | N221BH Beech 99 @ KDFW | N223BH Beech 99 @ KDFW | N225BH Beech 99 @ KDFW | N226BH Beech 99 @ KDFW | N227AV Beech 99 @ KDFW | N228BH Beech 99 @ KDFW | N230BH Beech 99 @ KDFW | N330AV Beech 99 @ KDFW | N388AV Beech 99 @ KDFW | N990AF Beech 99 @ KDFW | N991AF Beech 99 @ KDFW | N992AF Beech 99 @ KDFW | N997SB Beech 99 @ KDFW | N6724D Beech 99 @ KDFW | N7209W Beech 99 @ KDFW | N8226Z Beech 99 @ KDFW | N8227P Beech 99 @ KDFW | N62989 Beech 99 @ KDFW | N63978 Beech 99 @ KDFW | N81820 Beech 99 @ KDFW | N354AE Metroliner @ KDFW | N360AE Metroliner @ KDFW | N370AE Metroliner @ KDFW | N421MA Metroliner @ KDFW | N422MA Metroliner @ KDFW | N424MA Metroliner @ KDFW | N428MA Metroliner @ KDFW | N671AV Metroliner @ KDFW | N672AV Metroliner @ KDFW | N673AV Metroliner @ KDFW | N709TR Metroliner @ KDFW | N801AF Metroliner @ KDFW | N240DH Metroliner @ KDFW | N241DH Metroliner @ KDFW | N244DH Metroliner @ KDFW | N245DH Metroliner @ KDFW | N246DH Metroliner @ KDFW | N248DH Metroliner @ KDFW | N249DH Metroliner @ KDFW | N544UP Metroliner @ KDFW | N560UP Metroliner @ KDFW | N561UP Metroliner @ KDFW | N573G Metroliner @ KDFW | N807M Metroliner @ KDFW | N19RZ Beech 1900 @ KDFW | N21RZ Beech 1900 @ KDFW | N26RZ Beech 1900 @ KDFW | N34RZ Beech 1900 @ KDFW | N39UB Beech 1900 @ KDFW | N49UC Beech 1900 @ KDFW | N111YV Beech 1900 @ KDFW | N112YV Beech 1900 @ KDFW | N330AF Beech 1900 @ KDFW | N331AF Beech 1900 @ KDFW | N338AF Beech 1900 @ KDFW | N346AF Beech 1900 @ KDFW | N347AF Beech 1900 @ KDFW | N575G Beech 1900 @ KDFW | N718AF Beech 1900 @ KDFW | N1568G Beech 1900 @ KDFW | N2049K Beech 1900 @ KDFW | N3052K Beech 1900 @ KDFW | N3071A Beech 1900 @ KDFW | N3229A Beech 1900 @ KDFW | N7203C Beech 1900 @ KDFW | N31701 Beech 1900 @ KDFW | N31702 Beech 1900 @ KDFW | N31703 Beech 1900 @ KDFW | N31704 Beech 1900 @ KDFW | N31705 Beech 1900 @ KDFW | N219KA SAAB 340 @ KDFW | N968AF SAAB 340 @ KDFW | N985ES SAAB 340 @ KDFW | N989AF SAAB 340 @ KDFW | N179CA Emb. Brasilia @ KDFW | N189CA Emb. Brasilia @ KDFW | N246AS Emb. Brasilia @ KDFW | N257AS Emb. Brasilia @ KDFW | N258AS Emb. Brasilia @ KDFW | N266AS Emb. Brasilia @ KDFW | N560SW Emb. Brasilia @ KDFW | N566SW Emb. Brasilia @ KDFW | N567SW Emb. Brasilia @ KDFW | N578SW Emb. Brasilia @ KDFW"
+        },
+        {
+          "id": "d88e5e6f-12cd-4927-9257-d77f2ddf293c",
+          "rank": 3,
+          "company_name": "IFL Group, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "IFL Group, Inc.",
+          "suggested_operator_id": "70bd8ef2-aaaa-4000-8000-70bd8ef20000",
+          "general_email": "info@IFLGroup.com",
+          "contact_phone": "(800) 521-4406",
+          "company_phone": "",
+          "phone_24hr": "(800) 521-4406",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(800) 521-4406"
+            }
+          ],
+          "notes": "Cargo Only",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "DETROIT, MI",
+          "fleet_types_csv": "AMD Falcon 20",
+          "aircraft_locations_csv": "N481FL AMD Falcon 20 @ Detroit, MI | N511FL AMD Falcon 20 @ Detroit, MI | N521FL AMD Falcon 20 @ Detroit, MI | N531FL AMD Falcon 20 @ Detroit, MI | N541FL AMD Falcon 20 @ Detroit, MI | N581FL AMD Falcon 20 @ Detroit, MI"
+        },
+        {
+          "id": "608fbae9-c62f-4538-8a91-ce9df86b0956",
+          "rank": 4,
+          "company_name": "GTA Air",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "GTA Air",
+          "suggested_operator_id": "3ed507fe-aaaa-4000-8000-3ed507fe0000",
+          "general_email": "quote@gtaair.com; dispatch@gtaair.com",
+          "contact_phone": "800 217-0950",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "800 217-0950"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KADS",
+          "fleet_types_csv": "Bonanza | Baron 58",
+          "aircraft_locations_csv": "N1194A Bonanza @ KADS | N75AT Bonanza @ KADS | N236CH Bonanza @ KADS | N361BC Bonanza @ KADS | N6735Z Bonanza @ KADS | N66919 Bonanza @ KADS | N140S Baron 58 @ KADS | N577W Baron 58 @ KADS | N882MT Baron 58 @ KADS | N2026W Baron 58 @ KADS | N2064V Baron 58 @ KADS | N6573K Baron 58 @ KADS | N36673 Baron 58 @ KADS"
+        }
+      ]
+    },
+    {
+      "id": "psa__KCAK",
+      "client_name": "PSA",
+      "base_icao": "KCAK",
+      "base_label": "Akron-Canton",
+      "entries": [
+        {
+          "id": "5e5d6343-3482-4687-832c-aeb351a8d32d",
+          "rank": 1,
+          "company_name": "Castle Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Castle Aviation",
+          "suggested_operator_id": "10263d37-aaaa-4000-8000-10263d370000",
+          "general_email": "fltops@castleair.com",
+          "contact_phone": "",
+          "company_phone": "(800) 325-4703 Ext 1",
+          "phone_24hr": "(800) 325-4703 Ext 1",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(800) 325-4703 Ext 1"
+            }
+          ],
+          "notes": "NEED PAX Weight, DOB, and Names every flight (Request from client Immediately)",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCAK",
+          "fleet_types_csv": "Aerostar | Cessna Caravan | SAAB 340",
+          "aircraft_locations_csv": "N49MG Aerostar @ KCAK | N52MG Aerostar @ KCAK | N92MG Aerostar @ KCAK | N1058N Cessna Caravan @ KCAK | N27MG Cessna Caravan @ KCAK | N805TH Cessna Caravan @ KCAK | N1086F Cessna Caravan @ KCAK | N1116W Cessna Caravan @ KCAK | N9612B Cessna Caravan @ KCAK | N253AE SAAB 340 @ KCAK | N336SA SAAB 340 @ KCAK | N431BC SAAB 340 @ KCAK"
+        },
+        {
+          "id": "8c9bb6a1-8046-40ca-8969-b8e2f9b7115c",
+          "rank": 2,
+          "company_name": "Sonrise Aviation, LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Sonrise Aviation, LLC",
+          "suggested_operator_id": "4468a377-aaaa-4000-8000-4468a3770000",
+          "general_email": "sonriseaviation@outlook.com",
+          "contact_phone": "",
+          "company_phone": "(260) 766-4548",
+          "phone_24hr": "(260) 766-4548",
+          "call_lines": [
+            {
+              "label": "24/7 Dispatch",
+              "phone": "(260) 766-4548"
+            },
+            {
+              "label": "Text Number",
+              "phone": "(260) 726-5029"
+            },
+            {
+              "label": "Owner",
+              "phone": "(260) 729-1577"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(567) 644-8015"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(815) 245-7708"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 271-8410"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 215-5307"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(937) 621-3332"
+            }
+          ],
+          "notes": "Matt and Amy are dispatch - easy to work with good emergency contacts - 404's do big stuff pretty well, 310's have range",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "1.5Hrs",
+          "usefulness": 10,
+          "approval_tier": "approved",
+          "operator_base_icao": "KPLD",
+          "fleet_types_csv": "Cessna 310 | Cessna 404",
+          "aircraft_locations_csv": "N98DM Cessna 310 @ KPLD | N2738B Cessna 310 @ KPLD | N3284M Cessna 310 @ KPLD | N4258C Cessna 310 @ KPLD | N80BS Cessna 404 @ KPLD | N103RC Cessna 404 @ KPLD"
+        },
+        {
+          "id": "b4620be7-86b6-4083-abb2-57629e526fff",
+          "rank": 3,
+          "company_name": "Miller Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Miller Aviation",
+          "suggested_operator_id": "13b1b918-aaaa-4000-8000-13b1b9180000",
+          "general_email": "carriem@patriot-aviation.com",
+          "contact_phone": "",
+          "company_phone": "(260) 726-4901",
+          "phone_24hr": "(260)827-8267",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(260) 726-4901"
+            },
+            {
+              "label": "Scott",
+              "phone": "(765) 418-3933"
+            },
+            {
+              "label": "Carrie",
+              "phone": "(260) 827-8267"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 667-9810"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(901) 288-6531"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(918) 782-7655"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(260) 504-8185"
+            }
+          ],
+          "notes": "Carrie and Scott handle dispatch - great to work with",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "1.5Hrs",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KHHG",
+          "fleet_types_csv": "Cessna 310",
+          "aircraft_locations_csv": "N5336C Cessna 310 @ KHHG | N6209X Cessna 310 @ KHHG"
+        },
+        {
+          "id": "cddd14ae-8313-4588-a45b-5c47f70d6f39",
+          "rank": 4,
+          "company_name": "AIR Z FLYING SERVICE (Larry)",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AIR Z FLYING SERVICE (Larry)",
+          "suggested_operator_id": "3cfda313-aaaa-4000-8000-3cfda3130000",
+          "general_email": "admin@tandgflying.com",
+          "contact_phone": "",
+          "company_phone": "440-725-3043",
+          "phone_24hr": "440-725-3043",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "440 725-3043"
+            },
+            {
+              "label": "Pilot",
+              "phone": "216 256-4609"
+            },
+            {
+              "label": "Lisa (Larry's Wife)",
+              "phone": "712 490-2994"
+            }
+          ],
+          "notes": "We try to avoid using him and night time requires two pilots for us with them",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCGF",
+          "fleet_types_csv": "C310 | C340 | Saratoga",
+          "aircraft_locations_csv": "N1908G C310 @ KCGF | N3938G C340 @ KCGF | N8188J Saratoga @ KCGF"
+        },
+        {
+          "id": "27f45b64-17bf-41d5-ac3d-43333ad29401",
+          "rank": 5,
+          "company_name": "Trans North Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Trans North Aviation",
+          "suggested_operator_id": "524499cc-aaaa-4000-8000-524499cc0000",
+          "general_email": "dereck.pristas@transnorthaviation.com",
+          "contact_phone": "937 823-7423",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Derek",
+              "phone": "937 823-7423"
+            },
+            {
+              "label": "Other Dispatch Line",
+              "phone": "800-735-8190"
+            }
+          ],
+          "notes": "These guys are down to get shit done",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KAID",
+          "fleet_types_csv": "SR-22 | Cessna Citation | Lear 35a",
+          "aircraft_locations_csv": "N742LG SR-22 @ KAID | N907DK Cessna Citation @ KAID | N1327J Cessna Citation @ KAID | N89TB Lear 35a @ KAID"
+        },
+        {
+          "id": "34c5c6cb-5fa6-4730-8b68-3dec6260de17",
+          "rank": 6,
+          "company_name": "Axio",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Axio",
+          "suggested_operator_id": "001f5bbd-aaaa-4000-8000-001f5bbd0000",
+          "general_email": "sales@flyaxio.com",
+          "contact_phone": "(864) 397-5082",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main/Texting",
+              "phone": "(864) 397-5082"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(864) 608-0141"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(336) 602-5126"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(772) 258-0209"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KSPA",
+          "fleet_types_csv": "SR-22 | Phenom 100 | Baron 58 | King Air 200",
+          "aircraft_locations_csv": "N533CP SR-22 @ KSPA | N606MF SR-22 @ KSPA | N369AX Phenom 100 @ KSPA | N283MA Baron 58 @ KSPA | N707PW Baron 58 @ KSPA | N758CA Baron 58 @ KSPA | N4380W Baron 58 @ KSPA | N6725T Baron 58 @ KSPA | N789CT King Air 200 @ KSPA | N34LT King Air 200 @ KSPA | N989LA King Air 200 @ KSPA"
+        },
+        {
+          "id": "071feced-44d2-4217-8dab-de16bd34c80f",
+          "rank": 7,
+          "company_name": "FedAir (Mario)",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "FedAir (Mario)",
+          "suggested_operator_id": "528a258e-aaaa-4000-8000-528a258e0000",
+          "general_email": "mario@fedaircharter.com",
+          "contact_phone": "(252) 349-5657",
+          "company_phone": "",
+          "phone_24hr": "(252) 349-5657",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(252) 349-5657"
+            }
+          ],
+          "notes": "MARIO Always Expensive but reliable and quick! Great Operator",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KHFY",
+          "fleet_types_csv": "Cheyenne",
+          "aircraft_locations_csv": ""
+        },
+        {
+          "id": "76e17dcf-7bc3-4fa4-9926-7d1a10e6177c",
+          "rank": 8,
+          "company_name": "Priority Air Charter LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Priority Air Charter LLC",
+          "suggested_operator_id": "457511bc-aaaa-4000-8000-457511bc0000",
+          "general_email": "dispatch@flypac.net",
+          "contact_phone": "877 698-4604",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Phone",
+              "phone": "877 698-4604"
+            },
+            {
+              "label": "Local/Cell",
+              "phone": "330 698-4604"
+            }
+          ],
+          "notes": "Cargo Only No PAX",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "CLEVELAND, OH",
+          "fleet_types_csv": "PC-12 | Cessna 208B Grand Caravan",
+          "aircraft_locations_csv": "N812PA PC-12 @ Cleveland, OH | N814PA PC-12 @ Cleveland, OH | N179SA Cessna 208B Grand Caravan @ Cleveland, OH | N702PA Cessna 208B Grand Caravan @ Cleveland, OH"
+        },
+        {
+          "id": "a7ce9b87-1994-403b-941c-b2706e30c19b",
+          "rank": 9,
+          "company_name": "Air Travel Management, LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Air Travel Management, LLC",
+          "suggested_operator_id": "3327991c-aaaa-4000-8000-3327991c0000",
+          "general_email": "terri@flyavnet.com",
+          "contact_phone": "(304) 276-4359",
+          "company_phone": "",
+          "phone_24hr": "(573) 231-9493",
+          "call_lines": [
+            {
+              "label": "Dispatch",
+              "phone": "(304) 276-4359"
+            },
+            {
+              "label": "24/7",
+              "phone": "(573) 231-9493"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "PITTSBURGH, PA",
+          "fleet_types_csv": "Citation 550 | Piper Navajo C/R",
+          "aircraft_locations_csv": "N330DK Citation 550 @ Pittsburgh, PA | N24CK Piper Navajo C/R @ Pittsburgh, PA | N39EH Piper Navajo C/R @ Pittsburgh, PA | N195AA Piper Navajo C/R @ Pittsburgh, PA"
+        },
+        {
+          "id": "ee87a146-7dfa-40bb-9318-ba546bb2c036",
+          "rank": 10,
+          "company_name": "AERY AVIATION LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AERY AVIATION LLC",
+          "suggested_operator_id": "6429eb59-aaaa-4000-8000-6429eb590000",
+          "general_email": "Aerydispatch@aeryaviation.com",
+          "contact_phone": "(833) 240-9007",
+          "company_phone": "",
+          "phone_24hr": "(833) 240-9007",
+          "call_lines": [
+            {
+              "label": "24/7 Dispatch",
+              "phone": "(833) 240-9007"
+            }
+          ],
+          "notes": "Expensive but does a lot f medivac for cleveland clinic",
+          "caps": {
+            "pax": true,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCLE",
+          "fleet_types_csv": "Lear 45 | Hawker | Cirrus Vision SF50",
+          "aircraft_locations_csv": "N340SR Lear 45 @ KCLE | N632JS Lear 45 @ KCLE | N972PF Hawker @ KCLE | N331SB Cirrus Vision SF50 @ KCLE"
+        },
+        {
+          "id": "3c329446-23e7-461e-9cc1-20688b086ed5",
+          "rank": 11,
+          "company_name": "Alpha Three Aviation Incorporated",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Alpha Three Aviation Incorporated",
+          "suggested_operator_id": "50e43f9f-aaaa-4000-8000-50e43f9f0000",
+          "general_email": "",
+          "contact_phone": "(724) 321-6309",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Andy",
+              "phone": "(724) 321-6309"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "PITTSBURGH, PA",
+          "fleet_types_csv": "King Air 200 | Baron 58",
+          "aircraft_locations_csv": "N690SC King Air 200 @ Pittsburgh, PA | N282EA Baron 58 @ Pittsburgh, PA"
+        },
+        {
+          "id": "53b68c61-124f-4c32-ad0b-de86afffdf9d",
+          "rank": 12,
+          "company_name": "AirNet II LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AirNet II LLC",
+          "suggested_operator_id": "21cf4070-aaaa-4000-8000-21cf40700000",
+          "general_email": "cargocharters@airnet.com",
+          "contact_phone": "(877) 293-8463",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Dispatch",
+              "phone": "(877) 293-8463"
+            }
+          ],
+          "notes": "Cargo Only!",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "COLUMBUS, OH",
+          "fleet_types_csv": "Lear 35a | Baron 58",
+          "aircraft_locations_csv": "N355CK Lear 35a @ Columbus, OH | N35WL Lear 35a @ Columbus, OH | N76CK Lear 35a @ Columbus, OH | N163CK Lear 35a @ Columbus, OH | N217CK Lear 35a @ Columbus, OH | N220CK Lear 35a @ Columbus, OH | N264CK Lear 35a @ Columbus, OH | N290CK Lear 35a @ Columbus, OH | N295CK Lear 35a @ Columbus, OH | N352CK Lear 35a @ Columbus, OH | N353CK Lear 35a @ Columbus, OH | N354CK Lear 35a @ Columbus, OH | N359CK Lear 35a @ Columbus, OH | N644CK Lear 35a @ Columbus, OH | N581CK Baron 58 @ Columbus, OH | N583CK Baron 58 @ Columbus, OH | N584CK Baron 58 @ Columbus, OH | N586CK Baron 58 @ Columbus, OH | N587CK Baron 58 @ Columbus, OH | N588CK Baron 58 @ Columbus, OH"
+        },
+        {
+          "id": "152f6ddf-ede4-41ed-acdb-03df58089b2a",
+          "rank": 13,
+          "company_name": "Royal Air Freight, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Royal Air Freight, Inc.",
+          "suggested_operator_id": "1b98c318-aaaa-4000-8000-1b98c3180000",
+          "general_email": "dispatch@royalair.com",
+          "contact_phone": "(800) 445-9724",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Dispatch",
+              "phone": "(800) 445-9724"
+            }
+          ],
+          "notes": "Absolute dickheads but great pricing however will charge like crazy + add $3k min when using them",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "DETROIT, MI",
+          "fleet_types_csv": "Falcon 20 | Falcon 50 | King Air 200 | Embrarer Bandit | Lear 35a | Lear 55 | Lear 60",
+          "aircraft_locations_csv": "N20WK Falcon 20 @ Detroit, MI | N68UP Falcon 20 @ Detroit, MI | N166RA Falcon 20 @ Detroit, MI | N239CD Falcon 20 @ Detroit, MI | N600RA Falcon 20 @ Detroit, MI | N730RA Falcon 20 @ Detroit, MI | N760RA Falcon 20 @ Detroit, MI | N766RA Falcon 20 @ Detroit, MI | N780RA Falcon 20 @ Detroit, MI | N950RA Falcon 50 @ Detroit, MI | N850RA Falcon 50 @ Detroit, MI | N74RA King Air 200 @ Detroit, MI | N220RA King Air 200 @ Detroit, MI | N34A Embrarer Bandit @ Detroit, MI | N49RA Embrarer Bandit @ Detroit, MI | N64DA Embrarer Bandit @ Detroit, MI | N72RA Embrarer Bandit @ Detroit, MI | N73RA Embrarer Bandit @ Detroit, MI | N9RA Lear 35a @ Detroit, MI | N31RA Lear 35a @ Detroit, MI | N41RA Lear 35a @ Detroit, MI | N61RA Lear 35a @ Detroit, MI | N71RA Lear 35a @ Detroit, MI | N76RA Lear 35a @ Detroit, MI | N81RA Lear 35a @ Detroit, MI | N351AS Lear 35a @ Detroit, MI | N417BA Lear 35a @ Detroit, MI | N669RA Lear 35a @ Detroit, MI | N731RA Lear 35a @ Detroit, MI | N804TF Lear 35a @ Detroit, MI | N841TF Lear 35a @ Detroit, MI | N945W Lear 35a @ Detroit, MI | N551RA Lear 55 @ Detroit, MI | N805PC Lear 55 @ Detroit, MI | N860RA Lear 60 @ Detroit, MI"
+        },
+        {
+          "id": "fb3cf678-3931-4170-a97c-90f4f77ef9bb",
+          "rank": 14,
+          "company_name": "IFL Group, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "IFL Group, Inc.",
+          "suggested_operator_id": "70bd8ef2-aaaa-4000-8000-70bd8ef20000",
+          "general_email": "info@IFLGroup.com",
+          "contact_phone": "(800) 521-4406",
+          "company_phone": "",
+          "phone_24hr": "(800) 521-4406",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(800) 521-4406"
+            }
+          ],
+          "notes": "Cargo Only",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "DETROIT, MI",
+          "fleet_types_csv": "AMD Falcon 20",
+          "aircraft_locations_csv": "N481FL AMD Falcon 20 @ Detroit, MI | N511FL AMD Falcon 20 @ Detroit, MI | N521FL AMD Falcon 20 @ Detroit, MI | N531FL AMD Falcon 20 @ Detroit, MI | N541FL AMD Falcon 20 @ Detroit, MI | N581FL AMD Falcon 20 @ Detroit, MI"
+        },
+        {
+          "id": "aef12b44-a23f-4abe-be28-2cfa0016f5aa",
+          "rank": 15,
+          "company_name": "PACC Air",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "PACC Air",
+          "suggested_operator_id": "5ae7769b-aaaa-4000-8000-5ae7769b0000",
+          "general_email": "",
+          "contact_phone": "",
+          "company_phone": "(612) 718-2958",
+          "phone_24hr": "",
+          "call_lines": [],
+          "notes": "Not very friendly, Hit or miss availability",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 4,
+          "approval_tier": "approved",
+          "operator_base_icao": "KMSP",
+          "fleet_types_csv": "Cessna 310 | Cessna 402b | Piper Cheyenne",
+          "aircraft_locations_csv": "N310TS Cessna 310 @ KMSP | N314U Cessna 310 @ KMSP | N780SH Cessna 310 @ KMSP | N1203W Cessna 310 @ KMSP | N3397G Cessna 310 @ KMSP | N6832Y Cessna 310 @ KMSP | N75GB Cessna 402b @ KMSP | N3796C Cessna 402b @ KMSP | N6384X Cessna 402b @ KMSP | N401VA Piper Cheyenne @ KMSP | N700RD Piper Cheyenne @ KMSP"
+        },
+        {
+          "id": "579325a8-3179-4f6d-953e-455447979710",
+          "rank": 16,
+          "company_name": "Zanesville Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Zanesville Aviation",
+          "suggested_operator_id": "323ac604-aaaa-4000-8000-323ac6040000",
+          "general_email": "contact@zanesvilleaviation.com",
+          "contact_phone": "740 452-3625",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "740 452-3625"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KZZV",
+          "fleet_types_csv": "CJ1 | Citation Bravo",
+          "aircraft_locations_csv": "(no tail) CJ1 @ KZZV | (no tail) Citation Bravo @ KZZV"
+        },
+        {
+          "id": "4684b85e-a507-4eb5-b648-cace71e10694",
+          "rank": 17,
+          "company_name": "Kentucky Airmotive Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Kentucky Airmotive Inc.",
+          "suggested_operator_id": "77e0dc7c-aaaa-4000-8000-77e0dc7c0000",
+          "general_email": "zachary@kyairmotive.net",
+          "contact_phone": "859 498-1000",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "859 498-1000"
+            },
+            {
+              "label": "Mike",
+              "phone": "859 585-9153"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "LOUISVILLE, KY",
+          "fleet_types_csv": "King Air 90 | Cessna 401 | King Air 200 | Cessna 182",
+          "aircraft_locations_csv": "N16KW King Air 90 @ Louisville, KY | N61698 King Air 90 @ Louisville, KY | N7901Q Cessna 401 @ Louisville, KY | N613TA King Air 200 @ Louisville, KY | N82ER Cessna 182 @ Louisville, KY | N4861S Cessna 182 @ Louisville, KY"
+        },
+        {
+          "id": "93cbd209-254c-480d-87df-a710fb72f893",
+          "rank": 18,
+          "company_name": "SWEET AVIATION LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "SWEET AVIATION LLC",
+          "suggested_operator_id": "1495fa14-aaaa-4000-8000-1495fa140000",
+          "general_email": "charter@sweetaviation.com",
+          "contact_phone": "260 267-5505",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "260 267-5505"
+            },
+            {
+              "label": "Other",
+              "phone": "260 409-4635"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "INDIANAPOLIS, IN",
+          "fleet_types_csv": "PC-12 | SR-22 | CJ3 | Citation XLS",
+          "aircraft_locations_csv": "N812SA PC-12 @ Indianapolis, IN | N813SA PC-12 @ Indianapolis, IN | N57SA SR-22 @ Indianapolis, IN | N287CJ CJ3 @ Indianapolis, IN | N855AC Citation XLS @ Indianapolis, IN | N85HA Citation XLS @ Indianapolis, IN"
+        },
+        {
+          "id": "a0e926aa-377b-48d4-8a3e-1961c4fc39b0",
+          "rank": 19,
+          "company_name": "Kalitta Charters LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Kalitta Charters LLC",
+          "suggested_operator_id": "0f623123-aaaa-4000-8000-0f6231230000",
+          "general_email": "",
+          "contact_phone": "(734) 544-3400",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "(734) 544-3400"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "DETROIT, MI",
+          "fleet_types_csv": "Falcon 20 | Challenger 600 | Lear 35a | Lear 45",
+          "aircraft_locations_csv": "N808CK Falcon 20 @ Detroit, MI | N240CK Falcon 20 @ Detroit, MI | N820CK Falcon 20 @ Detroit, MI | N192CK Falcon 20 @ Detroit, MI | N229CK Falcon 20 @ Detroit, MI | N47LP Falcon 20 @ Detroit, MI | N100AS Falcon 20 @ Detroit, MI | N244CK Falcon 20 @ Detroit, MI | N396CK Falcon 20 @ Detroit, MI | N242CK Challenger 600 @ Detroit, MI | N245CK Challenger 600 @ Detroit, MI | N76CK Lear 35a @ Detroit, MI | N355CK Lear 35a @ Detroit, MI | N913CK Lear 35a @ Detroit, MI | N35WL Lear 35a @ Detroit, MI | N73CK Lear 35a @ Detroit, MI | N163CK Lear 35a @ Detroit, MI | N217CK Lear 35a @ Detroit, MI | N237CK Lear 35a @ Detroit, MI | N295CK Lear 35a @ Detroit, MI | N298CK Lear 35a @ Detroit, MI | N325NW Lear 35a @ Detroit, MI | N352CK Lear 35a @ Detroit, MI | N353CK Lear 35a @ Detroit, MI | N357CK Lear 35a @ Detroit, MI | N431CK Lear 35a @ Detroit, MI | N824CK Lear 35a @ Detroit, MI | N870CK Lear 35a @ Detroit, MI | N905CK Lear 35a @ Detroit, MI | N71CK Lear 35a @ Detroit, MI | N45KX Lear 45 @ Detroit, MI | N273LP Lear 45 @ Detroit, MI | N451CK Lear 45 @ Detroit, MI | N452CK Lear 45 @ Detroit, MI | N453CK Lear 45 @ Detroit, MI | N881MJ Lear 45 @ Detroit, MI"
+        },
+        {
+          "id": "3d2dda22-638d-43a9-b44b-4b1c9c6eae7e",
+          "rank": 20,
+          "company_name": "Ameristar Jet Charter, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Ameristar Jet Charter, Inc.",
+          "suggested_operator_id": "3dfe0e2a-aaaa-4000-8000-3dfe0e2a0000",
+          "general_email": "QUOTES@AMERISTARJET.COM",
+          "contact_phone": "(972) 248-2478",
+          "company_phone": "",
+          "phone_24hr": "(972) 248-2478",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(972) 248-2478"
+            }
+          ],
+          "notes": "Got the big DC9s - best for super large cargo",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "1.5-2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KYIP",
+          "fleet_types_csv": "Falcon 20",
+          "aircraft_locations_csv": "N148TW Falcon 20 @ KYIP | N158TW Falcon 20 @ KYIP | N699TW Falcon 20 @ KYIP | N204TW Falcon 20 @ KYIP | N221TW Falcon 20 @ KYIP | N285TW Falcon 20 @ KYIP | N314TW Falcon 20 @ KYIP"
+        },
+        {
+          "id": "4f04f393-627f-4f00-9bff-3d17b3278fbb",
+          "rank": 21,
+          "company_name": "Ameriflight",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Ameriflight",
+          "suggested_operator_id": "06c3da00-aaaa-4000-8000-06c3da000000",
+          "general_email": "amfcharter@ameriflight.com",
+          "contact_phone": "512-417-3045",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Backup Number",
+              "phone": "512-417-3045"
+            },
+            {
+              "label": "Main Number",
+              "phone": "972-426-3075"
+            }
+          ],
+          "notes": "24/7 Midsize Aircraft ASAP Cargo",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KDFW",
+          "fleet_types_csv": "Beech 99 | Metroliner | Beech 1900 | SAAB 340 | Emb. Brasilia",
+          "aircraft_locations_csv": "N189WA Beech 99 @ KDFW | N191WA Beech 99 @ KDFW | N802BA Beech 99 @ KDFW | N20FW Beech 99 @ KDFW | N21FW Beech 99 @ KDFW | N34AK Beech 99 @ KDFW | N1924T Beech 99 @ KDFW | N7862R Beech 99 @ KDFW | N192WA Beech 99 @ KDFW | N197WA Beech 99 @ KDFW | N4299A Beech 99 @ KDFW | N51RP Beech 99 @ KDFW | N52RP Beech 99 @ KDFW | N68TA Beech 99 @ KDFW | N96AV Beech 99 @ KDFW | N104BE Beech 99 @ KDFW | N106SX Beech 99 @ KDFW | N108SX Beech 99 @ KDFW | N131GP Beech 99 @ KDFW | N174AV Beech 99 @ KDFW | N190WA Beech 99 @ KDFW | N191AV Beech 99 @ KDFW | N193SU Beech 99 @ KDFW | N196WA Beech 99 @ KDFW | N204AF Beech 99 @ KDFW | N206AV Beech 99 @ KDFW | N221BH Beech 99 @ KDFW | N223BH Beech 99 @ KDFW | N225BH Beech 99 @ KDFW | N226BH Beech 99 @ KDFW | N227AV Beech 99 @ KDFW | N228BH Beech 99 @ KDFW | N230BH Beech 99 @ KDFW | N330AV Beech 99 @ KDFW | N388AV Beech 99 @ KDFW | N990AF Beech 99 @ KDFW | N991AF Beech 99 @ KDFW | N992AF Beech 99 @ KDFW | N997SB Beech 99 @ KDFW | N6724D Beech 99 @ KDFW | N7209W Beech 99 @ KDFW | N8226Z Beech 99 @ KDFW | N8227P Beech 99 @ KDFW | N62989 Beech 99 @ KDFW | N63978 Beech 99 @ KDFW | N81820 Beech 99 @ KDFW | N354AE Metroliner @ KDFW | N360AE Metroliner @ KDFW | N370AE Metroliner @ KDFW | N421MA Metroliner @ KDFW | N422MA Metroliner @ KDFW | N424MA Metroliner @ KDFW | N428MA Metroliner @ KDFW | N671AV Metroliner @ KDFW | N672AV Metroliner @ KDFW | N673AV Metroliner @ KDFW | N709TR Metroliner @ KDFW | N801AF Metroliner @ KDFW | N240DH Metroliner @ KDFW | N241DH Metroliner @ KDFW | N244DH Metroliner @ KDFW | N245DH Metroliner @ KDFW | N246DH Metroliner @ KDFW | N248DH Metroliner @ KDFW | N249DH Metroliner @ KDFW | N544UP Metroliner @ KDFW | N560UP Metroliner @ KDFW | N561UP Metroliner @ KDFW | N573G Metroliner @ KDFW | N807M Metroliner @ KDFW | N19RZ Beech 1900 @ KDFW | N21RZ Beech 1900 @ KDFW | N26RZ Beech 1900 @ KDFW | N34RZ Beech 1900 @ KDFW | N39UB Beech 1900 @ KDFW | N49UC Beech 1900 @ KDFW | N111YV Beech 1900 @ KDFW | N112YV Beech 1900 @ KDFW | N330AF Beech 1900 @ KDFW | N331AF Beech 1900 @ KDFW | N338AF Beech 1900 @ KDFW | N346AF Beech 1900 @ KDFW | N347AF Beech 1900 @ KDFW | N575G Beech 1900 @ KDFW | N718AF Beech 1900 @ KDFW | N1568G Beech 1900 @ KDFW | N2049K Beech 1900 @ KDFW | N3052K Beech 1900 @ KDFW | N3071A Beech 1900 @ KDFW | N3229A Beech 1900 @ KDFW | N7203C Beech 1900 @ KDFW | N31701 Beech 1900 @ KDFW | N31702 Beech 1900 @ KDFW | N31703 Beech 1900 @ KDFW | N31704 Beech 1900 @ KDFW | N31705 Beech 1900 @ KDFW | N219KA SAAB 340 @ KDFW | N968AF SAAB 340 @ KDFW | N985ES SAAB 340 @ KDFW | N989AF SAAB 340 @ KDFW | N179CA Emb. Brasilia @ KDFW | N189CA Emb. Brasilia @ KDFW | N246AS Emb. Brasilia @ KDFW | N257AS Emb. Brasilia @ KDFW | N258AS Emb. Brasilia @ KDFW | N266AS Emb. Brasilia @ KDFW | N560SW Emb. Brasilia @ KDFW | N566SW Emb. Brasilia @ KDFW | N567SW Emb. Brasilia @ KDFW | N578SW Emb. Brasilia @ KDFW"
+        }
+      ]
+    },
+    {
+      "id": "psa__KCLT",
+      "client_name": "PSA",
+      "base_icao": "KCLT",
+      "base_label": "Charlotte",
+      "entries": [
+        {
+          "id": "b4b7e6c2-dd3c-4021-8ee1-84ad9c3289aa",
+          "rank": 1,
+          "company_name": "EXECUTIVE SHUTTLE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "EXECUTIVE SHUTTLE",
+          "suggested_operator_id": "73b9d441-aaaa-4000-8000-73b9d4410000",
+          "general_email": "trammellrichard@yahoo.com",
+          "contact_phone": "(814) 571-1420",
+          "company_phone": "",
+          "phone_24hr": "(814) 571-1420",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(814) 571-1420"
+            },
+            {
+              "label": "Main",
+              "phone": "864-910-2944"
+            }
+          ],
+          "notes": "Rick the goat",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KGRD",
+          "fleet_types_csv": "King Air 90",
+          "aircraft_locations_csv": "N643EA King Air 90 @ KGRD"
+        },
+        {
+          "id": "b96aabaf-1a43-477f-95a7-4c7b8a5697c2",
+          "rank": 2,
+          "company_name": "Axio",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Axio",
+          "suggested_operator_id": "001f5bbd-aaaa-4000-8000-001f5bbd0000",
+          "general_email": "sales@flyaxio.com",
+          "contact_phone": "(864) 397-5082",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main/Texting",
+              "phone": "(864) 397-5082"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(864) 608-0141"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(336) 602-5126"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(772) 258-0209"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KSPA",
+          "fleet_types_csv": "SR-22 | Phenom 100 | Baron 58 | King Air 200",
+          "aircraft_locations_csv": "N533CP SR-22 @ KSPA | N606MF SR-22 @ KSPA | N369AX Phenom 100 @ KSPA | N283MA Baron 58 @ KSPA | N707PW Baron 58 @ KSPA | N758CA Baron 58 @ KSPA | N4380W Baron 58 @ KSPA | N6725T Baron 58 @ KSPA | N789CT King Air 200 @ KSPA | N34LT King Air 200 @ KSPA | N989LA King Air 200 @ KSPA"
+        },
+        {
+          "id": "9e8d1e35-7ffb-4801-99ac-993e93eaffe1",
+          "rank": 3,
+          "company_name": "Clemson Air Charter",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Clemson Air Charter",
+          "suggested_operator_id": "0f6a88aa-aaaa-4000-8000-0f6a88aa0000",
+          "general_email": "clemsonaircharter@gmail.com",
+          "contact_phone": "1 (864) 276-7047",
+          "company_phone": "",
+          "phone_24hr": "1 (864) 276-7047",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "1 (864) 276-7047"
+            }
+          ],
+          "notes": "John - Can text him as well",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KAND",
+          "fleet_types_csv": "Baron 58",
+          "aircraft_locations_csv": "N686FR Baron 58 @ KAND | N1065B Baron 58 @ KAND"
+        },
+        {
+          "id": "d6cb811e-12c3-403d-b377-4b5226863543",
+          "rank": 4,
+          "company_name": "FLIGHT CHOICE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "FLIGHT CHOICE",
+          "suggested_operator_id": "6d801caf-aaaa-4000-8000-6d801caf0000",
+          "general_email": "charters@flightchoiceinc.com",
+          "contact_phone": "865-313-5296",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "865-313-5296"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": false,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KTYS",
+          "fleet_types_csv": "Baron 58 | King Air 90 | King Air 200",
+          "aircraft_locations_csv": "N436AT Baron 58 @ KTYS | N584PC Baron 58 @ KTYS | N6211J King Air 90 @ KTYS | N7206E King Air 90 @ KTYS | N250XX King Air 200 @ KTYS"
+        },
+        {
+          "id": "0750c07e-3d41-4498-aa35-36f12009ada8",
+          "rank": 5,
+          "company_name": "AUGUSTA AVIATION INC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AUGUSTA AVIATION INC",
+          "suggested_operator_id": "2c74e201-aaaa-4000-8000-2c74e2010000",
+          "general_email": "charter@augustaaviation.com",
+          "contact_phone": "(704) 289-6868",
+          "company_phone": "",
+          "phone_24hr": "(704) 289-6868",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(704) 289-6868"
+            }
+          ],
+          "notes": "Rosie, Angie, Etc",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KDNL",
+          "fleet_types_csv": "Beechcraft King Air C90A",
+          "aircraft_locations_csv": "N8GU Beechcraft King Air C90A @ KDNL | N329GS Beechcraft King Air C90A @ KDNL | N377P Beechcraft King Air C90A @ KDNL | N891AA Beechcraft King Air C90A @ KDNL"
+        },
+        {
+          "id": "573cba2d-17be-4e19-9861-e357071f1eba",
+          "rank": 6,
+          "company_name": "Capital Air Charter",
+          "operator_id": null,
+          "match_status": "unmatched",
+          "suggested_operator_id": null,
+          "general_email": "rebecca@capitalairexpress.com",
+          "contact_phone": "470-215-6116",
+          "company_phone": "",
+          "phone_24hr": "470-215-6116",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "470-215-6116"
+            }
+          ],
+          "notes": "Navajo and mainly Single Engines",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 5,
+          "approval_tier": "none",
+          "operator_base_icao": "KFFC",
+          "fleet_types_csv": "Piper Malibu | Piper Saratoga | Piper Navajo",
+          "aircraft_locations_csv": "N46MB Piper Malibu @ KFFC | N550JK Piper Malibu @ KFFC | N744DD Piper Malibu @ KFFC | N43100 Piper Malibu @ KFFC | N133KB Piper Malibu @ KFFC | PA-32R-301T Piper Saratoga @ KFFC | TAIL Piper Navajo @ KFFC | # Piper Navajo @ KFFC | TBD Piper Navajo @ KFFC"
+        },
+        {
+          "id": "2c1db1ef-a310-4520-b4a8-c8e67c300f56",
+          "rank": 7,
+          "company_name": "Atlanta Air Charter",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Atlanta Air Charter",
+          "suggested_operator_id": "58fd0758-aaaa-4000-8000-58fd07580000",
+          "general_email": "charter@atlantaaircarter.com",
+          "contact_phone": "770 419-2001",
+          "company_phone": "",
+          "phone_24hr": "770 419-2001",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "770 419-2001"
+            }
+          ],
+          "notes": "Does the work for Delta, Expensive",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KRYY",
+          "fleet_types_csv": "King Air 200",
+          "aircraft_locations_csv": "N143DE King Air 200 @ KRYY | N383JP King Air 200 @ KRYY | N700NA King Air 200 @ KRYY | N717VA King Air 200 @ KRYY"
+        },
+        {
+          "id": "1e005268-2370-46ba-8cde-71472546c520",
+          "rank": 8,
+          "company_name": "LOWE AVIATION CO - Ed Lowe",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "LOWE AVIATION CO - Ed Lowe",
+          "suggested_operator_id": "011c1f65-aaaa-4000-8000-011c1f650000",
+          "general_email": "edward@loweaviation.com",
+          "contact_phone": "(478) 731-5862",
+          "company_phone": "",
+          "phone_24hr": "(478) 731-5862",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(478) 731-5862"
+            },
+            {
+              "label": "Main",
+              "phone": "(478) 788-3491"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KMCN",
+          "fleet_types_csv": "Baron 58 | King Air 90",
+          "aircraft_locations_csv": "N83KK Baron 58 @ KMCN | N1103G King Air 90 @ KMCN"
+        }
+      ]
+    },
+    {
+      "id": "psa__KCVG",
+      "client_name": "PSA",
+      "base_icao": "KCVG",
+      "base_label": "Cincinnati",
+      "entries": [
+        {
+          "id": "1ee8bf25-bf2d-4bbf-92fe-a25983acbd97",
+          "rank": 1,
+          "company_name": "Sonrise Aviation, LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Sonrise Aviation, LLC",
+          "suggested_operator_id": "4468a377-aaaa-4000-8000-4468a3770000",
+          "general_email": "sonriseaviation@outlook.com",
+          "contact_phone": "",
+          "company_phone": "(260) 766-4548",
+          "phone_24hr": "(260) 766-4548",
+          "call_lines": [
+            {
+              "label": "24/7 Dispatch",
+              "phone": "(260) 766-4548"
+            },
+            {
+              "label": "Text Number",
+              "phone": "(260) 726-5029"
+            },
+            {
+              "label": "Owner",
+              "phone": "(260) 729-1577"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(567) 644-8015"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(815) 245-7708"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 271-8410"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 215-5307"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(937) 621-3332"
+            }
+          ],
+          "notes": "Matt and Amy are dispatch - easy to work with good emergency contacts - 404's do big stuff pretty well, 310's have range",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "1.5Hrs",
+          "usefulness": 10,
+          "approval_tier": "approved",
+          "operator_base_icao": "KPLD",
+          "fleet_types_csv": "Cessna 310 | Cessna 404",
+          "aircraft_locations_csv": "N98DM Cessna 310 @ KPLD | N2738B Cessna 310 @ KPLD | N3284M Cessna 310 @ KPLD | N4258C Cessna 310 @ KPLD | N80BS Cessna 404 @ KPLD | N103RC Cessna 404 @ KPLD"
+        },
+        {
+          "id": "8e3e8a9e-3e67-4fd9-af4e-0fb1e21bb94f",
+          "rank": 2,
+          "company_name": "Miller Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Miller Aviation",
+          "suggested_operator_id": "13b1b918-aaaa-4000-8000-13b1b9180000",
+          "general_email": "carriem@patriot-aviation.com",
+          "contact_phone": "",
+          "company_phone": "(260) 726-4901",
+          "phone_24hr": "(260)827-8267",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(260) 726-4901"
+            },
+            {
+              "label": "Scott",
+              "phone": "(765) 418-3933"
+            },
+            {
+              "label": "Carrie",
+              "phone": "(260) 827-8267"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 667-9810"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(901) 288-6531"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(918) 782-7655"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(260) 504-8185"
+            }
+          ],
+          "notes": "Carrie and Scott handle dispatch - great to work with",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "1.5Hrs",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KHHG",
+          "fleet_types_csv": "Cessna 310",
+          "aircraft_locations_csv": "N5336C Cessna 310 @ KHHG | N6209X Cessna 310 @ KHHG"
+        },
+        {
+          "id": "b0713b01-81a7-4b6a-bc23-6abd5edc08b5",
+          "rank": 3,
+          "company_name": "FedAir (Mario)",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "FedAir (Mario)",
+          "suggested_operator_id": "528a258e-aaaa-4000-8000-528a258e0000",
+          "general_email": "mario@fedaircharter.com",
+          "contact_phone": "(252) 349-5657",
+          "company_phone": "",
+          "phone_24hr": "(252) 349-5657",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(252) 349-5657"
+            }
+          ],
+          "notes": "MARIO Always Expensive but reliable and quick! Great Operator",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KHFY",
+          "fleet_types_csv": "Cheyenne",
+          "aircraft_locations_csv": ""
+        },
+        {
+          "id": "da499922-624c-4fd3-b74d-802451e145a2",
+          "rank": 4,
+          "company_name": "Castle Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Castle Aviation",
+          "suggested_operator_id": "10263d37-aaaa-4000-8000-10263d370000",
+          "general_email": "fltops@castleair.com",
+          "contact_phone": "",
+          "company_phone": "(800) 325-4703 Ext 1",
+          "phone_24hr": "(800) 325-4703 Ext 1",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(800) 325-4703 Ext 1"
+            }
+          ],
+          "notes": "NEED PAX Weight, DOB, and Names every flight (Request from client Immediately)",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCAK",
+          "fleet_types_csv": "Aerostar | Cessna Caravan | SAAB 340",
+          "aircraft_locations_csv": "N49MG Aerostar @ KCAK | N52MG Aerostar @ KCAK | N92MG Aerostar @ KCAK | N1058N Cessna Caravan @ KCAK | N27MG Cessna Caravan @ KCAK | N805TH Cessna Caravan @ KCAK | N1086F Cessna Caravan @ KCAK | N1116W Cessna Caravan @ KCAK | N9612B Cessna Caravan @ KCAK | N253AE SAAB 340 @ KCAK | N336SA SAAB 340 @ KCAK | N431BC SAAB 340 @ KCAK"
+        },
+        {
+          "id": "69f27e2a-4764-4581-8f86-f9a454b516e1",
+          "rank": 5,
+          "company_name": "AIR Z FLYING SERVICE (Larry)",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AIR Z FLYING SERVICE (Larry)",
+          "suggested_operator_id": "3cfda313-aaaa-4000-8000-3cfda3130000",
+          "general_email": "admin@tandgflying.com",
+          "contact_phone": "",
+          "company_phone": "440-725-3043",
+          "phone_24hr": "440-725-3043",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "440 725-3043"
+            },
+            {
+              "label": "Pilot",
+              "phone": "216 256-4609"
+            },
+            {
+              "label": "Lisa (Larry's Wife)",
+              "phone": "712 490-2994"
+            }
+          ],
+          "notes": "We try to avoid using him and night time requires two pilots for us with them",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCGF",
+          "fleet_types_csv": "C310 | C340 | Saratoga",
+          "aircraft_locations_csv": "N1908G C310 @ KCGF | N3938G C340 @ KCGF | N8188J Saratoga @ KCGF"
+        },
+        {
+          "id": "e1953f4a-ea3b-4d19-9715-12d35c4fb652",
+          "rank": 6,
+          "company_name": "Trans North Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Trans North Aviation",
+          "suggested_operator_id": "524499cc-aaaa-4000-8000-524499cc0000",
+          "general_email": "dereck.pristas@transnorthaviation.com",
+          "contact_phone": "937 823-7423",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Derek",
+              "phone": "937 823-7423"
+            },
+            {
+              "label": "Other Dispatch Line",
+              "phone": "800-735-8190"
+            }
+          ],
+          "notes": "These guys are down to get shit done",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KAID",
+          "fleet_types_csv": "SR-22 | Cessna Citation | Lear 35a",
+          "aircraft_locations_csv": "N742LG SR-22 @ KAID | N907DK Cessna Citation @ KAID | N1327J Cessna Citation @ KAID | N89TB Lear 35a @ KAID"
+        },
+        {
+          "id": "4f501b67-ee0f-4b79-b133-ff19789e980b",
+          "rank": 7,
+          "company_name": "Zanesville Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Zanesville Aviation",
+          "suggested_operator_id": "323ac604-aaaa-4000-8000-323ac6040000",
+          "general_email": "contact@zanesvilleaviation.com",
+          "contact_phone": "740 452-3625",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "740 452-3625"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KZZV",
+          "fleet_types_csv": "CJ1 | Citation Bravo",
+          "aircraft_locations_csv": "(no tail) CJ1 @ KZZV | (no tail) Citation Bravo @ KZZV"
+        },
+        {
+          "id": "67a362f2-cecf-422a-804b-f7458b3442e1",
+          "rank": 8,
+          "company_name": "AERY AVIATION LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AERY AVIATION LLC",
+          "suggested_operator_id": "6429eb59-aaaa-4000-8000-6429eb590000",
+          "general_email": "Aerydispatch@aeryaviation.com",
+          "contact_phone": "(833) 240-9007",
+          "company_phone": "",
+          "phone_24hr": "(833) 240-9007",
+          "call_lines": [
+            {
+              "label": "24/7 Dispatch",
+              "phone": "(833) 240-9007"
+            }
+          ],
+          "notes": "Expensive but does a lot f medivac for cleveland clinic",
+          "caps": {
+            "pax": true,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCLE",
+          "fleet_types_csv": "Lear 45 | Hawker | Cirrus Vision SF50",
+          "aircraft_locations_csv": "N340SR Lear 45 @ KCLE | N632JS Lear 45 @ KCLE | N972PF Hawker @ KCLE | N331SB Cirrus Vision SF50 @ KCLE"
+        },
+        {
+          "id": "2eb52b97-2782-402e-8c7a-40161c949ca4",
+          "rank": 9,
+          "company_name": "IFL Group, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "IFL Group, Inc.",
+          "suggested_operator_id": "70bd8ef2-aaaa-4000-8000-70bd8ef20000",
+          "general_email": "info@IFLGroup.com",
+          "contact_phone": "(800) 521-4406",
+          "company_phone": "",
+          "phone_24hr": "(800) 521-4406",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(800) 521-4406"
+            }
+          ],
+          "notes": "Cargo Only",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "DETROIT, MI",
+          "fleet_types_csv": "AMD Falcon 20",
+          "aircraft_locations_csv": "N481FL AMD Falcon 20 @ Detroit, MI | N511FL AMD Falcon 20 @ Detroit, MI | N521FL AMD Falcon 20 @ Detroit, MI | N531FL AMD Falcon 20 @ Detroit, MI | N541FL AMD Falcon 20 @ Detroit, MI | N581FL AMD Falcon 20 @ Detroit, MI"
+        },
+        {
+          "id": "eb6274fd-2dae-4860-9a50-d3fdd9ca2072",
+          "rank": 10,
+          "company_name": "Ameristar Jet Charter, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Ameristar Jet Charter, Inc.",
+          "suggested_operator_id": "3dfe0e2a-aaaa-4000-8000-3dfe0e2a0000",
+          "general_email": "QUOTES@AMERISTARJET.COM",
+          "contact_phone": "(972) 248-2478",
+          "company_phone": "",
+          "phone_24hr": "(972) 248-2478",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(972) 248-2478"
+            }
+          ],
+          "notes": "Got the big DC9s - best for super large cargo",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "1.5-2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KYIP",
+          "fleet_types_csv": "Falcon 20",
+          "aircraft_locations_csv": "N148TW Falcon 20 @ KYIP | N158TW Falcon 20 @ KYIP | N699TW Falcon 20 @ KYIP | N204TW Falcon 20 @ KYIP | N221TW Falcon 20 @ KYIP | N285TW Falcon 20 @ KYIP | N314TW Falcon 20 @ KYIP"
+        },
+        {
+          "id": "90f3ce9e-12aa-45ef-b7d7-6668d07ab6c1",
+          "rank": 11,
+          "company_name": "Royal Air Freight, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Royal Air Freight, Inc.",
+          "suggested_operator_id": "1b98c318-aaaa-4000-8000-1b98c3180000",
+          "general_email": "dispatch@royalair.com",
+          "contact_phone": "(800) 445-9724",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Dispatch",
+              "phone": "(800) 445-9724"
+            }
+          ],
+          "notes": "Absolute dickheads but great pricing however will charge like crazy + add $3k min when using them",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "DETROIT, MI",
+          "fleet_types_csv": "Falcon 20 | Falcon 50 | King Air 200 | Embrarer Bandit | Lear 35a | Lear 55 | Lear 60",
+          "aircraft_locations_csv": "N20WK Falcon 20 @ Detroit, MI | N68UP Falcon 20 @ Detroit, MI | N166RA Falcon 20 @ Detroit, MI | N239CD Falcon 20 @ Detroit, MI | N600RA Falcon 20 @ Detroit, MI | N730RA Falcon 20 @ Detroit, MI | N760RA Falcon 20 @ Detroit, MI | N766RA Falcon 20 @ Detroit, MI | N780RA Falcon 20 @ Detroit, MI | N950RA Falcon 50 @ Detroit, MI | N850RA Falcon 50 @ Detroit, MI | N74RA King Air 200 @ Detroit, MI | N220RA King Air 200 @ Detroit, MI | N34A Embrarer Bandit @ Detroit, MI | N49RA Embrarer Bandit @ Detroit, MI | N64DA Embrarer Bandit @ Detroit, MI | N72RA Embrarer Bandit @ Detroit, MI | N73RA Embrarer Bandit @ Detroit, MI | N9RA Lear 35a @ Detroit, MI | N31RA Lear 35a @ Detroit, MI | N41RA Lear 35a @ Detroit, MI | N61RA Lear 35a @ Detroit, MI | N71RA Lear 35a @ Detroit, MI | N76RA Lear 35a @ Detroit, MI | N81RA Lear 35a @ Detroit, MI | N351AS Lear 35a @ Detroit, MI | N417BA Lear 35a @ Detroit, MI | N669RA Lear 35a @ Detroit, MI | N731RA Lear 35a @ Detroit, MI | N804TF Lear 35a @ Detroit, MI | N841TF Lear 35a @ Detroit, MI | N945W Lear 35a @ Detroit, MI | N551RA Lear 55 @ Detroit, MI | N805PC Lear 55 @ Detroit, MI | N860RA Lear 60 @ Detroit, MI"
+        }
+      ]
+    },
+    {
+      "id": "psa__KDAY",
+      "client_name": "PSA",
+      "base_icao": "KDAY",
+      "base_label": "Dayton",
+      "entries": [
+        {
+          "id": "2c9b6610-7903-4c74-b787-4a543c3c448c",
+          "rank": 1,
+          "company_name": "Miller Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Miller Aviation",
+          "suggested_operator_id": "13b1b918-aaaa-4000-8000-13b1b9180000",
+          "general_email": "carriem@patriot-aviation.com",
+          "contact_phone": "",
+          "company_phone": "(260) 726-4901",
+          "phone_24hr": "(260)827-8267",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(260) 726-4901"
+            },
+            {
+              "label": "Scott",
+              "phone": "(765) 418-3933"
+            },
+            {
+              "label": "Carrie",
+              "phone": "(260) 827-8267"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 667-9810"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(901) 288-6531"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(918) 782-7655"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(260) 504-8185"
+            }
+          ],
+          "notes": "Carrie and Scott handle dispatch - great to work with",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "1.5Hrs",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KHHG",
+          "fleet_types_csv": "Cessna 310",
+          "aircraft_locations_csv": "N5336C Cessna 310 @ KHHG | N6209X Cessna 310 @ KHHG"
+        },
+        {
+          "id": "99ecb3b5-4ad2-4757-9a46-c7f7e12e22c0",
+          "rank": 2,
+          "company_name": "Sonrise Aviation, LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Sonrise Aviation, LLC",
+          "suggested_operator_id": "4468a377-aaaa-4000-8000-4468a3770000",
+          "general_email": "sonriseaviation@outlook.com",
+          "contact_phone": "",
+          "company_phone": "(260) 766-4548",
+          "phone_24hr": "(260) 766-4548",
+          "call_lines": [
+            {
+              "label": "24/7 Dispatch",
+              "phone": "(260) 766-4548"
+            },
+            {
+              "label": "Text Number",
+              "phone": "(260) 726-5029"
+            },
+            {
+              "label": "Owner",
+              "phone": "(260) 729-1577"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(567) 644-8015"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(815) 245-7708"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 271-8410"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(765) 215-5307"
+            },
+            {
+              "label": "Pilot",
+              "phone": "(937) 621-3332"
+            }
+          ],
+          "notes": "Matt and Amy are dispatch - easy to work with good emergency contacts - 404's do big stuff pretty well, 310's have range",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "1.5Hrs",
+          "usefulness": 10,
+          "approval_tier": "approved",
+          "operator_base_icao": "KPLD",
+          "fleet_types_csv": "Cessna 310 | Cessna 404",
+          "aircraft_locations_csv": "N98DM Cessna 310 @ KPLD | N2738B Cessna 310 @ KPLD | N3284M Cessna 310 @ KPLD | N4258C Cessna 310 @ KPLD | N80BS Cessna 404 @ KPLD | N103RC Cessna 404 @ KPLD"
+        },
+        {
+          "id": "069e405d-fc83-47ed-9008-f0f7b4b486d9",
+          "rank": 3,
+          "company_name": "FedAir (Mario)",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "FedAir (Mario)",
+          "suggested_operator_id": "528a258e-aaaa-4000-8000-528a258e0000",
+          "general_email": "mario@fedaircharter.com",
+          "contact_phone": "(252) 349-5657",
+          "company_phone": "",
+          "phone_24hr": "(252) 349-5657",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(252) 349-5657"
+            }
+          ],
+          "notes": "MARIO Always Expensive but reliable and quick! Great Operator",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KHFY",
+          "fleet_types_csv": "Cheyenne",
+          "aircraft_locations_csv": ""
+        },
+        {
+          "id": "ece27bad-07a4-4abc-a527-92ecaace8415",
+          "rank": 4,
+          "company_name": "Castle Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Castle Aviation",
+          "suggested_operator_id": "10263d37-aaaa-4000-8000-10263d370000",
+          "general_email": "fltops@castleair.com",
+          "contact_phone": "",
+          "company_phone": "(800) 325-4703 Ext 1",
+          "phone_24hr": "(800) 325-4703 Ext 1",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(800) 325-4703 Ext 1"
+            }
+          ],
+          "notes": "NEED PAX Weight, DOB, and Names every flight (Request from client Immediately)",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCAK",
+          "fleet_types_csv": "Aerostar | Cessna Caravan | SAAB 340",
+          "aircraft_locations_csv": "N49MG Aerostar @ KCAK | N52MG Aerostar @ KCAK | N92MG Aerostar @ KCAK | N1058N Cessna Caravan @ KCAK | N27MG Cessna Caravan @ KCAK | N805TH Cessna Caravan @ KCAK | N1086F Cessna Caravan @ KCAK | N1116W Cessna Caravan @ KCAK | N9612B Cessna Caravan @ KCAK | N253AE SAAB 340 @ KCAK | N336SA SAAB 340 @ KCAK | N431BC SAAB 340 @ KCAK"
+        },
+        {
+          "id": "fc2ae41c-341a-4d9b-8974-37db1e6ea18e",
+          "rank": 5,
+          "company_name": "Trans North Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Trans North Aviation",
+          "suggested_operator_id": "524499cc-aaaa-4000-8000-524499cc0000",
+          "general_email": "dereck.pristas@transnorthaviation.com",
+          "contact_phone": "937 823-7423",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Derek",
+              "phone": "937 823-7423"
+            },
+            {
+              "label": "Other Dispatch Line",
+              "phone": "800-735-8190"
+            }
+          ],
+          "notes": "These guys are down to get shit done",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KAID",
+          "fleet_types_csv": "SR-22 | Cessna Citation | Lear 35a",
+          "aircraft_locations_csv": "N742LG SR-22 @ KAID | N907DK Cessna Citation @ KAID | N1327J Cessna Citation @ KAID | N89TB Lear 35a @ KAID"
+        },
+        {
+          "id": "dc086f92-7e22-46ff-9fae-d9e78d13475c",
+          "rank": 6,
+          "company_name": "AIR Z FLYING SERVICE (Larry)",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AIR Z FLYING SERVICE (Larry)",
+          "suggested_operator_id": "3cfda313-aaaa-4000-8000-3cfda3130000",
+          "general_email": "admin@tandgflying.com",
+          "contact_phone": "",
+          "company_phone": "440-725-3043",
+          "phone_24hr": "440-725-3043",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "440 725-3043"
+            },
+            {
+              "label": "Pilot",
+              "phone": "216 256-4609"
+            },
+            {
+              "label": "Lisa (Larry's Wife)",
+              "phone": "712 490-2994"
+            }
+          ],
+          "notes": "We try to avoid using him and night time requires two pilots for us with them",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCGF",
+          "fleet_types_csv": "C310 | C340 | Saratoga",
+          "aircraft_locations_csv": "N1908G C310 @ KCGF | N3938G C340 @ KCGF | N8188J Saratoga @ KCGF"
+        },
+        {
+          "id": "bad503d6-7081-47fb-bb3a-5817e0d9cccf",
+          "rank": 7,
+          "company_name": "Zanesville Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Zanesville Aviation",
+          "suggested_operator_id": "323ac604-aaaa-4000-8000-323ac6040000",
+          "general_email": "contact@zanesvilleaviation.com",
+          "contact_phone": "740 452-3625",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "740 452-3625"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KZZV",
+          "fleet_types_csv": "CJ1 | Citation Bravo",
+          "aircraft_locations_csv": "(no tail) CJ1 @ KZZV | (no tail) Citation Bravo @ KZZV"
+        },
+        {
+          "id": "adbaa7b8-677e-4d33-8925-7f46bacd7b6b",
+          "rank": 8,
+          "company_name": "Axio",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Axio",
+          "suggested_operator_id": "001f5bbd-aaaa-4000-8000-001f5bbd0000",
+          "general_email": "sales@flyaxio.com",
+          "contact_phone": "(864) 397-5082",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main/Texting",
+              "phone": "(864) 397-5082"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(864) 608-0141"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(336) 602-5126"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(772) 258-0209"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KSPA",
+          "fleet_types_csv": "SR-22 | Phenom 100 | Baron 58 | King Air 200",
+          "aircraft_locations_csv": "N533CP SR-22 @ KSPA | N606MF SR-22 @ KSPA | N369AX Phenom 100 @ KSPA | N283MA Baron 58 @ KSPA | N707PW Baron 58 @ KSPA | N758CA Baron 58 @ KSPA | N4380W Baron 58 @ KSPA | N6725T Baron 58 @ KSPA | N789CT King Air 200 @ KSPA | N34LT King Air 200 @ KSPA | N989LA King Air 200 @ KSPA"
+        },
+        {
+          "id": "5c9ff769-0a8f-4682-9ff7-a91a73f62730",
+          "rank": 9,
+          "company_name": "AERY AVIATION LLC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AERY AVIATION LLC",
+          "suggested_operator_id": "6429eb59-aaaa-4000-8000-6429eb590000",
+          "general_email": "Aerydispatch@aeryaviation.com",
+          "contact_phone": "(833) 240-9007",
+          "company_phone": "",
+          "phone_24hr": "(833) 240-9007",
+          "call_lines": [
+            {
+              "label": "24/7 Dispatch",
+              "phone": "(833) 240-9007"
+            }
+          ],
+          "notes": "Expensive but does a lot f medivac for cleveland clinic",
+          "caps": {
+            "pax": true,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCLE",
+          "fleet_types_csv": "Lear 45 | Hawker | Cirrus Vision SF50",
+          "aircraft_locations_csv": "N340SR Lear 45 @ KCLE | N632JS Lear 45 @ KCLE | N972PF Hawker @ KCLE | N331SB Cirrus Vision SF50 @ KCLE"
+        },
+        {
+          "id": "320a4be2-bf34-4c3a-b152-8dd06f157338",
+          "rank": 10,
+          "company_name": "EXECUTIVE SHUTTLE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "EXECUTIVE SHUTTLE",
+          "suggested_operator_id": "73b9d441-aaaa-4000-8000-73b9d4410000",
+          "general_email": "trammellrichard@yahoo.com",
+          "contact_phone": "(814) 571-1420",
+          "company_phone": "",
+          "phone_24hr": "(814) 571-1420",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(814) 571-1420"
+            },
+            {
+              "label": "Main",
+              "phone": "864-910-2944"
+            }
+          ],
+          "notes": "Rick the goat",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KGRD",
+          "fleet_types_csv": "King Air 90",
+          "aircraft_locations_csv": "N643EA King Air 90 @ KGRD"
+        },
+        {
+          "id": "d0d7c12c-2b21-4a67-aef2-12eb3ae0274c",
+          "rank": 11,
+          "company_name": "Ameristar Jet Charter, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Ameristar Jet Charter, Inc.",
+          "suggested_operator_id": "3dfe0e2a-aaaa-4000-8000-3dfe0e2a0000",
+          "general_email": "QUOTES@AMERISTARJET.COM",
+          "contact_phone": "(972) 248-2478",
+          "company_phone": "",
+          "phone_24hr": "(972) 248-2478",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(972) 248-2478"
+            }
+          ],
+          "notes": "Got the big DC9s - best for super large cargo",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "1.5-2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KYIP",
+          "fleet_types_csv": "Falcon 20",
+          "aircraft_locations_csv": "N148TW Falcon 20 @ KYIP | N158TW Falcon 20 @ KYIP | N699TW Falcon 20 @ KYIP | N204TW Falcon 20 @ KYIP | N221TW Falcon 20 @ KYIP | N285TW Falcon 20 @ KYIP | N314TW Falcon 20 @ KYIP"
+        }
+      ]
+    },
+    {
+      "id": "psa__KDFW",
+      "client_name": "PSA",
+      "base_icao": "KDFW",
+      "base_label": "Dallas/Fort Worth",
+      "entries": [
+        {
+          "id": "489716e4-fcf3-44a2-9725-5651d7c69aba",
+          "rank": 1,
+          "company_name": "Gen 4 Jets",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Gen 4 Jets",
+          "suggested_operator_id": "2677078a-aaaa-4000-8000-2677078a0000",
+          "general_email": "",
+          "contact_phone": "(870) 680-2715",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "(870) 680-2715"
+            },
+            {
+              "label": "After Hrs",
+              "phone": "(870) 868-1236"
+            }
+          ],
+          "notes": "Good prices - should be available (Call Arthur for very late nights)\nLocated NE Arkansas",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "M19",
+          "fleet_types_csv": "Citation CJ1 | CJ3",
+          "aircraft_locations_csv": "TBD Citation CJ1 @ M19 | TBD CJ3 @ M19"
+        },
+        {
+          "id": "62841473-c5b8-46c1-8651-34b9b408370f",
+          "rank": 2,
+          "company_name": "ENG Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "ENG Aviation",
+          "suggested_operator_id": "348211e3-aaaa-4000-8000-348211e30000",
+          "general_email": "Thomas.chapman@engaviation.com",
+          "contact_phone": "(682) 610-3763",
+          "company_phone": "",
+          "phone_24hr": "(682) 610-3763",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(682) 610-3763"
+            },
+            {
+              "label": "Main",
+              "phone": "(713) 649-1919"
+            },
+            {
+              "label": "Thomas",
+              "phone": "(817) 360-5138"
+            }
+          ],
+          "notes": "Great guys just expensive; Check that the tail number they use is on the FAA ops list and on their cert if needed ask for their D085 to verify",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KADS",
+          "fleet_types_csv": "CJ3 | Citation XL",
+          "aircraft_locations_csv": "N196JH CJ3 @ KADS | N2KK Citation XL @ KADS | N100YB Citation XL @ KADS | N421LT Citation XL @ KADS | N560SJ Citation XL @ KADS"
+        },
+        {
+          "id": "f9373cd4-bf77-46c8-a7be-f3212984711b",
+          "rank": 3,
+          "company_name": "GTA Air",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "GTA Air",
+          "suggested_operator_id": "3ed507fe-aaaa-4000-8000-3ed507fe0000",
+          "general_email": "quote@gtaair.com; dispatch@gtaair.com",
+          "contact_phone": "800 217-0950",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "800 217-0950"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KADS",
+          "fleet_types_csv": "Bonanza | Baron 58",
+          "aircraft_locations_csv": "N1194A Bonanza @ KADS | N75AT Bonanza @ KADS | N236CH Bonanza @ KADS | N361BC Bonanza @ KADS | N6735Z Bonanza @ KADS | N66919 Bonanza @ KADS | N140S Baron 58 @ KADS | N577W Baron 58 @ KADS | N882MT Baron 58 @ KADS | N2026W Baron 58 @ KADS | N2064V Baron 58 @ KADS | N6573K Baron 58 @ KADS | N36673 Baron 58 @ KADS"
+        },
+        {
+          "id": "928cd812-dc4f-4ab5-b177-8b973d0909ac",
+          "rank": 4,
+          "company_name": "OK Air 1st",
+          "operator_id": null,
+          "match_status": "unmatched",
+          "suggested_operator_id": null,
+          "general_email": "okair1st@aol.com",
+          "contact_phone": "(918) 344-0710",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "(918) 344-0710"
+            }
+          ],
+          "notes": "Single Pilot ONLY",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KTUL",
+          "fleet_types_csv": "Mitsubishi MU-2",
+          "aircraft_locations_csv": "N175CA Mitsubishi MU-2 @ KTUL | N741FN Mitsubishi MU-2 @ KTUL"
+        },
+        {
+          "id": "81d99159-1064-4517-b8c6-691887d3b2dd",
+          "rank": 5,
+          "company_name": "REATA Jet",
+          "operator_id": null,
+          "match_status": "unmatched",
+          "suggested_operator_id": null,
+          "general_email": "sales@reatajet.com",
+          "contact_phone": "(833) 732-8253",
+          "company_phone": "",
+          "phone_24hr": "(806) 598-0668",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "(833) 732-8253"
+            },
+            {
+              "label": "Owner 24/7 Amber",
+              "phone": "(806) 598-0668"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KEDC",
+          "fleet_types_csv": "Merlin | Hawker 800",
+          "aircraft_locations_csv": "N727DP Merlin @ KEDC | N375RC Hawker 800 @ KEDC | N6200H Hawker 800 @ KEDC"
+        },
+        {
+          "id": "8d3e8a96-f75e-48dc-8da5-14ed04ffafd1",
+          "rank": 6,
+          "company_name": "Apex Jet",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Apex Jet",
+          "suggested_operator_id": "37ea7a9b-aaaa-4000-8000-37ea7a9b0000",
+          "general_email": "charter@apexjet.aero",
+          "contact_phone": "",
+          "company_phone": "(985) 851-5737",
+          "phone_24hr": "(985) 851-5737",
+          "call_lines": [],
+          "notes": "Never used",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KHMU",
+          "fleet_types_csv": "Falcon 10 | King Air 200 | Falcon 50 | King Air 90 | Citation XLS",
+          "aircraft_locations_csv": "N111WH Falcon 10 @ KHMU | N716AP King Air 200 @ KHMU | N388BB Falcon 50 @ KHMU | N865PC Falcon 50 @ KHMU | N790A King Air 90 @ KHMU | CE-560-560 Citation XLS @ KHMU"
+        },
+        {
+          "id": "c074aebe-b779-46a6-9e69-8765e0906109",
+          "rank": 7,
+          "company_name": "Ameriflight",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Ameriflight",
+          "suggested_operator_id": "06c3da00-aaaa-4000-8000-06c3da000000",
+          "general_email": "amfcharter@ameriflight.com",
+          "contact_phone": "512-417-3045",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Backup Number",
+              "phone": "512-417-3045"
+            },
+            {
+              "label": "Main Number",
+              "phone": "972-426-3075"
+            }
+          ],
+          "notes": "24/7 Midsize Aircraft ASAP Cargo",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KDFW",
+          "fleet_types_csv": "Beech 99 | Metroliner | Beech 1900 | SAAB 340 | Emb. Brasilia",
+          "aircraft_locations_csv": "N189WA Beech 99 @ KDFW | N191WA Beech 99 @ KDFW | N802BA Beech 99 @ KDFW | N20FW Beech 99 @ KDFW | N21FW Beech 99 @ KDFW | N34AK Beech 99 @ KDFW | N1924T Beech 99 @ KDFW | N7862R Beech 99 @ KDFW | N192WA Beech 99 @ KDFW | N197WA Beech 99 @ KDFW | N4299A Beech 99 @ KDFW | N51RP Beech 99 @ KDFW | N52RP Beech 99 @ KDFW | N68TA Beech 99 @ KDFW | N96AV Beech 99 @ KDFW | N104BE Beech 99 @ KDFW | N106SX Beech 99 @ KDFW | N108SX Beech 99 @ KDFW | N131GP Beech 99 @ KDFW | N174AV Beech 99 @ KDFW | N190WA Beech 99 @ KDFW | N191AV Beech 99 @ KDFW | N193SU Beech 99 @ KDFW | N196WA Beech 99 @ KDFW | N204AF Beech 99 @ KDFW | N206AV Beech 99 @ KDFW | N221BH Beech 99 @ KDFW | N223BH Beech 99 @ KDFW | N225BH Beech 99 @ KDFW | N226BH Beech 99 @ KDFW | N227AV Beech 99 @ KDFW | N228BH Beech 99 @ KDFW | N230BH Beech 99 @ KDFW | N330AV Beech 99 @ KDFW | N388AV Beech 99 @ KDFW | N990AF Beech 99 @ KDFW | N991AF Beech 99 @ KDFW | N992AF Beech 99 @ KDFW | N997SB Beech 99 @ KDFW | N6724D Beech 99 @ KDFW | N7209W Beech 99 @ KDFW | N8226Z Beech 99 @ KDFW | N8227P Beech 99 @ KDFW | N62989 Beech 99 @ KDFW | N63978 Beech 99 @ KDFW | N81820 Beech 99 @ KDFW | N354AE Metroliner @ KDFW | N360AE Metroliner @ KDFW | N370AE Metroliner @ KDFW | N421MA Metroliner @ KDFW | N422MA Metroliner @ KDFW | N424MA Metroliner @ KDFW | N428MA Metroliner @ KDFW | N671AV Metroliner @ KDFW | N672AV Metroliner @ KDFW | N673AV Metroliner @ KDFW | N709TR Metroliner @ KDFW | N801AF Metroliner @ KDFW | N240DH Metroliner @ KDFW | N241DH Metroliner @ KDFW | N244DH Metroliner @ KDFW | N245DH Metroliner @ KDFW | N246DH Metroliner @ KDFW | N248DH Metroliner @ KDFW | N249DH Metroliner @ KDFW | N544UP Metroliner @ KDFW | N560UP Metroliner @ KDFW | N561UP Metroliner @ KDFW | N573G Metroliner @ KDFW | N807M Metroliner @ KDFW | N19RZ Beech 1900 @ KDFW | N21RZ Beech 1900 @ KDFW | N26RZ Beech 1900 @ KDFW | N34RZ Beech 1900 @ KDFW | N39UB Beech 1900 @ KDFW | N49UC Beech 1900 @ KDFW | N111YV Beech 1900 @ KDFW | N112YV Beech 1900 @ KDFW | N330AF Beech 1900 @ KDFW | N331AF Beech 1900 @ KDFW | N338AF Beech 1900 @ KDFW | N346AF Beech 1900 @ KDFW | N347AF Beech 1900 @ KDFW | N575G Beech 1900 @ KDFW | N718AF Beech 1900 @ KDFW | N1568G Beech 1900 @ KDFW | N2049K Beech 1900 @ KDFW | N3052K Beech 1900 @ KDFW | N3071A Beech 1900 @ KDFW | N3229A Beech 1900 @ KDFW | N7203C Beech 1900 @ KDFW | N31701 Beech 1900 @ KDFW | N31702 Beech 1900 @ KDFW | N31703 Beech 1900 @ KDFW | N31704 Beech 1900 @ KDFW | N31705 Beech 1900 @ KDFW | N219KA SAAB 340 @ KDFW | N968AF SAAB 340 @ KDFW | N985ES SAAB 340 @ KDFW | N989AF SAAB 340 @ KDFW | N179CA Emb. Brasilia @ KDFW | N189CA Emb. Brasilia @ KDFW | N246AS Emb. Brasilia @ KDFW | N257AS Emb. Brasilia @ KDFW | N258AS Emb. Brasilia @ KDFW | N266AS Emb. Brasilia @ KDFW | N560SW Emb. Brasilia @ KDFW | N566SW Emb. Brasilia @ KDFW | N567SW Emb. Brasilia @ KDFW | N578SW Emb. Brasilia @ KDFW"
+        },
+        {
+          "id": "71364fbe-0494-4ced-8a9a-320740afb26d",
+          "rank": 8,
+          "company_name": "Martinaire Aviation L.L.C.",
+          "operator_id": null,
+          "match_status": "unmatched",
+          "suggested_operator_id": null,
+          "general_email": "info@martinaire.com",
+          "contact_phone": "",
+          "company_phone": "(972) 349-5700",
+          "phone_24hr": "",
+          "call_lines": [],
+          "notes": "CARGO ONLY",
+          "caps": {
+            "pax": false,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KADS",
+          "fleet_types_csv": "Cessna Grand Caravan",
+          "aircraft_locations_csv": "N78SA Cessna Grand Caravan @ KADS | N208N Cessna Grand Caravan @ KADS | N208TF Cessna Grand Caravan @ KADS | N802AA Cessna Grand Caravan @ KADS | N1031P Cessna Grand Caravan @ KADS | N1037N Cessna Grand Caravan @ KADS | N1041L Cessna Grand Caravan @ KADS | N1119V Cessna Grand Caravan @ KADS | N1120W Cessna Grand Caravan @ KADS | N4625B Cessna Grand Caravan @ KADS | N4655B Cessna Grand Caravan @ KADS | N4687B Cessna Grand Caravan @ KADS | N9331B Cessna Grand Caravan @ KADS | N9469B Cessna Grand Caravan @ KADS | N9471B Cessna Grand Caravan @ KADS | N9505B Cessna Grand Caravan @ KADS | N9546B Cessna Grand Caravan @ KADS | N9760B Cessna Grand Caravan @ KADS | N9761B Cessna Grand Caravan @ KADS | N9762B Cessna Grand Caravan @ KADS | N9956B Cessna Grand Caravan @ KADS | N12155 Cessna Grand Caravan @ KADS"
+        },
+        {
+          "id": "500d0bac-e715-49bb-9eb5-ea199dea41ad",
+          "rank": 9,
+          "company_name": "MCCREERY AVIATION CO INC",
+          "operator_id": null,
+          "match_status": "unmatched",
+          "suggested_operator_id": null,
+          "general_email": "bobm@mccreeryaviation.com",
+          "contact_phone": "",
+          "company_phone": "956-686-1774",
+          "phone_24hr": "",
+          "call_lines": [],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCRP",
+          "fleet_types_csv": "C421",
+          "aircraft_locations_csv": "N26HE C421 @ KCRP | N3908C C421 @ KCRP"
+        },
+        {
+          "id": "51c5d535-3388-44eb-b939-af576b0a6c49",
+          "rank": 10,
+          "company_name": "Jet Nexa",
+          "operator_id": null,
+          "match_status": "unmatched",
+          "suggested_operator_id": null,
+          "general_email": "charter@jetnexa.com",
+          "contact_phone": "",
+          "company_phone": "(678) 920-3833",
+          "phone_24hr": "",
+          "call_lines": [],
+          "notes": "Cam Is Charter guy here - floating CJ's and DA-42's often in TX",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KPHX",
+          "fleet_types_csv": "DA 42 | Citation M2 | DA 62 | Citation CJ 3",
+          "aircraft_locations_csv": "(no tail) DA 42 @ KPHX | (no tail) Citation M2 @ KPHX | (no tail) DA 42 @ KPHX | (no tail) DA 62 @ KPHX | (no tail) DA 62 @ KPHX | (no tail) Citation CJ 3 @ KPHX"
+        },
+        {
+          "id": "b0774a82-a0ce-4580-8a53-7234d8f5d10f",
+          "rank": 11,
+          "company_name": "FLIGHT CHOICE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "FLIGHT CHOICE",
+          "suggested_operator_id": "6d801caf-aaaa-4000-8000-6d801caf0000",
+          "general_email": "charters@flightchoiceinc.com",
+          "contact_phone": "865-313-5296",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "865-313-5296"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": false,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KTYS",
+          "fleet_types_csv": "Baron 58 | King Air 90 | King Air 200",
+          "aircraft_locations_csv": "N436AT Baron 58 @ KTYS | N584PC Baron 58 @ KTYS | N6211J King Air 90 @ KTYS | N7206E King Air 90 @ KTYS | N250XX King Air 200 @ KTYS"
+        },
+        {
+          "id": "55ba8a2f-681f-43f0-851a-e8dc585cf148",
+          "rank": 12,
+          "company_name": "American Jet Charter, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "American Jet Charter, Inc.",
+          "suggested_operator_id": "022fef08-aaaa-4000-8000-022fef080000",
+          "general_email": "charter@american-jet.com",
+          "contact_phone": "(800) 495-5453",
+          "company_phone": "",
+          "phone_24hr": "(800) 495-5453",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(800) 495-5453"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "0.5-1 Hr",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "OKLAHOMA CITY, OK",
+          "fleet_types_csv": "Baron 58 | King Air 90 | King Air 300 | Citation XLS | Lear 45",
+          "aircraft_locations_csv": "N2333B Baron 58 @ Oklahoma City, OK | N48W King Air 90 @ Oklahoma City, OK | N906TW King Air 300 @ Oklahoma City, OK | N13092 Citation XLS @ Oklahoma City, OK | N253SC Lear 45 @ Oklahoma City, OK"
+        }
+      ]
+    },
+    {
+      "id": "psa__KGSP",
+      "client_name": "PSA",
+      "base_icao": "KGSP",
+      "base_label": "Greenville-Spartanburg",
+      "entries": [
+        {
+          "id": "9d56a07f-fa34-4c8c-9b75-43bea80c8c46",
+          "rank": 1,
+          "company_name": "Axio",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Axio",
+          "suggested_operator_id": "001f5bbd-aaaa-4000-8000-001f5bbd0000",
+          "general_email": "sales@flyaxio.com",
+          "contact_phone": "(864) 397-5082",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main/Texting",
+              "phone": "(864) 397-5082"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(864) 608-0141"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(336) 602-5126"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(772) 258-0209"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KSPA",
+          "fleet_types_csv": "SR-22 | Phenom 100 | Baron 58 | King Air 200",
+          "aircraft_locations_csv": "N533CP SR-22 @ KSPA | N606MF SR-22 @ KSPA | N369AX Phenom 100 @ KSPA | N283MA Baron 58 @ KSPA | N707PW Baron 58 @ KSPA | N758CA Baron 58 @ KSPA | N4380W Baron 58 @ KSPA | N6725T Baron 58 @ KSPA | N789CT King Air 200 @ KSPA | N34LT King Air 200 @ KSPA | N989LA King Air 200 @ KSPA"
+        },
+        {
+          "id": "42a4ed8d-cc0e-4fdb-9515-19bfaadd4da2",
+          "rank": 2,
+          "company_name": "Clemson Air Charter",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Clemson Air Charter",
+          "suggested_operator_id": "0f6a88aa-aaaa-4000-8000-0f6a88aa0000",
+          "general_email": "clemsonaircharter@gmail.com",
+          "contact_phone": "1 (864) 276-7047",
+          "company_phone": "",
+          "phone_24hr": "1 (864) 276-7047",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "1 (864) 276-7047"
+            }
+          ],
+          "notes": "John - Can text him as well",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KAND",
+          "fleet_types_csv": "Baron 58",
+          "aircraft_locations_csv": "N686FR Baron 58 @ KAND | N1065B Baron 58 @ KAND"
+        },
+        {
+          "id": "2574ea19-581b-4ba5-a034-18ff9ab0c76f",
+          "rank": 3,
+          "company_name": "EXECUTIVE SHUTTLE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "EXECUTIVE SHUTTLE",
+          "suggested_operator_id": "73b9d441-aaaa-4000-8000-73b9d4410000",
+          "general_email": "trammellrichard@yahoo.com",
+          "contact_phone": "(814) 571-1420",
+          "company_phone": "",
+          "phone_24hr": "(814) 571-1420",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(814) 571-1420"
+            },
+            {
+              "label": "Main",
+              "phone": "864-910-2944"
+            }
+          ],
+          "notes": "Rick the goat",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KGRD",
+          "fleet_types_csv": "King Air 90",
+          "aircraft_locations_csv": "N643EA King Air 90 @ KGRD"
+        },
+        {
+          "id": "38594066-010e-4b5d-879a-489fd4393e5f",
+          "rank": 4,
+          "company_name": "AUGUSTA AVIATION INC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AUGUSTA AVIATION INC",
+          "suggested_operator_id": "2c74e201-aaaa-4000-8000-2c74e2010000",
+          "general_email": "charter@augustaaviation.com",
+          "contact_phone": "(704) 289-6868",
+          "company_phone": "",
+          "phone_24hr": "(704) 289-6868",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(704) 289-6868"
+            }
+          ],
+          "notes": "Rosie, Angie, Etc",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KDNL",
+          "fleet_types_csv": "Beechcraft King Air C90A",
+          "aircraft_locations_csv": "N8GU Beechcraft King Air C90A @ KDNL | N329GS Beechcraft King Air C90A @ KDNL | N377P Beechcraft King Air C90A @ KDNL | N891AA Beechcraft King Air C90A @ KDNL"
+        },
+        {
+          "id": "7071b341-2c55-4ade-8dbc-3840e2027fdd",
+          "rank": 5,
+          "company_name": "Castle Aviation",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Castle Aviation",
+          "suggested_operator_id": "10263d37-aaaa-4000-8000-10263d370000",
+          "general_email": "fltops@castleair.com",
+          "contact_phone": "",
+          "company_phone": "(800) 325-4703 Ext 1",
+          "phone_24hr": "(800) 325-4703 Ext 1",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(800) 325-4703 Ext 1"
+            }
+          ],
+          "notes": "NEED PAX Weight, DOB, and Names every flight (Request from client Immediately)",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCAK",
+          "fleet_types_csv": "Aerostar | Cessna Caravan | SAAB 340",
+          "aircraft_locations_csv": "N49MG Aerostar @ KCAK | N52MG Aerostar @ KCAK | N92MG Aerostar @ KCAK | N1058N Cessna Caravan @ KCAK | N27MG Cessna Caravan @ KCAK | N805TH Cessna Caravan @ KCAK | N1086F Cessna Caravan @ KCAK | N1116W Cessna Caravan @ KCAK | N9612B Cessna Caravan @ KCAK | N253AE SAAB 340 @ KCAK | N336SA SAAB 340 @ KCAK | N431BC SAAB 340 @ KCAK"
+        },
+        {
+          "id": "941847e0-5d79-45c7-916a-8a409b7f3eb6",
+          "rank": 6,
+          "company_name": "FLIGHT CHOICE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "FLIGHT CHOICE",
+          "suggested_operator_id": "6d801caf-aaaa-4000-8000-6d801caf0000",
+          "general_email": "charters@flightchoiceinc.com",
+          "contact_phone": "865-313-5296",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "865-313-5296"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": false,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KTYS",
+          "fleet_types_csv": "Baron 58 | King Air 90 | King Air 200",
+          "aircraft_locations_csv": "N436AT Baron 58 @ KTYS | N584PC Baron 58 @ KTYS | N6211J King Air 90 @ KTYS | N7206E King Air 90 @ KTYS | N250XX King Air 200 @ KTYS"
+        },
+        {
+          "id": "8c746a7c-3ed6-493c-ad57-87b2ddfa4006",
+          "rank": 7,
+          "company_name": "LOWE AVIATION CO - Ed Lowe",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "LOWE AVIATION CO - Ed Lowe",
+          "suggested_operator_id": "011c1f65-aaaa-4000-8000-011c1f650000",
+          "general_email": "edward@loweaviation.com",
+          "contact_phone": "(478) 731-5862",
+          "company_phone": "",
+          "phone_24hr": "(478) 731-5862",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(478) 731-5862"
+            },
+            {
+              "label": "Main",
+              "phone": "(478) 788-3491"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KMCN",
+          "fleet_types_csv": "Baron 58 | King Air 90",
+          "aircraft_locations_csv": "N83KK Baron 58 @ KMCN | N1103G King Air 90 @ KMCN"
+        },
+        {
+          "id": "dd2b0e38-7918-42ca-ba5c-4275c403baa9",
+          "rank": 8,
+          "company_name": "45 NORTH AVIATION",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "45 NORTH AVIATION",
+          "suggested_operator_id": "0de39b05-aaaa-4000-8000-0de39b050000",
+          "general_email": "info@45northaviation.com",
+          "contact_phone": "(231) 668-6000",
+          "company_phone": "",
+          "phone_24hr": "(231) 668-6000",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(231) 668-6000"
+            }
+          ],
+          "notes": "King Air for pax - TBM for cargo",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KRIC",
+          "fleet_types_csv": "TBM | King Air 200",
+          "aircraft_locations_csv": "TBD TBM @ KRIC | TBD King Air 200 @ KRIC"
+        }
+      ]
+    },
+    {
+      "id": "psa__KORF",
+      "client_name": "PSA",
+      "base_icao": "KORF",
+      "base_label": "Norfolk",
+      "entries": [
+        {
+          "id": "f229c522-1cfa-46c4-9f44-7e6bae5217e3",
+          "rank": 1,
+          "company_name": "ACE TRANSPORT SERVICE, INC.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "ACE TRANSPORT SERVICE, INC.",
+          "suggested_operator_id": "779bd31b-aaaa-4000-8000-779bd31b0000",
+          "general_email": "info@atscharter.com",
+          "contact_phone": "(302) 383-4555",
+          "company_phone": "",
+          "phone_24hr": "(302) 383-4555",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(302) 383-4555"
+            },
+            {
+              "label": "Back Up",
+              "phone": "(302) 525-4111"
+            },
+            {
+              "label": "Back Up 2",
+              "phone": "(443) 553-4274"
+            }
+          ],
+          "notes": "443-553-4274 Alternate phone number",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "3Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "PHILADELPHIA, PA",
+          "fleet_types_csv": "King Air 90 | Cessna 310 | Hawker 800",
+          "aircraft_locations_csv": "N825SD King Air 90 @ Philadelphia, PA | N15TV Cessna 310 @ Philadelphia, PA | N159FM Hawker 800 @ Philadelphia, PA"
+        },
+        {
+          "id": "195b3e9c-443b-4fce-914e-644e6d3e651b",
+          "rank": 2,
+          "company_name": "Contrail - Charlie",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Contrail - Charlie",
+          "suggested_operator_id": "21518b23-aaaa-4000-8000-21518b230000",
+          "general_email": "cappy@contrailinc.com",
+          "contact_phone": "(484) 554-6160",
+          "company_phone": "",
+          "phone_24hr": "(484) 554-6160",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(484) 554-6160"
+            }
+          ],
+          "notes": "Charlie - If using TBM ensure MX supervisor gives single engine approval",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "1.5Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KABE",
+          "fleet_types_csv": "Diamond DA-42 | TBM 700",
+          "aircraft_locations_csv": "N443J Diamond DA-42 @ KABE | N651WB TBM 700 @ KABE"
+        },
+        {
+          "id": "f67d7088-d756-4fc7-a3f0-7bf32b190c40",
+          "rank": 3,
+          "company_name": "Vertivue - Ted",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Vertivue - Ted",
+          "suggested_operator_id": "058193d2-aaaa-4000-8000-058193d20000",
+          "general_email": "ted@vertivue.com",
+          "contact_phone": "800-877-0570",
+          "company_phone": "",
+          "phone_24hr": "800-877-0570",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "800-877-0570"
+            },
+            {
+              "label": "Ted Cell",
+              "phone": "(610) 509-2031"
+            }
+          ],
+          "notes": "Gay Ted - kind of expensive",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KXLL",
+          "fleet_types_csv": "Baron 58 | King Air 90",
+          "aircraft_locations_csv": "N525TM Baron 58 @ KXLL | N321TR King Air 90 @ KXLL"
+        },
+        {
+          "id": "439929f5-0706-48fc-ad78-13ae8dd9cea2",
+          "rank": 4,
+          "company_name": "Moyer Aviation Inc",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Moyer Aviation Inc",
+          "suggested_operator_id": "0dc0d49b-aaaa-4000-8000-0dc0d49b0000",
+          "general_email": "charter@moyeraviation.com",
+          "contact_phone": "(570) 215-5040",
+          "company_phone": "",
+          "phone_24hr": "(570) 215-5040",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(570) 215-5040"
+            },
+            {
+              "label": "Main",
+              "phone": "(609) 500-5052"
+            }
+          ],
+          "notes": "Matthew Direct Cell is 24Hr #",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "3Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KMPO",
+          "fleet_types_csv": "Piper Navajo | Cessna 172 | Baron 58",
+          "aircraft_locations_csv": "N938PM Piper Navajo @ KMPO | N4086E Piper Navajo @ KMPO | N41166 Piper Navajo @ KMPO | N9480E Cessna 172 @ KMPO | N5185U Cessna 172 @ KMPO | N7MW Baron 58 @ KMPO"
+        },
+        {
+          "id": "324c15c8-68e6-4ae4-8638-d2f40cf4572d",
+          "rank": 5,
+          "company_name": "Axio",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Axio",
+          "suggested_operator_id": "001f5bbd-aaaa-4000-8000-001f5bbd0000",
+          "general_email": "sales@flyaxio.com",
+          "contact_phone": "(864) 397-5082",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main/Texting",
+              "phone": "(864) 397-5082"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(864) 608-0141"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(336) 602-5126"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(772) 258-0209"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KSPA",
+          "fleet_types_csv": "SR-22 | Phenom 100 | Baron 58 | King Air 200",
+          "aircraft_locations_csv": "N533CP SR-22 @ KSPA | N606MF SR-22 @ KSPA | N369AX Phenom 100 @ KSPA | N283MA Baron 58 @ KSPA | N707PW Baron 58 @ KSPA | N758CA Baron 58 @ KSPA | N4380W Baron 58 @ KSPA | N6725T Baron 58 @ KSPA | N789CT King Air 200 @ KSPA | N34LT King Air 200 @ KSPA | N989LA King Air 200 @ KSPA"
+        },
+        {
+          "id": "02e480a6-8a61-422d-b2da-eaebca72b80b",
+          "rank": 6,
+          "company_name": "FLIGHT CHOICE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "FLIGHT CHOICE",
+          "suggested_operator_id": "6d801caf-aaaa-4000-8000-6d801caf0000",
+          "general_email": "charters@flightchoiceinc.com",
+          "contact_phone": "865-313-5296",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "865-313-5296"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": false,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KTYS",
+          "fleet_types_csv": "Baron 58 | King Air 90 | King Air 200",
+          "aircraft_locations_csv": "N436AT Baron 58 @ KTYS | N584PC Baron 58 @ KTYS | N6211J King Air 90 @ KTYS | N7206E King Air 90 @ KTYS | N250XX King Air 200 @ KTYS"
+        },
+        {
+          "id": "06045072-386c-49db-a748-0eeb8ebb8d7f",
+          "rank": 7,
+          "company_name": "45 NORTH AVIATION",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "45 NORTH AVIATION",
+          "suggested_operator_id": "0de39b05-aaaa-4000-8000-0de39b050000",
+          "general_email": "info@45northaviation.com",
+          "contact_phone": "(231) 668-6000",
+          "company_phone": "",
+          "phone_24hr": "(231) 668-6000",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(231) 668-6000"
+            }
+          ],
+          "notes": "King Air for pax - TBM for cargo",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 7,
+          "approval_tier": "approved",
+          "operator_base_icao": "KRIC",
+          "fleet_types_csv": "TBM | King Air 200",
+          "aircraft_locations_csv": "TBD TBM @ KRIC | TBD King Air 200 @ KRIC"
+        }
+      ]
+    },
+    {
+      "id": "psa__KPNS",
+      "client_name": "PSA",
+      "base_icao": "KPNS",
+      "base_label": "Pensacola",
+      "entries": [
+        {
+          "id": "0d93f44b-e517-47e0-887c-4a9c243fcbac",
+          "rank": 1,
+          "company_name": "Air Reldan, Inc. - Neil",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Air Reldan, Inc. - Neil",
+          "suggested_operator_id": "721ae825-aaaa-4000-8000-721ae8250000",
+          "general_email": "info@airreldan.com",
+          "contact_phone": "504-473-3945",
+          "company_phone": "",
+          "phone_24hr": "504-473-3945",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "504-473-3945"
+            }
+          ],
+          "notes": "Neil",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "BATON ROUGE, LA",
+          "fleet_types_csv": "King Air 90 | Piper Seneca",
+          "aircraft_locations_csv": "N427DM King Air 90 @ Baton Rouge, LA | N401MC King Air 90 @ Baton Rouge, LA | N8350Z Piper Seneca @ Baton Rouge, LA"
+        },
+        {
+          "id": "a78122ca-c514-4d9c-beb8-98133e2a05c7",
+          "rank": 2,
+          "company_name": "Gen 4 Jets",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Gen 4 Jets",
+          "suggested_operator_id": "2677078a-aaaa-4000-8000-2677078a0000",
+          "general_email": "",
+          "contact_phone": "(870) 680-2715",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "(870) 680-2715"
+            },
+            {
+              "label": "After Hrs",
+              "phone": "(870) 868-1236"
+            }
+          ],
+          "notes": "Good prices - should be available (Call Arthur for very late nights)\nLocated NE Arkansas",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "M19",
+          "fleet_types_csv": "Citation CJ1 | CJ3",
+          "aircraft_locations_csv": "TBD Citation CJ1 @ M19 | TBD CJ3 @ M19"
+        },
+        {
+          "id": "85aa530b-eab9-4642-9ca6-9540b1a08362",
+          "rank": 3,
+          "company_name": "LOWE AVIATION CO - Ed Lowe",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "LOWE AVIATION CO - Ed Lowe",
+          "suggested_operator_id": "011c1f65-aaaa-4000-8000-011c1f650000",
+          "general_email": "edward@loweaviation.com",
+          "contact_phone": "(478) 731-5862",
+          "company_phone": "",
+          "phone_24hr": "(478) 731-5862",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(478) 731-5862"
+            },
+            {
+              "label": "Main",
+              "phone": "(478) 788-3491"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KMCN",
+          "fleet_types_csv": "Baron 58 | King Air 90",
+          "aircraft_locations_csv": "N83KK Baron 58 @ KMCN | N1103G King Air 90 @ KMCN"
+        },
+        {
+          "id": "29a360d4-822f-468d-b434-f6d400e64059",
+          "rank": 4,
+          "company_name": "Apex Jet",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Apex Jet",
+          "suggested_operator_id": "37ea7a9b-aaaa-4000-8000-37ea7a9b0000",
+          "general_email": "charter@apexjet.aero",
+          "contact_phone": "",
+          "company_phone": "(985) 851-5737",
+          "phone_24hr": "(985) 851-5737",
+          "call_lines": [],
+          "notes": "Never used",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KHMU",
+          "fleet_types_csv": "Falcon 10 | King Air 200 | Falcon 50 | King Air 90 | Citation XLS",
+          "aircraft_locations_csv": "N111WH Falcon 10 @ KHMU | N716AP King Air 200 @ KHMU | N388BB Falcon 50 @ KHMU | N865PC Falcon 50 @ KHMU | N790A King Air 90 @ KHMU | CE-560-560 Citation XLS @ KHMU"
+        },
+        {
+          "id": "c2de23cd-b17d-47fc-963e-1e036dca6aa5",
+          "rank": 5,
+          "company_name": "Speed Aviation, Inc.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Speed Aviation, Inc.",
+          "suggested_operator_id": "3d1b7cbe-aaaa-4000-8000-3d1b7cbe0000",
+          "general_email": "steve.hauth@speedaviationinc.com",
+          "contact_phone": "(850) 430-9596",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main",
+              "phone": "(850) 430-9596"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": false,
+            "hazmat": false,
+            "medevac": false,
+            "hrs24": false
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "BIRMINGHAM, AL",
+          "fleet_types_csv": "King Air 90 | Lear 31",
+          "aircraft_locations_csv": "N904P King Air 90 @ Birmingham, AL | N631KA Lear 31 @ Birmingham, AL | N1932K Lear 31 @ Birmingham, AL"
+        },
+        {
+          "id": "f40d816d-2e41-496d-9e20-3691f94040f2",
+          "rank": 6,
+          "company_name": "SkyLife Elite LLC.",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "SkyLife Elite LLC.",
+          "suggested_operator_id": "4a2cf045-aaaa-4000-8000-4a2cf0450000",
+          "general_email": "sales@flyskylife.com",
+          "contact_phone": "(904) 535-4332",
+          "company_phone": "",
+          "phone_24hr": "(904) 535-4332",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(904) 535-4332"
+            },
+            {
+              "label": "Main",
+              "phone": "(904) 490-9332"
+            }
+          ],
+          "notes": "Will is 24 hr number. Will (904) 535-4332 / rogers@flyskylife.com",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "ORLANDO, FL",
+          "fleet_types_csv": "King Air 90 | Citation CJ1 | King Air 200 | Honda Jet",
+          "aircraft_locations_csv": "N812GB King Air 90 @ Orlando, FL | N933RG Citation CJ1 @ Orlando, FL | N3MH King Air 200 @ Orlando, FL | HA-420 Honda Jet @ Orlando, FL"
+        },
+        {
+          "id": "0a90988c-1263-4141-8e69-f2050c5c6cd0",
+          "rank": 7,
+          "company_name": "Atlanta Air Charter",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Atlanta Air Charter",
+          "suggested_operator_id": "58fd0758-aaaa-4000-8000-58fd07580000",
+          "general_email": "charter@atlantaaircarter.com",
+          "contact_phone": "770 419-2001",
+          "company_phone": "",
+          "phone_24hr": "770 419-2001",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "770 419-2001"
+            }
+          ],
+          "notes": "Does the work for Delta, Expensive",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 5,
+          "approval_tier": "approved",
+          "operator_base_icao": "KRYY",
+          "fleet_types_csv": "King Air 200",
+          "aircraft_locations_csv": "N143DE King Air 200 @ KRYY | N383JP King Air 200 @ KRYY | N700NA King Air 200 @ KRYY | N717VA King Air 200 @ KRYY"
+        },
+        {
+          "id": "9745ed8b-5e82-406b-a6fb-7ed3ea8ed07b",
+          "rank": 8,
+          "company_name": "AUGUSTA AVIATION INC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AUGUSTA AVIATION INC",
+          "suggested_operator_id": "2c74e201-aaaa-4000-8000-2c74e2010000",
+          "general_email": "charter@augustaaviation.com",
+          "contact_phone": "(704) 289-6868",
+          "company_phone": "",
+          "phone_24hr": "(704) 289-6868",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(704) 289-6868"
+            }
+          ],
+          "notes": "Rosie, Angie, Etc",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KDNL",
+          "fleet_types_csv": "Beechcraft King Air C90A",
+          "aircraft_locations_csv": "N8GU Beechcraft King Air C90A @ KDNL | N329GS Beechcraft King Air C90A @ KDNL | N377P Beechcraft King Air C90A @ KDNL | N891AA Beechcraft King Air C90A @ KDNL"
+        }
+      ]
+    },
+    {
+      "id": "psa__KSAV",
+      "client_name": "PSA",
+      "base_icao": "KSAV",
+      "base_label": "Savannah",
+      "entries": [
+        {
+          "id": "f1f3a334-a025-4cfb-8f9a-dbf6775c3043",
+          "rank": 1,
+          "company_name": "Axio",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Axio",
+          "suggested_operator_id": "001f5bbd-aaaa-4000-8000-001f5bbd0000",
+          "general_email": "sales@flyaxio.com",
+          "contact_phone": "(864) 397-5082",
+          "company_phone": "",
+          "phone_24hr": "",
+          "call_lines": [
+            {
+              "label": "Main/Texting",
+              "phone": "(864) 397-5082"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(864) 608-0141"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(336) 602-5126"
+            },
+            {
+              "label": "Dispatch",
+              "phone": "(772) 258-0209"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2",
+          "usefulness": 9,
+          "approval_tier": "approved",
+          "operator_base_icao": "KSPA",
+          "fleet_types_csv": "SR-22 | Phenom 100 | Baron 58 | King Air 200",
+          "aircraft_locations_csv": "N533CP SR-22 @ KSPA | N606MF SR-22 @ KSPA | N369AX Phenom 100 @ KSPA | N283MA Baron 58 @ KSPA | N707PW Baron 58 @ KSPA | N758CA Baron 58 @ KSPA | N4380W Baron 58 @ KSPA | N6725T Baron 58 @ KSPA | N789CT King Air 200 @ KSPA | N34LT King Air 200 @ KSPA | N989LA King Air 200 @ KSPA"
+        },
+        {
+          "id": "d720861c-f409-4b8f-8bb3-a3814580a3c9",
+          "rank": 2,
+          "company_name": "Clemson Air Charter",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "Clemson Air Charter",
+          "suggested_operator_id": "0f6a88aa-aaaa-4000-8000-0f6a88aa0000",
+          "general_email": "clemsonaircharter@gmail.com",
+          "contact_phone": "1 (864) 276-7047",
+          "company_phone": "",
+          "phone_24hr": "1 (864) 276-7047",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "1 (864) 276-7047"
+            }
+          ],
+          "notes": "John - Can text him as well",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": false,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KAND",
+          "fleet_types_csv": "Baron 58",
+          "aircraft_locations_csv": "N686FR Baron 58 @ KAND | N1065B Baron 58 @ KAND"
+        },
+        {
+          "id": "410c72a1-2bcd-47aa-8a14-7090aee71594",
+          "rank": 3,
+          "company_name": "EXECUTIVE SHUTTLE",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "EXECUTIVE SHUTTLE",
+          "suggested_operator_id": "73b9d441-aaaa-4000-8000-73b9d4410000",
+          "general_email": "trammellrichard@yahoo.com",
+          "contact_phone": "(814) 571-1420",
+          "company_phone": "",
+          "phone_24hr": "(814) 571-1420",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(814) 571-1420"
+            },
+            {
+              "label": "Main",
+              "phone": "864-910-2944"
+            }
+          ],
+          "notes": "Rick the goat",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 8,
+          "approval_tier": "approved",
+          "operator_base_icao": "KGRD",
+          "fleet_types_csv": "King Air 90",
+          "aircraft_locations_csv": "N643EA King Air 90 @ KGRD"
+        },
+        {
+          "id": "58c7116b-e03e-4706-8e09-5dc14ca86564",
+          "rank": 4,
+          "company_name": "LOWCOUNTRY AVIATION - Marco",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "LOWCOUNTRY AVIATION - Marco",
+          "suggested_operator_id": "592f9d6a-aaaa-4000-8000-592f9d6a0000",
+          "general_email": "info@lowcountryaviation.com",
+          "contact_phone": "(843) 822-3637",
+          "company_phone": "",
+          "phone_24hr": "(843) 822-3637",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(843) 822-3637"
+            },
+            {
+              "label": "Main",
+              "phone": "(855) 435-9522"
+            }
+          ],
+          "notes": "(843) 822-3637-Marco",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KCHS",
+          "fleet_types_csv": "King Air 90 | King Air 200",
+          "aircraft_locations_csv": "N332MS King Air 90 @ KCHS | N600AC King Air 90 @ KCHS | N997LM King Air 200 @ KCHS | N825ST King Air 200 @ KCHS"
+        },
+        {
+          "id": "354d8d7d-d30e-4aa0-95d5-2006a2d56e0f",
+          "rank": 5,
+          "company_name": "LOWE AVIATION CO - Ed Lowe",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "LOWE AVIATION CO - Ed Lowe",
+          "suggested_operator_id": "011c1f65-aaaa-4000-8000-011c1f650000",
+          "general_email": "edward@loweaviation.com",
+          "contact_phone": "(478) 731-5862",
+          "company_phone": "",
+          "phone_24hr": "(478) 731-5862",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(478) 731-5862"
+            },
+            {
+              "label": "Main",
+              "phone": "(478) 788-3491"
+            }
+          ],
+          "notes": "",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": true,
+            "hrs24": true
+          },
+          "call_out_time": "2 Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KMCN",
+          "fleet_types_csv": "Baron 58 | King Air 90",
+          "aircraft_locations_csv": "N83KK Baron 58 @ KMCN | N1103G King Air 90 @ KMCN"
+        },
+        {
+          "id": "59483b03-86d8-450b-847d-9866c2e073c2",
+          "rank": 6,
+          "company_name": "AUGUSTA AVIATION INC",
+          "operator_id": null,
+          "match_status": "suggested",
+          "match_score": 100,
+          "match_candidate_name": "AUGUSTA AVIATION INC",
+          "suggested_operator_id": "2c74e201-aaaa-4000-8000-2c74e2010000",
+          "general_email": "charter@augustaaviation.com",
+          "contact_phone": "(704) 289-6868",
+          "company_phone": "",
+          "phone_24hr": "(704) 289-6868",
+          "call_lines": [
+            {
+              "label": "24/7",
+              "phone": "(704) 289-6868"
+            }
+          ],
+          "notes": "Rosie, Angie, Etc",
+          "caps": {
+            "pax": true,
+            "cargo": true,
+            "hazmat": true,
+            "medevac": false,
+            "hrs24": true
+          },
+          "call_out_time": "2Hrs",
+          "usefulness": 6,
+          "approval_tier": "approved",
+          "operator_base_icao": "KDNL",
+          "fleet_types_csv": "Beechcraft King Air C90A",
+          "aircraft_locations_csv": "N8GU Beechcraft King Air C90A @ KDNL | N329GS Beechcraft King Air C90A @ KDNL | N377P Beechcraft King Air C90A @ KDNL | N891AA Beechcraft King Air C90A @ KDNL"
+        }
+      ]
+    }
+  ],
+  "importedAt": "2026-08-16T04:29:01.576Z"
+}
