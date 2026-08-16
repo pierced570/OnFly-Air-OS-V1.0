@@ -18,6 +18,9 @@ import {
 export const CLIENT_QUOTE_TAXES_NOTE = 'All taxes and fees included'
 export const CLIENT_QUOTE_ALL_IN_NOTE = 'All-in · taxes & fees included'
 
+/** Hard-quote email / desk preview CTA — real Accept buttons live on /accept. */
+export const PORTAL_ACCEPT_CTA = 'Go to portal to accept'
+
 export const DISPATCH_CHANGE_REQUEST_EMAIL = 'info@onflyair.com'
 
 export type LogisticsClock = {

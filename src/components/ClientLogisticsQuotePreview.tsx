@@ -15,7 +15,7 @@ import type {
   CharterQuoteMissionChip,
   LogisticsQuoteOptionView,
 } from '@/domain/clientLogisticsQuote'
-import { CLIENT_QUOTE_TAXES_NOTE } from '@/domain/clientLogisticsQuote'
+import { CLIENT_QUOTE_TAXES_NOTE, PORTAL_ACCEPT_CTA } from '@/domain/clientLogisticsQuote'
 
 function money(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`
@@ -34,6 +34,11 @@ type Props = {
   options: LogisticsQuoteOptionView[]
   /** Show Accept / Deny / Change request controls (live accept page). */
   interactive?: boolean
+  /**
+   * When not interactive (email / desk preview), link for “Go to portal to accept”.
+   * Real Accept buttons only render when `interactive` + `optionActions.onAccept`.
+   */
+  portalAcceptUrl?: string | null
   optionActions?: (opt: LogisticsQuoteOptionView) => OptionActions | null
   disclosureText?: string | null
   /** Desk banner when previewing before send. */
@@ -54,6 +59,7 @@ export function ClientLogisticsQuotePreview({
   title,
   options,
   interactive = false,
+  portalAcceptUrl,
   optionActions,
   disclosureText,
   previewBanner,
@@ -68,8 +74,8 @@ export function ClientLogisticsQuotePreview({
   const introText =
     intro?.trim() ||
     (options.length <= 1
-      ? 'All-in price · taxes & fees included. Accept to lock it.'
-      : `${options.length} options · all-in prices. Pick one to lock it.`)
+      ? 'All-in price · taxes & fees included. Go to the portal to accept and lock it.'
+      : `${options.length} options · all-in prices. Go to the portal to pick one and lock it.`)
 
   return (
     <div
@@ -186,10 +192,15 @@ export function ClientLogisticsQuotePreview({
                           ? 'Accepting…'
                           : `Accept ${opt.option_number_label}`}
                       </button>
+                    ) : !interactive && portalAcceptUrl?.trim() ? (
+                      <a
+                        href={portalAcceptUrl.trim()}
+                        className={acceptCtaClass}
+                      >
+                        {PORTAL_ACCEPT_CTA}
+                      </a>
                     ) : !interactive ? (
-                      <div className={acceptCtaClass}>
-                        Accept {opt.option_number_label}
-                      </div>
+                      <div className={acceptCtaClass}>{PORTAL_ACCEPT_CTA}</div>
                     ) : null}
                   </div>
 

@@ -947,7 +947,7 @@ export async function selectOffersAndHardQuote(
         missionChips,
         intro:
           logisticsOptions.length === 2
-            ? 'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Pick one and we lock it.'
+            ? 'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Go to the portal to pick one and lock it.'
             : null,
       }
       const toList = recipients.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))
