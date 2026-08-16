@@ -89,13 +89,18 @@ describe('buildEtaSheetEmailTemplate multi-leg', () => {
       },
     } as TripStoreRow
 
-    const sheet = {
+    const sheet: EtaSheetContext = {
       po: '000067',
       pattern: 'A2A',
       aircraft_type: 'TBM 700',
       tail: 'N123AB',
+      operator_name: 'Op',
+      promised_delivery_display: null,
+      projected_delivery_display: null,
+      delta_min: null,
+      mileage: null,
       lines: [],
-    } as EtaSheetContext
+    }
 
     const tpl = buildEtaSheetEmailTemplate({
       trip,
