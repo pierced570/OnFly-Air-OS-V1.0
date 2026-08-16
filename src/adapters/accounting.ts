@@ -99,7 +99,11 @@ export interface AccountingAdapter {
     pdfBase64?: string
     clientName?: string
     logoUrl?: string
-    /** Trip / ledger details for subject + body (required for filled emails). */
+    /** Pre-rendered ETA-sheet-style HTML (preferred). */
+    html?: string | null
+    subject?: string | null
+    text?: string | null
+    /** Trip / ledger details for subject + body (legacy / fallback). */
     amountUsd?: number | null
     lane?: string | null
     flightDate?: string | null
@@ -109,6 +113,7 @@ export interface AccountingAdapter {
     contractUrl?: string | null
     /** ACH / View and pay URL when available (QBO invoice link). */
     payUrl?: string | null
+    portalUrl?: string | null
     /** Note-to-customer stamped onto the QBO invoice before PDF/email. */
     customerMemo?: string | null
   }): Promise<{ id: string }>
@@ -117,6 +122,31 @@ export interface AccountingAdapter {
 export type SendInvoiceEmailOpts = Parameters<
   AccountingAdapter['sendInvoiceEmail']
 >[0]
+
+function invoiceEmailInvokeBody(opts: SendInvoiceEmailOpts) {
+  const po = invoicePoDisplay(opts.poNumber) || opts.poNumber
+  return {
+    to: opts.to,
+    cc: opts.cc,
+    bcc: opts.bcc,
+    po_number: po,
+    pdf_base64: opts.pdfBase64,
+    subject: opts.subject ?? null,
+    html: opts.html ?? null,
+    text: opts.text ?? null,
+    client_name: opts.clientName,
+    logo_url: opts.logoUrl,
+    amount_usd: opts.amountUsd ?? null,
+    lane: opts.lane ?? null,
+    flight_date: opts.flightDate ?? null,
+    aircraft_type: opts.aircraftType ?? null,
+    tail: opts.tail ?? null,
+    itinerary_lines: opts.itineraryLines ?? [],
+    contract_url: opts.contractUrl ?? null,
+    pay_url: opts.payUrl ?? null,
+    portal_url: opts.portalUrl ?? null,
+  }
+}
 
 const mockInvoices = new Map<
   string,
@@ -248,8 +278,8 @@ export class MockAccountingAdapter implements AccountingAdapter {
         cc: opts.cc,
         po: opts.poNumber,
         amountUsd: opts.amountUsd,
-        tail: opts.tail,
-        itineraryLines: opts.itineraryLines?.length ?? 0,
+        hasHtml: Boolean(opts.html?.trim()),
+        subject: opts.subject ?? null,
       },
     )
     // Optional Resend when a PDF is provided (local demos).
@@ -257,23 +287,7 @@ export class MockAccountingAdapter implements AccountingAdapter {
       const { data, error } = await supabase.functions.invoke(
         'send-invoice-email',
         {
-          body: {
-            to: opts.to,
-            cc: opts.cc,
-            bcc: opts.bcc,
-            po_number: invoicePoDisplay(opts.poNumber) || opts.poNumber,
-            pdf_base64: opts.pdfBase64,
-            client_name: opts.clientName,
-            logo_url: opts.logoUrl,
-            amount_usd: opts.amountUsd ?? null,
-            lane: opts.lane ?? null,
-            flight_date: opts.flightDate ?? null,
-            aircraft_type: opts.aircraftType ?? null,
-            tail: opts.tail ?? null,
-            itinerary_lines: opts.itineraryLines ?? [],
-            contract_url: opts.contractUrl ?? null,
-            pay_url: opts.payUrl ?? null,
-          },
+          body: invoiceEmailInvokeBody(opts),
         },
       )
       if (!error) {
@@ -461,23 +475,7 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
     const { data, error } = await supabase.functions.invoke(
       'send-invoice-email',
       {
-        body: {
-          to: opts.to,
-          cc: opts.cc,
-          bcc: opts.bcc,
-          po_number: po,
-          pdf_base64: pdf,
-          client_name: opts.clientName,
-          logo_url: opts.logoUrl,
-          amount_usd: opts.amountUsd ?? null,
-          lane: opts.lane ?? null,
-          flight_date: opts.flightDate ?? null,
-          aircraft_type: opts.aircraftType ?? null,
-          tail: opts.tail ?? null,
-          itinerary_lines: opts.itineraryLines ?? [],
-          contract_url: opts.contractUrl ?? null,
-          pay_url: opts.payUrl ?? null,
-        },
+        body: invoiceEmailInvokeBody({ ...opts, pdfBase64: pdf }),
       },
     )
     if (!error) {

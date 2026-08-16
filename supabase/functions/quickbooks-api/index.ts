@@ -479,7 +479,9 @@ async function prepareInvoice(cfg: QbConfig, body: Record<string, unknown>) {
     AllowOnlineACHPayment: true,
     AllowOnlineCreditCardPayment: body.allow_online_card === true,
   }
-  if (docNumber && !/^(INSERT\s*INVOICE|ENTER\s*(PO|INVOICE)|TBD|TODO|N\/?A)$/i.test(docNumber)) {
+  if (docNumber && !/^(INSERT\s*INVOICE|ENTER\s*(PO|INVOICE|TAIL|FBO|ETA)|TBD|TODO|N\/?A)$/i.test(
+    docNumber.replace(/^[(\[{]+|[)\]}]+$/g, '').trim(),
+  )) {
     sparse.DocNumber = docNumber
   }
   if (memo) {
