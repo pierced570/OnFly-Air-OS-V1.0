@@ -4,10 +4,15 @@ import { AirportSelect } from '@/components/AirportSelect'
 import { HrsMinsInput } from '@/components/HrsMinsInput'
 import { NumericDraftInput } from '@/components/NumericDraftInput'
 import { OperatorSelect } from '@/components/OperatorSelect'
+import { PortalStopPicker } from '@/components/PortalStopPicker'
 import {
   formatLooseDurationMinutes,
   parseLooseDurationMinutes,
 } from '@/domain/quickDispatchChain'
+import {
+  emptyPortalStop,
+  type PortalStopLocation,
+} from '@/domain/portalStopLocation'
 import {
   isAssignableAircraftTail,
   normalizeAircraftTail,
@@ -126,6 +131,12 @@ export default function QuickDispatchPage() {
   const [referredById, setReferredById] = useState('')
   const [referralShareOverride, setReferralShareOverride] = useState('')
   const [notes, setNotes] = useState('')
+  const [pickupStop, setPickupStop] = useState<PortalStopLocation>(() =>
+    emptyPortalStop(),
+  )
+  const [dropoffStop, setDropoffStop] = useState<PortalStopLocation>(() =>
+    emptyPortalStop(),
+  )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -285,6 +296,16 @@ export default function QuickDispatchPage() {
             ? null
             : Number(referralShareOverride) || 0,
         notes: notes.trim(),
+        pickup_stop: {
+          ...pickupStop,
+          icao: legs[0]?.origin_icao.trim().toUpperCase() || pickupStop.icao,
+        },
+        dropoff_stop: {
+          ...dropoffStop,
+          icao:
+            legs[legs.length - 1]?.dest_icao.trim().toUpperCase() ||
+            dropoffStop.icao,
+        },
         legs: legs.map((l) => ({
           origin_icao: l.origin_icao.trim().toUpperCase(),
           dest_icao: l.dest_icao.trim().toUpperCase(),
@@ -690,6 +711,39 @@ export default function QuickDispatchPage() {
         >
           + Add Leg
         </button>
+      </section>
+
+      {/* Pickup / drop-off for tracking portal */}
+      <section className="space-y-3">
+        <div className="text-xs font-medium uppercase tracking-wider text-muted">
+          Pickup &amp; drop-off
+        </div>
+        <p className="text-xs text-muted">
+          Shown on the client tracking portal. Choose client hangar, a field FBO
+          from the directory, or TBD (blank until desk fills it later).
+        </p>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <PortalStopPicker
+              label="Pickup"
+              icao={legs[0]?.origin_icao.trim().toUpperCase() || ''}
+              value={pickupStop}
+              onChange={setPickupStop}
+              tone="dark"
+            />
+          </div>
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <PortalStopPicker
+              label="Drop-off"
+              icao={
+                legs[legs.length - 1]?.dest_icao.trim().toUpperCase() || ''
+              }
+              value={dropoffStop}
+              onChange={setDropoffStop}
+              tone="dark"
+            />
+          </div>
+        </div>
       </section>
 
       {/* Operator */}

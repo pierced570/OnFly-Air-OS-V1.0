@@ -44,7 +44,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
   const members = trip.participants.filter(
     (p) => p.in_thread && !p.released_at,
   )
-  const trackUrl = portalTrackingUrlForTrip(trip.id)
+  const trackUrl = `${portalTrackingUrlForTrip(trip.id)}?desk=1`
   const canComplete = trip.state === 'in_progress'
 
   function logAsComplete() {
@@ -139,6 +139,10 @@ export function LiveTrackingCardActions({ tripId }: Props) {
       </div>
 
       {err ? <p className="text-xs text-late">{err}</p> : null}
+      <p className="text-[11px] text-muted">
+        Tracking portal desk link (?desk=1) edits pickup / drop-off (hangar · FBO ·
+        TBD).
+      </p>
 
       {chatOpen ? (
         <div className="space-y-3">

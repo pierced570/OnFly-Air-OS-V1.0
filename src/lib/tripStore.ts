@@ -37,6 +37,11 @@ import { getEtaDefaults } from '@/lib/etaDefaultsStore'
 import { getReferral } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
 import { buildQuickDispatchChain } from '@/domain/quickDispatchChain'
+import {
+  normalizePortalStop,
+  portalStopToAddressLine,
+  type PortalStopLocation,
+} from '@/domain/portalStopLocation'
 import { roleOnOpsThread } from '@/domain/tripThread'
 import {
   normalizeTripPassengers,
@@ -308,6 +313,10 @@ export type QuickDispatchMeta = {
   referral_share_amount?: number | null
   referral_id?: string | null
   notes: string
+  /** Pickup at first-leg origin — hangar / field FBO / TBD. */
+  pickup_stop?: PortalStopLocation | null
+  /** Drop-off at last-leg dest. */
+  dropoff_stop?: PortalStopLocation | null
   legs: Array<{
     origin_icao: string
     dest_icao: string
@@ -467,6 +476,9 @@ export type TripStoreRow = {
   /** Client portal street / door addresses (pickup & drop-off cards). */
   portal_pickup_address?: string | null
   portal_dropoff_address?: string | null
+  /** Structured pickup/drop-off (hangar · FBO · TBD) — syncs address lines. */
+  portal_pickup_stop?: PortalStopLocation | null
+  portal_dropoff_stop?: PortalStopLocation | null
   /** Optional passenger names for portal cargo card. */
   portal_pax_names?: string[]
   /**
@@ -1061,6 +1073,28 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
         share_amount: share,
       }
     })(),
+    portal_pickup_stop: meta.pickup_stop
+      ? normalizePortalStop(meta.pickup_stop, meta.legs[0]?.origin_icao)
+      : null,
+    portal_dropoff_stop: meta.dropoff_stop
+      ? normalizePortalStop(
+          meta.dropoff_stop,
+          meta.legs[meta.legs.length - 1]?.dest_icao,
+        )
+      : null,
+    portal_pickup_address: meta.pickup_stop
+      ? portalStopToAddressLine(
+          normalizePortalStop(meta.pickup_stop, meta.legs[0]?.origin_icao),
+        )
+      : null,
+    portal_dropoff_address: meta.dropoff_stop
+      ? portalStopToAddressLine(
+          normalizePortalStop(
+            meta.dropoff_stop,
+            meta.legs[meta.legs.length - 1]?.dest_icao,
+          ),
+        )
+      : null,
     events: [
       {
         at: new Date().toISOString(),
@@ -1604,9 +1638,43 @@ export function setPortalStopAddresses(
   return mutateTrip(tripId, (t) => {
     if (patch.pickup !== undefined) {
       t.portal_pickup_address = patch.pickup.trim() || null
+      if (patch.pickup.trim()) {
+        t.portal_pickup_stop = normalizePortalStop(
+          {
+            kind: 'custom',
+            address: patch.pickup.trim(),
+            name: t.portal_pickup_stop?.name ?? null,
+            fbo_id: null,
+            icao: t.portal_pickup_stop?.icao ?? null,
+          },
+          t.portal_pickup_stop?.icao,
+        )
+      } else {
+        t.portal_pickup_stop = normalizePortalStop(
+          { kind: 'tbd', icao: t.portal_pickup_stop?.icao },
+          t.portal_pickup_stop?.icao,
+        )
+      }
     }
     if (patch.dropoff !== undefined) {
       t.portal_dropoff_address = patch.dropoff.trim() || null
+      if (patch.dropoff.trim()) {
+        t.portal_dropoff_stop = normalizePortalStop(
+          {
+            kind: 'custom',
+            address: patch.dropoff.trim(),
+            name: t.portal_dropoff_stop?.name ?? null,
+            fbo_id: null,
+            icao: t.portal_dropoff_stop?.icao ?? null,
+          },
+          t.portal_dropoff_stop?.icao,
+        )
+      } else {
+        t.portal_dropoff_stop = normalizePortalStop(
+          { kind: 'tbd', icao: t.portal_dropoff_stop?.icao },
+          t.portal_dropoff_stop?.icao,
+        )
+      }
     }
     if (patch.paxNames !== undefined) {
       t.portal_pax_names = patch.paxNames.map((n) => n.trim()).filter(Boolean)
@@ -1619,6 +1687,47 @@ export function setPortalStopAddresses(
         pickup: t.portal_pickup_address,
         dropoff: t.portal_dropoff_address,
         pax_names: t.portal_pax_names ?? [],
+      },
+    })
+  })
+}
+
+/** Desk — set structured pickup / drop-off (hangar · FBO · TBD). */
+export function setPortalStopLocations(
+  tripId: string,
+  patch: {
+    pickup?: PortalStopLocation | null
+    dropoff?: PortalStopLocation | null
+  },
+  actor = 'dispatcher',
+): TripStoreRow {
+  if (!trips.has(tripId)) {
+    throw new Error('Trip not loaded in this session — refresh and try again')
+  }
+  return mutateTrip(tripId, (t) => {
+    if (patch.pickup !== undefined) {
+      const stop = patch.pickup
+        ? normalizePortalStop(patch.pickup, patch.pickup.icao)
+        : null
+      t.portal_pickup_stop = stop
+      t.portal_pickup_address = stop ? portalStopToAddressLine(stop) : null
+    }
+    if (patch.dropoff !== undefined) {
+      const stop = patch.dropoff
+        ? normalizePortalStop(patch.dropoff, patch.dropoff.icao)
+        : null
+      t.portal_dropoff_stop = stop
+      t.portal_dropoff_address = stop ? portalStopToAddressLine(stop) : null
+    }
+    t.events.push({
+      at: new Date().toISOString(),
+      actor,
+      kind: 'portal_stop_locations',
+      payload: {
+        pickup: t.portal_pickup_stop,
+        dropoff: t.portal_dropoff_stop,
+        pickup_line: t.portal_pickup_address,
+        dropoff_line: t.portal_dropoff_address,
       },
     })
   })
