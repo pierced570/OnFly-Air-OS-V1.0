@@ -1,5 +1,6 @@
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import {
   parseDims,
   type DimLengthUnit,
@@ -122,13 +123,16 @@ export function TripRequestLegPayloadSection({
         <div className="space-y-3 rounded-lg border border-border bg-white p-3">
           <label className={`${labelCls} max-w-[8rem]`}>
             Pax count
-            <input
-              type="number"
+            <NumericDraftInput
+              integer
               min={1}
               max={20}
-              value={pax.length || 1}
-              onChange={(e) => setPaxCount(Number(e.target.value) || 1)}
               className={inputCls}
+              value={pax.length > 0 ? pax.length : null}
+              onValueChange={(n) => {
+                if (n == null) return
+                setPaxCount(n)
+              }}
             />
           </label>
           {pax.map((p, i) => (
@@ -150,20 +154,19 @@ export function TripRequestLegPayloadSection({
               </label>
               <label className={labelCls}>
                 Est. weight (lb)
-                <input
-                  type="number"
+                <NumericDraftInput
+                  integer
                   min={1}
-                  value={p.weight_lbs}
-                  onChange={(e) => {
+                  className={inputCls}
+                  value={p.weight_lbs === '' ? null : Number(p.weight_lbs)}
+                  onValueChange={(n) => {
                     const next = [...pax]
                     next[i] = {
                       ...next[i]!,
-                      weight_lbs:
-                        e.target.value === '' ? '' : Number(e.target.value),
+                      weight_lbs: n == null ? '' : n,
                     }
                     onPatch({ pax: next })
                   }}
-                  className={inputCls}
                 />
               </label>
               <label className={labelCls}>
@@ -277,17 +280,19 @@ export function TripRequestLegPayloadSection({
               />
               <label className={`${labelCls} max-w-[10rem]`}>
                 Weight each (lb)
-                <input
-                  type="number"
+                <NumericDraftInput
                   min={0}
-                  value={leg.cargo_weight_lbs}
-                  onChange={(e) =>
+                  className={`${inputCls} avionic`}
+                  value={
+                    leg.cargo_weight_lbs === ''
+                      ? null
+                      : Number(leg.cargo_weight_lbs)
+                  }
+                  onValueChange={(n) =>
                     onPatch({
-                      cargo_weight_lbs:
-                        e.target.value === '' ? '' : Number(e.target.value),
+                      cargo_weight_lbs: n == null ? '' : n,
                     })
                   }
-                  className={`${inputCls} avionic`}
                   placeholder="Required"
                 />
               </label>

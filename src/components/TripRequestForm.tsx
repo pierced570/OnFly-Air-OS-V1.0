@@ -2,6 +2,7 @@ import { useMemo, useState, useSyncExternalStore, type FormEvent } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import PhoneInput from '@/components/PhoneInput'
 import {
   ASAP_MAX_HOURS,
@@ -954,19 +955,18 @@ export function TripRequestForm({
           {draft.direction === 'round_trip' && (
             <label className={`${labelCls} min-w-[11rem] flex-1 sm:max-w-xs`}>
               Est. Hours Needed on Ground
-              <input
-                type="number"
+              <NumericDraftInput
                 min={1}
-                step={0.5}
-                value={draft.hours_on_ground}
-                onChange={(e) =>
+                className={inputCls}
+                value={
+                  draft.hours_on_ground === '' ? null : Number(draft.hours_on_ground)
+                }
+                onValueChange={(n) =>
                   setDraft((d) => ({
                     ...d,
-                    hours_on_ground:
-                      e.target.value === '' ? '' : Number(e.target.value),
+                    hours_on_ground: n == null ? '' : n,
                   }))
                 }
-                className={inputCls}
               />
             </label>
           )}
@@ -1240,20 +1240,20 @@ export function TripRequestForm({
                   </label>
                   <label className={labelCls}>
                     Declared value (USD)
-                    <input
-                      type="number"
+                    <NumericDraftInput
                       min={0}
-                      value={draft.declared_value_usd}
-                      onChange={(e) =>
+                      className={`${inputCls} avionic`}
+                      value={
+                        draft.declared_value_usd === ''
+                          ? null
+                          : Number(draft.declared_value_usd)
+                      }
+                      onValueChange={(n) =>
                         setDraft((d) => ({
                           ...d,
-                          declared_value_usd:
-                            e.target.value === ''
-                              ? ''
-                              : Number(e.target.value),
+                          declared_value_usd: n == null ? '' : n,
                         }))
                       }
-                      className={`${inputCls} avionic`}
                       placeholder="Optional"
                     />
                   </label>
@@ -1377,13 +1377,16 @@ export function TripRequestForm({
           <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
             <label className={`${labelCls} max-w-[8rem]`}>
               Pax count
-              <input
-                type="number"
+              <NumericDraftInput
+                integer
                 min={1}
                 max={20}
-                value={paxCount || 1}
-                onChange={(e) => setPaxCount(Number(e.target.value) || 1)}
                 className={inputCls}
+                value={paxCount > 0 ? paxCount : null}
+                onValueChange={(n) => {
+                  if (n == null) return
+                  setPaxCount(n)
+                }}
               />
             </label>
             <label
@@ -1444,24 +1447,21 @@ export function TripRequestForm({
                   </label>
                   <label className={labelCls}>
                     Est. weight (lb)
-                    <input
-                      type="number"
+                    <NumericDraftInput
+                      integer
                       min={1}
-                      value={p.weight_lbs}
-                      onChange={(e) =>
+                      className={inputCls}
+                      value={p.weight_lbs === '' ? null : Number(p.weight_lbs)}
+                      onValueChange={(n) =>
                         setDraft((d) => {
                           const pax = [...d.pax]
                           pax[i] = {
                             ...pax[i]!,
-                            weight_lbs:
-                              e.target.value === ''
-                                ? ''
-                                : Number(e.target.value),
+                            weight_lbs: n == null ? '' : n,
                           }
                           return { ...d, pax }
                         })
                       }
-                      className={inputCls}
                     />
                   </label>
                   <label className={labelCls}>
@@ -1587,20 +1587,20 @@ export function TripRequestForm({
                 />
                 <label className={`${labelCls} max-w-[10rem]`}>
                   Weight each (lb)
-                  <input
-                    type="number"
+                  <NumericDraftInput
                     min={0}
-                    value={draft.cargo_weight_lbs}
-                    onChange={(e) =>
+                    className={`${inputCls} avionic`}
+                    value={
+                      draft.cargo_weight_lbs === ''
+                        ? null
+                        : Number(draft.cargo_weight_lbs)
+                    }
+                    onValueChange={(n) =>
                       setDraft((d) => ({
                         ...d,
-                        cargo_weight_lbs:
-                          e.target.value === ''
-                            ? ''
-                            : Number(e.target.value),
+                        cargo_weight_lbs: n == null ? '' : n,
                       }))
                     }
-                    className={`${inputCls} avionic`}
                     placeholder="Optional"
                   />
                 </label>

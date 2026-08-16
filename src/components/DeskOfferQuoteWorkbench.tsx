@@ -47,6 +47,7 @@ import {
   submitDeskManualQuote,
   updateHardQuoteClientPricing,
 } from '@/lib/offerFlow'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import { offerQuotePreviewFor } from '@/lib/offerPricing'
 import { getTaxRates } from '@/lib/taxRatesStore'
 import {
@@ -580,52 +581,44 @@ export function DeskOfferQuoteWorkbench({
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block text-xs text-muted">
                       Margin %
-                      <input
-                        type="text"
-                        inputMode="decimal"
+                      <NumericDraftInput
                         className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
-                        value={String(
-                          lock === 'margin' ? draftMargin : preview.margin_pct,
-                        )}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/,/g, '')
-                          if (v !== '' && !/^\d*\.?\d*$/.test(v)) return
-                          const n = v === '' ? 0 : Number(v)
+                        value={
+                          lock === 'margin' ? draftMargin : preview.margin_pct
+                        }
+                        onValueChange={(n) => {
                           setPricingLock((m) => ({
                             ...m,
                             [o.id]: 'margin',
                           }))
-                          setMarginEdits((m) => ({ ...m, [o.id]: n }))
                           setClientEdits((m) => {
                             const next = { ...m }
                             delete next[o.id]
                             return next
                           })
+                          if (n == null) return
+                          setMarginEdits((m) => ({ ...m, [o.id]: n }))
                         }}
                       />
                     </label>
                     <label className="block text-xs text-muted">
                       Client total $
-                      <input
-                        type="text"
-                        inputMode="decimal"
+                      <NumericDraftInput
                         className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
-                        value={String(
+                        value={
                           lock === 'total' && draftTotal != null
                             ? draftTotal
-                            : preview.client_total,
-                        )}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/,/g, '')
-                          if (v !== '' && !/^\d*\.?\d*$/.test(v)) return
+                            : preview.client_total
+                        }
+                        onValueChange={(n) => {
                           setPricingLock((m) => ({
                             ...m,
                             [o.id]: 'total',
                           }))
+                          if (n == null) return
                           setClientEdits((m) => ({
                             ...m,
-                            [o.id]:
-                              v === '' ? preview.client_total : Number(v),
+                            [o.id]: n,
                           }))
                         }}
                       />

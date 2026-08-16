@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { HrsMinsInput } from '@/components/HrsMinsInput'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import { OperatorSelect } from '@/components/OperatorSelect'
 import {
   formatLooseDurationMinutes,
@@ -597,16 +598,17 @@ export default function QuickDispatchPage() {
               {!cargoOnly && (
                 <label className={label}>
                   PAX
-                  <input
-                    type="number"
+                  <NumericDraftInput
+                    integer
+                    blankZero
                     min={0}
                     className={input}
                     value={leg.pax}
-                    onChange={(e) =>
+                    onValueChange={(n) =>
                       setLegs((xs) =>
                         xs.map((l) =>
                           l.id === leg.id
-                            ? { ...l, pax: Number(e.target.value) || 0 }
+                            ? { ...l, pax: n == null ? 0 : Math.max(0, n) }
                             : l,
                         ),
                       )
@@ -718,24 +720,32 @@ export default function QuickDispatchPage() {
           <label className={label}>
             Vendor cost ($)
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               min={0}
               step="0.01"
               className={input}
               value={vendorCost}
-              onChange={(e) => setVendorCost(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value.replace(/,/g, '')
+                if (v === '' || /^\d*\.?\d*$/.test(v)) setVendorCost(v)
+              }}
               placeholder="0.00"
             />
           </label>
           <label className={label}>
             Client price ($)
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               min={0}
               step="0.01"
               className={input}
               value={clientPrice}
-              onChange={(e) => setClientPrice(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value.replace(/,/g, '')
+                if (v === '' || /^\d*\.?\d*$/.test(v)) setClientPrice(v)
+              }}
               placeholder="0.00"
             />
           </label>
@@ -968,10 +978,15 @@ export default function QuickDispatchPage() {
           <label className={label}>
             Share amount ($)
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               className={`${input} avionic`}
               value={referralShareOverride}
-              onChange={(e) => setReferralShareOverride(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value.replace(/,/g, '')
+                if (v === '' || /^\d*\.?\d*$/.test(v))
+                  setReferralShareOverride(v)
+              }}
               placeholder={
                 previewShare != null
                   ? `Default ${previewShare.toFixed(0)}`

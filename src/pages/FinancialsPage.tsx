@@ -32,6 +32,7 @@ import {
   initialAircraftTypeSelectValue,
 } from '@/components/AircraftTypeSelect'
 import { BrandLockup } from '@/components/BrandLockup'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import {
   canUseStorage,
   uploadTripDocToStorage,
@@ -1176,73 +1177,60 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
         </label>
         <label className="text-xs text-muted">
           Referral share ($)
-          <input
-            key={`rfs-${r.id}-${r.referral_share_amount}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.referral_share_amount || 0}
-            onBlur={(e) =>
-              updateFinancialField(
-                r.id,
-                'referral_share_amount',
-                Number(e.target.value) || 0,
-              )
+            value={r.referral_share_amount}
+            onValueChange={(n) =>
+              updateFinancialField(r.id, 'referral_share_amount', n ?? 0)
             }
           />
         </label>
         <label className="text-xs text-muted">
           Client charged ($)
-          <input
-            key={`chg-${r.id}-${r.client_invoiced_amount}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.client_invoiced_amount}
-            onBlur={(e) =>
+            value={r.client_invoiced_amount}
+            onValueChange={(n) =>
               updateFinancialRecord(r.id, {
-                client_invoiced_amount: Number(e.target.value) || 0,
+                client_invoiced_amount: n ?? 0,
               })
             }
           />
         </label>
         <label className="text-xs text-muted">
           Pre-tax subtotal ($)
-          <input
-            key={`sub-${r.id}-${r.client_subtotal_pre_tax}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.client_subtotal_pre_tax ?? ''}
-            onBlur={(e) =>
-              updateFinancialField(
-                r.id,
-                'client_subtotal_pre_tax',
-                e.target.value === '' ? null : Number(e.target.value) || 0,
-              )
+            value={r.client_subtotal_pre_tax}
+            onValueChange={(n) =>
+              updateFinancialField(r.id, 'client_subtotal_pre_tax', n)
             }
           />
         </label>
         <label className="text-xs text-muted">
           Operator owed ($)
-          <input
-            key={`ow-${r.id}-${r.vendor_amount}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.vendor_amount}
-            onBlur={(e) =>
+            value={r.vendor_amount}
+            onValueChange={(n) =>
               updateFinancialRecord(r.id, {
-                vendor_amount: Number(e.target.value) || 0,
+                vendor_amount: n ?? 0,
               })
             }
           />
         </label>
         <label className="text-xs text-muted">
           Tax total ($)
-          <input
-            key={`tax-${r.id}-${r.tax_total}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.tax_total}
-            onBlur={(e) =>
-              updateFinancialField(r.id, 'tax_total', Number(e.target.value) || 0)
+            value={r.tax_total}
+            onValueChange={(n) =>
+              updateFinancialField(r.id, 'tax_total', n ?? 0)
             }
           />
         </label>
@@ -1478,14 +1466,13 @@ function OpDrawer({ r }: { r: ComputedFinancial }) {
               </label>
               <label className="text-xs text-muted">
                 Owed ($)
-                <input
-                  type="number"
+                <NumericDraftInput
+                  blankZero
                   className={field}
-                  key={`am-${line.id}-${line.amount}`}
-                  defaultValue={line.amount}
-                  onBlur={(e) =>
+                  value={line.amount}
+                  onValueChange={(n) =>
                     updateFinancialVendorLine(r.id, line.id, {
-                      amount: Number(e.target.value) || 0,
+                      amount: n ?? 0,
                     })
                   }
                 />
@@ -1697,29 +1684,27 @@ function ClientDrawer({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-xs text-muted">
           Charged ($)
-          <input
-            key={`chg-${r.id}-${r.client_invoiced_amount}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={field}
-            defaultValue={r.client_invoiced_amount}
-            onBlur={(e) =>
+            value={r.client_invoiced_amount}
+            onValueChange={(n) =>
               updateFinancialField(
                 r.id,
                 'client_invoiced_amount',
-                Number(e.target.value) || 0,
+                n ?? 0,
               )
             }
           />
         </label>
         <label className="text-xs text-muted">
           Tax total ($)
-          <input
-            key={`tax-${r.id}-${r.tax_total}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={field}
-            defaultValue={r.tax_total}
-            onBlur={(e) =>
-              updateFinancialField(r.id, 'tax_total', Number(e.target.value) || 0)
+            value={r.tax_total}
+            onValueChange={(n) =>
+              updateFinancialField(r.id, 'tax_total', n ?? 0)
             }
           />
         </label>
