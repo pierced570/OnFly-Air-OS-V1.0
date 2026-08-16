@@ -222,7 +222,7 @@ describe('dispatchCenter', () => {
     expect(buckets.tracking[0]?.quote_history?.[0]?.operator_name).toBe(
       'Echo Jets',
     )
-    expect(buckets.tracking[0]?.deletable).toBe(false)
+    expect(buckets.tracking[0]?.deletable).toBe(true)
     expect(buckets.tracking[0]?.code).toBe('T-5')
     expect(buckets.tracking[0]?.meta).toBe('Live')
   })

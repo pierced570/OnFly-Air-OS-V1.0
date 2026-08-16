@@ -1,6 +1,7 @@
 /**
- * Live tracking card actions — portal, Access chat, Log as complete.
+ * Live tracking card actions — portal, Access chat, Log as complete, Delete.
  * Complete = in_progress → delivered (leaves Live tracking; invoice draft only — desk sends).
+ * Delete = soft-discard (testing cleanup).
  */
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
@@ -8,6 +9,7 @@ import { TripThreadPanel } from '@/components/TripThreadPanel'
 import { formatChatMemberLine } from '@/domain/chatRoster'
 import { portalTrackingUrlForTrip } from '@/lib/etaSheetSender'
 import {
+  deleteTrip,
   ensureTripThread,
   getTrip,
   listTripsStable,
@@ -25,6 +27,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
   const [chatOpen, setChatOpen] = useState(false)
   const [ensuring, setEnsuring] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
@@ -66,6 +69,29 @@ export function LiveTrackingCardActions({ tripId }: Props) {
     }
   }
 
+  function discardLiveTrip() {
+    const row = getTrip(tripId)
+    if (!row || deleting) return
+    if (
+      !window.confirm(
+        `Delete this live trip?\n\n${row.lane}\n\nSoft-discards the trip (good for test data). Cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    setDeleting(true)
+    setErr(null)
+    try {
+      if (!deleteTrip(row.id)) {
+        setErr('Could not delete trip')
+        setDeleting(false)
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="mt-3 space-y-3 border-t border-gold/30 pt-3">
       <div className="flex flex-wrap gap-2">
@@ -95,13 +121,21 @@ export function LiveTrackingCardActions({ tripId }: Props) {
         {canComplete ? (
           <button
             type="button"
-            disabled={completing}
+            disabled={completing || deleting}
             className="rounded-md border border-onplan/50 bg-onplan/10 px-3 py-2 text-xs font-semibold text-onplan hover:bg-onplan/20 disabled:opacity-40"
             onClick={logAsComplete}
           >
             {completing ? 'Logging…' : 'Log as complete'}
           </button>
         ) : null}
+        <button
+          type="button"
+          disabled={deleting || completing}
+          className="rounded-md border border-late/50 bg-late/10 px-3 py-2 text-xs font-semibold text-late hover:bg-late/20 disabled:opacity-40"
+          onClick={discardLiveTrip}
+        >
+          {deleting ? 'Deleting…' : 'Delete trip'}
+        </button>
       </div>
 
       {err ? <p className="text-xs text-late">{err}</p> : null}

@@ -55,7 +55,7 @@ export const DISPATCH_DRAWERS = [
     label: 'Live tracking',
     shortLabel: 'Live tracking',
     blurb:
-      'In progress — portal, chat, quote history, then Log as complete when done',
+      'In progress — portal, chat, quote history; delete test trips, or Log as complete when done',
   },
 ] as const
 
@@ -471,9 +471,13 @@ export function buildDispatchDrawers(input: {
       state: t.state,
       recipients,
       trip_id: t.id,
-      // Delete only while still shaping the mission — not after book / live.
+      // Offers / quotes / live tracking can be deleted (test cleanup + bad cards).
+      // Approved keeps Delete off — book path stays intentional.
       // (submitted_quotes uses its own push path above, also deletable.)
-      deletable: drawer === 'offers' || drawer === 'quotes',
+      deletable:
+        drawer === 'offers' ||
+        drawer === 'quotes' ||
+        drawer === 'tracking',
       // Quotes to clients: desk may Approve (or wait for client Yes).
       // Once booked, trip leaves this drawer — no double-approve path.
       approvable:

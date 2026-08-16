@@ -327,7 +327,7 @@ function CardList({
               chips={
                 c.chips?.length && !showTrackingActions ? c.chips : undefined
               }
-              deletable={!showTrackingActions && c.deletable}
+              deletable={c.deletable}
               onDelete={() => onDeleteCard(c)}
               titleHref={stayOnCard ? undefined : c.href}
             />
@@ -1035,9 +1035,12 @@ export default function DispatchCenterPage() {
       return
     }
     const tripId = card.trip_id ?? card.id
+    const live = card.state === 'in_progress'
     if (
       !window.confirm(
-        `Delete this trip from the queue?\n\n${card.title}\n\nThis removes the trip and its offers. Cannot be undone.`,
+        live
+          ? `Delete this live trip?\n\n${card.title}\n\nRemoves it from Live tracking (soft-discard). Use this for test trips. Cannot be undone.`
+          : `Delete this trip from the queue?\n\n${card.title}\n\nThis removes the trip and its offers. Cannot be undone.`,
       )
     ) {
       return
