@@ -28,6 +28,12 @@ type OptionActions = {
   changeRequestHref?: string
 }
 
+type SharedActions = {
+  busy?: boolean
+  onDeny?: () => void
+  changeRequestHref?: string
+}
+
 type Props = {
   /** Lane headline (city + code). */
   title: string
@@ -40,6 +46,8 @@ type Props = {
    */
   portalAcceptUrl?: string | null
   optionActions?: (opt: LogisticsQuoteOptionView) => OptionActions | null
+  /** Deny / change request once under all option cards. */
+  sharedActions?: SharedActions | null
   disclosureText?: string | null
   /** Desk banner when previewing before send. */
   previewBanner?: string | null
@@ -61,6 +69,7 @@ export function ClientLogisticsQuotePreview({
   interactive = false,
   portalAcceptUrl,
   optionActions,
+  sharedActions,
   disclosureText,
   previewBanner,
   className,
@@ -184,9 +193,17 @@ export function ClientLogisticsQuotePreview({
                     {interactive && actions?.onAccept ? (
                       <button
                         type="button"
-                        disabled={actions.busy}
-                        className={`${acceptCtaClass} disabled:opacity-50`}
-                        onClick={actions.onAccept}
+                        aria-busy={actions.busy || undefined}
+                        className={[
+                          acceptCtaClass,
+                          'min-h-11 min-w-[8.5rem] touch-manipulation',
+                          actions.busy ? 'pointer-events-none opacity-50' : '',
+                        ].join(' ')}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          actions.onAccept?.()
+                        }}
                       >
                         {actions.busy
                           ? 'Accepting…'
@@ -204,13 +221,16 @@ export function ClientLogisticsQuotePreview({
                     ) : null}
                   </div>
 
-                  {interactive && actions ? (
+                  {interactive &&
+                  (actions?.onDeny || actions?.changeRequestHref) ? (
                     <div className="flex flex-wrap gap-2 border-t border-[#E5DFD0] pt-2">
                       {actions.onDeny ? (
                         <button
                           type="button"
-                          disabled={actions.busy}
-                          className="rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E] disabled:opacity-50"
+                          className={[
+                            'rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]',
+                            actions.busy ? 'pointer-events-none opacity-50' : '',
+                          ].join(' ')}
                           onClick={actions.onDeny}
                         >
                           Deny all options
@@ -231,6 +251,33 @@ export function ClientLogisticsQuotePreview({
             )
           })}
         </ul>
+
+        {interactive &&
+        sharedActions &&
+        (sharedActions.onDeny || sharedActions.changeRequestHref) ? (
+          <div className="flex flex-wrap gap-2 rounded-xl border border-[#E5DFD0] bg-white px-3.5 py-3">
+            {sharedActions.onDeny ? (
+              <button
+                type="button"
+                className={[
+                  'rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]',
+                  sharedActions.busy ? 'pointer-events-none opacity-50' : '',
+                ].join(' ')}
+                onClick={sharedActions.onDeny}
+              >
+                Deny all options
+              </button>
+            ) : null}
+            {sharedActions.changeRequestHref ? (
+              <a
+                className="rounded-md border border-[#C9A227]/45 bg-[#C9A227]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]"
+                href={sharedActions.changeRequestHref}
+              >
+                Add details / Change request
+              </a>
+            ) : null}
+          </div>
+        ) : null}
 
         <p className="text-[10px] leading-snug text-[#8A8680]">
           All-in includes repositioning, crew, fuel, FET &amp; segment fees where
@@ -273,3 +320,4 @@ export function ClientLogisticsQuotePreview({
     </div>
   )
 }
+

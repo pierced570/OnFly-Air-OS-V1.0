@@ -1028,10 +1028,19 @@ export async function updateHardQuoteClientPricing(
 }
 
 export async function acceptHardQuoteOption(token: string, offerId: string) {
-  const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
+  const store = await import('@/lib/tripStore')
+  let trip = store.getTripByAcceptToken(token)
+  if (!trip) {
+    const { resolveTripByAcceptToken } = await import('@/lib/db/hydrateTrips')
+    trip = await resolveTripByAcceptToken(token)
+  }
   if (!trip) throw new Error('invalid accept token')
-  if (trip.state === 'booked' || trip.state === 'in_progress' || trip.state === 'delivered') {
-    return getTrip(trip.id)!
+  if (
+    trip.state === 'booked' ||
+    trip.state === 'in_progress' ||
+    trip.state === 'delivered'
+  ) {
+    return store.getTrip(trip.id)!
   }
   if (trip.state !== 'quoted_hard') {
     throw new Error(`cannot accept from state ${trip.state}`)
@@ -1039,21 +1048,28 @@ export async function acceptHardQuoteOption(token: string, offerId: string) {
   const opt = trip.hard_quote?.options?.find((o) => o.offer_id === offerId)
   const offer = trip.offers.find((o) => o.id === offerId)
   if (!offer && !opt) throw new Error('option not found')
-  mutateTrip(trip.id, (t) => {
+  // Mark selected only — do NOT shrink hard_quote.options here. Mutating the
+  // option list triggers a sync store re-render mid-click and the Accept
+  // button can appear to "eat" the first tap.
+  store.mutateTrip(trip.id, (t) => {
     for (const o of t.offers) {
       if (o.id === offerId) o.state = 'selected'
-      // Leave other quoted offers as quoted — acceptHardQuote sends
-      // stand-down notices, then marks them stood_down.
-    }
-    if (t.hard_quote?.options?.length) {
-      const kept = t.hard_quote.options.find((o) => o.offer_id === offerId)
-      if (kept) {
-        t.hard_quote.total = kept.client_total
-        t.hard_quote.options = [kept]
-      }
     }
   })
-  return acceptHardQuote(token)
+  const booked = await acceptHardQuote(token)
+  store.mutateTrip(booked.id, (t) => {
+    if (!t.hard_quote?.options?.length) return
+    const kept =
+      t.hard_quote.options.find((o) => o.offer_id === offerId) ??
+      t.hard_quote.options.find((o) =>
+        t.offers.some((x) => x.id === o.offer_id && x.state === 'selected'),
+      )
+    if (kept) {
+      t.hard_quote.total = kept.client_total
+      t.hard_quote.options = [kept]
+    }
+  })
+  return store.getTrip(booked.id)!
 }
 
 /**
