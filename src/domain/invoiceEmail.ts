@@ -174,36 +174,45 @@ export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
         </tr>`
       : ''
 
+  /** Full-width stacked stop — side-by-side columns crush on mobile email. */
   const stopCard = (stop: EtaSheetEmailStop) => {
     const kind = stop.kind === 'pickup' ? 'PICKUP' : 'DROP-OFF'
     const badge = stop.placeBadge?.trim()
     const lines = stop.addressLines.map((l) => l.trim()).filter(Boolean)
-    return `<td style="width:50%;padding:8px;vertical-align:top">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5e5e5;border-radius:10px">
-        <tr><td style="padding:16px 16px 14px">
-          <div>
-            <span style="display:inline-block;background:#0c0c0e;color:#f7f2e3;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:999px">${kind}</span>
+    return `<tr>
+      <td style="padding:0 0 10px;vertical-align:top">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5e5e5;border-radius:10px">
+          <tr><td style="padding:14px 16px">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding:0;vertical-align:middle">
+                  <span style="display:inline-block;background:#0c0c0e;color:#f7f2e3;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:999px">${kind}</span>
+                </td>
+                ${
+                  badge
+                    ? `<td style="padding:0 0 0 6px;vertical-align:middle">
+                  <span style="display:inline-block;background:#c9a227;color:#0c0c0e;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:999px">${escapeHtml(badge)}</span>
+                </td>`
+                    : ''
+                }
+              </tr>
+            </table>
+            <div style="margin-top:10px;font-size:15px;font-weight:700;color:#0c0c0e;line-height:1.35">${escapeHtml(stop.title)}</div>
+            ${lines
+              .map(
+                (l) =>
+                  `<div style="margin-top:4px;font-size:13px;color:#5c5852;line-height:1.45">${escapeHtml(l)}</div>`,
+              )
+              .join('')}
             ${
-              badge
-                ? `<span style="display:inline-block;background:#c9a227;color:#0c0c0e;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:999px;margin-left:6px">${escapeHtml(badge)}</span>`
+              stop.footer?.trim()
+                ? `<div style="margin-top:10px;font-size:12px;color:#0c0c0e;line-height:1.45">${escapeHtml(stop.footer.trim())}</div>`
                 : ''
             }
-          </div>
-          <div style="margin-top:12px;font-size:15px;font-weight:700;color:#0c0c0e;line-height:1.35">${escapeHtml(stop.title)}</div>
-          ${lines
-            .map(
-              (l) =>
-                `<div style="margin-top:4px;font-size:13px;color:#5c5852;line-height:1.45">${escapeHtml(l)}</div>`,
-            )
-            .join('')}
-          ${
-            stop.footer?.trim()
-              ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #ececec;font-size:12px;color:#0c0c0e;line-height:1.45">${escapeHtml(stop.footer.trim())}</div>`
-              : ''
-          }
-        </td></tr>
-      </table>
-    </td>`
+          </td></tr>
+        </table>
+      </td>
+    </tr>`
   }
 
   const milestoneRows = tpl.milestones
@@ -316,22 +325,16 @@ export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
         <tr>
           <td style="padding:16px 14px;background:#f3f1eb">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                ${stopCard(tpl.pickup)}
-                ${stopCard(tpl.dropoff)}
-              </tr>
+              ${stopCard(tpl.pickup)}
+              ${stopCard(tpl.dropoff)}
             </table>
           </td>
         </tr>
 
         <tr>
           <td style="padding:22px 22px 8px">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="font-size:11px;font-weight:700;letter-spacing:0.14em;color:#0c0c0e">PROJECTED TIMELINE</td>
-                <td align="right" style="font-size:11px;color:#6b6560">${tzNote}</td>
-              </tr>
-            </table>
+            <div style="font-size:11px;font-weight:700;letter-spacing:0.14em;color:#0c0c0e">PROJECTED TIMELINE</div>
+            <div style="margin-top:4px;font-size:11px;color:#6b6560;line-height:1.4">${tzNote}</div>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;border-collapse:collapse">
               <tr>
                 <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700">MILESTONE</th>

@@ -314,73 +314,49 @@ export function PortalTrackingBody({
             Stages appear once the trip is live.
           </p>
         ) : (
-          <ol
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: `repeat(${opsRows.length}, minmax(0, 1fr))`,
-            }}
-          >
-            {opsRows.map((row, i) => {
+          <ol className="divide-y divide-border overflow-hidden rounded-md border border-border bg-white">
+            {opsRows.map((row) => {
               const done = row.status === 'done'
               const active = row.status === 'active'
-              const prevDone =
-                i > 0 ? opsRows[i - 1]!.status === 'done' : false
               return (
                 <li
                   key={row.key}
-                  className="flex min-w-0 flex-col items-center text-center"
+                  className="flex items-start gap-3 px-3.5 py-3"
                 >
-                  <div className="relative flex h-8 w-full items-center justify-center">
-                    {i > 0 ? (
-                      <span
-                        aria-hidden
-                        className={[
-                          'absolute left-0 right-1/2 top-1/2 h-0.5 -translate-y-1/2',
-                          prevDone || done ? 'bg-gold' : 'bg-border',
-                        ].join(' ')}
-                      />
-                    ) : null}
-                    {i < opsRows.length - 1 ? (
-                      <span
-                        aria-hidden
-                        className={[
-                          'absolute left-1/2 right-0 top-1/2 h-0.5 -translate-y-1/2',
-                          done ? 'bg-gold' : 'bg-border',
-                        ].join(' ')}
-                      />
-                    ) : null}
-                    <span
+                  <span
+                    className={[
+                      'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold',
+                      done
+                        ? 'border-gold bg-gold text-ink'
+                        : active
+                          ? 'border-gold bg-[#F7F2E3] text-gold ring-4 ring-gold/25'
+                          : 'border-border bg-white text-transparent',
+                    ].join(' ')}
+                    aria-hidden
+                  >
+                    {done ? '✓' : ''}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div
                       className={[
-                        'relative z-[1] flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold',
-                        done
-                          ? 'border-gold bg-gold text-ink'
-                          : active
-                            ? 'border-gold bg-[#F7F2E3] text-gold ring-4 ring-gold/25'
-                            : 'border-border bg-white text-transparent',
+                        'text-sm font-semibold leading-snug',
+                        active ? 'text-gold' : 'text-ink',
                       ].join(' ')}
                     >
-                      {done ? '✓' : ''}
-                    </span>
-                  </div>
-                  <div
-                    className={[
-                      'mt-2 w-full px-1 text-[10px] font-semibold uppercase leading-snug tracking-wider',
-                      active ? 'text-gold' : 'text-ink',
-                    ].join(' ')}
-                  >
-                    {clientOpsStageLabel(row)}
-                  </div>
-                  <div
-                    className={[
-                      'mt-0.5 w-full px-1 text-[10px] uppercase tracking-wider',
-                      done
-                        ? 'text-[#2E7D32]'
-                        : active
-                          ? 'text-gold'
-                          : 'text-muted',
-                    ].join(' ')}
-                  >
-                    {stageStatusLabel(row.status)}
+                      {clientOpsStageLabel(row)}
+                    </div>
+                    <div
+                      className={[
+                        'mt-0.5 text-[11px] uppercase tracking-wider',
+                        done
+                          ? 'text-[#2E7D32]'
+                          : active
+                            ? 'text-gold'
+                            : 'text-muted',
+                      ].join(' ')}
+                    >
+                      {stageStatusLabel(row.status)}
+                    </div>
                   </div>
                 </li>
               )
