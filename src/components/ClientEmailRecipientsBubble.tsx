@@ -57,11 +57,13 @@ export function emptyClientEmailSelection(): ClientEmailSelection {
   return { to: [], cc: [], bcc: [] }
 }
 
-/** Prefill To only — request-alert contacts, else primary client email. Never auto-fill CC/BCC. */
+/** Prefill To from request-alert contacts (else primary). Always BCC info@. */
 export function defaultClientEmailSelection(
   clientId?: string | null,
 ): ClientEmailSelection {
-  if (!clientId) return emptyClientEmailSelection()
+  if (!clientId) {
+    return { to: [], cc: [], bcc: [ONFLY_INFO_BCC] }
+  }
   const client = getClient(clientId)
   const alert = uniq(listRequestAlertEmails(clientId))
   const primary = normalize(client?.email ?? '')
@@ -70,7 +72,7 @@ export function defaultClientEmailSelection(
     : primary.includes('@')
       ? [primary]
       : []
-  return { to, cc: [], bcc: [] }
+  return { to, cc: [], bcc: [ONFLY_INFO_BCC] }
 }
 
 /**

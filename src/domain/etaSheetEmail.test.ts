@@ -11,8 +11,8 @@ describe('etaSheetEmail', () => {
   it('formats short lane and pattern badges', () => {
     expect(shortLaneLabel('KCAK → KHPN')).toBe('CAK → HPN')
     expect(shortLaneLabel('KCAK→KDFW')).toBe('CAK → DFW')
-    expect(patternLabelForService('D2D')).toBe('DOOR → DOOR')
-    expect(patternLabelForService('A2A')).toBe('AIRPORT → AIRPORT')
+    expect(patternLabelForService('D2D')).toBe('Door to door')
+    expect(patternLabelForService('A2A')).toBe('Airport to airport')
   })
 
   it('renders branded payment-request style ETA sheet with portal CTA', () => {
@@ -29,7 +29,7 @@ describe('etaSheetEmail', () => {
       poNumber: '12345',
       laneShort: 'CAK → HPN',
       preparedLabel: 'Prepared Tue Jul 29 · 15:40 EST',
-      patternLabel: 'DOOR → DOOR',
+      patternLabel: 'Door to door',
       aircraftType: 'Cessna 310',
       aircraftBlurb: 'Twin piston · cargo configuration',
       tail: 'N123TT',
@@ -64,26 +64,33 @@ describe('etaSheetEmail', () => {
       portalUrl: 'https://ofaops.onflyair.com/portal/track/tok123',
     })
 
-    expect(html).toContain('ETA SHEET')
-    expect(html).toContain('PO #12345 · CAK → HPN')
-    expect(html).toContain('DOOR → DOOR')
+    expect(html).toContain('charset="utf-8"')
+    expect(html).toContain('PO #12345')
+    expect(html).toContain('CAK')
+    expect(html).toContain('HPN')
+    expect(html).toContain('Door to door')
     expect(html).toContain('N123TT')
-    expect(html).toContain('Cessna 310')
+    expect(html).toMatch(/Cessna 310|CESSNA 310/i)
     expect(html).toContain('PICKUP')
     expect(html).toContain('DROP-OFF')
-    expect(html).toContain('PROJECTED TIMELINE')
-    expect(html).toContain('— live on portal')
+    expect(html).toContain('Actual vs forecast')
+    expect(html).toContain('Live on portal')
     expect(html).toContain('Open live tracking portal')
     expect(html).toContain('https://ofaops.onflyair.com/portal/track/tok123')
     expect(html).toContain('24-hr ops')
     expect(html).toContain('background:#0c0c0e')
     expect(html).toContain('#c9a227')
+    expect(html).toContain('#f7f2e3')
+    // Prefer entities so preview never mojibakes middot/arrows
+    expect(html).toMatch(/&middot;|&rarr;/)
+    expect(html).not.toContain('Â')
+    expect(html).not.toContain('â†')
 
     const text = renderEtaSheetEmailText({
       poNumber: '12345',
       laneShort: 'CAK → HPN',
       preparedLabel: 'Prepared Tue Jul 29',
-      patternLabel: 'DOOR → DOOR',
+      patternLabel: 'Door to door',
       aircraftType: 'Cessna 310',
       tail: 'N123TT',
       pickup: {

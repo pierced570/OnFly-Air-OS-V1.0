@@ -169,6 +169,11 @@ function mapTripShellRow(
     invoice: (meta.invoice as TripStoreRow['invoice']) ?? null,
     client_id: clientId,
     client_name: metaName || fromDir || null,
+    po_number:
+      (typeof r.po_number === 'string' && r.po_number.trim()
+        ? r.po_number.trim()
+        : null) ||
+      ((meta.quick as TripStoreRow['quick'] | undefined)?.po?.trim() || null),
     request_id:
       typeof meta.request_id === 'string' && meta.request_id.trim()
         ? meta.request_id.trim()

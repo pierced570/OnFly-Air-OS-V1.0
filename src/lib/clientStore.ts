@@ -14,6 +14,7 @@ import {
   type ClientBaseRef,
 } from '@/domain/clientBaseEmails'
 import { hardFiltersFromPolicy, normalizeMissionPolicy } from '@/domain/clientOnboard'
+import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import type { ClientRules as RoutingClientRules } from '@/domain/routing'
 
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
@@ -639,8 +640,10 @@ export function rememberEmailsOnClient(
 ): void {
   const row = clients.get(clientId)
   if (!row) return
+  const skipOps = (email: string) =>
+    email.trim().toLowerCase() === ONFLY_INFO_BCC
   const inv = invoiceEmail.trim()
-  if (inv) {
+  if (inv && !skipOps(inv)) {
     row.invoice_email = inv
     if (!row.contacts.some((c) => c.email.toLowerCase() === inv.toLowerCase())) {
       row.contacts.push({
@@ -655,7 +658,7 @@ export function rememberEmailsOnClient(
   }
   for (const raw of ccEmails) {
     const email = raw.trim()
-    if (!email || !email.includes('@')) continue
+    if (!email || !email.includes('@') || skipOps(email)) continue
     if (row.contacts.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
       continue
     }
@@ -670,7 +673,7 @@ export function rememberEmailsOnClient(
   }
   for (const raw of etaEmails) {
     const email = raw.trim()
-    if (!email || !email.includes('@')) continue
+    if (!email || !email.includes('@') || skipOps(email)) continue
     if (row.contacts.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
       continue
     }

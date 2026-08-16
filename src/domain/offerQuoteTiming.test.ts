@@ -5,6 +5,7 @@ import {
   DEFAULT_QUICK_TURN_MIN,
   buildDeskOfferQuoteTimeline,
   computeOfferQuoteTiming,
+  hrsMinsFieldDisplay,
   hrsMinsFromTotal,
   parseLaneAirports,
   totalMinutesFromHrsMins,
@@ -22,6 +23,21 @@ describe('offerQuoteTiming', () => {
   it('round-trips hrs/mins', () => {
     expect(totalMinutesFromHrsMins({ hours: 1, minutes: 30 })).toBe(90)
     expect(hrsMinsFromTotal(75)).toEqual({ hours: 1, minutes: 15 })
+  })
+
+  it('shows blank for zero parts so backspace can clear the field', () => {
+    expect(hrsMinsFieldDisplay(null, 'hours')).toBe('')
+    expect(hrsMinsFieldDisplay(null, 'minutes')).toBe('')
+    expect(hrsMinsFieldDisplay(0, 'hours')).toBe('')
+    expect(hrsMinsFieldDisplay(0, 'minutes')).toBe('')
+    // 1h 0m — minutes blank (not stuck "0")
+    expect(hrsMinsFieldDisplay(60, 'hours')).toBe('1')
+    expect(hrsMinsFieldDisplay(60, 'minutes')).toBe('')
+    // 0h 30m — hours blank
+    expect(hrsMinsFieldDisplay(30, 'hours')).toBe('')
+    expect(hrsMinsFieldDisplay(30, 'minutes')).toBe('30')
+    expect(hrsMinsFieldDisplay(90, 'hours')).toBe('1')
+    expect(hrsMinsFieldDisplay(90, 'minutes')).toBe('30')
   })
 
   it('exposes operator reference placeholders', async () => {

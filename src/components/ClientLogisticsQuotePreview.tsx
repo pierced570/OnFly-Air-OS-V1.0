@@ -2,6 +2,12 @@
  * Client-facing logistics quote layout — shared by /accept and desk preview.
  * Portal-safe: no operator names, margins, or carrier branding.
  * Keep the card about price + times; supporting copy stays fine print.
+ *
+ * Visual system (client cream theme):
+ * - Ink header/footer brand bars; cream body; white option cards
+ * - One gold CTA style for every Accept
+ * - Recommended = gold badge + gold border only (same weight as siblings)
+ * - Milestone cells share one cream tile; Delivered is gold-labelled, not inverted
  */
 
 import { BRAND_EMAIL, BRAND_PHONE } from '@/domain/brand'
@@ -41,6 +47,9 @@ type Props = {
   trackingHintUrl?: string | null
 }
 
+const acceptCtaClass =
+  'rounded-lg bg-[#C9A227] px-3.5 py-2 text-sm font-semibold text-[#0C0C0E]'
+
 export function ClientLogisticsQuotePreview({
   title,
   options,
@@ -65,13 +74,13 @@ export function ClientLogisticsQuotePreview({
   return (
     <div
       className={[
-        'overflow-hidden rounded-xl border border-[#E5DFD0] bg-white text-[#0C0C0E] shadow-sm',
+        'overflow-hidden rounded-xl border border-[#E5DFD0] bg-[#F7F2E3] text-[#0C0C0E] shadow-sm',
         className ?? '',
       ].join(' ')}
       data-theme="client"
     >
       {previewBanner ? (
-        <div className="border-b border-[#C9A227]/40 bg-[#C9A227]/15 px-4 py-1.5 text-[11px] font-medium text-[#0C0C0E]">
+        <div className="border-b border-[#C9A227]/35 bg-[#C9A227]/20 px-4 py-1.5 text-[11px] font-medium text-[#0C0C0E]">
           {previewBanner}
         </div>
       ) : null}
@@ -95,7 +104,7 @@ export function ClientLogisticsQuotePreview({
             {missionChips.map((c) => (
               <span
                 key={c.label}
-                className="rounded-full bg-[#1A1A1C] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#F7F2E3]"
+                className="rounded-full border border-[#F7F2E3]/20 bg-[#1A1A1C] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#F7F2E3]/90"
               >
                 {c.label}
               </span>
@@ -111,22 +120,11 @@ export function ClientLogisticsQuotePreview({
         <ul className="space-y-3">
           {options.map((opt) => {
             const actions = interactive ? optionActions?.(opt) : null
-            const recommended = Boolean(opt.recommended)
             return (
               <li
                 key={opt.offer_id}
-                className={[
-                  'overflow-hidden rounded-xl border-2 bg-white',
-                  recommended
-                    ? 'border-[#C9A227] bg-[#FFFDF6]'
-                    : 'border-[#E5DFD0]',
-                ].join(' ')}
+                className="overflow-hidden rounded-xl border border-[#E5DFD0] bg-white"
               >
-                {opt.recommended_badge ? (
-                  <div className="bg-[#C9A227] px-3 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#0C0C0E]">
-                    {opt.recommended_badge}
-                  </div>
-                ) : null}
                 <div className="space-y-2.5 px-3.5 py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <div className="min-w-0 text-base font-semibold text-[#0C0C0E]">
@@ -150,10 +148,8 @@ export function ClientLogisticsQuotePreview({
                           <div
                             key={m.key}
                             className={[
-                              'rounded-md px-2 py-1.5',
-                              hi
-                                ? 'bg-[#0C0C0E] text-[#C9A227]'
-                                : 'bg-[#F3EBDA] text-[#0C0C0E]',
+                              'rounded-md bg-[#F7F2E3] px-2 py-1.5',
+                              hi ? 'ring-1 ring-[#C9A227]/55' : '',
                             ].join(' ')}
                           >
                             <div
@@ -164,7 +160,7 @@ export function ClientLogisticsQuotePreview({
                             >
                               {m.label}
                             </div>
-                            <div className="avionic mt-0.5 text-sm font-semibold">
+                            <div className="avionic mt-0.5 text-sm font-semibold text-[#0C0C0E]">
                               {m.clock}
                             </div>
                           </div>
@@ -183,12 +179,7 @@ export function ClientLogisticsQuotePreview({
                       <button
                         type="button"
                         disabled={actions.busy}
-                        className={[
-                          'rounded-lg px-3.5 py-2 text-sm font-semibold disabled:opacity-50',
-                          recommended
-                            ? 'bg-[#0C0C0E] text-[#C9A227]'
-                            : 'border border-[#C9A227] bg-white text-[#C9A227]',
-                        ].join(' ')}
+                        className={`${acceptCtaClass} disabled:opacity-50`}
                         onClick={actions.onAccept}
                       >
                         {actions.busy
@@ -196,14 +187,7 @@ export function ClientLogisticsQuotePreview({
                           : `Accept ${opt.option_number_label}`}
                       </button>
                     ) : !interactive ? (
-                      <div
-                        className={[
-                          'rounded-lg px-3.5 py-2 text-sm font-semibold',
-                          recommended
-                            ? 'bg-[#0C0C0E] text-[#C9A227]'
-                            : 'border border-[#C9A227] text-[#C9A227]',
-                        ].join(' ')}
-                      >
+                      <div className={acceptCtaClass}>
                         Accept {opt.option_number_label}
                       </div>
                     ) : null}
@@ -215,7 +199,7 @@ export function ClientLogisticsQuotePreview({
                         <button
                           type="button"
                           disabled={actions.busy}
-                          className="rounded-md border border-[#E5DFD0] px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E] disabled:opacity-50"
+                          className="rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E] disabled:opacity-50"
                           onClick={actions.onDeny}
                         >
                           Deny all options
@@ -223,7 +207,7 @@ export function ClientLogisticsQuotePreview({
                       ) : null}
                       {actions.changeRequestHref ? (
                         <a
-                          className="rounded-md border border-[#C9A227]/40 bg-[#C9A227]/10 px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]"
+                          className="rounded-md border border-[#C9A227]/45 bg-[#C9A227]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]"
                           href={actions.changeRequestHref}
                         >
                           Add details / Change request
@@ -260,7 +244,7 @@ export function ClientLogisticsQuotePreview({
       </footer>
 
       {trackingHintUrl?.trim() ? (
-        <p className="bg-[#ECE8DF] px-5 py-2 text-center text-[11px] text-[#6B6560]">
+        <p className="border-t border-[#E5DFD0] bg-[#F7F2E3] px-5 py-2 text-center text-[11px] text-[#6B6560]">
           Once booked:{' '}
           <a
             className="font-semibold text-[#0C0C0E] underline"
@@ -271,7 +255,7 @@ export function ClientLogisticsQuotePreview({
         </p>
       ) : null}
 
-      <p className="border-t border-[#E5DFD0] bg-[#F9F7F2] px-5 py-1.5 text-[9px] leading-snug text-[#8A8680]">
+      <p className="border-t border-[#E5DFD0] bg-[#F3EBDA] px-5 py-1.5 text-[9px] leading-snug text-[#8A8680]">
         {disclosureText?.trim() ||
           'Operated by a vetted Part 135 carrier. OnFly Air acts as broker and is not the air carrier.'}
       </p>

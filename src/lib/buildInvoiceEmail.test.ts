@@ -108,6 +108,6 @@ describe('buildInvoiceEmailTemplate', () => {
     expect(tpl.milestones.some((m) => /Wheels up|Landing|Arrive/i.test(m.label))).toBe(
       true,
     )
-    expect(tpl.patternLabel).toContain('AIRPORT')
+    expect(tpl.patternLabel.toLowerCase()).toContain('airport')
   })
 })

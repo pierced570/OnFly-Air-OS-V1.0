@@ -22,6 +22,7 @@ import {
   standDownEmail,
   DISCLOSURE_295_24_TEMPLATE,
 } from '@/domain/offers'
+import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import { absoluteAppUrl, appPublicUrl } from '@/lib/appUrl'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import { getClient, listInvoiceEmails, listRequestAlertEmails } from '@/lib/clientStore'
@@ -856,9 +857,10 @@ export async function selectOffersAndHardQuote(
         .filter((e) => e.includes('@') && !recipients.includes(e)),
     ),
   ]
+  // Always archive a copy on info@ — desk can add more BCCs, never remove this one.
   const bccEmails = [
     ...new Set(
-      (opts?.bccEmails ?? [])
+      [...(opts?.bccEmails ?? []), ONFLY_INFO_BCC]
         .map((e) => e.trim().toLowerCase())
         .filter(
           (e) =>
@@ -1040,7 +1042,8 @@ export async function acceptHardQuoteOption(token: string, offerId: string) {
   mutateTrip(trip.id, (t) => {
     for (const o of t.offers) {
       if (o.id === offerId) o.state = 'selected'
-      else if (o.state === 'selected' || o.state === 'quoted') o.state = 'stood_down'
+      // Leave other quoted offers as quoted — acceptHardQuote sends
+      // stand-down notices, then marks them stood_down.
     }
     if (t.hard_quote?.options?.length) {
       const kept = t.hard_quote.options.find((o) => o.offer_id === offerId)
@@ -1186,8 +1189,8 @@ function canSms(cell: string | null | undefined, isMock?: boolean): boolean {
 }
 
 /**
- * Notify one operator of win or stand-down on the same channel(s) used for
- * the original trip-offer request (SMS / email / both).
+ * Notify one operator of win or stand-down on every available channel
+ * (SMS and/or email). Failures are logged only — never thrown to the client.
  */
 async function notifyOperatorBookOutcome(
   offer: OfferRow,
@@ -1196,8 +1199,6 @@ async function notifyOperatorBookOutcome(
 ): Promise<void> {
   const email = createEmailAdapter()
   const smsLive = isSmsDeliveryEnabled()
-  let channel = normalizeQuoteLinkChannel(offer.quote_link_channel)
-  if (!smsLive && channel === 'sms') channel = 'email'
 
   const go = missionGoEmail({
     lane,
@@ -1211,11 +1212,7 @@ async function notifyOperatorBookOutcome(
       : standDownBody(lane)
   const mail = kind === 'won' ? go : down
 
-  if (
-    smsLive &&
-    channelIncludesSms(channel) &&
-    canSms(offer.contact_cell, offer.contact_cell_is_mock)
-  ) {
+  if (smsLive && canSms(offer.contact_cell, offer.contact_cell_is_mock)) {
     try {
       const comms = createCommsAdapter()
       await comms.send({
@@ -1227,7 +1224,8 @@ async function notifyOperatorBookOutcome(
       console.warn('[book] operator SMS failed', offer.operator_name, e)
     }
   }
-  if (channelIncludesEmail(channel) && offer.contact_email?.includes('@')) {
+
+  if (offer.contact_email?.includes('@')) {
     try {
       await email.send({
         to: offer.contact_email.trim(),
@@ -1295,15 +1293,22 @@ export async function acceptHardQuote(
   const { portalTrackingUrlForTrip } = await import('@/lib/etaSheetSender')
   const trackPath = portalTrackingUrlForTrip(fresh.id)
 
-  // Client loop — SMS tracking tip when we have cells (invoice/ETA emails are
-  // desk-confirmed on Approved with preset To + contact picker).
-  const comms = createCommsAdapter()
-  for (const cell of recipientCells(fresh)) {
-    await comms.send({
-      channel: 'sms',
-      to: cell,
-      body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
-    })
+  // Client tracking SMS — best-effort only; never fail the accept UX.
+  try {
+    const comms = createCommsAdapter()
+    for (const cell of recipientCells(fresh)) {
+      try {
+        await comms.send({
+          channel: 'sms',
+          to: cell,
+          body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
+        })
+      } catch (e) {
+        console.warn('[accept] client tracking SMS failed', cell, e)
+      }
+    }
+  } catch (e) {
+    console.warn('[accept] client tracking SMS skipped', e)
   }
 
   if (selected) {
@@ -1335,19 +1340,23 @@ export async function acceptHardQuote(
   const opsRecipients = resolveOpsEmails(fresh)
   if (opsRecipients.length) {
     for (const to of opsRecipients) {
-      await email.send({
-        to,
-        subject: `Mission go · T-${fresh.ref} · ${fresh.lane}`,
-        text: [
-          `Trip T-${fresh.ref} is booked.`,
-          `Tail: ${selected?.tail ?? 'TBD'} · ${selected?.type_name ?? ''}`,
-          `Lane: ${fresh.lane}`,
-          `Track: ${trackPath}`,
-          '',
-          'Timeline:',
-          timeline || '(ETA chain pending)',
-        ].join('\n'),
-      })
+      try {
+        await email.send({
+          to,
+          subject: `Mission go · T-${fresh.ref} · ${fresh.lane}`,
+          text: [
+            `Trip T-${fresh.ref} is booked.`,
+            `Tail: ${selected?.tail ?? 'TBD'} · ${selected?.type_name ?? ''}`,
+            `Lane: ${fresh.lane}`,
+            `Track: ${trackPath}`,
+            '',
+            'Timeline:',
+            timeline || '(ETA chain pending)',
+          ].join('\n'),
+        })
+      } catch (e) {
+        console.warn('[accept] ops mission-go email failed', to, e)
+      }
     }
   }
 
@@ -1362,52 +1371,47 @@ export async function acceptHardQuote(
 
   {
     const { ensureTripThread, getTrip: gt } = await import('@/lib/tripStore')
-    await ensureTripThread(trip.id)
-    const booked = gt(trip.id)
-    const sel = booked?.offers.find((o) => o.state === 'selected')
-    if (sel && booked) {
-      const { addTripParticipant, inviteTripParticipant } = await import(
-        '@/lib/tripStore'
-      )
-      const already = booked.participants.some(
-        (p) => p.role === 'operator_ops' && p.name === sel.operator_name,
-      )
-      if (!already) {
-        const p = addTripParticipant(trip.id, {
-          name: sel.operator_name,
-          company: sel.operator_name,
-          role: 'operator_ops',
-          cell: sel.contact_cell,
-          in_thread: true,
-        })
-        await inviteTripParticipant(trip.id, p.id)
+    try {
+      await ensureTripThread(trip.id)
+      const booked = gt(trip.id)
+      const sel = booked?.offers.find((o) => o.state === 'selected')
+      if (sel && booked) {
+        const { addTripParticipant, inviteTripParticipant } = await import(
+          '@/lib/tripStore'
+        )
+        const already = booked.participants.some(
+          (p) => p.role === 'operator_ops' && p.name === sel.operator_name,
+        )
+        if (!already) {
+          const p = addTripParticipant(trip.id, {
+            name: sel.operator_name,
+            company: sel.operator_name,
+            role: 'operator_ops',
+            cell: sel.contact_cell,
+            in_thread: true,
+          })
+          try {
+            await inviteTripParticipant(trip.id, p.id)
+          } catch (e) {
+            console.warn('[accept] operator thread invite failed', e)
+          }
+        }
       }
+    } catch (e) {
+      console.warn('[accept] trip thread setup failed', e)
     }
   }
 
   try {
-    const { allocateNextPoForClient } = await import('@/lib/allocateNextPo')
-    const { getClient } = await import('@/lib/clientStore')
     const booked = getTrip(trip.id)!
-    const clientName =
-      booked.quick?.client_name ??
-      (booked.client_id ? getClient(booked.client_id)?.name : undefined) ??
-      'Client'
-    if (!booked.po_number?.trim() && !booked.quick?.po?.trim()) {
-      const po = await allocateNextPoForClient({
-        clientId: booked.client_id,
-        clientName,
-      })
-      mutateTrip(trip.id, (t) => {
-        t.po_number = po
-        if (t.quick) t.quick.po = po
-      })
+    // Never invent a PO here (e.g. CLI0001). Desk enters PO on Approved /
+    // hard-quote composer; invoice draft waits until a real PO exists.
+    if (booked.po_number?.trim() || booked.quick?.po?.trim()) {
+      const { createInvoiceForTrip } = await import('@/lib/tripStore')
+      await createInvoiceForTrip(trip.id, { skipEmail: true })
     }
-    // Create QB invoice (draft) — desk sends from Approved actions with bubble.
-    const { createInvoiceForTrip } = await import('@/lib/tripStore')
-    await createInvoiceForTrip(trip.id, { skipEmail: true })
   } catch (e) {
-    console.warn('[accept] invoice / PO allocate failed', e)
+    console.warn('[accept] invoice create failed', e)
   }
 
   const { runOnBookedAutomations } = await import('@/lib/onBooked')
