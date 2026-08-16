@@ -19,12 +19,15 @@ import type { ClientRules as RoutingClientRules } from '@/domain/routing'
 
 export type ContactRole = 'requester' | 'ap' | 'supply_chain'
 
+/** Person vs distribution list — directory badge only; role+prefs still drive sends. */
+export type ContactKind = 'person' | 'dl'
+
 export type ContactNotifyPrefs = {
   /** This email inbound → draft trip + ring on-shift dispatcher */
   request_alert: boolean
-  /** Receive QuickBooks / invoice emails */
+  /** Receive QuickBooks / invoice emails (AP flag) */
   invoice: boolean
-  /** Receive tracker / ETA sheet / status pushes */
+  /** Always include on ETA / tracker when true */
   tracker: boolean
 }
 
@@ -34,6 +37,14 @@ export type ClientContact = {
   email: string
   cell: string
   role: ContactRole
+  kind: ContactKind
+  /** Job title / desk label (e.g. MX Supervisor, AOG Desk). */
+  title?: string
+  /**
+   * Airport ICAOs — when a trip uses these airports, this email autopopulates
+   * on the ETA sheet (in addition to global tracker flag).
+   */
+  eta_icaos?: string[]
   notify_prefs: ContactNotifyPrefs
 }
 
@@ -85,7 +96,10 @@ export type ClientExtendedProfile = {
     zip: string
   }
   billing_same_as_address?: boolean
+  /** Desk / inbound line (“call us”). */
   front_desk_phone?: string
+  /** Client callback / outbound line (“call them”). */
+  ops_callback_phone?: string
   emergency?: { name: string; email: string; phone: string }
   frequent_lanes?: Array<{
     origin: string
@@ -198,6 +212,12 @@ function loadLocal(): void {
       row.rules = { ...DEFAULT_CLIENT_RULES, ...(row.rules ?? {}) }
       if (!row.profile) row.profile = {}
       if (!Array.isArray(row.contacts)) row.contacts = []
+      for (const c of row.contacts) {
+        if (!c.kind) c.kind = 'person'
+        if (!c.notify_prefs) {
+          c.notify_prefs = { request_alert: false, invoice: false, tracker: false }
+        }
+      }
       clients.set(row.id, row)
       if (row.supabase_id && row.supabase_id !== row.id) {
         clientIdAliases.set(row.supabase_id, row.id)
@@ -353,6 +373,10 @@ export function addClient(opts: {
     email: string
     role?: ContactRole
     cell?: string
+    kind?: ContactKind
+    title?: string
+    eta_icaos?: string[]
+    notify_prefs?: Partial<ContactNotifyPrefs>
   }>
 }): ClientProfile {
   const id = `client-${crypto.randomUUID().slice(0, 8)}`
@@ -371,7 +395,12 @@ export function addClient(opts: {
         email: c.email.trim(),
         cell: c.cell?.trim() ?? '',
         role,
-        notify_prefs: defaultPrefs(role),
+        kind: c.kind ?? 'person',
+        title: c.title?.trim() || undefined,
+        eta_icaos: c.eta_icaos?.length ? [...c.eta_icaos] : undefined,
+        notify_prefs: c.notify_prefs
+          ? { ...defaultPrefs(role), ...c.notify_prefs }
+          : defaultPrefs(role),
       }
     }),
     last_po: null,
@@ -496,6 +525,12 @@ export function addClientContact(
   email: string,
   role: ContactRole = 'requester',
   cell = '',
+  extra?: {
+    kind?: ContactKind
+    title?: string
+    eta_icaos?: string[]
+    notify_prefs?: Partial<ContactNotifyPrefs>
+  },
 ): ClientContact | undefined {
   const row = clients.get(clientId)
   if (!row) return undefined
@@ -505,7 +540,15 @@ export function addClientContact(
     email: email.trim(),
     cell: cell.trim(),
     role,
-    notify_prefs: defaultPrefs(role),
+    kind: extra?.kind ?? 'person',
+    title: extra?.title?.trim() || undefined,
+    eta_icaos: extra?.eta_icaos?.length
+      ? [...extra.eta_icaos.map((x) => x.trim().toUpperCase()).filter(Boolean)]
+      : undefined,
+    notify_prefs: {
+      ...defaultPrefs(role),
+      ...(extra?.notify_prefs ?? {}),
+    },
   }
   const existing = row.contacts.find(
     (c) => c.email.toLowerCase() === contact.email.toLowerCase(),
@@ -514,11 +557,28 @@ export function addClientContact(
     existing.name = contact.name || existing.name
     existing.role = role
     existing.cell = cell || existing.cell
-    existing.notify_prefs = { ...existing.notify_prefs, ...defaultPrefs(role) }
+    existing.kind = contact.kind
+    if (contact.title) existing.title = contact.title
+    if (contact.eta_icaos?.length) {
+      const set = new Set([
+        ...(existing.eta_icaos ?? []),
+        ...contact.eta_icaos,
+      ])
+      existing.eta_icaos = [...set]
+    }
+    existing.notify_prefs = {
+      ...existing.notify_prefs,
+      ...defaultPrefs(role),
+      ...(extra?.notify_prefs ?? {}),
+    }
   } else {
     row.contacts.push(contact)
   }
-  if (role === 'ap' && contact.email && !row.invoice_email) {
+  if (
+    (role === 'ap' || contact.notify_prefs.invoice) &&
+    contact.email &&
+    !row.invoice_email
+  ) {
     row.invoice_email = contact.email
   }
   bump(clientId)
@@ -529,7 +589,10 @@ export function updateClientContact(
   clientId: string,
   contactId: string,
   patch: Partial<
-    Pick<ClientContact, 'name' | 'email' | 'cell' | 'role'> & {
+    Pick<
+      ClientContact,
+      'name' | 'email' | 'cell' | 'role' | 'kind' | 'title' | 'eta_icaos'
+    > & {
       notify_prefs: Partial<ContactNotifyPrefs>
     }
   >,
@@ -541,6 +604,14 @@ export function updateClientContact(
   if (patch.name != null) c.name = patch.name
   if (patch.email != null) c.email = patch.email.trim()
   if (patch.cell != null) c.cell = patch.cell
+  if (patch.kind != null) c.kind = patch.kind
+  if (patch.title != null) c.title = patch.title.trim() || undefined
+  if (patch.eta_icaos != null) {
+    c.eta_icaos = patch.eta_icaos
+      .map((x) => x.trim().toUpperCase())
+      .filter(Boolean)
+    if (!c.eta_icaos.length) c.eta_icaos = undefined
+  }
   if (patch.role != null) {
     c.role = patch.role
     // Role change resets flags to that role's defaults.
@@ -549,7 +620,7 @@ export function updateClientContact(
   if (patch.notify_prefs) {
     c.notify_prefs = { ...c.notify_prefs, ...patch.notify_prefs }
   }
-  if (c.role === 'ap' && c.notify_prefs.invoice && c.email) {
+  if (c.notify_prefs.invoice && c.email) {
     row.invoice_email = c.email
   }
   bump(clientId)
@@ -604,10 +675,41 @@ export function listTrackerEmails(clientId: string): string[] {
   return [...new Set(out)]
 }
 
+function icaoCodesMatch(a: string, b: string): boolean {
+  const x = a.trim().toUpperCase()
+  const y = b.trim().toUpperCase()
+  if (!x || !y) return false
+  if (x === y) return true
+  const sx = x.length === 4 && x.startsWith('K') ? x.slice(1) : x
+  const sy = y.length === 4 && y.startsWith('K') ? y.slice(1) : y
+  return sx === sy
+}
+
 /**
- * ETA / tracking recipients: tracker contacts + base mailboxes
- * (stored or auto-generated from company domain + base ICAO).
- * When legIcaos are provided, prefer bases that match the trip.
+ * Contacts flagged for ETA when the trip uses specific airports
+ * (`eta_icaos`), regardless of the global tracker toggle.
+ */
+export function listAirportEtaEmails(
+  clientId: string,
+  legIcaos: string[],
+): string[] {
+  const cl = getClient(clientId)
+  if (!cl || !legIcaos.length) return []
+  const out: string[] = []
+  for (const c of cl.contacts) {
+    if (!c.email || !c.eta_icaos?.length) continue
+    const hit = c.eta_icaos.some((code) =>
+      legIcaos.some((leg) => icaoCodesMatch(code, leg)),
+    )
+    if (hit) out.push(c.email.toLowerCase())
+  }
+  return [...new Set(out)]
+}
+
+/**
+ * ETA / tracking recipients: tracker contacts + airport-flagged contacts +
+ * base mailboxes (stored or auto-generated).
+ * When legIcaos are provided, prefer bases / eta_icaos that match the trip.
  */
 export function listEtaTrackingEmails(
   clientId: string,
@@ -615,7 +717,9 @@ export function listEtaTrackingEmails(
 ): string[] {
   const cl = getClient(clientId)
   if (!cl) return []
+  const legs = opts?.legIcaos ?? []
   const fromContacts = listTrackerEmails(clientId)
+  const fromAirportFlags = listAirportEtaEmails(clientId, legs)
   const fromBases = listBaseGeneratedEmails(
     {
       email: cl.email,
@@ -625,20 +729,96 @@ export function listEtaTrackingEmails(
       bases: cl.profile.bases,
       frequent_lanes: cl.profile.frequent_lanes,
     },
-    { legIcaos: opts?.legIcaos },
+    { legIcaos: legs },
   ).map((b) => b.email.toLowerCase())
-  return [...new Set([...fromContacts, ...fromBases])]
+  return [...new Set([...fromContacts, ...fromAirportFlags, ...fromBases])]
 }
 
-/** Saved contacts that are ETA/tracker (not AP-only). */
-export function listEtaTrackingContacts(clientId: string): ClientContact[] {
+/** Saved contacts that are ETA/tracker (not AP-only), plus airport-flagged. */
+export function listEtaTrackingContacts(
+  clientId: string,
+  opts?: { legIcaos?: string[] },
+): ClientContact[] {
   const cl = getClient(clientId)
   if (!cl) return []
-  return cl.contacts.filter(
-    (c) =>
-      c.email &&
-      (c.notify_prefs.tracker || c.role === 'supply_chain'),
-  )
+  const legs = opts?.legIcaos ?? []
+  return cl.contacts.filter((c) => {
+    if (!c.email) return false
+    if (c.notify_prefs.tracker || c.role === 'supply_chain') return true
+    if (
+      legs.length &&
+      c.eta_icaos?.some((code) =>
+        legs.some((leg) => icaoCodesMatch(code, leg)),
+      )
+    ) {
+      return true
+    }
+    return false
+  })
+}
+
+/**
+ * Directory mix: people + DLs, with base supervisor/stores DLs folded in
+ * when not already present as contacts (synthetic ids prefixed `base:`).
+ */
+export function listMixedDirectoryContacts(clientId: string): ClientContact[] {
+  const cl = getClient(clientId)
+  if (!cl) return []
+  const byEmail = new Map<string, ClientContact>()
+  for (const c of cl.contacts) {
+    if (!c.email) continue
+    byEmail.set(c.email.toLowerCase(), { ...c, kind: c.kind ?? 'person' })
+  }
+  for (const base of cl.profile.bases ?? []) {
+    const icao = (base.icao ?? '').trim().toUpperCase()
+    if (!icao) continue
+    const slots: Array<{ emails: string[]; title: string }> = [
+      {
+        emails: base.supervisor_emails ?? [],
+        title: `${icao} Supervisors`,
+      },
+      {
+        emails: base.stores_emails ?? [],
+        title: `${icao} Stores`,
+      },
+    ]
+    for (const slot of slots) {
+      for (const email of slot.emails) {
+        const key = email.trim().toLowerCase()
+        if (!key.includes('@')) continue
+        const existing = byEmail.get(key)
+        if (existing) {
+          const set = new Set([
+            ...(existing.eta_icaos ?? []),
+            icao,
+          ])
+          existing.eta_icaos = [...set]
+          if (!existing.title) existing.title = slot.title
+          existing.kind = existing.kind ?? 'dl'
+          continue
+        }
+        byEmail.set(key, {
+          id: `base:${icao}:${key}`,
+          name: slot.title,
+          email: email.trim(),
+          cell: '',
+          role: 'supply_chain',
+          kind: 'dl',
+          title: slot.title,
+          eta_icaos: [icao],
+          notify_prefs: {
+            request_alert: false,
+            invoice: false,
+            tracker: false,
+          },
+        })
+      }
+    }
+  }
+  return [...byEmail.values()].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'dl' ? 1 : -1
+    return a.name.localeCompare(b.name)
+  })
 }
 
 export function rememberEmailsOnClient(
@@ -662,6 +842,7 @@ export function rememberEmailsOnClient(
         email: inv,
         cell: '',
         role: 'ap',
+        kind: 'person',
         notify_prefs: defaultPrefs('ap'),
       })
     }
@@ -678,6 +859,7 @@ export function rememberEmailsOnClient(
       email,
       cell: '',
       role: 'ap',
+      kind: 'person',
       notify_prefs: defaultPrefs('ap'),
     })
   }
@@ -693,6 +875,7 @@ export function rememberEmailsOnClient(
       email,
       cell: '',
       role: 'supply_chain',
+      kind: 'dl',
       notify_prefs: defaultPrefs('supply_chain'),
     })
   }

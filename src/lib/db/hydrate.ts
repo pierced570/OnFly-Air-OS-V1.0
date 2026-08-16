@@ -60,7 +60,7 @@ export async function hydrateOperatingData(): Promise<{
     db()
       .from('clients')
       .select(
-        'id,name,billing_terms,qb_customer_id,notes,invoice_email,last_po,po_prefix,legacy_key,profile,client_contacts(id,name,role,email,cell,notify_prefs),client_rules(*)',
+        'id,name,billing_terms,qb_customer_id,notes,invoice_email,last_po,po_prefix,legacy_key,profile,client_contacts(id,name,role,email,cell,notify_prefs,kind,title,eta_icaos),client_rules(*)',
       )
       .order('name'),
   )
@@ -78,12 +78,20 @@ export async function hydrateOperatingData(): Promise<{
         invoice_email: String(r.invoice_email ?? ''),
         contacts: contactsRaw.map((c) => {
           const p = (c.notify_prefs as Record<string, boolean>) ?? {}
+          const etaRaw = c.eta_icaos
+          const eta_icaos = Array.isArray(etaRaw)
+            ? etaRaw.map((x) => String(x).trim().toUpperCase()).filter(Boolean)
+            : undefined
+          const kindRaw = String(c.kind ?? 'person').toLowerCase()
           return {
             id: String(c.id),
             name: String(c.name ?? ''),
             email: String(c.email ?? ''),
             cell: String(c.cell ?? ''),
             role: (c.role as ContactRole) || 'requester',
+            kind: kindRaw === 'dl' ? ('dl' as const) : ('person' as const),
+            title: c.title ? String(c.title) : undefined,
+            eta_icaos: eta_icaos?.length ? eta_icaos : undefined,
             notify_prefs: {
               request_alert: Boolean(p.request_alert),
               invoice: Boolean(p.invoice),
