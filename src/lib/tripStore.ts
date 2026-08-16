@@ -1966,11 +1966,13 @@ export async function createInvoiceForTrip(
   const selected =
     t.offers.find((o) => o.state === 'selected') ??
     t.offers.find((o) => o.state === 'quoted')
-  const mtow =
-    t.candidates.find((c) => c.aircraft_id === selected?.aircraft_id)
-      ?.mtow_lbs ??
-    t.candidates.find((c) => c.tail === selected?.tail)?.mtow_lbs ??
-    null
+  const { resolveAircraftMtowLbs } = await import('@/lib/resolveAircraftMtow')
+  const mtow = resolveAircraftMtowLbs({
+    selectedAircraftId: selected?.aircraft_id,
+    tail: selected?.tail ?? t.quick?.tail,
+    typeName: selected?.type_name ?? t.quick?.aircraft_type,
+    candidates: t.candidates,
+  })
   const payloadKind =
     t.hard_quote?.payload_kind ??
     (t.quick ? (t.quick.cargo_only ? 'cargo' : 'pax') : payloadKindOf(t))

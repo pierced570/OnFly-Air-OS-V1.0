@@ -4,6 +4,7 @@
  */
 
 import { buildTripInvoiceLines } from '@/domain/tripInvoiceBuild'
+import { resolveAircraftMtowLbs } from '@/lib/resolveAircraftMtow'
 import { computeReferralShareAmount } from '@/domain/referrals'
 import {
   newVendorLine,
@@ -96,11 +97,12 @@ export function ensureFinancialFromBookedTrip(trip: TripStoreRow): FinancialReco
   let tax_breakdown: TaxBreakdownLine[] = existing?.tax_breakdown ?? []
   if (Number(clientPrice) > 0) {
     try {
-      const mtow =
-        trip.candidates.find((c) => c.aircraft_id === selected?.aircraft_id)
-          ?.mtow_lbs ??
-        trip.candidates.find((c) => c.tail === selected?.tail)?.mtow_lbs ??
-        null
+      const mtow = resolveAircraftMtowLbs({
+        selectedAircraftId: selected?.aircraft_id,
+        tail,
+        typeName: aircraftType,
+        candidates: trip.candidates,
+      })
       const payloadKind =
         trip.hard_quote?.payload_kind ??
         (trip.quick

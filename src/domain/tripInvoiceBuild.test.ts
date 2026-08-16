@@ -31,8 +31,8 @@ describe('tripInvoiceBuild', () => {
       lane: 'KCAK→KSHV',
       flightDate: '2026-08-16',
       clientTotal: 900,
-      aircraftType: 'Cessna 310',
-      tail: 'M00KIE',
+      aircraftType: 'King Air 200',
+      tail: 'N200KA',
       payloadKind: 'pax',
       mtowLbs: 12500,
       paxCount: 1,
@@ -49,6 +49,43 @@ describe('tripInvoiceBuild', () => {
     expect(
       Math.round((r.airAmount + r.taxTotal) * 100) / 100,
     ).toBe(900)
+  })
+
+  it('Cessna 310 (MTOW ≤ 6000) never puts FET on the ledger', () => {
+    const r = buildTripInvoiceLines({
+      tripRef: 8,
+      lane: 'KCAK→KSHV',
+      flightDate: '2026-08-16',
+      clientTotal: 900,
+      aircraftType: 'Cessna 310',
+      tail: 'N310XX',
+      payloadKind: 'pax',
+      mtowLbs: 5500,
+      paxCount: 1,
+      segmentCount: 1,
+      rates: TEST_TAX_RATES_2026,
+    })
+    expect(r.fetExempt).toBe(true)
+    expect(r.taxTotal).toBe(0)
+    expect(r.taxBreakdown).toHaveLength(0)
+    expect(r.airAmount).toBe(900)
+    expect(r.lines[0]!.amount).toBe(900)
+  })
+
+  it('unknown MTOW never invents FET on the ledger', () => {
+    const r = buildTripInvoiceLines({
+      tripRef: 9,
+      lane: 'KCAK→KSHV',
+      flightDate: '2026-08-16',
+      clientTotal: 900,
+      aircraftType: 'Unknown',
+      payloadKind: 'cargo',
+      mtowLbs: null,
+      rates: TEST_TAX_RATES_2026,
+    })
+    expect(r.taxTotal).toBe(0)
+    expect(r.taxBreakdown).toHaveLength(0)
+    expect(r.airAmount).toBe(900)
   })
 
   it('adds ground handling as its own line', () => {
