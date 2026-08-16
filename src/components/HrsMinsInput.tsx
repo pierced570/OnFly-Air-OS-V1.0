@@ -1,15 +1,26 @@
+import { useEffect, useState } from 'react'
 import { offerInput, offerLabel } from '@/components/OfferBoardChrome'
 import {
   hrsMinsFieldDisplay,
   hrsMinsFromTotal,
   totalMinutesFromHrsMins,
 } from '@/domain/offerQuoteTiming'
+import {
+  isDecimalDraft,
+  parseDecimalDraft,
+  sanitizeDecimalDraft,
+} from '@/domain/numericDraft'
 
 type Props = {
   label: string
   /** `null` = empty fields showing grey reference placeholders. */
   totalMinutes: number | null
   onChange: (totalMinutes: number) => void
+  /**
+   * Marks the duration group for a11y. Never applied as HTML `required` on
+   * Hours or Mins — either box may stay blank (e.g. turn time = 40 min only).
+   * Parents must validate that a total was entered when needed.
+   */
   required?: boolean
   /** Override outer label class (e.g. Quick Dispatch uppercase muted). */
   labelClassName?: string
@@ -42,6 +53,21 @@ export function HrsMinsInput({
   const ph = hrsMinsFromTotal(placeholderTotalMinutes ?? 0)
   const fieldClass = inputClassName ?? offerInput
 
+  const hoursExternal = hrsMinsFieldDisplay(totalMinutes, 'hours')
+  const minsExternal = hrsMinsFieldDisplay(totalMinutes, 'minutes')
+
+  const [hoursFocused, setHoursFocused] = useState(false)
+  const [minsFocused, setMinsFocused] = useState(false)
+  const [hoursDraft, setHoursDraft] = useState(hoursExternal)
+  const [minsDraft, setMinsDraft] = useState(minsExternal)
+
+  useEffect(() => {
+    if (!hoursFocused) setHoursDraft(hoursExternal)
+  }, [hoursExternal, hoursFocused])
+  useEffect(() => {
+    if (!minsFocused) setMinsDraft(minsExternal)
+  }, [minsExternal, minsFocused])
+
   function emit(nextH: number, nextM: number) {
     onChange(totalMinutesFromHrsMins({ hours: nextH, minutes: nextM }))
   }
@@ -62,24 +88,30 @@ export function HrsMinsInput({
             <span className="text-xs text-muted">Hours</span>
           ) : null}
           <input
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={0}
             className={fieldClass}
-            value={hrsMinsFieldDisplay(totalMinutes, 'hours')}
+            value={hoursFocused ? hoursDraft : hoursExternal}
             placeholder={
               placeholderTotalMinutes != null ? String(ph.hours) : '0'
             }
-            required={required}
+            aria-required={required || undefined}
+            onFocus={() => {
+              setHoursFocused(true)
+              setHoursDraft(hoursExternal)
+            }}
+            onBlur={() => {
+              const n = parseDecimalDraft(hoursDraft, { integer: true })
+              emit(n == null ? 0 : Math.max(0, n), minutes)
+              setHoursFocused(false)
+            }}
             onChange={(e) => {
-              const raw = e.target.value
-              if (raw === '') {
-                emit(0, minutes)
-                return
-              }
-              const n = Number(raw)
-              if (!Number.isFinite(n)) return
-              emit(Math.max(0, Math.floor(n)), minutes)
+              const raw = sanitizeDecimalDraft(e.target.value)
+              if (!isDecimalDraft(raw, true)) return
+              setHoursDraft(raw)
+              const n = parseDecimalDraft(raw, { integer: true })
+              if (n == null) return
+              emit(Math.max(0, n), minutes)
             }}
             aria-label={`${label || 'Duration'} hours`}
           />
@@ -94,25 +126,30 @@ export function HrsMinsInput({
             <span className="text-xs text-muted">Mins</span>
           ) : null}
           <input
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={0}
-            max={59}
             className={fieldClass}
-            value={hrsMinsFieldDisplay(totalMinutes, 'minutes')}
+            value={minsFocused ? minsDraft : minsExternal}
             placeholder={
               placeholderTotalMinutes != null ? String(ph.minutes) : '0'
             }
-            required={required}
+            aria-required={required || undefined}
+            onFocus={() => {
+              setMinsFocused(true)
+              setMinsDraft(minsExternal)
+            }}
+            onBlur={() => {
+              const n = parseDecimalDraft(minsDraft, { integer: true })
+              emit(hours, n == null ? 0 : Math.min(59, Math.max(0, n)))
+              setMinsFocused(false)
+            }}
             onChange={(e) => {
-              const raw = e.target.value
-              if (raw === '') {
-                emit(hours, 0)
-                return
-              }
-              const n = Number(raw)
-              if (!Number.isFinite(n)) return
-              emit(hours, Math.min(59, Math.max(0, Math.floor(n))))
+              const raw = sanitizeDecimalDraft(e.target.value)
+              if (!isDecimalDraft(raw, true)) return
+              setMinsDraft(raw)
+              const n = parseDecimalDraft(raw, { integer: true })
+              if (n == null) return
+              emit(hours, Math.min(59, Math.max(0, n)))
             }}
             aria-label={`${label || 'Duration'} minutes`}
           />

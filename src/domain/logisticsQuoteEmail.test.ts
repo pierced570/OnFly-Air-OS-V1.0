@@ -55,7 +55,7 @@ describe('logisticsQuoteEmail', () => {
         { label: 'Ready ASAP' },
       ],
       intro:
-        'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Pick one and we lock it.',
+        'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Go to the portal to pick one and lock it.',
     })
     expect(html).toContain('Akron CAK')
     expect(html).toContain('White Plains HPN')
@@ -70,9 +70,15 @@ describe('logisticsQuoteEmail', () => {
     expect(html).toContain('Delivered')
     expect(html).toContain('$12,658')
     expect(html).toContain('$10,634')
-    expect(html).toContain('Accept Option 1')
-    expect(html).toContain('Accept Option 2')
-    // Uniform gold Accept CTAs (not mixed outline / black fill)
+    expect(html).toContain('Go to portal to accept')
+    expect(html).not.toContain('Accept Option 1')
+    expect(html).not.toContain('Accept Option 2')
+    expect(html).toContain('https://app.example/accept/abc')
+    expect(html).not.toContain('option=o1')
+    // Uniform gold portal CTAs (not per-option Accept)
+    expect(
+      html.match(/Go to portal to accept/g)?.length,
+    ).toBeGreaterThanOrEqual(2)
     expect(
       html.match(/background:#c9a227;color:#0c0c0e/g)?.length,
     ).toBeGreaterThanOrEqual(2)
@@ -113,7 +119,8 @@ describe('logisticsQuoteEmail', () => {
     expect(text).toContain('Option 1 · Cessna 310')
     expect(text).toContain('Option 2 · Aerostar 600')
     expect(text).toContain('Price: $12,658')
-    expect(text).toContain('Review & accept:')
+    expect(text).toContain('Go to portal to accept:')
+    expect(text).not.toContain('Review & accept:')
     expect(text).toMatch(/At pickup:/i)
   })
 })

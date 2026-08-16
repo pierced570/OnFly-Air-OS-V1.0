@@ -11,6 +11,10 @@ export const STANDARD_TOOLING = {
   label: 'standard tooling',
   /** Desk section label */
   ui_label: 'Standard cargo',
+  /**
+   * Client hard-quote / accept chip — no dims (operators still get dims on offers).
+   */
+  client_label: 'Standard tools',
   /** Dims for routing / fit (12×12×12 @ 75 lb) */
   dims_text: '1 piece 12x12x12 @ 75',
   /** Full phrase on offer / payload summary (desk + historical) */

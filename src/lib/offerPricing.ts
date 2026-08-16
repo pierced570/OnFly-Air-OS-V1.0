@@ -9,6 +9,7 @@ import {
 } from '@/domain/offerQuotePreview'
 import { priceFromMargin } from '@/domain/quote'
 import { computeTax } from '@/domain/tax'
+import { resolveAircraftMtowLbs } from '@/lib/resolveAircraftMtow'
 import { getTaxRates } from '@/lib/taxRatesStore'
 import { payloadKindOf, type OfferRow, type TripStoreRow } from '@/lib/tripStore'
 
@@ -60,7 +61,13 @@ export function offerQuotePreviewFor(
       quick_turn_min: offer.quick_turn_min,
       live_leg_min: offer.live_leg_min,
       fee_scope: offer.fee_scope,
-      mtow_lbs: cand?.mtow_lbs ?? null,
+      mtow_lbs: resolveAircraftMtowLbs({
+        mtowLbs: cand?.mtow_lbs ?? null,
+        typeName: cand?.type_name ?? offer.type_name,
+        tail: offer.tail,
+        selectedAircraftId: offer.aircraft_id,
+        candidates: trip.candidates,
+      }),
       payload_kind: kind,
       margin_pct,
       client_total_override: clientTotalOverride,

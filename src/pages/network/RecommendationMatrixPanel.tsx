@@ -8,6 +8,7 @@ import { useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import { FlightChip } from '@/components/FlightChip'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import {
   RECOMMEND_MATRIX_LABELS,
   type RecommendMatrixConfig,
@@ -96,23 +97,12 @@ function MatrixSettingsPanel() {
           {FIELD_ORDER.map((key) => (
             <label key={key} className="block text-xs text-muted">
               {RECOMMEND_MATRIX_LABELS[key]}
-              <input
-                type="number"
-                step={
-                  key.startsWith('weight_') ||
-                  key === 'payload_factor' ||
-                  key === 'door_diagonal_factor'
-                    ? 0.01
-                    : key === 'recommend_limit'
-                      ? 1
-                      : 0.5
-                }
-                min={0}
+              <NumericDraftInput
                 className="mt-1 w-full rounded-md border border-border bg-ink px-2 py-1.5 font-mono text-sm text-cream"
                 value={matrix[key]}
-                onChange={(e) => {
-                  const n = Number(e.target.value)
-                  if (!Number.isFinite(n)) return
+                integer={key === 'recommend_limit'}
+                onValueChange={(n) => {
+                  if (n == null) return
                   setRecommendMatrixField(key, n)
                 }}
               />
@@ -226,12 +216,13 @@ export function RecommendationMatrixPanel() {
         </label>
         <label className="block text-xs text-muted">
           Pax / techs
-          <input
-            type="number"
+          <NumericDraftInput
+            integer
+            blankZero
             min={0}
-            value={pax}
-            onChange={(e) => setPax(Number(e.target.value) || 0)}
             className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 font-mono text-sm text-cream"
+            value={pax}
+            onValueChange={(n) => setPax(n == null ? 0 : Math.max(0, n))}
           />
         </label>
         <div className="flex flex-wrap items-end gap-4 pb-1">

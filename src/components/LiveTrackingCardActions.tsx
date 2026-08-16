@@ -1,6 +1,6 @@
 /**
  * Live tracking card actions — portal, Access chat, Log as complete.
- * Complete = in_progress → delivered (leaves Live tracking; invoice auto-draft).
+ * Complete = in_progress → delivered (leaves Live tracking; invoice draft only — desk sends).
  */
 
 import { useEffect, useState, useSyncExternalStore } from 'react'

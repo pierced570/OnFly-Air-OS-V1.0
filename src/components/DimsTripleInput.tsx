@@ -150,13 +150,15 @@ export function DimsTripleInput({
                 <label className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-muted">
                   Qty
                   <input
-                    type="number"
+                    type="text"
                     min={1}
                     inputMode="numeric"
                     value={row.count}
-                    onChange={(e) =>
-                      patchRow(index, { count: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === '' || /^\d*$/.test(v))
+                        patchRow(index, { count: v })
+                    }}
                     className={box}
                     aria-label={`Cargo ${index + 1} piece count`}
                   />
@@ -166,12 +168,16 @@ export function DimsTripleInput({
                 <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
                   L ({unitLabel})
                   <input
-                    type="number"
+                    type="text"
                     min={0}
                     step="any"
                     inputMode="decimal"
                     value={row.l}
-                    onChange={(e) => patchRow(index, { l: e.target.value })}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/,/g, '')
+                      if (v === '' || /^\d*\.?\d*$/.test(v))
+                        patchRow(index, { l: v })
+                    }}
                     placeholder={phL}
                     className={box}
                     aria-label={`Cargo ${index + 1} length in ${unitLabel}`}
@@ -183,12 +189,16 @@ export function DimsTripleInput({
                 <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
                   W ({unitLabel})
                   <input
-                    type="number"
+                    type="text"
                     min={0}
                     step="any"
                     inputMode="decimal"
                     value={row.w}
-                    onChange={(e) => patchRow(index, { w: e.target.value })}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/,/g, '')
+                      if (v === '' || /^\d*\.?\d*$/.test(v))
+                        patchRow(index, { w: v })
+                    }}
                     placeholder={phW}
                     className={box}
                     aria-label={`Cargo ${index + 1} width in ${unitLabel}`}
@@ -200,12 +210,16 @@ export function DimsTripleInput({
                 <label className="min-w-0 flex-1 text-[10px] uppercase tracking-wider text-muted">
                   H ({unitLabel})
                   <input
-                    type="number"
+                    type="text"
                     min={0}
                     step="any"
                     inputMode="decimal"
                     value={row.h}
-                    onChange={(e) => patchRow(index, { h: e.target.value })}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/,/g, '')
+                      if (v === '' || /^\d*\.?\d*$/.test(v))
+                        patchRow(index, { h: v })
+                    }}
                     placeholder={phH}
                     className={box}
                     aria-label={`Cargo ${index + 1} height in ${unitLabel}`}
@@ -216,14 +230,16 @@ export function DimsTripleInput({
                 <label className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-muted">
                   Lb ea <span className="text-late">*</span>
                   <input
-                    type="number"
+                    type="text"
                     min={0}
                     step="any"
                     inputMode="decimal"
                     value={row.weight}
-                    onChange={(e) =>
-                      patchRow(index, { weight: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/,/g, '')
+                      if (v === '' || /^\d*\.?\d*$/.test(v))
+                        patchRow(index, { weight: v })
+                    }}
                     placeholder={phWt}
                     className={box}
                     aria-label={`Cargo ${index + 1} weight pounds each`}

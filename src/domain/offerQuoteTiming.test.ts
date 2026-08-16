@@ -33,11 +33,18 @@ describe('offerQuoteTiming', () => {
     // 1h 0m — minutes blank (not stuck "0")
     expect(hrsMinsFieldDisplay(60, 'hours')).toBe('1')
     expect(hrsMinsFieldDisplay(60, 'minutes')).toBe('')
-    // 0h 30m — hours blank
+    // 0h 30m — hours blank (typical turn time: minutes only)
     expect(hrsMinsFieldDisplay(30, 'hours')).toBe('')
     expect(hrsMinsFieldDisplay(30, 'minutes')).toBe('30')
+    expect(hrsMinsFieldDisplay(40, 'hours')).toBe('')
+    expect(hrsMinsFieldDisplay(40, 'minutes')).toBe('40')
     expect(hrsMinsFieldDisplay(90, 'hours')).toBe('1')
     expect(hrsMinsFieldDisplay(90, 'minutes')).toBe('30')
+  })
+
+  it('accepts minutes-only turn time totals', () => {
+    expect(totalMinutesFromHrsMins({ hours: 0, minutes: 40 })).toBe(40)
+    expect(hrsMinsFromTotal(40)).toEqual({ hours: 0, minutes: 40 })
   })
 
   it('exposes operator reference placeholders', async () => {

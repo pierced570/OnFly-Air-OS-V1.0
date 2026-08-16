@@ -97,7 +97,7 @@ describe('qbInvoice', () => {
     expect(normalizePoDocNumber('PO #00338', 'X')).toBe('00338')
   })
 
-  it('builds trip lines with charter description + tax', () => {
+  it('builds one client charter line with tax rolled in', () => {
     const lines = tripInvoiceLines({
       tripRef: 9,
       lane: 'KCAK→KMDW',
@@ -107,9 +107,10 @@ describe('qbInvoice', () => {
       tail: 'NTEST',
       taxLines: [{ code: 'FET_CARGO', amount: 625, note: '6.25%' }],
     })
-    expect(lines).toHaveLength(2)
+    expect(lines).toHaveLength(1)
     expect(lines[0]!.description).toContain('Charter Flight:')
     expect(lines[0]!.description).toContain('Tail: NTEST')
-    expect(lines[1]!.amount).toBe(625)
+    expect(lines[0]!.amount).toBe(10625)
+    expect(lines.some((l) => /FET_/i.test(l.description))).toBe(false)
   })
 })

@@ -11,6 +11,7 @@ import { getClient } from '@/lib/clientStore'
 import { getRequest } from '@/lib/requestStore'
 import { getTaxRates } from '@/lib/taxRatesStore'
 import { BrandLockup } from '@/components/BrandLockup'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import {
   resolveQuoteRecipients,
   sendEstimatedQuote,
@@ -215,11 +216,11 @@ export default function QuotePreviewPage() {
                 <option value="dollars">$</option>
               </select>
             </label>
-            <input
-              type="number"
-              value={markupValue}
-              onChange={(e) => setMarkupValue(Number(e.target.value))}
+            <NumericDraftInput
+              blankZero
               className="w-24 rounded border border-border bg-ink px-2 py-1 avionic text-cream"
+              value={markupValue}
+              onValueChange={(n) => setMarkupValue(n ?? 0)}
             />
             <span className="text-xs text-muted self-center">0 = keep 15% target margin price</span>
           </div>

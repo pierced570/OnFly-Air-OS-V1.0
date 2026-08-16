@@ -1,6 +1,10 @@
 /**
  * Tax engine — rates come from tax_rates rows, never hardcoded literals in call sites.
  * Pure TypeScript; no React / Supabase.
+ *
+ * FET (and domestic segment fees stacked with it) apply only when MTOW is known
+ * and strictly over the §4281 threshold (default 6000 lb). Cessna 310 / Baron /
+ * other light twins must never pick up FET by accident when MTOW is missing.
  */
 
 export type TaxRateRow = {
@@ -35,7 +39,10 @@ export type TaxLine = {
 export type TaxResult = {
   lines: TaxLine[]
   total: number
+  /** True when MTOW is known and ≤ exemption threshold (§4281). */
   fetExempt: boolean
+  /** True when MTOW is missing — FET must not be charged until known. */
+  fetMtowUnknown: boolean
 }
 
 function rateByCode(rates: TaxRateRow[], code: string): TaxRateRow | undefined {
@@ -46,20 +53,45 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+/** FET exemption threshold from tax_rates (fallback 6000). */
+export function fetExemptMtowThreshold(rates: TaxRateRow[]): number {
+  return rateByCode(rates, 'FET_EXEMPT_MTOW')?.flat_amount ?? 6000
+}
+
+/**
+ * FET applies only when MTOW is known and strictly over the §4281 threshold.
+ * Missing MTOW → do not charge (flag, don't invent tax).
+ */
+export function fetAppliesAtMtow(
+  aircraftMtowLbs: number | null | undefined,
+  rates: TaxRateRow[],
+): { applies: boolean; exempt: boolean; unknown: boolean; threshold: number } {
+  const threshold = fetExemptMtowThreshold(rates)
+  if (aircraftMtowLbs == null || !Number.isFinite(Number(aircraftMtowLbs))) {
+    return { applies: false, exempt: false, unknown: true, threshold }
+  }
+  const mtow = Number(aircraftMtowLbs)
+  if (mtow <= threshold) {
+    return { applies: false, exempt: true, unknown: false, threshold }
+  }
+  return { applies: true, exempt: false, unknown: false, threshold }
+}
+
 /**
  * Compute tax lines for a quote.
  * - Cargo-only domestic: FET_CARGO % of airSubtotal (~6.25%)
  * - Pax on board (pax or both): FET_PAX % (~7.5%) + SEG_FEE_DOM × pax × segments
  * - Any international leg → INTL_HEAD per pax on that leg; no domestic FET stacking on that leg
  * - §4281: MTOW ≤ FET_EXEMPT_MTOW → zero FET
+ * - Missing MTOW → zero FET (NEEDS-INFO); never default to charging
  */
 export function computeTax(input: TaxInput): TaxResult {
   const { payloadKind, legs, aircraftMtowLbs, airSubtotal, rates } = input
   const lines: TaxLine[] = []
 
-  const exemptThreshold = rateByCode(rates, 'FET_EXEMPT_MTOW')?.flat_amount ?? 6000
-  const fetExempt =
-    aircraftMtowLbs != null && aircraftMtowLbs <= exemptThreshold
+  const fetGate = fetAppliesAtMtow(aircraftMtowLbs, rates)
+  const fetExempt = fetGate.exempt
+  const fetMtowUnknown = fetGate.unknown
 
   const hasIntl = legs.some((l) => l.international)
   const domesticLegs = legs.filter((l) => !l.international)
@@ -70,12 +102,10 @@ export function computeTax(input: TaxInput): TaxResult {
   /** Pax on board → higher FET + segment fees; cargo-only → lower cargo FET. */
   const paxOnBoard = payloadKind === 'pax' || payloadKind === 'both'
 
-  // Domestic FET / segment — only if there is a domestic air subtotal portion.
-  // Keep simple: if any international leg exists and all legs are intl, use intl regime only.
-  // Mixed: apply domestic FET to full airSubtotal when any domestic leg exists (flag for review).
+  // Domestic FET / segment — only when MTOW is known and over threshold.
   const applyDomestic = domesticLegs.length > 0 || !hasIntl
 
-  if (applyDomestic && !fetExempt) {
+  if (applyDomestic && fetGate.applies) {
     if (paxOnBoard) {
       const fet = rateByCode(rates, 'FET_PAX')
       const pct = fet?.rate_pct ?? 0
@@ -120,7 +150,16 @@ export function computeTax(input: TaxInput): TaxResult {
       code: 'FET_EXEMPT_MTOW',
       base: aircraftMtowLbs ?? 0,
       amount: 0,
-      note: `FET-exempt under IRC §4281 (MTOW ≤ ${exemptThreshold} lbs).`,
+      note: `FET-exempt under IRC §4281 (MTOW ≤ ${fetGate.threshold} lbs).`,
+    })
+  }
+
+  if (fetMtowUnknown && applyDomestic && (isCargo || isPax)) {
+    lines.push({
+      code: 'FET_NEEDS_MTOW',
+      base: 0,
+      amount: 0,
+      note: `MTOW unknown — FET not charged until MTOW confirms > ${fetGate.threshold} lbs (§4281).`,
     })
   }
 
@@ -139,7 +178,7 @@ export function computeTax(input: TaxInput): TaxResult {
   }
 
   const total = round2(lines.reduce((s, l) => s + l.amount, 0))
-  return { lines, total, fetExempt }
+  return { lines, total, fetExempt, fetMtowUnknown }
 }
 
 /**
@@ -153,9 +192,7 @@ export function airSubtotalFromClientTotal(
   const target = Math.max(0, clientTotal)
   const { payloadKind, legs, aircraftMtowLbs, rates } = input
 
-  const exemptThreshold = rateByCode(rates, 'FET_EXEMPT_MTOW')?.flat_amount ?? 6000
-  const fetExempt =
-    aircraftMtowLbs != null && aircraftMtowLbs <= exemptThreshold
+  const fetGate = fetAppliesAtMtow(aircraftMtowLbs, rates)
 
   const hasIntl = legs.some((l) => l.international)
   const domesticLegs = legs.filter((l) => !l.international)
@@ -167,7 +204,7 @@ export function airSubtotalFromClientTotal(
   let fetPct = 0
   let flat = 0
 
-  if (applyDomestic && !fetExempt) {
+  if (applyDomestic && fetGate.applies) {
     if (paxOnBoard) {
       fetPct = rateByCode(rates, 'FET_PAX')?.rate_pct ?? 0
       const seg = rateByCode(rates, 'SEG_FEE_DOM')
@@ -194,11 +231,6 @@ export function airSubtotalFromClientTotal(
   return round2(Math.max(0, (target - flat) / denom))
 }
 
-/** FET exemption threshold from tax_rates (fallback 6000). */
-export function fetExemptMtowThreshold(rates: TaxRateRow[]): number {
-  return rateByCode(rates, 'FET_EXEMPT_MTOW')?.flat_amount ?? 6000
-}
-
 /** Seed rates matching migration 0001 (for unit tests — not runtime literals in composers). */
 export const TEST_TAX_RATES_2026: TaxRateRow[] = [
   { code: 'FET_CARGO', rate_pct: 6.25, flat_amount: null, applies_to: 'cargo' },
@@ -220,7 +252,7 @@ export function formatTaxLineDesk(line: TaxLine): string {
   if (line.code === 'SEG_FEE_DOM' || line.code === 'INTL_HEAD') {
     return `${line.note}: ${amt}`
   }
-  if (line.code === 'FET_EXEMPT_MTOW') {
+  if (line.code === 'FET_EXEMPT_MTOW' || line.code === 'FET_NEEDS_MTOW') {
     return line.note
   }
   return line.note ? `${line.note}: ${amt}` : `${line.code}: ${amt}`
