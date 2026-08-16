@@ -116,8 +116,7 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
   const pattern = escapeHtml(tpl.patternLabel.trim() || 'Airport to airport')
   const prepared = escapeHtml(tpl.preparedLabel.trim())
   const tzNote = escapeHtml(
-    tpl.timezoneNote?.trim() ||
-      'Stop-local times &middot; Zulu in parentheses',
+    tpl.timezoneNote?.trim() || 'Stages mark complete as the trip moves',
   )
 
   const stopCard = (stop: EtaSheetEmailStop) => {
@@ -152,16 +151,28 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
     </td>`
   }
 
-  const milestoneRows =
+  const stageList =
     tpl.milestones.length > 0
       ? tpl.milestones
           .map((m, i) => {
-            const actual = m.actual?.trim()
-            const actualHtml = actual
-              ? `<span style="color:#0c0c0e;font-weight:600">${escapeHtml(actual)}</span>`
-              : `<span style="color:#c9a227;font-weight:600">Live on portal</span>`
+            const done = Boolean(m.actual?.trim())
+            const status = done
+              ? 'Complete'
+              : i === tpl.milestones.findIndex((x) => !x.actual?.trim())
+                ? 'Track live'
+                : 'Upcoming'
+            const statusColor = done
+              ? '#2e7d32'
+              : status === 'Track live'
+                ? '#c9a227'
+                : '#6b6560'
+            const dotBg = done ? '#c9a227' : '#f7f2e3'
+            const dotBorder = '#c9a227'
             return `<tr style="${i % 2 === 0 ? 'background:#fffdf8' : 'background:#ffffff'}">
-        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:top">
+        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:middle;width:28px">
+          <div style="width:14px;height:14px;border-radius:50%;border:2px solid ${dotBorder};background:${dotBg}"></div>
+        </td>
+        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:middle">
           <div style="font-size:14px;font-weight:700;color:#0c0c0e">${escapeHtml(m.label)}</div>
           ${
             m.detail?.trim()
@@ -169,26 +180,25 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
               : ''
           }
         </td>
-        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:top;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#6b6560;white-space:nowrap">${escapeHtml(m.projected || '—')}</td>
-        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:top;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px">${actualHtml}</td>
+        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:middle;text-align:right;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${statusColor};white-space:nowrap">${status}</td>
       </tr>`
           })
           .join('')
       : `<tr><td colspan="3" style="padding:18px 12px;border-top:1px solid #e5dfd0;font-size:13px;color:#6b6560">
-        Milestone timeline fills in once the trip is booked with an ETA chain &mdash; open the portal for live actuals.
+        Open the portal for live stage progress, aircraft position, and tail.
       </td></tr>`
 
-  // Stepper dots (portal-style) when we have milestones
+  // Stage dots — labels only, no projected clocks
   const stepper =
     tpl.milestones.length > 0
       ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px"><tr>${tpl.milestones
           .map((m) => {
             const n = tpl.milestones.length
             const w = Math.floor(100 / n)
+            const done = Boolean(m.actual?.trim())
             return `<td style="width:${w}%;padding:0 4px;vertical-align:top;text-align:center">
-            <div style="margin:0 auto 8px;width:12px;height:12px;border-radius:50%;border:2px solid #c9a227;background:#f7f2e3"></div>
+            <div style="margin:0 auto 8px;width:12px;height:12px;border-radius:50%;border:2px solid #c9a227;background:${done ? '#c9a227' : '#f7f2e3'}"></div>
             <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0c0c0e;line-height:1.3">${escapeHtml(m.label)}</div>
-            <div style="margin-top:4px;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#6b6560">${escapeHtml(m.projected || '—')}</div>
           </td>`
           })
           .join('')}</tr></table>`
@@ -224,7 +234,9 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
               <div style="font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c9a227">${pattern}</div>
               <div style="margin-top:6px;font-size:26px;font-weight:700;color:#0c0c0e;line-height:1.2;letter-spacing:-0.02em">PO #${po} &middot; ${lane}</div>
               <div style="margin-top:6px;font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#6b6560">${prepared}</div>
-              <div style="margin-top:4px;font-size:12px;color:#6b6560;line-height:1.45">Projected times below; actuals fill in live on your portal.</div>
+              <div style="margin-top:4px;font-size:12px;color:#6b6560;line-height:1.45">
+                Track route, aircraft position, tail, and stage progress on your portal &mdash; no projected-vs-actual clocks.
+              </div>
             </td>
           </tr>
 
@@ -232,8 +244,8 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
             <td style="padding:12px 0">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0c0c0e;border-radius:8px;overflow:hidden">
                 <tr>
-                  <td style="padding:8px 14px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#c9a227">&#9679; Live ETA track</td>
-                  <td align="right" style="padding:8px 14px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(247,242,227,0.55)">Standing by</td>
+                  <td style="padding:8px 14px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#c9a227">&#9679; Live tracking portal</td>
+                  <td align="right" style="padding:8px 14px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(247,242,227,0.55)">Open link below</td>
                 </tr>
                 <tr>
                   <td colspan="2" style="padding:14px 14px 16px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c9a227">
@@ -241,7 +253,7 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
                       <tr>
                         <td style="padding:2px 8px 2px 0;color:#c9a227">${tail} &middot; ${aircraft.toUpperCase()}</td>
                         <td style="padding:2px 8px;color:#c9a227">${escapeHtml(aircraftBlurb)}</td>
-                        <td align="right" style="padding:2px 0 2px 8px;color:#f7f2e3">Open portal for ADS-B</td>
+                        <td align="right" style="padding:2px 0 2px 8px;color:#f7f2e3">${lane}</td>
                       </tr>
                     </table>
                   </td>
@@ -272,25 +284,20 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5dfd0;border-radius:8px;overflow:hidden">
                 <tr>
                   <td style="padding:10px 14px;border-bottom:1px solid #e5dfd0;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#6b6560">
-                    Actual vs forecast
+                    Trip stages
                   </td>
                   <td align="right" style="padding:10px 14px;border-bottom:1px solid #e5dfd0;font-size:11px;color:#6b6560">${tzNote}</td>
                 </tr>
                 <tr>
                   <td colspan="2" style="padding:0">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-                      <tr>
-                        <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700;text-transform:uppercase">Milestone</th>
-                        <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700;text-transform:uppercase">Estimated</th>
-                        <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700;text-transform:uppercase">Actual / Forecast</th>
-                      </tr>
-                      ${milestoneRows}
+                      ${stageList}
                     </table>
                   </td>
                 </tr>
               </table>
               <p style="margin:12px 4px 0;font-size:12px;color:#6b6560;line-height:1.45">
-                Projections assume current winds and slot times. If any milestone slips more than 15 minutes, dispatch calls your urgent number.
+                Stages mark complete as the trip moves. Live aircraft position and current stage are on your portal.
               </p>
             </td>
           </tr>
@@ -300,13 +307,13 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0c0c0e;border-radius:8px">
                 <tr>
                   <td style="padding:18px 18px;vertical-align:middle">
-                    <div style="font-size:16px;font-weight:700;color:#f7f2e3">Watch it move, live</div>
+                    <div style="font-size:16px;font-weight:700;color:#f7f2e3">Open your tracking portal</div>
                     <div style="margin-top:6px;font-size:13px;color:#b8b2a6;line-height:1.45;max-width:340px">
-                      Your portal shows live ADS-B position and milestone actuals as they fill in.
+                      Route, aircraft position, tail number, and stage progress &mdash; updated as each stage completes.
                     </div>
                   </td>
                   <td align="right" style="padding:18px 18px;vertical-align:middle">
-                    <a href="${portalAttr}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-size:13px;font-weight:700;padding:11px 14px;border-radius:6px">Open live tracking portal &rarr;</a>
+                    <a href="${portalAttr}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-size:13px;font-weight:700;padding:11px 14px;border-radius:6px">Open tracking portal &rarr;</a>
                     <div style="margin-top:10px;font-size:11px;color:#8a847a;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all">${portalDisplay}</div>
                   </td>
                 </tr>
@@ -342,6 +349,7 @@ export function renderEtaSheetEmailText(tpl: EtaSheetEmailTemplate): string {
     '',
     `Aircraft: ${tpl.aircraftType}`,
     `Tail: ${tpl.tail}`,
+    `Route: ${tpl.laneShort}`,
     '',
     'PICKUP',
     tpl.pickup.title,
@@ -353,13 +361,13 @@ export function renderEtaSheetEmailText(tpl: EtaSheetEmailTemplate): string {
     ...tpl.dropoff.addressLines,
     tpl.dropoff.footer || null,
     '',
-    'Actual vs forecast',
-    ...tpl.milestones.map(
-      (m) =>
-        `${m.label}: ${m.projected || '—'} | Actual: ${m.actual?.trim() || 'live on portal'}`,
-    ),
+    'Trip stages',
+    ...tpl.milestones.map((m) => {
+      const done = Boolean(m.actual?.trim())
+      return `${m.label}: ${done ? 'Complete' : 'Track on portal'}`
+    }),
     '',
-    `Open live tracking portal: ${tpl.portalUrl}`,
+    `Open tracking portal: ${tpl.portalUrl}`,
     '',
     `OnFly Air · 24-hr ops ${tpl.phone || BRAND_PHONE} · ${tpl.supportEmail || BRAND_EMAIL}`,
   ]

@@ -1,14 +1,13 @@
 /**
- * Portal home shipment card — IN FLIGHT / ON TRUCK / DELIVERED skins.
+ * Portal home shipment card — route, tail, stage (no projected-vs-actual).
  */
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createAdsbAdapter, type AdsbPosition } from '@/adapters/adsb'
-import { PortalDeltaPill } from '@/components/PortalShell'
 import {
   buildPortalTrackingView,
-  formatDeltaBadge,
+  clientOpsStageLabel,
   tripToTrackingInput,
   type PortalShipmentPhase,
 } from '@/domain/portalTracking'
@@ -52,6 +51,7 @@ export type PortalHomeTripCardProps = {
   ready_label: string
   payload_summary: string
   trackHref: string
+  /** @deprecated ignored — cards show stage, not clocks */
   etaHint: string | null
   nextLabel: string | null
 }
@@ -102,42 +102,34 @@ export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
     trip?.po_number?.trim() ||
     trip?.quick?.po?.trim() ||
     `T-${props.tripRef}`
-  const lane =
-    view?.lane ||
-    props.lane ||
-    '—'
+  const lane = view?.lane || props.lane || '—'
   const tail = view?.tail || trip?.quick?.tail || null
   const typeName = view?.aircraftType || trip?.quick?.aircraft_type || null
   const pattern = patternLabel(view?.pattern)
-  const delta = formatDeltaBadge(view?.deltaMin)
   const hasPod = (view?.documents ?? []).some((d) => d.kind === 'pod')
 
-  const leftTime =
-    phase === 'delivered'
-      ? view?.projectedDisplay || props.ready_label || '—'
-      : view?.flightFacts.wheelsUpDisplay
-        ? `WHEELS UP ${view.flightFacts.wheelsUpDisplay}`
-        : props.nextLabel
-          ? props.nextLabel.toUpperCase()
-          : '—'
+  const currentOps = view?.opsForecastRows.find((r) => r.status === 'active')
+  const stageName = currentOps
+    ? clientOpsStageLabel(currentOps)
+    : phase === 'delivered'
+      ? 'Delivered'
+      : props.nextLabel || phaseLabel(phase)
 
-  const rightTime =
+  const leftMeta = tail ? `TAIL ${tail}` : 'TAIL TBD'
+  const rightMeta =
     phase === 'delivered'
       ? hasPod
         ? 'POD ON FILE'
         : 'DELIVERED'
-      : phase === 'on_truck' && (view?.projectedDisplay || props.etaHint)
-        ? `DELIVERY ${view?.projectedDisplay || props.etaHint}`
-        : view?.projectedDisplay
-          ? `ETA ${view.projectedDisplay}`
-          : props.etaHint
-            ? `ETA ${props.etaHint}`
-            : 'ETA —'
+      : stageName.toUpperCase()
 
   const cta =
     phase === 'delivered'
       ? { label: 'View POD & details', href: props.trackHref }
-      : { label: phase === 'in_flight' ? 'View live tracking' : 'View tracking', href: props.trackHref }
+      : {
+          label: phase === 'in_flight' ? 'View live tracking' : 'View tracking',
+          href: props.trackHref,
+        }
 
   return (
     <li
@@ -166,19 +158,16 @@ export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
               {phaseLabel(phase)}
             </span>
           </div>
-          {phase === 'in_flight' && delta.tone === 'late' ? (
-            <span className="rounded bg-[#C0392B] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
-              {delta.label}
-            </span>
-          ) : phase === 'delivered' && delta.tone === 'early' ? (
-            <PortalDeltaPill deltaMin={view?.deltaMin} />
-          ) : phase === 'on_truck' ? (
-            <span className="rounded border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
-              Window
-            </span>
-          ) : view?.deltaMin != null ? (
-            <PortalDeltaPill deltaMin={view.deltaMin} />
-          ) : null}
+          <span
+            className={[
+              'rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+              dark
+                ? 'border-cream/25 text-cream/80'
+                : 'border-border text-muted',
+            ].join(' ')}
+          >
+            {stageName}
+          </span>
         </div>
 
         <div
@@ -220,15 +209,15 @@ export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
         <div className="mt-3 flex flex-wrap items-end justify-between gap-2 text-xs">
           <span
             className={[
-              'uppercase tracking-wider',
+              'avionic uppercase tracking-wider',
               dark ? 'text-cream/65' : 'text-muted',
             ].join(' ')}
           >
-            {leftTime}
+            {leftMeta}
           </span>
           <span
             className={[
-              'font-semibold',
+              'font-semibold uppercase tracking-wider',
               phase === 'delivered'
                 ? 'text-[#2E7D32]'
                 : dark
@@ -236,7 +225,7 @@ export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
                   : 'text-ink',
             ].join(' ')}
           >
-            {rightTime}
+            {rightMeta}
           </span>
         </div>
       </div>
