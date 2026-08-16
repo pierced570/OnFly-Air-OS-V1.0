@@ -112,6 +112,8 @@ export default function AcceptPage() {
           client_total: opt.client_total,
           lane: trip.lane,
           goAtIso: hq.sent_at ?? offer?.replied_at ?? null,
+          pickup_location: trip.portal_pickup_address,
+          dropoff_location: trip.portal_dropoff_address,
         })
       }),
     )

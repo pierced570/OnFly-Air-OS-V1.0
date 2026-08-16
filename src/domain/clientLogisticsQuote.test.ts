@@ -45,7 +45,14 @@ describe('clientLogisticsQuote', () => {
       'landing',
       'delivered',
     ])
+    expect(opt.milestones.map((m) => m.label)).toEqual([
+      'At Pickup Location (CAK)',
+      'Wheels Up For (HPN)',
+      'Landing ETA (HPN)',
+      'Delivered (HPN FBO)',
+    ])
     expect(opt.delivered_summary).toMatch(/Delivered to your team/)
+    expect(opt.delivered_summary).toMatch(/HPN FBO/)
     expect(opt.position_eta.clock).toMatch(/Z/)
     expect(opt.etd.clock).toMatch(/Z/)
     expect(opt.arrival_eta.clock).toMatch(/Z/)

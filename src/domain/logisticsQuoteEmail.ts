@@ -201,7 +201,7 @@ function renderOptionCard(
             const hi = m.key === 'delivered'
             const ring = hi ? 'border:1px solid #c9a227;' : ''
             return `<td style="width:25%;vertical-align:top;background:#f7f2e3;${ring}border-radius:6px;padding:6px 6px">
-              <div style="font-size:8px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${hi ? '#c9a227' : '#6b6560'}">${escapeHtml(m.label)}</div>
+              <div style="font-size:8px;font-weight:700;letter-spacing:0.06em;line-height:1.2;text-transform:uppercase;color:${hi ? '#c9a227' : '#6b6560'}">${escapeHtml(m.label)}</div>
               <div style="margin-top:2px;font-size:14px;font-weight:700;font-family:ui-monospace,Menlo,monospace;color:#0c0c0e">${escapeHtml(m.clock)}</div>
             </td>`
           })

@@ -126,8 +126,11 @@ export function computeOfferQuoteTiming(opts: {
   }
 }
 
-/** Default dest FBO handoff after landing (desk DELIVERS chip). */
-export const DEFAULT_DEST_HANDOFF_MIN = 15
+/**
+ * Default dest FBO / drop-off handoff after landing (DELIVERED chip).
+ * Landing + 5 min unless overridden.
+ */
+export const DEFAULT_DEST_HANDOFF_MIN = 5
 
 export type DeskQuoteMilestoneKey =
   | 'at_pickup'
@@ -150,6 +153,15 @@ export type DeskOfferQuoteTimeline = {
   chainHint: string
 }
 
+/** Prefer IATA / K-stripped ICAO for subject chips (CAK, HPN). */
+export function shortAirportSubject(icao: string): string {
+  const code = icao.trim().toUpperCase()
+  if (!code) return ''
+  const info = lookupAirport(code)
+  if (info?.iata) return info.iata
+  return code.length === 4 && code.startsWith('K') ? code.slice(1) : code
+}
+
 function formatDeskClockAmPm(utc: DateTime, tz: string | null): string {
   const dt = tz ? utc.setZone(tz) : utc.toUTC()
   return dt.toFormat('h:mm a')
@@ -169,7 +181,12 @@ function formatChainMinutes(min: number): string {
   return `${h}h ${m}m`
 }
 
-/** Desk submitted-quote expand panel: AT PICKUP → WHEELS UP → LANDING → DELIVERED. */
+function parenSubject(value: string, fallback: string): string {
+  const v = value.trim()
+  return v || fallback
+}
+
+/** Desk / client quote chips: AT PICKUP → WHEELS UP → LANDING → DELIVERED. */
 export function buildDeskOfferQuoteTimeline(opts: {
   lane: string
   nowUtc?: DateTime
@@ -177,6 +194,12 @@ export function buildDeskOfferQuoteTimeline(opts: {
   quickTurnMin: number
   liveLegMin: number
   destHandoffMin?: number
+  /** Pickup airport or address, e.g. CAK or "Hangar 5". */
+  pickupLocation?: string | null
+  /** Destination airport / city for wheels-up + landing subjects. */
+  destination?: string | null
+  /** FBO name or drop-off address for the delivered subject. */
+  dropoffLocation?: string | null
 }): DeskOfferQuoteTimeline {
   const now = (opts.nowUtc ?? DateTime.utc()).toUTC()
   const handoff = Math.max(
@@ -190,26 +213,40 @@ export function buildDeskOfferQuoteTimeline(opts: {
     quickTurnMin: opts.quickTurnMin,
     liveLegMin: opts.liveLegMin,
   })
+  const originShort = shortAirportSubject(timing.originIcao)
+  const destShort = shortAirportSubject(timing.destIcao)
+  const pickup = parenSubject(
+    opts.pickupLocation ?? '',
+    originShort || 'Pickup',
+  )
+  const destination = parenSubject(
+    opts.destination ?? '',
+    destShort || 'Destination',
+  )
+  const dropoff = parenSubject(
+    opts.dropoffLocation ?? '',
+    destShort ? `${destShort} FBO` : 'Drop-off',
+  )
   const deliveredUtc = timing.destEtaUtc.plus({ minutes: handoff })
   const milestones: DeskQuoteMilestone[] = [
     {
       key: 'at_pickup',
-      label: 'At pickup',
+      label: `At Pickup Location (${pickup})`,
       clock: formatDeskClockAmPm(timing.positionEtaUtc, timing.originTz),
     },
     {
       key: 'wheels_up',
-      label: 'Wheels up',
+      label: `Wheels Up For (${destination})`,
       clock: formatDeskClockAmPm(timing.etdUtc, timing.originTz),
     },
     {
       key: 'landing',
-      label: 'Landing',
+      label: `Landing ETA (${destination})`,
       clock: formatDeskClockAmPm(timing.destEtaUtc, timing.destTz),
     },
     {
       key: 'delivered',
-      label: 'Delivered',
+      label: `Delivered (${dropoff})`,
       clock: formatDeskClockAmPm(deliveredUtc, timing.destTz),
     },
   ]

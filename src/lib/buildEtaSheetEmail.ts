@@ -211,6 +211,8 @@ function milestonesFromTrip(
       timeToPositionMin: selected.time_to_position_min,
       quickTurnMin: selected.quick_turn_min ?? DEFAULT_QUICK_TURN_MIN,
       liveLegMin: selected.live_leg_min,
+      pickupLocation: trip.portal_pickup_address,
+      dropoffLocation: trip.portal_dropoff_address,
     })
     return timeline.milestones.map((m) => ({
       label: m.label,

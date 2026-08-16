@@ -154,7 +154,7 @@ export function ClientLogisticsQuotePreview({
                           >
                             <div
                               className={[
-                                'text-[8px] font-semibold uppercase tracking-wider',
+                                'text-[8px] font-semibold uppercase leading-tight tracking-wider',
                                 hi ? 'text-[#C9A227]' : 'text-[#6B6560]',
                               ].join(' ')}
                             >
