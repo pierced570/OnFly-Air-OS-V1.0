@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   INVOICE_EMAIL_SUBJECT,
   formatInvoiceUsd,
+  hasInvoicePlaceholderCopy,
   invoiceEmailSubject,
   invoicePoDisplay,
   isInvoicePoPlaceholder,
@@ -86,6 +87,8 @@ describe('invoiceEmail', () => {
     expect(html).toContain('https://pay.example/view')
     expect(html).toContain('N6209X')
     expect(html).toContain('Cessna 310')
+    expect(html).toContain('TRIP DETAILS')
+    expect(html).toContain('Tail Number: N6209X')
     expect(html).toContain('PICKUP')
     expect(html).toContain('DROP-OFF')
     expect(html).toContain('PROJECTED TIMELINE')
@@ -98,6 +101,20 @@ describe('invoiceEmail', () => {
     expect(html).toContain('background:#0c0c0e')
     expect(html).toContain('#c9a227')
     expect(html).toContain('background:#f4f1ea')
+  })
+
+  it('detects ENTER placeholder copy from the old QBO company template', () => {
+    expect(
+      hasInvoicePlaceholderCopy('Tail Number: (ENTER TAIL NUMBER)'),
+    ).toBe(true)
+    expect(
+      hasInvoicePlaceholderCopy(
+        'Pickup @ (ENTER FBO) ETA (ENTER ETA in LOCAL TIME)',
+      ),
+    ).toBe(true)
+    expect(hasInvoicePlaceholderCopy('Pickup in CAK ETA 1hr 15 min')).toBe(
+      false,
+    )
   })
 
   it('renders text + currency helpers', () => {

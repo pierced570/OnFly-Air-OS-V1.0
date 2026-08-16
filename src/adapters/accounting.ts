@@ -4,7 +4,7 @@
  *
  * Create in QBO (ACH on, DocNumber=PO, CustomerMemo=trip details). Deliver via
  * branded Resend payment-request email (PO in subject + itinerary filled) with
- * the QBO PDF attached — not the company QBO email template placeholders.
+ * the QBO PDF attached — never the company QBO email template (ENTER … placeholders).
  */
 
 import { adapterMode } from '@/adapters/types'
@@ -484,21 +484,18 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
         return { id: String(body.id ?? opts.qbInvoiceId) }
       }
       console.warn('[qb] branded send-invoice-email failed', body)
-    } else {
-      console.warn('[qb] branded send-invoice-email invoke failed', error)
+      throw new Error(
+        `Branded invoice email failed: ${body.error}${
+          body.detail ? ` (${body.detail})` : ''
+        }. Fix Resend / send-invoice-email — native QBO mail still has (ENTER …) placeholders.`,
+      )
     }
-
-    // Last resort: native QBO send (company template may still have placeholders —
-    // invoice DocNumber/memo were already prepared above).
-    const native = await this.invoke('send_invoice', {
-      invoice_id: opts.qbInvoiceId,
-      send_to: sendTo,
-      cc: opts.cc ?? [],
-      po_number: po,
-      customer_memo: memo || null,
-      allow_online_ach: true,
-    })
-    return { id: String(native.invoice_id ?? opts.qbInvoiceId) }
+    console.warn('[qb] branded send-invoice-email invoke failed', error)
+    throw new Error(
+      `Branded invoice email failed: ${
+        error.message || String(error)
+      }. Native QBO payment-request email is disabled (company template leaves trip fields blank).`,
+    )
   }
 }
 

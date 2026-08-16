@@ -2297,6 +2297,7 @@ async function buildTripInvoiceMailPayload(opts: {
   const { portalTrackingUrlForTrip } = await import('@/lib/etaSheetSender')
   const { buildInvoiceEmailTemplate } = await import('@/lib/buildInvoiceEmail')
   const {
+    hasInvoicePlaceholderCopy,
     invoiceEmailSubject,
     renderInvoiceEmailHtml,
     renderInvoiceEmailText,
@@ -2312,6 +2313,14 @@ async function buildTripInvoiceMailPayload(opts: {
     contractUrl: opts.contractUrl,
     clientName: opts.clientName,
   })
+  if (
+    hasInvoicePlaceholderCopy(opts.customerMemo) ||
+    hasInvoicePlaceholderCopy(tpl.tail)
+  ) {
+    throw new Error(
+      'Invoice trip details still contain ENTER placeholders — confirm tail / route before send',
+    )
+  }
   return {
     clientName: opts.clientName,
     logoUrl: invoiceEmailLogoUrl(),
@@ -2319,6 +2328,7 @@ async function buildTripInvoiceMailPayload(opts: {
     lane: tpl.laneShort,
     aircraftType: tpl.aircraftType,
     tail: tpl.tail,
+    itineraryLines: tpl.itineraryLines ?? [],
     contractUrl: opts.contractUrl ?? null,
     payUrl: opts.payUrl ?? null,
     portalUrl,
