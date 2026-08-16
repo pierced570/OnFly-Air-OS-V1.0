@@ -3,6 +3,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import {
   emptyTripPassenger,
   type TripPassenger,
@@ -107,20 +108,20 @@ export function TripPassengersPanel({ trip, compact = false }: Props) {
             </label>
             <label className={labelCls}>
               Weight (lb)
-              <input
-                type="number"
+              <NumericDraftInput
+                integer
+                blankZero
                 min={0}
-                value={p.weight_lbs}
-                onChange={(e) => {
+                className={`${inputCls} avionic`}
+                value={p.weight_lbs === '' ? null : Number(p.weight_lbs)}
+                onValueChange={(n) => {
                   const next = [...rows]
                   next[i] = {
                     ...p,
-                    weight_lbs:
-                      e.target.value === '' ? '' : Number(e.target.value),
+                    weight_lbs: n == null ? '' : n,
                   }
                   setRows(next)
                 }}
-                className={`${inputCls} avionic`}
                 placeholder="—"
               />
             </label>

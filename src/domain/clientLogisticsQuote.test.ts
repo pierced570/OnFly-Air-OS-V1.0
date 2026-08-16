@@ -140,6 +140,32 @@ describe('clientLogisticsQuote', () => {
     )
   })
 
+  it('hard quote shows Standard tools without dims for standard tooling', () => {
+    const chips = buildCharterMissionChips({
+      payload_kind: 'cargo',
+      payload_summary: 'standard tooling (12×12×12 @ 75 lb)',
+      ready_label: 'ASAP',
+    })
+    const labels = chips.map((c) => c.label)
+    expect(labels).toContain('Standard tools')
+    expect(labels).toContain('Cargo only')
+    expect(labels).toContain('Ready ASAP')
+    expect(labels.some((l) => /12/.test(l))).toBe(false)
+    expect(labels.some((l) => /75/.test(l))).toBe(false)
+    expect(labels.some((l) => /pc/i.test(l))).toBe(false)
+  })
+
+  it('hard quote Standard tools chip for pax + assumed operator tooling line', () => {
+    const chips = buildCharterMissionChips({
+      payload_kind: 'both',
+      payload_summary: '2 pax + standard small cargo/tools (12×12×12 @ 75 lb)',
+    })
+    const labels = chips.map((c) => c.label)
+    expect(labels).toContain('Standard tools')
+    expect(labels).toContain('Cargo + passenger')
+    expect(labels.join(' ')).not.toMatch(/12\s*[x×]/i)
+  })
+
   it('builds change-request mailto', () => {
     const href = buildChangeRequestMailto({
       lane: 'KCAK → KHPN',

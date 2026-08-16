@@ -527,19 +527,34 @@ function ClientDetail({
             />
           </label>
           {profile.needs_vendor_number && (
-            <label className={label}>
-              Vendor # instructions
-              <input
-                className={input}
-                value={profile.vendor_number_notes ?? ''}
-                onChange={(e) =>
-                  patchProfile({
-                    vendor_number_notes: e.target.value || undefined,
-                  })
-                }
-                placeholder="Portal / AP contact for vendor registration"
-              />
-            </label>
+            <>
+              <label className={label}>
+                Vendor #
+                <input
+                  className={`${input} avionic`}
+                  value={profile.vendor_number ?? ''}
+                  onChange={(e) =>
+                    patchProfile({
+                      vendor_number: e.target.value.trim() || null,
+                    })
+                  }
+                  placeholder="OnFly vendor # with this client"
+                />
+              </label>
+              <label className={label}>
+                Vendor # instructions
+                <input
+                  className={input}
+                  value={profile.vendor_number_notes ?? ''}
+                  onChange={(e) =>
+                    patchProfile({
+                      vendor_number_notes: e.target.value || undefined,
+                    })
+                  }
+                  placeholder="Portal / AP contact for vendor registration"
+                />
+              </label>
+            </>
           )}
         </div>
 

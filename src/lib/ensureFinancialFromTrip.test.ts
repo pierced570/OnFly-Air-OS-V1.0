@@ -90,4 +90,72 @@ describe('ensureFinancialFromBookedTrip', () => {
     expect(row.margin).toBe(1000)
     expect(getFinancial(row.id)?.referral_name).toBe('Casey Broker')
   })
+
+  it('logs FET vs other tax on financials while client invoice stays all-in', () => {
+    const trip = stubTrip({
+      id: 'trip-tax-1',
+      candidates: [
+        {
+          aircraft_id: 'a1',
+          operator_id: 'o1',
+          operator_name: 'Op',
+          tail: 'N900XX',
+          type_name: 'King Air 200',
+          mtow_lbs: 12500,
+          cost: 8000,
+          price: 10000,
+          chain: [],
+          confidence: 1,
+          needsInfo: [],
+          bookingGated: false,
+          reasoning: [],
+          eta_end: new Date().toISOString(),
+          circuit_nm: 300,
+          rate_per_nm: 8,
+          rate_source: 'assumption',
+        },
+      ],
+      offers: [
+        {
+          id: 'off1',
+          aircraft_id: 'a1',
+          operator_name: 'Op',
+          type_name: 'King Air 200',
+          tail: 'N900XX',
+          state: 'selected',
+          price_net: 8000,
+          magic_token: 'tok',
+          bookingGated: false,
+          needsInfo: [],
+          contact_cell: '',
+          contact_cell_is_mock: true,
+          contact_email: '',
+          quote_link_channel: 'email',
+        } as unknown as TripStoreRow['offers'][number],
+      ],
+      hard_quote: {
+        total: 10625,
+        accept_token: 'acc',
+        payload_kind: 'cargo',
+        options: [
+          {
+            offer_id: 'off1',
+            label: 'A',
+            client_total: 10625,
+            eta_end: null,
+            fee_scope: null,
+            type_name: 'King Air 200',
+            time_to_position_min: 90,
+            quick_turn_min: 40,
+            live_leg_min: 75,
+          },
+        ],
+      },
+    })
+    const row = ensureFinancialFromBookedTrip(trip)
+    expect(row.client_invoiced_amount).toBe(10625)
+    expect(row.client_subtotal_pre_tax).toBe(10000)
+    expect(row.tax_total).toBe(625)
+    expect(row.tax_breakdown.some((l) => l.code === 'FET_CARGO')).toBe(true)
+  })
 })

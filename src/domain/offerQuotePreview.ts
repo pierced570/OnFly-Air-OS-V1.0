@@ -57,6 +57,8 @@ export type OfferQuotePreview = {
   segment_fee_total: number
   fet_total: number
   fet_exempt: boolean
+  /** True when MTOW missing — FET not charged until known. */
+  fet_mtow_unknown: boolean
   payload_kind: 'cargo' | 'pax' | 'both'
   /** Final client total (override or computed). */
   client_total: number
@@ -139,6 +141,7 @@ export function buildOfferQuotePreview(
     segment_fee_total,
     fet_total,
     fet_exempt: tax.fetExempt,
+    fet_mtow_unknown: tax.fetMtowUnknown,
     payload_kind: input.payload_kind,
     client_total,
     fee_scope: input.fee_scope,

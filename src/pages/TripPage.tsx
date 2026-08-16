@@ -357,7 +357,7 @@ export default function TripPage() {
               className="mt-3 rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
               onClick={() => {
                 setInvoiceBusy(true)
-                void createInvoiceForTrip(trip.id).finally(() =>
+                void createInvoiceForTrip(trip.id, { skipEmail: true }).finally(() =>
                   setInvoiceBusy(false),
                 )
               }}

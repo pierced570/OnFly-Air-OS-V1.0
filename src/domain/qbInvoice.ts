@@ -209,6 +209,7 @@ export function buildInvoiceCustomerMemo(opts: {
   tail?: string | null
   poNumber?: string | null
   payTerms?: string | null
+  vendorNumber?: string | null
   extraNotes?: string | null
   /** Optional itinerary block (inserted after terms). */
   itineraryLines?: string[] | null
@@ -229,6 +230,9 @@ export function buildInvoiceCustomerMemo(opts: {
       : null,
     opts.poNumber?.trim()
       ? `PO #${normalizePoDocNumber(opts.poNumber, opts.poNumber.trim())}`
+      : null,
+    opts.vendorNumber?.trim()
+      ? `Vendor #${opts.vendorNumber.trim()}`
       : null,
     opts.payTerms?.trim() ? `Terms: ${opts.payTerms.trim()}` : null,
     itinerary.length ? '' : null,
@@ -286,12 +290,17 @@ export function buildQbInvoicePayload(input: BuildQbInvoiceInput): QbInvoicePayl
   return payload
 }
 
-/** Build air + tax lines for OnFly trip invoice (CHUNK_5). */
+/** Build a single client-facing charter line (all-in). Tax stays on financials. */
 export function tripInvoiceLines(opts: {
   tripRef: number
   lane: string
   flightDate: string | null
+  /** Pre-tax air amount — summed with taxLines into one QBO line. */
   airAmount: number
+  /**
+   * Internal tax split (FET / segment / …). Included in the single client
+   * line amount; not emitted as separate QBO SalesItem lines.
+   */
   taxLines?: Array<{ code: string; amount: number; note?: string }>
   /** Confirmed aircraft type — appears on the air line description. */
   aircraftType?: string | null
@@ -303,18 +312,16 @@ export function tripInvoiceLines(opts: {
     aircraftType: opts.aircraftType,
     tail: opts.tail,
   })
-  const lines: QbInvoiceLineInput[] = [
+  const taxSum = (opts.taxLines ?? []).reduce(
+    (s, t) => s + Math.max(0, Number(t.amount) || 0),
+    0,
+  )
+  const amount =
+    Math.round((Math.max(0, opts.airAmount) + taxSum) * 100) / 100
+  return [
     {
       description: desc,
-      amount: opts.airAmount,
+      amount,
     },
   ]
-  for (const t of opts.taxLines ?? []) {
-    if (t.amount <= 0) continue
-    lines.push({
-      description: `${t.code}${t.note ? ` — ${t.note}` : ''}`,
-      amount: t.amount,
-    })
-  }
-  return lines
 }

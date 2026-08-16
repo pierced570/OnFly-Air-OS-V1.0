@@ -5,6 +5,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import {
   buildReferralMonthStatement,
   buildReferralMonthTabs,
@@ -507,13 +508,13 @@ function ReferralDetail({
               <option value="percent_margin">% of gross margin</option>
               <option value="flat">Flat $ / trip</option>
             </select>
-            <input
-              type="number"
+            <NumericDraftInput
               className={`${input} avionic`}
               value={person.share_value}
-              onChange={(e) =>
-                updateReferral(id, { share_value: Number(e.target.value) || 0 })
-              }
+              onValueChange={(n) => {
+                if (n == null) return
+                updateReferral(id, { share_value: n })
+              }}
             />
           </div>
           <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">

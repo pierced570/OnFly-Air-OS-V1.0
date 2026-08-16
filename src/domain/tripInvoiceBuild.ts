@@ -1,5 +1,6 @@
 /**
- * Build QuickBooks invoice lines from a trip — air + table-driven tax.
+ * Build QuickBooks invoice lines from a trip — one client-facing all-in line.
+ * FET / segment / cargo tax are computed for the financials ledger only.
  * Pure TS; rates come from tax_rates (never literals in callers).
  */
 
@@ -27,17 +28,26 @@ export type TripInvoiceBuildInput = {
   rates: TaxRateRow[]
 }
 
+export type TripInvoiceTaxBreakdownLine = {
+  code: string
+  amount: number
+  note: string
+}
+
 export type TripInvoiceBuildResult = {
+  /** QBO SalesItem lines — single charter (all-in) + optional ground. */
   lines: QbInvoiceLineInput[]
   airAmount: number
   taxTotal: number
+  /** Internal ledger split (FET vs segment, etc.) — not on the client invoice. */
+  taxBreakdown: TripInvoiceTaxBreakdownLine[]
   clientTotal: number
   fetExempt: boolean
 }
 
 /**
- * Split client all-in into air + FET/tax lines for QBO SalesItem lines.
- * Ground handling (if any) is a separate line and not taxed here.
+ * Client QBO invoice: one all-in charter line (+ ground if any).
+ * Tax math is returned in taxBreakdown for Financials — never as QBO lines.
  */
 export function buildTripInvoiceLines(
   input: TripInvoiceBuildInput,
@@ -59,6 +69,13 @@ export function buildTripInvoiceLines(
 
   const airAmount = airSubtotalFromClientTotal(taxableTotal, taxBase)
   const tax = computeTax({ ...taxBase, airSubtotal: airAmount })
+  const taxBreakdown: TripInvoiceTaxBreakdownLine[] = tax.lines
+    .filter((l) => l.amount > 0)
+    .map((l) => ({
+      code: l.code,
+      amount: l.amount,
+      note: l.note,
+    }))
 
   const lines = tripInvoiceLines({
     tripRef: input.tripRef,
@@ -67,11 +84,7 @@ export function buildTripInvoiceLines(
     airAmount,
     aircraftType: input.aircraftType,
     tail: input.tail,
-    taxLines: tax.lines.map((l) => ({
-      code: l.code,
-      amount: l.amount,
-      note: l.note,
-    })),
+    taxLines: taxBreakdown,
   })
 
   if (ground > 0) {
@@ -85,6 +98,7 @@ export function buildTripInvoiceLines(
     lines,
     airAmount,
     taxTotal: tax.total,
+    taxBreakdown,
     clientTotal: allIn,
     fetExempt: tax.fetExempt,
   }

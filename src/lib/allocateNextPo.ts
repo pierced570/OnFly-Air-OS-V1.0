@@ -23,6 +23,7 @@ function initialsPrefix(name: string): string {
 export async function allocateNextPoForClient(opts: {
   clientId?: string | null
   clientName: string
+  tripRef?: string | null
 }): Promise<string> {
   const name = opts.clientName.trim() || 'Client'
   const client =
@@ -49,6 +50,6 @@ export async function allocateNextPoForClient(opts: {
     initialsPrefix(name)
 
   const po = nextPoNumber({ lastNumeric, prefix })
-  if (client) recordPoUsed(client.id, po)
+  if (client) recordPoUsed(client.id, po, { tripRef: opts.tripRef })
   return po
 }

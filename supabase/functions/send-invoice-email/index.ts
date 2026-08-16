@@ -241,7 +241,28 @@ function renderInvoiceHtmlFallback(opts: {
           ${amount ? `<div style="margin-top:8px;font-size:34px;font-weight:700">${escapeHtml(amount)}</div>` : ''}
           <div style="margin-top:16px">${payBtn}</div>
           ${tail || aircraft ? `<div style="margin-top:22px"><div style="font-size:10px;letter-spacing:0.16em;color:#c9a227">AIRCRAFT / TAIL</div><div style="margin-top:6px;font-size:18px;font-weight:700">${escapeHtml([aircraft, tail].filter(Boolean).join(' · '))}</div></div>` : ''}
-          ${itinerary.length ? `<div style="margin-top:18px">${itinerary.map((l) => `<div style="font-size:14px;margin:0 0 4px">${escapeHtml(l)}</div>`).join('')}</div>` : ''}
+          ${
+            itinerary.length
+              ? `<div style="margin-top:18px"><div style="font-size:10px;letter-spacing:0.16em;color:#c9a227">TRIP DETAILS</div>${itinerary
+                  .map(
+                    (l) =>
+                      `<div style="font-size:14px;margin:6px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${escapeHtml(l)}</div>`,
+                  )
+                  .join('')}</div>`
+              : ''
+          }
+          ${
+            lane || opts.flightDate
+              ? `<div style="margin-top:14px;font-size:14px;color:#0c0c0e">${[
+                  lane ? `Route: ${escapeHtml(lane)}` : null,
+                  opts.flightDate
+                    ? `Date: ${escapeHtml(String(opts.flightDate).trim())}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join('<br/>')}</div>`
+              : ''
+          }
           ${contractUrl ? `<p style="margin-top:18px"><a href="${escapeAttr(contractUrl)}">${escapeHtml(contractUrl)}</a></p>` : ''}
           ${portalUrl ? `<p style="margin-top:18px"><a href="${escapeAttr(portalUrl)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-weight:700;padding:12px 16px;border-radius:8px">Open live tracking portal →</a></p>` : ''}
         </td></tr>

@@ -59,4 +59,20 @@ describe('quote math', () => {
     expect(t.tax.fetExempt).toBe(true)
     expect(t.total).toBe(10000)
   })
+
+  it('buildQuoteTotals does not invent FET when MTOW is unknown', () => {
+    const cand = stubCand({ cost: 8500, price: 10000, mtow_lbs: null })
+    const t = buildQuoteTotals(cand, {
+      markupMode: 'dollars',
+      markupValue: 1500,
+      payloadKind: 'cargo',
+      mtowLbs: null,
+      paxCount: 0,
+      segments: 1,
+      rates: TEST_TAX_RATES_2026,
+    })
+    expect(t.tax.fetMtowUnknown).toBe(true)
+    expect(t.tax.total).toBe(0)
+    expect(t.total).toBe(10000)
+  })
 })

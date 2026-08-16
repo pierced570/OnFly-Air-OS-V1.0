@@ -1,6 +1,7 @@
 /**
  * Orchestrate QB invoice create → branded payment-request email → ledger.
  * PDF from QuickBooks; subject/body filled with PO + trip details via Resend.
+ * Never falls through to the native QBO company template (ENTER … placeholders).
  */
 
 import {
@@ -9,14 +10,27 @@ import {
 } from '@/adapters/accounting'
 import type { FinancialRecord } from '@/domain/financials'
 import {
+  buildInvoiceCustomerMemo,
+  buildInvoiceItineraryLines,
   extractPoNumeric,
   nextPoNumber,
   normalizePoDocNumber,
   tripInvoiceLines,
 } from '@/domain/qbInvoice'
-import { isInvoicePoPlaceholder } from '@/domain/invoiceEmail'
+import {
+  hasInvoicePlaceholderCopy,
+  invoiceEmailSubject,
+  isInvoicePoPlaceholder,
+  renderInvoiceEmailHtml,
+  renderInvoiceEmailText,
+  type InvoiceEmailTemplate,
+} from '@/domain/invoiceEmail'
+import { patternLabelForService, shortLaneLabel } from '@/domain/etaSheetEmail'
 import { listClients, listInvoiceEmails } from '@/lib/clientStore'
 import { upsertFinancial } from '@/lib/financialsStore'
+import { invoiceEmailLogoUrl } from '@/lib/invoiceEmailLogo'
+import { charterContractUrlFromEnv } from '@/lib/invoiceTripFacts'
+import { DateTime } from 'luxon'
 
 export type SendFinancialInvoiceResult = {
   created: CreateInvoiceResult
@@ -72,9 +86,32 @@ export async function sendFinancialInvoice(
       ? row.client_subtotal_pre_tax
       : Math.max(0, row.client_invoiced_amount - (row.tax_total || 0))
 
+  const lane = row.route_text || ''
+  const itineraryLines = buildInvoiceItineraryLines({ lane })
+  const vendorNote = client?.profile.vendor_number?.trim()
+    ? `Vendor #${client.profile.vendor_number.trim()}`
+    : null
+  const memo = buildInvoiceCustomerMemo({
+    lane,
+    flightDate: row.date_of_flight,
+    aircraftType: row.aircraft_type,
+    tail: row.tail_number,
+    poNumber,
+    payTerms: row.pay_terms || client?.pay_terms || 'Net 30',
+    itineraryLines,
+    extraNotes: [row.notes?.trim() || null, vendorNote]
+      .filter(Boolean)
+      .join('\n') || null,
+  })
+  if (hasInvoicePlaceholderCopy(memo)) {
+    throw new Error(
+      'Invoice trip details still contain ENTER placeholders — fill tail / route before send',
+    )
+  }
+
   const lines = tripInvoiceLines({
     tripRef: 0,
-    lane: row.route_text || '',
+    lane,
     flightDate: row.date_of_flight,
     airAmount: air || row.client_invoiced_amount,
     aircraftType: row.aircraft_type,
@@ -89,7 +126,7 @@ export async function sendFinancialInvoice(
       ...lines[0],
       description: [
         poNumber,
-        row.route_text || '',
+        lane,
         row.aircraft_type || '',
         txnDate,
       ]
@@ -106,10 +143,14 @@ export async function sendFinancialInvoice(
     txnDate,
     payTerms: row.pay_terms || client?.pay_terms || 'Net 30',
     lines,
-    notes: row.notes,
+    notes: memo,
   })
 
   const doc = created.qbInvoiceNumber || poNumber
+  if (client) {
+    const { recordPoUsed } = await import('@/lib/clientStore')
+    recordPoUsed(client.id, doc)
+  }
   upsertFinancial({
     ...row,
     operator_po: doc,
@@ -135,17 +176,36 @@ export async function sendFinancialInvoice(
     if (isInvoicePoPlaceholder(doc)) {
       throw new Error('Invoice PO required before send — refuse placeholder PO')
     }
+    const tpl = financialInvoiceEmailTemplate({
+      row,
+      poNumber: doc,
+      clientName,
+      amountUsd: row.client_invoiced_amount,
+      payUrl: created.url || null,
+      itineraryLines,
+    })
     const mail = await acct.sendInvoiceEmail({
       to,
       poNumber: doc,
       qbInvoiceId: created.qbInvoiceId,
       clientName,
       amountUsd: row.client_invoiced_amount,
-      lane: row.route_text,
+      lane: shortLaneLabel(lane) || lane,
       flightDate: row.date_of_flight,
       aircraftType: row.aircraft_type,
+      tail: row.tail_number,
+      itineraryLines,
       payUrl: created.url || null,
-      customerMemo: row.notes?.trim() || null,
+      contractUrl: charterContractUrlFromEnv(),
+      customerMemo: memo,
+      subject: invoiceEmailSubject({
+        poNumber: doc,
+        laneShort: tpl.laneShort,
+        tail: tpl.tail,
+      }),
+      html: renderInvoiceEmailHtml(tpl),
+      text: renderInvoiceEmailText(tpl),
+      logoUrl: invoiceEmailLogoUrl(),
     })
     emailed = true
     emailId = mail.id
@@ -157,6 +217,67 @@ export async function sendFinancialInvoice(
     emailId,
     to,
     poNumber: doc,
+  }
+}
+
+function financialInvoiceEmailTemplate(opts: {
+  row: FinancialRecord
+  poNumber: string
+  clientName: string
+  amountUsd: number
+  payUrl?: string | null
+  itineraryLines: string[]
+}): InvoiceEmailTemplate {
+  const lane = opts.row.route_text || ''
+  const laneShort = shortLaneLabel(lane) || lane || '—'
+  const parts = lane.split(/→|->|–|—/).map((s) => s.trim()).filter(Boolean)
+  const origin = (parts[0] || 'DEP').replace(/^K/i, '')
+  const dest = (parts[1] || 'ARR').replace(/^K/i, '')
+  const tail = opts.row.tail_number?.trim() || 'TBD'
+  const aircraft = opts.row.aircraft_type?.trim() || 'Aircraft TBD'
+  const prepared = `Prepared ${DateTime.utc()
+    .setZone('America/New_York')
+    .toFormat('ccc LLL d · HH:mm ZZZZ')}`
+
+  return {
+    logoUrl: invoiceEmailLogoUrl(),
+    poNumber: opts.poNumber,
+    laneShort,
+    preparedLabel: prepared,
+    patternLabel: patternLabelForService(null),
+    aircraftType: aircraft,
+    aircraftBlurb: 'Cargo configuration',
+    tail,
+    pickup: {
+      kind: 'pickup',
+      placeBadge: 'AIRPORT',
+      title: `${origin} departure`,
+      addressLines: [`Depart via ${origin}`, 'Hangar-side / FBO load as coordinated'],
+      footer: `Departs via ${origin}`,
+    },
+    dropoff: {
+      kind: 'dropoff',
+      placeBadge: 'FBO',
+      title: `${dest} arrival`,
+      addressLines: [`Arrive at ${dest}`, 'Your team meets aircraft at FBO ramp'],
+      footer: `Arrives at ${dest}`,
+    },
+    milestones: [
+      {
+        label: `${origin} → ${dest}`,
+        detail: 'Live times on portal',
+        projected: null,
+        actual: null,
+      },
+    ],
+    portalUrl: 'https://ofaops.onflyair.com/portal',
+    clientName: opts.clientName,
+    amountUsd: opts.amountUsd,
+    payUrl: opts.payUrl ?? null,
+    contractUrl: charterContractUrlFromEnv(),
+    itineraryLines: opts.itineraryLines,
+    flightDate: opts.row.date_of_flight,
+    detailLines: opts.row.notes?.trim() ? [opts.row.notes.trim()] : [],
   }
 }
 
