@@ -82,6 +82,15 @@ describe('qbInvoice', () => {
     ])
   })
 
+  it('includes optional vendor # on customer memo', () => {
+    const memo = buildInvoiceCustomerMemo({
+      lane: 'KCAK → KMDW',
+      poNumber: '00010',
+      vendorNumber: 'V-7781',
+    })
+    expect(memo).toContain('Vendor #V-7781')
+  })
+
   it('sequences PO numbers with prefix', () => {
     expect(extractPoNumeric('PSA1234')).toBe(1234)
     expect(nextPoNumber({ lastNumeric: 1234, prefix: 'PSA' })).toBe('PSA1235')

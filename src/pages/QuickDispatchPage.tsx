@@ -25,6 +25,7 @@ import {
   subscribeClients,
   type ClientProfile,
 } from '@/lib/clientStore'
+import { formatInvoicePoHint, tripRefLabel } from '@/domain/invoicePoHint'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import {
   createInvoiceForTrip,
@@ -251,7 +252,6 @@ export default function QuickDispatchPage() {
         invoiceCcList,
         etaList,
       )
-      recordPoUsed(client.id, poFinal)
 
       const trip = createQuickDispatchTrip({
         client_id: client.id,
@@ -286,6 +286,8 @@ export default function QuickDispatchPage() {
           live_leg_time: l.live_leg_time.trim(),
         })),
       })
+
+      recordPoUsed(client.id, poFinal, { tripRef: tripRefLabel(trip) })
 
       // QuickBooks invoice PDF + branded OnFly email (logo header).
       if (sendInvoice && Number(clientPrice) > 0) {
@@ -488,9 +490,11 @@ export default function QuickDispatchPage() {
           </div>
           {client && (
             <span className="mt-1 block text-[11px] text-muted">
-              {lastPoHint
-                ? `Last used ${lastPoHint} · suggesting ${suggestedPo}`
-                : `No prior PO — suggesting ${suggestedPo}`}
+              {formatInvoicePoHint({
+                lastPo: lastPoHint,
+                lastPoTripRef: client.profile.last_po_trip_ref,
+                suggestedPo,
+              })}
             </span>
           )}
         </label>

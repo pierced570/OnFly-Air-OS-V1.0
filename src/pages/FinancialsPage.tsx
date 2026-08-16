@@ -23,6 +23,7 @@ import {
   referralMonthLabel,
   shareTermsLabel,
 } from '@/domain/referrals'
+import { formatInvoicePoHint } from '@/domain/invoicePoHint'
 import { getReferralByName } from '@/lib/referralStore'
 import { sendFinancialInvoice } from '@/lib/invoiceFlow'
 import { useQuickBooksDashboard } from '@/lib/useQuickBooksDashboard'
@@ -32,7 +33,15 @@ import {
   initialAircraftTypeSelectValue,
 } from '@/components/AircraftTypeSelect'
 import { BrandLockup } from '@/components/BrandLockup'
+import { InvoicePoVendorFields } from '@/components/InvoicePoVendorFields'
 import { NumericDraftInput } from '@/components/NumericDraftInput'
+import {
+  listClients,
+  recordPoUsed,
+  recordVendorNumber,
+  suggestNextPo,
+  subscribeClients,
+} from '@/lib/clientStore'
 import {
   canUseStorage,
   uploadTripDocToStorage,
@@ -1085,6 +1094,23 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
               updateFinancialField(r.id, 'operator_po', e.target.value || null)
             }
           />
+          {(() => {
+            const c = listClients().find(
+              (x) =>
+                x.name.toLowerCase() ===
+                (r.client_name ?? '').trim().toLowerCase(),
+            )
+            if (!c) return null
+            return (
+              <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">
+                {formatInvoicePoHint({
+                  lastPo: c.last_po,
+                  lastPoTripRef: c.profile.last_po_trip_ref,
+                  suggestedPo: suggestNextPo(c.last_po),
+                })}
+              </span>
+            )
+          })()}
         </label>
         <label className="text-xs text-muted">
           Client
@@ -1656,13 +1682,48 @@ function ClientDrawer({
   invoiceBusy: boolean
   onSendInvoice: () => void
 }) {
+  useSyncExternalStore(subscribeClients, listClients, listClients)
   const [confirmedType, setConfirmedType] = useState(() =>
     initialAircraftTypeSelectValue(r.aircraft_type),
+  )
+  const client = useMemo(() => {
+    const name = (r.client_name ?? '').trim().toLowerCase()
+    if (!name) return undefined
+    return listClients().find((c) => c.name.toLowerCase() === name)
+  }, [r.client_name])
+  const lastPo = client?.last_po ?? null
+  const suggestedPo = useMemo(() => suggestNextPo(lastPo), [lastPo])
+  const [poDraft, setPoDraft] = useState(
+    () => (r.operator_po || r.po_number || '').trim() || suggestedPo,
+  )
+  const [vendorDraft, setVendorDraft] = useState(
+    () => client?.profile.vendor_number?.trim() || '',
   )
 
   useEffect(() => {
     setConfirmedType((prev) => prev || initialAircraftTypeSelectValue(r.aircraft_type))
   }, [r.aircraft_type])
+
+  useEffect(() => {
+    const existing = (r.operator_po || r.po_number || '').trim()
+    setPoDraft(existing || suggestedPo)
+  }, [r.id, r.operator_po, r.po_number, suggestedPo])
+
+  useEffect(() => {
+    setVendorDraft(client?.profile.vendor_number?.trim() || '')
+  }, [client?.id, client?.profile.vendor_number])
+
+  function commitPo(next: string) {
+    const cleaned = next.trim()
+    updateFinancialField(r.id, 'operator_po', cleaned || null)
+    if (client && cleaned) {
+      recordPoUsed(client.id, cleaned)
+    }
+  }
+
+  function commitVendor(next: string) {
+    if (client) recordVendorNumber(client.id, next.trim() || null)
+  }
 
   return (
     <div className="rounded-lg border border-onplan/30 bg-onplan/5 p-3">
@@ -1676,12 +1737,15 @@ function ClientDrawer({
             invoiceBusy ||
             Boolean(r.qb_invoice_id) ||
             r.client_invoiced_amount <= 0 ||
-            !confirmedType.trim()
+            !confirmedType.trim() ||
+            !poDraft.trim()
           }
           onClick={() => {
             if (confirmedType.trim() !== (r.aircraft_type ?? '').trim()) {
               updateFinancialField(r.id, 'aircraft_type', confirmedType.trim())
             }
+            commitPo(poDraft)
+            commitVendor(vendorDraft)
             onSendInvoice()
           }}
           className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink disabled:opacity-40"
@@ -1693,6 +1757,26 @@ function ClientDrawer({
               : 'Send Invoice'}
         </button>
       </div>
+
+      <InvoicePoVendorFields
+        className="mb-3"
+        inputClassName={field}
+        poValue={poDraft}
+        onPoChange={setPoDraft}
+        onPoCommit={() => commitPo(poDraft)}
+        suggestedPo={suggestedPo}
+        lastPo={lastPo}
+        lastPoTripRef={client?.profile.last_po_trip_ref}
+        vendorValue={vendorDraft}
+        onVendorChange={setVendorDraft}
+        onVendorCommit={() => commitVendor(vendorDraft)}
+        vendorRecommended={client?.profile.needs_vendor_number === true}
+        onUseSuggestedPo={() => {
+          setPoDraft(suggestedPo)
+          commitPo(suggestedPo)
+        }}
+      />
+
       <AircraftTypeSelect
         className="mb-3 block text-xs text-muted"
         label="Confirm aircraft type before invoice"

@@ -209,6 +209,7 @@ export function buildInvoiceCustomerMemo(opts: {
   tail?: string | null
   poNumber?: string | null
   payTerms?: string | null
+  vendorNumber?: string | null
   extraNotes?: string | null
   /** Optional itinerary block (inserted after terms). */
   itineraryLines?: string[] | null
@@ -229,6 +230,9 @@ export function buildInvoiceCustomerMemo(opts: {
       : null,
     opts.poNumber?.trim()
       ? `PO #${normalizePoDocNumber(opts.poNumber, opts.poNumber.trim())}`
+      : null,
+    opts.vendorNumber?.trim()
+      ? `Vendor #${opts.vendorNumber.trim()}`
       : null,
     opts.payTerms?.trim() ? `Terms: ${opts.payTerms.trim()}` : null,
     itinerary.length ? '' : null,

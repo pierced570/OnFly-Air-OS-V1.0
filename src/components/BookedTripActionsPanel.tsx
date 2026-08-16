@@ -4,7 +4,7 @@
  * 2) ETA sheet (tail + ETAs + tracking portal — no payment)
  */
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
   AircraftTypeSelect,
   initialAircraftTypeSelectValue,
@@ -16,6 +16,7 @@ import {
   emptyClientEmailSelection,
   type ClientEmailSelection,
 } from '@/components/ClientEmailRecipientsBubble'
+import { InvoicePoVendorFields } from '@/components/InvoicePoVendorFields'
 import { computeEtaSheetFromBookedTrip } from '@/lib/etaSheet'
 import { TripPassengersPanel } from '@/components/TripPassengersPanel'
 import {
@@ -32,9 +33,16 @@ import {
   sendTripInvoiceEmail,
   subscribeTrips,
 } from '@/lib/tripStore'
-import { allocateNextPoForClient } from '@/lib/allocateNextPo'
+import { tripRefLabel } from '@/domain/invoicePoHint'
 import { resolveTripPoNumber } from '@/domain/tripPo'
-import { getClient } from '@/lib/clientStore'
+import {
+  getClient,
+  recordPoUsed,
+  recordVendorNumber,
+  suggestNextPo,
+  subscribeClients,
+  listClients,
+} from '@/lib/clientStore'
 
 type Props = {
   tripId: string
@@ -42,6 +50,7 @@ type Props = {
 
 export function BookedTripActionsPanel({ tripId }: Props) {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
+  useSyncExternalStore(subscribeClients, listClients, listClients)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
   const [invoiceSel, setInvoiceSel] = useState<ClientEmailSelection>(
     emptyClientEmailSelection,
@@ -63,6 +72,9 @@ export function BookedTripActionsPanel({ tripId }: Props) {
   const [poDraft, setPoDraft] = useState(
     () => trip?.po_number?.trim() || trip?.quick?.po?.trim() || '',
   )
+  const [vendorDraft, setVendorDraft] = useState(
+    () => trip?.vendor_number?.trim() || '',
+  )
 
   useEffect(() => {
     setInvoiceSel(defaultInvoiceEmailSelection(trip?.client_id))
@@ -77,24 +89,59 @@ export function BookedTripActionsPanel({ tripId }: Props) {
     setPoDraft(trip?.po_number?.trim() || trip?.quick?.po?.trim() || '')
   }, [trip?.po_number, trip?.quick?.po, tripId])
 
+  useEffect(() => {
+    const client = trip?.client_id ? getClient(trip.client_id) : null
+    setVendorDraft(
+      trip?.vendor_number?.trim() ||
+        client?.profile.vendor_number?.trim() ||
+        '',
+    )
+  }, [trip?.vendor_number, trip?.client_id, tripId])
+
+  const client = trip?.client_id ? getClient(trip.client_id) : null
+  const lastPo = client?.last_po ?? null
+  const lastPoTripRef = client?.profile.last_po_trip_ref ?? null
+  const suggestedPo = useMemo(() => suggestNextPo(lastPo), [lastPo])
+
+  // Prefill empty PO with +1 suggestion once client is known.
+  useEffect(() => {
+    const existing =
+      trip?.po_number?.trim() || trip?.quick?.po?.trim() || ''
+    if (existing) return
+    setPoDraft((prev) => (prev.trim() ? prev : suggestedPo))
+    // Only when the trip / client context changes — not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip?.id, trip?.client_id, suggestedPo])
+
   if (!trip) return null
 
   const sheet = computeEtaSheetFromBookedTrip(trip, new Date(), {
     clientFacing: true,
   })
   const po = resolveTripPoNumber(trip)
+  const thisTripRef = tripRefLabel(trip)
+  const clientId = trip.client_id
   const tail =
     trip.quick?.tail ||
     trip.offers.find((o) => o.state === 'selected')?.tail ||
     'TBD'
   const trackUrl = portalTrackingUrlForTrip(trip.id)
+  const vendorRecommended = client?.profile.needs_vendor_number === true
 
-  function savePoDraft() {
-    const cleaned = poDraft.trim()
+  function saveBillingIds() {
+    const cleanedPo = poDraft.trim()
+    const cleanedVendor = vendorDraft.trim()
     mutateTrip(tripId, (t) => {
-      t.po_number = cleaned || null
-      if (t.quick) t.quick.po = cleaned
+      t.po_number = cleanedPo || null
+      t.vendor_number = cleanedVendor || null
+      if (t.quick) t.quick.po = cleanedPo
     })
+    if (clientId && cleanedPo) {
+      recordPoUsed(clientId, cleanedPo, { tripRef: thisTripRef })
+    }
+    if (clientId) {
+      recordVendorNumber(clientId, cleanedVendor || null)
+    }
   }
 
   return (
@@ -117,52 +164,6 @@ export function BookedTripActionsPanel({ tripId }: Props) {
         </div>
       </div>
 
-      <div className="space-y-2 rounded-md border border-gold/35 bg-gold/5 p-2.5">
-        <label className="block text-xs text-muted">
-          PO # <span className="text-late">(required for invoice)</span>
-          <div className="mt-1 flex flex-wrap gap-2">
-            <input
-              type="text"
-              className="min-w-[10rem] flex-1 rounded border border-border bg-ink px-2 py-1.5 font-mono text-sm text-cream"
-              value={poDraft}
-              placeholder="Client PO / DocNumber"
-              onChange={(e) => setPoDraft(e.target.value)}
-              onBlur={savePoDraft}
-            />
-            <button
-              type="button"
-              className="rounded border border-border px-2.5 py-1.5 text-[11px] text-muted hover:text-cream"
-              onClick={() => {
-                savePoDraft()
-              }}
-            >
-              Save PO
-            </button>
-            <button
-              type="button"
-              className="rounded border border-gold/40 px-2.5 py-1.5 text-[11px] text-gold hover:bg-gold/10"
-              onClick={() => {
-                const client = trip.client_id ? getClient(trip.client_id) : null
-                const clientName =
-                  trip.quick?.client_name ?? client?.name ?? trip.client_name ?? 'Client'
-                void allocateNextPoForClient({
-                  clientId: trip.client_id,
-                  clientName,
-                }).then((next) => {
-                  setPoDraft(next)
-                  mutateTrip(tripId, (t) => {
-                    t.po_number = next
-                    if (t.quick) t.quick.po = next
-                  })
-                })
-              }}
-            >
-              Next PO for client
-            </button>
-          </div>
-        </label>
-      </div>
-
       {err ? <p className="text-xs text-late">{err}</p> : null}
       {msg ? <p className="text-xs text-onplan">{msg}</p> : null}
 
@@ -176,6 +177,32 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           . Defaults to the client&apos;s preset invoice emails — add To/CC/BCC from
           their contact list before send.
         </p>
+
+        <InvoicePoVendorFields
+          poValue={poDraft}
+          onPoChange={setPoDraft}
+          onPoCommit={saveBillingIds}
+          suggestedPo={suggestedPo}
+          lastPo={lastPo}
+          lastPoTripRef={lastPoTripRef}
+          vendorValue={vendorDraft}
+          onVendorChange={setVendorDraft}
+          onVendorCommit={saveBillingIds}
+          vendorRecommended={vendorRecommended}
+          onUseSuggestedPo={() => {
+            setPoDraft(suggestedPo)
+            mutateTrip(tripId, (t) => {
+              t.po_number = suggestedPo
+              if (t.quick) t.quick.po = suggestedPo
+            })
+            if (trip.client_id) {
+              recordPoUsed(trip.client_id, suggestedPo, {
+                tripRef: thisTripRef,
+              })
+            }
+          }}
+        />
+
         <AircraftTypeSelect
           draft={draftType}
           value={confirmedType}
@@ -198,7 +225,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           }
           className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
           onClick={() => {
-            savePoDraft()
+            saveBillingIds()
             if (!poDraft.trim()) {
               setErr('Enter PO # before sending the invoice')
               return
@@ -213,7 +240,16 @@ export function BookedTripActionsPanel({ tripId }: Props) {
               aircraftType: confirmedType.trim(),
             })
               .then((r) => {
-                setMsg(`Invoice emailed · PO ${r.poNumber}`)
+                if (trip.client_id) {
+                  recordPoUsed(trip.client_id, r.poNumber, {
+                    tripRef: thisTripRef,
+                  })
+                }
+                setMsg(
+                  `Invoice emailed · PO ${r.poNumber}${
+                    vendorDraft.trim() ? ` · Vendor #${vendorDraft.trim()}` : ''
+                  }`,
+                )
               })
               .catch((e) =>
                 setErr(e instanceof Error ? e.message : String(e)),
