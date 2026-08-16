@@ -1,5 +1,5 @@
 /**
- * Network hub — vertical tabs consolidating operators, matrix, radar, FBOs, couriers.
+ * Network hub — vertical tabs consolidating operators, recommend, radar, FBOs, couriers.
  * Pure TypeScript.
  */
 
@@ -15,9 +15,9 @@ export const NETWORK_HUB_TABS = [
     blurb: 'Search, board, sheet, and docs',
   },
   {
-    id: 'matrix',
+    id: 'recommend',
     label: 'Recommend',
-    blurb: 'New-request operator search scoring',
+    blurb: 'Ordered calls by ICAO',
   },
   {
     id: 'radar',
@@ -42,6 +42,8 @@ export function parseNetworkHubTab(
   raw: string | null | undefined,
 ): NetworkHubTabId {
   const id = (raw ?? '').trim().toLowerCase()
+  // Legacy bookmark: ?tab=matrix → recommend
+  if (id === 'matrix') return 'recommend'
   if (NETWORK_HUB_TABS.some((t) => t.id === id)) {
     return id as NetworkHubTabId
   }

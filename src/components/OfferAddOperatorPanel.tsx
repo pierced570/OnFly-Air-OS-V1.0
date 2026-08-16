@@ -568,8 +568,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
         </h3>
         <p className="text-xs text-muted">
           Top {recommendLimit} (cheapest / fastest / best). Already on this
-          request are hidden. Uses fixed defaults — not Network → Recommend
-          (that matrix is for new-request search only).
+          request are hidden. Uses fixed defaults — not the editable
+          new-request scoring knobs.
         </p>
         {recError ? <p className="text-sm text-late">{recError}</p> : null}
         {!busy && !recommended.length && !recError ? (

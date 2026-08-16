@@ -1,5 +1,5 @@
 /**
- * Network hub — vertical tabs for operators, recommend matrix, radar, FBOs, couriers.
+ * Network hub — vertical tabs for operators, recommend, radar, FBOs, couriers.
  */
 
 import { Suspense, lazy, useEffect } from 'react'
@@ -11,7 +11,7 @@ import {
 } from '@/domain/networkHub'
 import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
 import { GroundCouriersPanel } from '@/pages/network/GroundCouriersPanel'
-import { RecommendationMatrixPanel } from '@/pages/network/RecommendationMatrixPanel'
+import { LocationRecommendPanel } from '@/pages/network/LocationRecommendPanel'
 
 const NetworkPage = lazy(() => import('@/pages/NetworkPage'))
 const RadarPage = lazy(() => import('@/pages/RadarPage'))
@@ -23,8 +23,8 @@ function TabBody({ tab }: { tab: NetworkHubTabId }) {
       return <OperatorInvitePanel />
     case 'operators':
       return <NetworkPage embedded />
-    case 'matrix':
-      return <RecommendationMatrixPanel />
+    case 'recommend':
+      return <LocationRecommendPanel />
     case 'radar':
       return <RadarPage embedded />
     case 'fbos':
@@ -39,8 +39,14 @@ export default function NetworkHubPage() {
   const tab = parseNetworkHubTab(params.get('tab'))
 
   useEffect(() => {
-    if (!params.get('tab')) {
+    const raw = params.get('tab')
+    if (!raw) {
       setParams({ tab: 'invite' }, { replace: true })
+      return
+    }
+    // Normalize legacy ?tab=matrix bookmarks to recommend.
+    if (raw.trim().toLowerCase() === 'matrix') {
+      setParams({ tab: 'recommend' }, { replace: true })
     }
   }, [params, setParams])
 
@@ -56,7 +62,7 @@ export default function NetworkHubPage() {
             Network
           </h1>
           <p className="mt-1 text-xs text-muted">
-            Operators, scoring, radar, FBOs, ground
+            Operators, recommended calls, radar, FBOs, ground
           </p>
         </div>
         <nav
