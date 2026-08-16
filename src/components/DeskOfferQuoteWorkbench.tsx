@@ -217,7 +217,7 @@ export function DeskOfferQuoteWorkbench({
     const cleaned = poDraft.trim()
     mutateTrip(liveTrip.id, (t) => {
       t.po_number = cleaned || null
-      if (t.quick) t.quick.po = cleaned || null
+      if (t.quick) t.quick.po = cleaned
     })
   }
 

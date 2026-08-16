@@ -2,8 +2,9 @@
  * Accounting / QuickBooks adapter — mock (default) or QBO via edge functions.
  * Secrets (QB_CLIENT_ID/SECRET, tokens) never in VITE_*.
  *
- * Create in QBO (ACH on, DocNumber=PO). Deliver via native
- * /invoice/{id}/send so the PDF + ACH payment request match live OFA.
+ * Create in QBO (ACH on, DocNumber=PO, CustomerMemo=trip details). Deliver via
+ * branded Resend payment-request email (PO in subject + itinerary filled) with
+ * the QBO PDF attached — not the company QBO email template placeholders.
  */
 
 import { adapterMode } from '@/adapters/types'
@@ -12,6 +13,10 @@ import {
   buildQbInvoicePayload,
   type QbInvoiceLineInput,
 } from '@/domain/qbInvoice'
+import {
+  isInvoicePoPlaceholder,
+  invoicePoDisplay,
+} from '@/domain/invoiceEmail'
 
 export type InvoiceLine = QbInvoiceLineInput & { taxCode?: string }
 
@@ -83,18 +88,22 @@ export interface AccountingAdapter {
   getDashboardStats(): Promise<QbDashboardStats>
   getLastPoNumeric(customerName: string): Promise<number | null>
   getInvoicePdfBase64(qbInvoiceId: string): Promise<string | null>
-  /** Native QBO payment-request email (preferred) or mock/Resend fallback. */
+  /** Branded payment-request email (Resend) with QBO PDF; stamps PO + memo first. */
   sendInvoiceEmail(opts: {
     to: string[]
     cc?: string[]
     bcc?: string[]
     poNumber: string
     qbInvoiceId: string
-    /** Unused for native QBO send — kept for mock/Resend fallback. */
+    /** QBO PDF — fetched automatically in real mode when omitted. */
     pdfBase64?: string
     clientName?: string
     logoUrl?: string
-    /** Branded Resend body fields (mock / fallback path). */
+    /** Pre-rendered ETA-sheet-style HTML (preferred). */
+    html?: string | null
+    subject?: string | null
+    text?: string | null
+    /** Trip / ledger details for subject + body (legacy / fallback). */
     amountUsd?: number | null
     lane?: string | null
     flightDate?: string | null
@@ -104,12 +113,40 @@ export interface AccountingAdapter {
     contractUrl?: string | null
     /** ACH / View and pay URL when available (QBO invoice link). */
     payUrl?: string | null
+    portalUrl?: string | null
+    /** Note-to-customer stamped onto the QBO invoice before PDF/email. */
+    customerMemo?: string | null
   }): Promise<{ id: string }>
 }
 
 export type SendInvoiceEmailOpts = Parameters<
   AccountingAdapter['sendInvoiceEmail']
 >[0]
+
+function invoiceEmailInvokeBody(opts: SendInvoiceEmailOpts) {
+  const po = invoicePoDisplay(opts.poNumber) || opts.poNumber
+  return {
+    to: opts.to,
+    cc: opts.cc,
+    bcc: opts.bcc,
+    po_number: po,
+    pdf_base64: opts.pdfBase64,
+    subject: opts.subject ?? null,
+    html: opts.html ?? null,
+    text: opts.text ?? null,
+    client_name: opts.clientName,
+    logo_url: opts.logoUrl,
+    amount_usd: opts.amountUsd ?? null,
+    lane: opts.lane ?? null,
+    flight_date: opts.flightDate ?? null,
+    aircraft_type: opts.aircraftType ?? null,
+    tail: opts.tail ?? null,
+    itinerary_lines: opts.itineraryLines ?? [],
+    contract_url: opts.contractUrl ?? null,
+    pay_url: opts.payUrl ?? null,
+    portal_url: opts.portalUrl ?? null,
+  }
+}
 
 const mockInvoices = new Map<
   string,
@@ -230,6 +267,9 @@ export class MockAccountingAdapter implements AccountingAdapter {
   }
 
   async sendInvoiceEmail(opts: SendInvoiceEmailOpts) {
+    if (isInvoicePoPlaceholder(opts.poNumber)) {
+      throw new Error('Invoice PO required before send — refuse placeholder PO')
+    }
     console.info(
       '[MockQB] send-invoice (branded payment-request simulated)',
       {
@@ -238,30 +278,16 @@ export class MockAccountingAdapter implements AccountingAdapter {
         cc: opts.cc,
         po: opts.poNumber,
         amountUsd: opts.amountUsd,
+        hasHtml: Boolean(opts.html?.trim()),
+        subject: opts.subject ?? null,
       },
     )
-    // Optional Resend fallback when a PDF is provided (local demos).
+    // Optional Resend when a PDF is provided (local demos).
     if (opts.pdfBase64 && supabase && isSupabaseConfigured) {
       const { data, error } = await supabase.functions.invoke(
         'send-invoice-email',
         {
-          body: {
-            to: opts.to,
-            cc: opts.cc,
-            bcc: opts.bcc,
-            po_number: opts.poNumber,
-            pdf_base64: opts.pdfBase64,
-            client_name: opts.clientName,
-            logo_url: opts.logoUrl,
-            amount_usd: opts.amountUsd ?? null,
-            lane: opts.lane ?? null,
-            flight_date: opts.flightDate ?? null,
-            aircraft_type: opts.aircraftType ?? null,
-            tail: opts.tail ?? null,
-            itinerary_lines: opts.itineraryLines ?? [],
-            contract_url: opts.contractUrl ?? null,
-            pay_url: opts.payUrl ?? null,
-          },
+          body: invoiceEmailInvokeBody(opts),
         },
       )
       if (!error) {
@@ -413,17 +439,66 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
     if (!opts.qbInvoiceId?.trim()) {
       throw new Error('qbInvoiceId required for QuickBooks invoice send')
     }
-    const sendTo = opts.to.map((e) => e.trim().toLowerCase()).find((e) => e.includes('@'))
+    if (isInvoicePoPlaceholder(opts.poNumber)) {
+      throw new Error('Invoice PO required before send — refuse placeholder PO')
+    }
+    const sendTo = opts.to
+      .map((e) => e.trim().toLowerCase())
+      .find((e) => e.includes('@'))
     if (!sendTo) throw new Error('Invoice To email required')
-    // Native QBO payment-request email — PDF + ACH "View and pay" from the company file.
-    // Keep this path so Intuit's View and pay button stays on the attached PDF.
-    const data = await this.invoke('send_invoice', {
+
+    const po = invoicePoDisplay(opts.poNumber) || opts.poNumber.trim()
+    const memo = opts.customerMemo?.trim() || ''
+
+    // Stamp DocNumber + CustomerMemo so the attached PDF has real trip details.
+    await this.invoke('prepare_invoice', {
       invoice_id: opts.qbInvoiceId,
+      po_number: po,
+      customer_memo: memo || null,
       send_to: sendTo,
       cc: opts.cc ?? [],
       allow_online_ach: true,
     })
-    return { id: String(data.invoice_id ?? opts.qbInvoiceId) }
+
+    const pdf =
+      opts.pdfBase64?.trim() ||
+      (await this.getInvoicePdfBase64(opts.qbInvoiceId)) ||
+      ''
+    if (!pdf) {
+      throw new Error('Could not load QuickBooks invoice PDF for email')
+    }
+
+    if (!supabase || !isSupabaseConfigured) {
+      throw new Error('Supabase required to send invoice email')
+    }
+
+    const { data, error } = await supabase.functions.invoke(
+      'send-invoice-email',
+      {
+        body: invoiceEmailInvokeBody({ ...opts, pdfBase64: pdf }),
+      },
+    )
+    if (!error) {
+      const body = data as { id?: string; error?: string; detail?: string }
+      if (!body?.error) {
+        return { id: String(body.id ?? opts.qbInvoiceId) }
+      }
+      console.warn('[qb] branded send-invoice-email failed', body)
+    } else {
+      console.warn('[qb] branded send-invoice-email invoke failed', error)
+    }
+
+    // Last resort: native QBO send (company template may still have placeholders —
+    // invoice DocNumber/memo were already prepared above).
+    const native = await this.invoke('send_invoice', {
+      invoice_id: opts.qbInvoiceId,
+      send_to: sendTo,
+      cc: opts.cc ?? [],
+      po_number: po,
+      customer_memo: memo || null,
+      allow_online_ach: true,
+    })
+    return { id: String(native.invoice_id ?? opts.qbInvoiceId) }
   }
 }
 

@@ -2,62 +2,123 @@ import { describe, expect, it } from 'vitest'
 import {
   INVOICE_EMAIL_SUBJECT,
   formatInvoiceUsd,
+  invoiceEmailSubject,
+  invoicePoDisplay,
+  isInvoicePoPlaceholder,
   renderInvoiceEmailHtml,
   renderInvoiceEmailText,
 } from './invoiceEmail'
 
 describe('invoiceEmail', () => {
-  it('matches payment-request subject + OFA branded layout', () => {
-    expect(INVOICE_EMAIL_SUBJECT('00346')).toBe(
-      'Invoice payment request from OnFly Air LLC',
-    )
+  it('puts real PO / lane / tail in subject like ETA sheet', () => {
+    expect(
+      invoiceEmailSubject({
+        poNumber: 'T-76',
+        laneShort: 'CAK → HPN',
+        tail: 'N6209X',
+      }),
+    ).toBe('OnFly invoice · PO #T-76 · CAK → HPN · N6209X')
+    expect(INVOICE_EMAIL_SUBJECT('PO #PSA99')).toContain('PO #PSA99')
+    expect(
+      invoiceEmailSubject({ poNumber: '(INSERT INVOICE)' }),
+    ).toBe('OnFly invoice')
+    expect(isInvoicePoPlaceholder('INSERT INVOICE')).toBe(true)
+    expect(isInvoicePoPlaceholder('00346')).toBe(false)
+    expect(invoicePoDisplay('PO #00346')).toBe('00346')
+  })
+
+  it('matches ETA-sheet chrome with balance due, timeline, and portal CTA', () => {
     const html = renderInvoiceEmailHtml({
-      poNumber: '00346',
+      poNumber: 'T-76',
+      laneShort: 'CAK → HPN',
+      preparedLabel: 'Prepared Sat Aug 15 · 19:49 EDT',
+      patternLabel: 'AIRPORT → AIRPORT',
+      aircraftType: 'Cessna 310',
+      aircraftBlurb: 'Twin piston · cargo configuration',
+      tail: 'N6209X',
       clientName: 'PSA Airlines',
-      lane: 'KNQA → KDFW',
-      amountUsd: 10600,
-      tail: 'N175CA',
-      aircraftType: 'MU2',
-      flightDate: '2026-07-28',
+      amountUsd: 12658,
       logoUrl: 'https://ofaops.onflyair.com/brand/onfly-logo.png',
       payUrl: 'https://pay.example/view',
       contractUrl: 'https://jotform.com/sign/contract',
-      itineraryLines: [
-        'KNQA → KDFW',
-        'Pickup in NQA ETA 2hr 15 min',
-        'NQA-DFW 1hr 45 min',
-        'Drop Off at DFW',
+      portalUrl: 'https://ofaops.onflyair.com/portal/track/tok123',
+      pickup: {
+        kind: 'pickup',
+        placeBadge: 'AIRPORT',
+        title: 'CAK departure',
+        addressLines: [
+          'Depart via CAK',
+          'Hangar-side / FBO load as coordinated',
+        ],
+        footer: 'Departs via CAK',
+      },
+      dropoff: {
+        kind: 'dropoff',
+        placeBadge: 'FBO',
+        title: 'HPN arrival',
+        addressLines: [
+          'Arrive at HPN',
+          'Your team meets aircraft at FBO ramp',
+        ],
+        footer: 'Arrives at HPN',
+      },
+      milestones: [
+        {
+          label: 'Wheels up · CAK',
+          detail: 'Departs CAK',
+          projected: '14:47 EDT (18:47 Z)',
+          actual: null,
+        },
+        {
+          label: 'Landing · HPN',
+          detail: 'Taxi / FBO ramp at HPN',
+          projected: '16:58 EDT (20:58 Z)',
+          actual: null,
+        },
       ],
     })
-    expect(html).toContain('Invoice payment request from OnFly Air LLC')
-    expect(html).toContain('PSA Airlines · KNQA → KDFW')
-    expect(html).toContain('PO #00346')
-    expect(html).toContain('$10,600.00')
-    expect(html).toContain('Online payment options:')
-    expect(html).toContain('>ACH<')
+    expect(html).toContain('INVOICE')
+    expect(html).toContain('PO #T-76 · CAK → HPN')
+    expect(html).toContain('AIRPORT → AIRPORT')
+    expect(html).toContain('BALANCE DUE')
+    expect(html).toContain('$12,658.00')
+    expect(html).toContain('View and pay')
     expect(html).toContain('https://pay.example/view')
-    expect(html).toContain('N175CA')
-    expect(html).toContain('Trip Itinerary')
-    expect(html).toContain('Pickup in NQA ETA 2hr 15 min')
-    expect(html).toContain('Please sign charter contract linked below:')
-    expect(html).toContain('https://jotform.com/sign/contract')
-    expect(html).toContain('OnFly Air LLC — Charter Brokerage')
+    expect(html).toContain('N6209X')
+    expect(html).toContain('Cessna 310')
+    expect(html).toContain('PICKUP')
+    expect(html).toContain('DROP-OFF')
+    expect(html).toContain('PROJECTED TIMELINE')
+    expect(html).toContain('— live on portal')
+    expect(html).toContain('Open live tracking portal')
+    expect(html).toContain('https://ofaops.onflyair.com/portal/track/tok123')
+    expect(html).toContain('Track this tail live on your portal')
+    expect(html).toContain('Please sign the charter contract')
+    expect(html).toContain('24-hr ops')
     expect(html).toContain('background:#0c0c0e')
-    expect(html).toContain('https://ofaops.onflyair.com/brand/onfly-logo.png')
-    expect(html).toContain('Open the attached PDF invoice to access your payment options.')
+    expect(html).toContain('#c9a227')
+    expect(html).toContain('background:#f4f1ea')
   })
 
-  it('falls back to gold ONFLY AIR wordmark without logo URL', () => {
-    const html = renderInvoiceEmailHtml({ poNumber: '42', amountUsd: 100 })
-    expect(html).toContain('ONFLY AIR')
-    expect(html).toContain('color:#c9a227')
+  it('renders text + currency helpers', () => {
     expect(formatInvoiceUsd(10600)).toBe('$10,600.00')
-    expect(
-      renderInvoiceEmailText({
-        poNumber: '42',
-        clientName: 'Acme',
-        lane: 'KCAK→KHPN',
-      }),
-    ).toContain('Acme · KCAK→KHPN')
+    const text = renderInvoiceEmailText({
+      poNumber: '42',
+      laneShort: 'CAK → HPN',
+      preparedLabel: 'Prepared now',
+      patternLabel: 'AIRPORT → AIRPORT',
+      aircraftType: 'MU2',
+      tail: 'N175CA',
+      amountUsd: 100,
+      portalUrl: 'https://ofaops.onflyair.com/portal/track/x',
+      pickup: { kind: 'pickup', title: 'CAK', addressLines: ['Depart'] },
+      dropoff: { kind: 'dropoff', title: 'HPN', addressLines: ['Arrive'] },
+      milestones: [
+        { label: 'Wheels up · CAK', projected: '12:00 EDT', actual: null },
+      ],
+    })
+    expect(text).toContain('Open live tracking portal:')
+    expect(text).toContain('Balance due: $100.00')
+    expect(text).toContain('live on portal')
   })
 })

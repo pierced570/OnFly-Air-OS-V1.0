@@ -2,11 +2,13 @@
  * QuickBooks Online API router — OnFly invoices.
  * Secrets: QB_CLIENT_ID, QB_CLIENT_SECRET, SUPABASE_SERVICE_ROLE_KEY
  *
- * Actions: connection_status, ensure_customer, create_invoice, send_invoice,
- * get_invoices, get_dashboard_stats, get_last_po, get_invoice_pdf, invoice_status
+ * Actions: connection_status, ensure_customer, create_invoice, prepare_invoice,
+ * send_invoice, get_invoices, get_dashboard_stats, get_last_po, get_invoice_pdf,
+ * invoice_status
  *
- * create_invoice: DocNumber=PO, ACH View & pay on.
- * send_invoice: native QBO payment-request email (branded PDF + ACH link).
+ * create_invoice: DocNumber=PO, ACH View & pay on, CustomerMemo=trip details.
+ * prepare_invoice: sparse-update DocNumber + CustomerMemo + BillEmail before send.
+ * send_invoice: native QBO payment-request (fallback only — prefer Resend).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
@@ -67,6 +69,8 @@ Deno.serve(async (req) => {
         )
       case 'create_invoice':
         return json(await createInvoice(cfg, body))
+      case 'prepare_invoice':
+        return json(await prepareInvoice(cfg, body))
       case 'send_invoice':
         return json(await sendInvoice(cfg, body))
       case 'get_dashboard_stats':
@@ -407,9 +411,10 @@ async function createInvoice(cfg: QbConfig, body: Record<string, unknown>) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/Duplicate Document Number|Duplicate DocNumber/i.test(msg)) {
+      // Keep a PO-derived DocNumber — never drop to a bare auto number that
+      // breaks "PO #…" in payment-request subjects / PDF headers.
       const retry = { ...payload }
-      delete retry.DocNumber
-      retry.AutoDocNumber = true
+      retry.DocNumber = `${docNumber}-${Date.now().toString().slice(-4)}`
       const created = (await qbFetch(cfg, '/invoice', {
         method: 'POST',
         body: JSON.stringify(retry),
@@ -418,10 +423,11 @@ async function createInvoice(cfg: QbConfig, body: Record<string, unknown>) {
       if (!inv?.Id) throw e
       return {
         invoice_id: inv.Id,
-        doc_number: inv.DocNumber ?? docNumber,
+        doc_number: inv.DocNumber ?? String(retry.DocNumber),
         customer_id: customerId,
         url: `${baseUrl(cfg)}/app/invoice?txnId=${inv.Id}`,
-        auto_doc_number: true,
+        auto_doc_number: false,
+        doc_number_suffixed: true,
         allow_online_ach: allowAch,
       }
     }
@@ -430,29 +436,32 @@ async function createInvoice(cfg: QbConfig, body: Record<string, unknown>) {
 }
 
 /**
- * Native QBO payment-request email (PDF + ACH "View and pay").
- * POST /invoice/{id}/send?sendTo=
+ * Stamp DocNumber (PO) + CustomerMemo (itinerary) + BillEmail before PDF/email.
+ * Does not send — callers use Resend branded mail (or send_invoice as fallback).
  */
-async function sendInvoice(cfg: QbConfig, body: Record<string, unknown>) {
+async function prepareInvoice(cfg: QbConfig, body: Record<string, unknown>) {
   const invoiceId = String(body.invoice_id ?? '').trim()
   if (!invoiceId) throw new Error('invoice_id required')
-  const sendTo = String(body.send_to ?? body.bill_email ?? '')
-    .trim()
-    .toLowerCase()
-  if (!sendTo.includes('@')) throw new Error('send_to email required')
 
-  // Sparse update: BillEmail + ACH so the payment-request template has pay options.
   const existing = (await qbFetch(cfg, `/invoice/${invoiceId}`)) as {
     Invoice?: {
       Id?: string
       SyncToken?: string
-      AllowOnlineACHPayment?: boolean
+      DocNumber?: string
+      CustomerMemo?: { value?: string }
     }
   }
   const inv = existing.Invoice
   if (!inv?.Id || inv.SyncToken == null) {
-    throw new Error('Could not load invoice for send')
+    throw new Error('Could not load invoice for prepare')
   }
+
+  const poRaw = String(body.po_number ?? body.doc_number ?? '').trim()
+  const docNumber = poRaw.replace(/^PO\s*#?\s*/i, '').trim()
+  const memo = String(body.customer_memo ?? body.notes ?? '').trim()
+  const sendTo = String(body.send_to ?? body.bill_email ?? '')
+    .trim()
+    .toLowerCase()
 
   const ccList = (
     Array.isArray(body.cc)
@@ -467,17 +476,55 @@ async function sendInvoice(cfg: QbConfig, body: Record<string, unknown>) {
     Id: inv.Id,
     SyncToken: inv.SyncToken,
     sparse: true,
-    BillEmail: { Address: sendTo },
     AllowOnlineACHPayment: true,
     AllowOnlineCreditCardPayment: body.allow_online_card === true,
+  }
+  if (docNumber && !/^(INSERT\s*INVOICE|ENTER\s*(PO|INVOICE|TAIL|FBO|ETA)|TBD|TODO|N\/?A)$/i.test(
+    docNumber.replace(/^[(\[{]+|[)\]}]+$/g, '').trim(),
+  )) {
+    sparse.DocNumber = docNumber
+  }
+  if (memo) {
+    sparse.CustomerMemo = { value: memo.slice(0, 1000) }
+    sparse.PrivateNote = memo.slice(0, 4000)
+  }
+  if (sendTo.includes('@')) {
+    sparse.BillEmail = { Address: sendTo }
   }
   if (ccList.length) {
     sparse.BillEmailCc = { Address: ccList.join(', ') }
   }
-  await qbFetch(cfg, '/invoice', {
+
+  const updated = (await qbFetch(cfg, '/invoice', {
     method: 'POST',
     body: JSON.stringify(sparse),
-  })
+  })) as { Invoice?: { Id?: string; DocNumber?: string; SyncToken?: string } }
+
+  return {
+    invoice_id: invoiceId,
+    doc_number:
+      updated.Invoice?.DocNumber ??
+      (docNumber || inv.DocNumber || ''),
+    prepared: true,
+  }
+}
+
+/**
+ * Native QBO payment-request email (PDF + ACH "View and pay").
+ * Prefer Resend branded send from the app — this path is fallback only.
+ * Always prepares DocNumber + CustomerMemo when provided.
+ * POST /invoice/{id}/send?sendTo=
+ */
+async function sendInvoice(cfg: QbConfig, body: Record<string, unknown>) {
+  const invoiceId = String(body.invoice_id ?? '').trim()
+  if (!invoiceId) throw new Error('invoice_id required')
+  const sendTo = String(body.send_to ?? body.bill_email ?? '')
+    .trim()
+    .toLowerCase()
+  if (!sendTo.includes('@')) throw new Error('send_to email required')
+
+  // Ensure PO + itinerary memo are on the invoice before Intuit emails.
+  await prepareInvoice(cfg, body)
 
   const path = `/invoice/${invoiceId}/send?sendTo=${encodeURIComponent(sendTo)}`
   const sent = await qbFetch(cfg, path, {
@@ -487,6 +534,14 @@ async function sendInvoice(cfg: QbConfig, body: Record<string, unknown>) {
     },
     body: '',
   })
+  const ccList = (
+    Array.isArray(body.cc)
+      ? body.cc
+      : String(body.cc ?? '')
+          .split(/[,;]/)
+  )
+    .map((e) => String(e).trim().toLowerCase())
+    .filter((e) => e.includes('@') && e !== sendTo)
   return {
     invoice_id: invoiceId,
     sent_to: sendTo,

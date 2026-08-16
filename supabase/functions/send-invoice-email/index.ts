@@ -1,12 +1,8 @@
 /**
  * Branded invoice payment-request email via Resend — QBO PDF attached.
+ * Prefer pre-rendered `html` + `subject` from the app (ETA-sheet chrome).
  * Secrets: RESEND_API_KEY, EMAIL_FROM (prefer invoices@onflyair.com)
- * Optional: APP_PUBLIC_URL / INVOICE_LOGO_URL for header logo
- * Optional: CHARTER_CONTRACT_URL for Jotform sign link
  * BCC: info@onflyair.com
- *
- * Real QB mode uses native QBO /invoice/{id}/send (View and pay).
- * This function powers mock demos + Resend fallback with matching OFA UI.
  */
 
 const corsHeaders = {
@@ -40,6 +36,9 @@ Deno.serve(async (req) => {
       bcc?: string | string[]
       po_number?: string
       pdf_base64?: string
+      subject?: string | null
+      html?: string | null
+      text?: string | null
       client_name?: string
       logo_url?: string
       amount_usd?: number | null
@@ -50,6 +49,7 @@ Deno.serve(async (req) => {
       itinerary_lines?: string[] | null
       contract_url?: string | null
       pay_url?: string | null
+      portal_url?: string | null
     }
     const asList = (v?: string | string[]) =>
       (Array.isArray(v) ? v : [v])
@@ -58,32 +58,71 @@ Deno.serve(async (req) => {
     const to = asList(body.to)
     const cc = asList(body.cc)
     const bcc = [...new Set([...asList(body.bcc), 'info@onflyair.com'])]
-    const po = String(body.po_number ?? '').trim() || 'Invoice'
+    const poRaw = String(body.po_number ?? '').trim()
+    const poDisplay =
+      poRaw
+        .replace(/^PO\s*#?\s*/i, '')
+        .trim()
+        .replace(/^[(\[{]+|[)\]}]+$/g, '')
+        .trim() ||
+      poRaw ||
+      'Invoice'
+    if (
+      !poRaw ||
+      /^(INSERT\s*INVOICE|ENTER\s*(PO|INVOICE|TAIL|FBO|ETA)|TBD|TODO|N\/?A)$/i.test(
+        poDisplay,
+      )
+    ) {
+      return json(
+        { error: 'po_number required — refuse placeholder PO in subject' },
+        400,
+      )
+    }
     const pdf = String(body.pdf_base64 ?? '').trim()
     if (!to.length) return json({ error: 'to required' }, 400)
     if (!pdf) return json({ error: 'pdf_base64 required' }, 400)
+
+    const preHtml = String(body.html ?? '').trim()
+    const preSubject = String(body.subject ?? '').trim()
+    const preText = String(body.text ?? '').trim()
 
     const contractUrl =
       String(body.contract_url ?? '').trim() ||
       Deno.env.get('CHARTER_CONTRACT_URL')?.trim() ||
       ''
+    const portalUrl = String(body.portal_url ?? '').trim()
+    const lane = String(body.lane ?? '').trim()
+    const tail = String(body.tail ?? '').trim().toUpperCase()
 
-    const subject = 'Invoice payment request from OnFly Air LLC'
-    const html = renderInvoiceHtml({
-      po,
-      client: body.client_name?.trim(),
-      logoUrl: resolveLogoUrl(body.logo_url),
-      amountUsd: body.amount_usd ?? null,
-      lane: body.lane ?? null,
-      flightDate: body.flight_date ?? null,
-      aircraftType: body.aircraft_type ?? null,
-      tail: body.tail ?? null,
-      itineraryLines: Array.isArray(body.itinerary_lines)
-        ? body.itinerary_lines.map(String)
-        : [],
-      contractUrl: contractUrl || null,
-      payUrl: body.pay_url ?? null,
-    })
+    const subject =
+      preSubject ||
+      [
+        'OnFly invoice',
+        `PO #${poDisplay}`,
+        lane || null,
+        tail || null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+
+    const html =
+      preHtml ||
+      renderInvoiceHtmlFallback({
+        po: poDisplay,
+        client: body.client_name?.trim(),
+        logoUrl: resolveLogoUrl(body.logo_url),
+        amountUsd: body.amount_usd ?? null,
+        lane: lane || null,
+        flightDate: body.flight_date ?? null,
+        aircraftType: body.aircraft_type ?? null,
+        tail: tail || null,
+        itineraryLines: Array.isArray(body.itinerary_lines)
+          ? body.itinerary_lines.map(String)
+          : [],
+        contractUrl: contractUrl || null,
+        payUrl: body.pay_url ?? null,
+        portalUrl: portalUrl || null,
+      })
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -98,9 +137,10 @@ Deno.serve(async (req) => {
         bcc,
         subject,
         html,
+        ...(preText ? { text: preText } : {}),
         attachments: [
           {
-            filename: `Invoice-${po}.pdf`,
+            filename: `Invoice-${poDisplay}.pdf`,
             content: pdf,
           },
         ],
@@ -150,7 +190,8 @@ function formatUsd(amount: number): string {
   })
 }
 
-function renderInvoiceHtml(opts: {
+/** Minimal fallback when the app did not pre-render ETA-sheet HTML. */
+function renderInvoiceHtmlFallback(opts: {
   po: string
   client?: string
   logoUrl: string
@@ -162,10 +203,9 @@ function renderInvoiceHtml(opts: {
   itineraryLines?: string[]
   contractUrl?: string | null
   payUrl?: string | null
+  portalUrl?: string | null
 }): string {
-  const poDisplay = escapeHtml(
-    opts.po.replace(/^PO\s*#?\s*/i, '').trim() || opts.po,
-  )
+  const poDisplay = escapeHtml(opts.po)
   const client = opts.client?.trim()
   const lane = opts.lane?.trim() || ''
   const headline = [client, lane].filter(Boolean).join(' · ')
@@ -175,103 +215,38 @@ function renderInvoiceHtml(opts: {
       ? formatUsd(opts.amountUsd)
       : null
   const payUrl = opts.payUrl?.trim()
+  const portalUrl = opts.portalUrl?.trim()
   const contractUrl = opts.contractUrl?.trim()
   const tail = opts.tail?.trim().toUpperCase() || null
   const aircraft = opts.aircraftType?.trim() || null
-  const flightDate = opts.flightDate?.trim() || null
   const itinerary = (opts.itineraryLines ?? []).map((l) => l.trim()).filter(Boolean)
 
-  const achButton = payUrl
-    ? `<a href="${escapeAttr(payUrl)}" style="display:inline-block;padding:8px 14px;border:1px solid #cfcfcf;border-radius:6px;background:#ffffff;color:#0c0c0e;text-decoration:none;font-size:13px;font-weight:600">ACH</a>`
-    : `<span style="display:inline-block;padding:8px 14px;border:1px solid #cfcfcf;border-radius:6px;background:#ffffff;color:#0c0c0e;font-size:13px;font-weight:600">ACH</span>`
-
-  const itineraryHtml = itinerary.length
-    ? itinerary
-        .map(
-          (line) =>
-            `<div style="margin:0 0 4px;color:#0c0c0e;font-size:14px;line-height:1.45">${escapeHtml(line)}</div>`,
-        )
-        .join('')
-    : lane
-      ? `<div style="margin:0 0 4px;color:#0c0c0e;font-size:14px;line-height:1.45">${escapeHtml(lane)}</div>`
-      : ''
-
-  const summaryRows: Array<[string, string]> = []
-  if (flightDate) summaryRows.push(['Date', flightDate])
-  if (lane) summaryRows.push(['Route', lane])
-  if (aircraft || tail) {
-    summaryRows.push([
-      'Aircraft',
-      [aircraft, tail ? `(${tail})` : null].filter(Boolean).join(' '),
-    ])
-  }
-  if (poDisplay) summaryRows.push(['PO #', poDisplay])
-
-  const summaryHtml = summaryRows.length
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border-collapse:collapse">
-        ${summaryRows
-          .map(
-            ([label, value], i) => `
-          <tr>
-            <td style="padding:10px 0;border-top:1px solid ${i === 0 ? '#e5e5e5' : '#ececec'};color:#6b6560;font-size:14px;width:40%">${escapeHtml(label)}</td>
-            <td style="padding:10px 0;border-top:1px solid ${i === 0 ? '#e5e5e5' : '#ececec'};color:#0c0c0e;font-size:14px;text-align:right;font-weight:600">${escapeHtml(value)}</td>
-          </tr>`,
-          )
-          .join('')}
-        <tr><td colspan="2" style="border-top:1px solid #e5e5e5;padding:0;height:1px;font-size:0;line-height:0">&nbsp;</td></tr>
-      </table>`
-    : ''
+  const payBtn = payUrl
+    ? `<a href="${escapeAttr(payUrl)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-size:14px;font-weight:700;padding:12px 18px;border-radius:8px">View and pay →</a>`
+    : `<span style="display:inline-block;background:#c9a227;color:#0c0c0e;font-size:14px;font-weight:700;padding:12px 18px;border-radius:8px">Open attached PDF to pay</span>`
 
   return `<!DOCTYPE html>
-<html><body style="margin:0;padding:0;font-family:system-ui,sans-serif;color:#0c0c0e;background:#f4f4f5">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:0">
-    <tr>
-      <td style="background:#0c0c0e;padding:28px 24px;text-align:center">
-        <img src="${logo}" alt="OnFly Air" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0" />
-      </td>
-    </tr>
-    <tr><td align="center" style="padding:28px 16px 8px">
-      <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:8px;overflow:hidden">
-        <tr>
-          <td style="padding:8px 28px 28px;background:#ffffff">
-            <h1 style="font-size:22px;margin:0 0 10px;color:#2a2a2e;font-weight:700;line-height:1.3">Invoice payment request from OnFly Air LLC</h1>
-            ${headline ? `<p style="margin:0 0 4px;font-size:14px;color:#6b6560;line-height:1.5">${escapeHtml(headline)}</p>` : ''}
-            <p style="margin:0 0 16px;font-size:14px;color:#6b6560;line-height:1.5">PO #${poDisplay}</p>
-            <p style="margin:0 0 22px;font-size:15px;line-height:1.5">
-              <a href="${payUrl ? escapeAttr(payUrl) : '#'}" style="color:#1a56db;font-weight:700;text-decoration:underline">Open the attached PDF invoice to access your payment options.</a>
-            </p>
-            ${amount ? `<div style="font-size:34px;font-weight:700;color:#0c0c0e;margin:0 0 18px;line-height:1.1">${escapeHtml(amount)}</div>` : ''}
-            <div style="margin:0 0 8px;font-size:13px;color:#6b6560">Online payment options:</div>
-            <div style="margin:0 0 24px">${achButton}</div>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f3f4;border-radius:10px;margin:0 0 22px">
-              <tr><td style="padding:18px 18px 16px">
-                ${tail ? `<div style="font-size:12px;color:#6b6560;margin:0 0 4px">Tail Number</div><div style="font-size:22px;font-weight:700;color:#0c0c0e;margin:0 0 16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${escapeHtml(tail)}</div>` : ''}
-                <div style="font-size:12px;color:#6b6560;margin:0 0 8px">Trip Itinerary</div>
-                ${itineraryHtml}
-              </td></tr>
-            </table>
-            ${
-              contractUrl
-                ? `<p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#0c0c0e">Please sign charter contract linked below:</p>
-            <p style="margin:0 0 22px;font-size:14px;line-height:1.5;word-break:break-all">
-              <a href="${escapeAttr(contractUrl)}" style="color:#1a56db;text-decoration:underline">${escapeHtml(contractUrl)}</a>
-            </p>`
-                : ''
-            }
-            ${summaryHtml}
-          </td>
-        </tr>
+<html><body style="margin:0;padding:0;font-family:system-ui,sans-serif;color:#0c0c0e;background:#f4f1ea">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ea">
+    <tr><td style="background:#0c0c0e;padding:22px 24px">
+      <img src="${logo}" alt="OnFly Air" width="160" style="display:block;max-width:160px;height:auto;border:0" />
+      <div style="margin-top:22px;font-size:11px;font-weight:700;letter-spacing:0.18em;color:#c9a227">INVOICE</div>
+      <div style="margin-top:8px;font-size:26px;font-weight:700;color:#ffffff">PO #${poDisplay}${lane ? ` · ${escapeHtml(lane)}` : ''}</div>
+      ${headline ? `<div style="margin-top:8px;font-size:13px;color:#b8b2a6">${escapeHtml(headline)}</div>` : ''}
+    </td></tr>
+    <tr><td align="center" style="padding:0 12px">
+      <table role="presentation" width="100%" style="max-width:640px;background:#ffffff">
+        <tr><td style="padding:22px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;color:#c9a227">BALANCE DUE</div>
+          ${amount ? `<div style="margin-top:8px;font-size:34px;font-weight:700">${escapeHtml(amount)}</div>` : ''}
+          <div style="margin-top:16px">${payBtn}</div>
+          ${tail || aircraft ? `<div style="margin-top:22px"><div style="font-size:10px;letter-spacing:0.16em;color:#c9a227">AIRCRAFT / TAIL</div><div style="margin-top:6px;font-size:18px;font-weight:700">${escapeHtml([aircraft, tail].filter(Boolean).join(' · '))}</div></div>` : ''}
+          ${itinerary.length ? `<div style="margin-top:18px">${itinerary.map((l) => `<div style="font-size:14px;margin:0 0 4px">${escapeHtml(l)}</div>`).join('')}</div>` : ''}
+          ${contractUrl ? `<p style="margin-top:18px"><a href="${escapeAttr(contractUrl)}">${escapeHtml(contractUrl)}</a></p>` : ''}
+          ${portalUrl ? `<p style="margin-top:18px"><a href="${escapeAttr(portalUrl)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-weight:700;padding:12px 16px;border-radius:8px">Open live tracking portal →</a></p>` : ''}
+        </td></tr>
       </table>
     </td></tr>
-    <tr>
-      <td align="center" style="padding:20px 16px 32px;background:#ececee">
-        <p style="margin:0 0 6px;font-size:13px;color:#6b6560">OnFly Air LLC — Charter Brokerage</p>
-        <p style="margin:0;font-size:13px;color:#6b6560">
-          For questions, reply to this email or contact
-          <a href="mailto:info@onflyair.com" style="color:#1a56db;text-decoration:underline">info@onflyair.com</a>
-        </p>
-      </td>
-    </tr>
   </table>
 </body></html>`
 }

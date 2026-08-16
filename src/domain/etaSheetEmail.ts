@@ -182,7 +182,7 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
   const stepper =
     tpl.milestones.length > 0
       ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px"><tr>${tpl.milestones
-          .map((m, i) => {
+          .map((m) => {
             const n = tpl.milestones.length
             const w = Math.floor(100 / n)
             return `<td style="width:${w}%;padding:0 4px;vertical-align:top;text-align:center">

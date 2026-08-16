@@ -92,7 +92,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
     const cleaned = poDraft.trim()
     mutateTrip(tripId, (t) => {
       t.po_number = cleaned || null
-      if (t.quick) t.quick.po = cleaned || null
+      if (t.quick) t.quick.po = cleaned
     })
   }
 

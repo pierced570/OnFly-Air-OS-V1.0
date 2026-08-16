@@ -1,6 +1,6 @@
 /**
- * Orchestrate QB invoice create → native QBO payment-request email → ledger.
- * PDF + ACH "View and pay" come from the QuickBooks company file.
+ * Orchestrate QB invoice create → branded payment-request email → ledger.
+ * PDF from QuickBooks; subject/body filled with PO + trip details via Resend.
  */
 
 import {
@@ -14,6 +14,7 @@ import {
   normalizePoDocNumber,
   tripInvoiceLines,
 } from '@/domain/qbInvoice'
+import { isInvoicePoPlaceholder } from '@/domain/invoiceEmail'
 import { listClients, listInvoiceEmails } from '@/lib/clientStore'
 import { upsertFinancial } from '@/lib/financialsStore'
 
@@ -131,6 +132,9 @@ export async function sendFinancialInvoice(
     (client ? listInvoiceEmails(client.id) : inferApEmails(clientName))
 
   if (!opts?.skipEmail && to.length) {
+    if (isInvoicePoPlaceholder(doc)) {
+      throw new Error('Invoice PO required before send — refuse placeholder PO')
+    }
     const mail = await acct.sendInvoiceEmail({
       to,
       poNumber: doc,
@@ -141,6 +145,7 @@ export async function sendFinancialInvoice(
       flightDate: row.date_of_flight,
       aircraftType: row.aircraft_type,
       payUrl: created.url || null,
+      customerMemo: row.notes?.trim() || null,
     })
     emailed = true
     emailId = mail.id

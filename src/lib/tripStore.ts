@@ -1915,7 +1915,7 @@ export function postThreadMessage(
   return msg
 }
 
-/** Create QB invoice for a trip (ACH on). Email uses native QBO payment-request. */
+/** Create QB invoice for a trip (ACH on). Email = branded Resend with PO + itinerary. */
 const invoiceInFlight = new Set<string>()
 
 /** @deprecated Use createInvoiceForTrip */
@@ -2045,7 +2045,7 @@ export async function createInvoiceForTrip(
     const { updateClient } = await import('@/lib/clientStore')
     updateClient(t.client_id, { qb_customer_id: created.customerId })
   }
-  // Native QuickBooks payment-request email (PDF + ACH View & pay).
+  // Branded payment-request email (PO in subject + trip itinerary in body).
   const defaultTo = [
     ...(opts?.to ?? []),
     t.quick?.invoice_email,
@@ -2078,21 +2078,23 @@ export async function createInvoiceForTrip(
     (t.quick?.send_invoice ?? true)
   if (shouldEmail) {
     try {
+      const mail = await buildTripInvoiceMailPayload({
+        trip: trips.get(tripId) ?? t,
+        poNumber: created.qbInvoiceNumber || po,
+        clientName: facts.clientName,
+        amountUsd: facts.amountUsd,
+        payUrl: created.url || null,
+        contractUrl: facts.contractUrl,
+        toEmail: uniqueTo[0]!,
+        customerMemo: memo,
+      })
       await acct.sendInvoiceEmail({
         to: uniqueTo,
         cc: uniqueCc,
         bcc: uniqueBcc,
         poNumber: created.qbInvoiceNumber || po,
         qbInvoiceId: created.qbInvoiceId,
-        clientName: facts.clientName,
-        amountUsd: facts.amountUsd,
-        lane: facts.lane,
-        flightDate: facts.flightDate,
-        aircraftType: facts.aircraftType,
-        tail: facts.tail,
-        itineraryLines: facts.itineraryLines,
-        contractUrl: facts.contractUrl,
-        payUrl: created.url || null,
+        ...mail,
       })
     } catch (e) {
       console.warn('[invoice] QBO send failed (invoice still created)', e)
@@ -2151,7 +2153,8 @@ export async function createInvoiceForTrip(
 }
 
 /**
- * Send (or re-send) the QuickBooks invoice via native QBO payment-request email.
+ * Send (or re-send) the QuickBooks invoice via branded payment-request email.
+ * Stamps PO + itinerary onto the QBO invoice, attaches PDF, fills subject/body.
  * Creates the QB invoice first when missing.
  */
 export async function sendTripInvoiceEmail(
@@ -2208,11 +2211,15 @@ export async function sendTripInvoiceEmail(
   const { createAccountingAdapter } = await import('@/adapters/accounting')
   const { getClient } = await import('@/lib/clientStore')
   const { ONFLY_INFO_BCC } = await import('@/domain/onflyEmails')
+  const { isInvoicePoPlaceholder } = await import('@/domain/invoiceEmail')
   const acct = createAccountingAdapter()
   const client = trip.client_id ? getClient(trip.client_id) : undefined
   const clientName =
     trip.quick?.client_name ?? client?.name ?? 'Client'
   const po = resolveTripPoNumber(trip) || poReady
+  if (isInvoicePoPlaceholder(po)) {
+    throw new Error('Enter a real PO number before sending the invoice')
+  }
   const to = [...new Set(opts.to.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')))]
   if (!to.length) throw new Error('Add at least one To email for the invoice')
   const cc = [
@@ -2230,10 +2237,31 @@ export async function sendTripInvoiceEmail(
     ),
   ]
   const pdf = await acct.getInvoicePdfBase64(trip.invoice.qb_invoice_id)
-  // PDF is optional for native QBO send — QBO attaches its own branded PDF + View and pay.
-  const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
   const { invoiceTripFacts } = await import('@/lib/invoiceTripFacts')
+  const { buildInvoiceCustomerMemo } = await import('@/domain/qbInvoice')
   const facts = invoiceTripFacts(trip, { poNumber: po, clientName })
+  const memo = buildInvoiceCustomerMemo({
+    lane: facts.lane,
+    flightDate: facts.flightDate,
+    aircraftType: facts.aircraftType,
+    tail: facts.tail,
+    poNumber: po,
+    payTerms: facts.payTerms,
+    itineraryLines: facts.itineraryLines,
+    pickupAddress: facts.pickupAddress,
+    dropoffAddress: facts.dropoffAddress,
+    extraNotes: facts.extraNotes,
+  })
+  const mail = await buildTripInvoiceMailPayload({
+    trip,
+    poNumber: po,
+    clientName: facts.clientName,
+    amountUsd: facts.amountUsd,
+    payUrl: trip.invoice.url || null,
+    contractUrl: facts.contractUrl,
+    toEmail: to[0]!,
+    customerMemo: memo,
+  })
   await acct.sendInvoiceEmail({
     to,
     cc,
@@ -2241,16 +2269,7 @@ export async function sendTripInvoiceEmail(
     poNumber: po,
     qbInvoiceId: trip.invoice.qb_invoice_id,
     pdfBase64: pdf ?? undefined,
-    clientName: facts.clientName,
-    logoUrl: invoiceEmailLogoUrl(),
-    amountUsd: facts.amountUsd,
-    lane: facts.lane,
-    flightDate: facts.flightDate,
-    aircraftType: facts.aircraftType,
-    tail: facts.tail,
-    itineraryLines: facts.itineraryLines,
-    contractUrl: facts.contractUrl,
-    payUrl: trip.invoice.url || null,
+    ...mail,
   })
   mutateTrip(tripId, (row) => {
     if (row.invoice) row.invoice.status = 'sent'
@@ -2262,6 +2281,56 @@ export async function sendTripInvoiceEmail(
     })
   })
   return { poNumber: po, emailed: true }
+}
+
+/** ETA-sheet-chrome invoice email + QBO memo fields for send. */
+async function buildTripInvoiceMailPayload(opts: {
+  trip: TripStoreRow
+  poNumber: string
+  clientName: string
+  amountUsd: number
+  payUrl?: string | null
+  contractUrl?: string | null
+  toEmail: string
+  customerMemo: string
+}) {
+  const { portalTrackingUrlForTrip } = await import('@/lib/etaSheetSender')
+  const { buildInvoiceEmailTemplate } = await import('@/lib/buildInvoiceEmail')
+  const {
+    invoiceEmailSubject,
+    renderInvoiceEmailHtml,
+    renderInvoiceEmailText,
+  } = await import('@/domain/invoiceEmail')
+  const { invoiceEmailLogoUrl } = await import('@/lib/invoiceEmailLogo')
+  const portalUrl = portalTrackingUrlForTrip(opts.trip.id, opts.toEmail)
+  const tpl = buildInvoiceEmailTemplate({
+    trip: opts.trip,
+    portalUrl,
+    amountUsd: opts.amountUsd,
+    poNumber: opts.poNumber,
+    payUrl: opts.payUrl,
+    contractUrl: opts.contractUrl,
+    clientName: opts.clientName,
+  })
+  return {
+    clientName: opts.clientName,
+    logoUrl: invoiceEmailLogoUrl(),
+    amountUsd: opts.amountUsd,
+    lane: tpl.laneShort,
+    aircraftType: tpl.aircraftType,
+    tail: tpl.tail,
+    contractUrl: opts.contractUrl ?? null,
+    payUrl: opts.payUrl ?? null,
+    portalUrl,
+    customerMemo: opts.customerMemo,
+    subject: invoiceEmailSubject({
+      poNumber: tpl.poNumber,
+      laneShort: tpl.laneShort,
+      tail: tpl.tail,
+    }),
+    html: renderInvoiceEmailHtml(tpl),
+    text: renderInvoiceEmailText(tpl),
+  }
 }
 
 export function addTripDocument(
