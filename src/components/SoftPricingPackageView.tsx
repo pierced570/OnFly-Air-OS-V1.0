@@ -1,11 +1,9 @@
 /**
  * Soft quote UI — matches portal soft-pricing mockups.
- * Cream client surface; dark hero; 3-col class cards; door table; Claude; history.
+ * Cream client surface; dark hero; 3-col class cards; door table; static guide.
  */
 
-import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { createLlmAdapter } from '@/adapters/llm'
 import { BRAND_PHONE, BRAND_PHONE_E164, dialBrandOps } from '@/domain/brand'
 import {
   destinationFromGoMinutes,
@@ -31,42 +29,6 @@ export function SoftPricingPackageView(props: {
   backTo?: string
 }) {
   const { pkg } = props
-  const [ask, setAsk] = useState('')
-  const [askBusy, setAskBusy] = useState(false)
-  const [askAnswer, setAskAnswer] = useState<string | null>(null)
-  const [guide, setGuide] = useState(pkg.claude_guidelines)
-
-  async function onAsk(prompt?: string) {
-    const q = (prompt ?? ask).trim()
-    if (!q) return
-    setAskBusy(true)
-    setAskAnswer(null)
-    try {
-      const llm = createLlmAdapter()
-      const context = [
-        `Soft quote ${pkg.origin_display}→${pkg.dest_display} ${pkg.live_nm} NM.`,
-        pkg.fit_summary,
-        ...pkg.classes.map((c) =>
-          c.pricing_mode === 'inquiry_only'
-            ? `${c.label}: hard quote only · ${c.inquiry_blurb ?? ''} fit=${c.fit.fit}`
-            : `${c.label}: $${c.price_low}–$${c.price_high} fit=${c.fit.fit} ${c.fit.explanation}`,
-        ),
-        `Client question: ${q}`,
-      ].join('\n')
-      const text = await llm.explainSoftPricing(context)
-      setAskAnswer(text)
-      if (!guide) setGuide(text)
-    } catch (e) {
-      setAskAnswer(e instanceof Error ? e.message : String(e))
-    } finally {
-      setAskBusy(false)
-    }
-  }
-
-  function onAskSubmit(e: FormEvent) {
-    e.preventDefault()
-    void onAsk()
-  }
 
   return (
     <div className="space-y-6 text-ink">
@@ -199,7 +161,7 @@ export function SoftPricingPackageView(props: {
         </p>
       </aside>
 
-      {/* Door table + Claude */}
+      {/* Door table + pricing guide */}
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-white px-4 py-5 sm:px-5">
           <h2 className="text-base font-semibold">
@@ -258,49 +220,20 @@ export function SoftPricingPackageView(props: {
         </div>
 
         <div className="rounded-2xl border border-border bg-white px-4 py-5 sm:px-5">
-          <h2 className="text-base font-semibold">
-            Pricing guide · powered by Claude
-          </h2>
+          <h2 className="text-base font-semibold">Pricing guide</h2>
           <div className="mt-3 rounded-xl border border-border bg-[#F7F2E3]/70 px-3 py-3 text-sm leading-relaxed text-ink">
-            {guide ||
-              'Ask a question below for class fit and pricing guidelines.'}
+            {pkg.guidelines || pkg.fit_summary || pkg.disclaimer}
           </div>
-          {askAnswer && askAnswer !== guide ? (
-            <div className="mt-3 rounded-xl border border-gold/30 bg-gold/5 px-3 py-3 text-sm leading-relaxed">
-              {askAnswer}
-            </div>
-          ) : null}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {pkg.ask_chips.map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                disabled={askBusy}
-                className="rounded-full border border-border bg-[#F9F7F2] px-3 py-1.5 text-xs text-ink hover:border-gold/40 disabled:opacity-50"
-                onClick={() => void onAsk(chip)}
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-          <form
-            onSubmit={onAskSubmit}
-            className="mt-3 flex gap-2"
-          >
-            <input
-              value={ask}
-              onChange={(e) => setAsk(e.target.value)}
-              placeholder="Ask about this estimate…"
-              className="min-w-0 flex-1 rounded-lg border border-border bg-[#F9F7F2] px-3 py-2.5 text-sm outline-none focus:border-gold"
-            />
-            <button
-              type="submit"
-              disabled={askBusy || !ask.trim()}
-              className="rounded-lg bg-[#141414] px-4 py-2.5 text-sm font-semibold text-gold disabled:opacity-50"
+          <p className="mt-3 text-xs text-muted">
+            Questions on this estimate? Call 24-hr ops at{' '}
+            <a
+              href={`tel:${BRAND_PHONE_E164}`}
+              className="avionic font-semibold text-gold"
             >
-              {askBusy ? '…' : 'Ask'}
-            </button>
-          </form>
+              {BRAND_PHONE}
+            </a>{' '}
+            or request a hard quote above.
+          </p>
         </div>
       </section>
 
