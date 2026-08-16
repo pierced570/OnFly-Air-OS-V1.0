@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ClientLogisticsQuotePreview } from '@/components/ClientLogisticsQuotePreview'
 import {
@@ -43,6 +43,8 @@ export default function AcceptPage() {
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [trackHref, setTrackHref] = useState<string | null>(null)
+  /** Guards double-taps before React re-renders busy state. */
+  const acceptLock = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -177,6 +179,34 @@ export default function AcceptPage() {
       ]
     : options
 
+  function beginAccept(opt: { offer_id: string; option_number_label: string }) {
+    if (acceptLock.current || busyId) return
+    acceptLock.current = true
+    setError(null)
+    setBusyId(opt.offer_id)
+    setAcceptedLabel(opt.option_number_label)
+    // Optimistic confirmation — first tap must feel instant; book runs after.
+    setAccepted(true)
+    void acceptHardQuoteOption(token!, opt.offer_id).catch((e) => {
+      const raw = e instanceof Error ? e.message : String(e)
+      // Never show RingCentral / SMS plumbing to clients — booking may already
+      // have succeeded; desk sees console.warn logs.
+      if (/ringcentral|sms failed|send-sms|parameter \[from\]/i.test(raw)) {
+        console.warn('[accept] suppressed client-facing notify error', raw)
+        return
+      }
+      // Trip already booked — keep confirmation.
+      if (/already|booked|cannot accept from state booked/i.test(raw)) {
+        return
+      }
+      console.warn('[accept] failed', raw)
+      acceptLock.current = false
+      setAccepted(false)
+      setBusyId(null)
+      setError(raw)
+    })
+  }
+
   // Accepted — dedicated confirmation (same route, no quote re-show).
   if (alreadyAccepted) {
     return (
@@ -241,51 +271,39 @@ export default function AcceptPage() {
           missionChips={missionChips}
           optionActions={(opt) => ({
             busy: busyId === opt.offer_id,
-            onAccept: () => {
-              setError(null)
-              setBusyId(opt.offer_id)
-              void acceptHardQuoteOption(token!, opt.offer_id)
-                .then(() => {
-                  setAcceptedLabel(opt.option_number_label)
-                  setAccepted(true)
-                })
-                .catch((e) => {
-                  const raw = e instanceof Error ? e.message : String(e)
-                  // Never show RingCentral / SMS plumbing to clients — booking
-                  // may already have succeeded; desk sees console.warn logs.
-                  if (/ringcentral|sms failed|send-sms|parameter \[from\]/i.test(raw)) {
-                    console.warn('[accept] suppressed client-facing notify error', raw)
-                    setAcceptedLabel(opt.option_number_label)
-                    setAccepted(true)
-                    return
-                  }
-                  setError(raw)
-                })
-                .finally(() => setBusyId(null))
-            },
-            onDeny: () => {
-              if (
-                !window.confirm(
-                  'Deny this quote? We will release the aircraft hold.',
-                )
-              ) {
-                return
-              }
-              setError(null)
-              setBusyId(opt.offer_id)
-              void declineHardQuote(token!)
-                .then(() => setDeclined(true))
-                .catch((e) =>
-                  setError(e instanceof Error ? e.message : String(e)),
-                )
-                .finally(() => setBusyId(null))
-            },
-            changeRequestHref: buildChangeRequestMailto({
-              lane: trip.lane,
-              optionLabel: opt.option_number_label,
-              acceptToken: hq.accept_token,
-            }),
+            onAccept: () => beginAccept(opt),
+            // Deny / change once below cards — avoid repeating on every option.
+            onDeny: undefined,
+            changeRequestHref: undefined,
           })}
+          sharedActions={
+            alreadyDeclined
+              ? null
+              : {
+                  busy: Boolean(busyId),
+                  onDeny: () => {
+                    if (
+                      !window.confirm(
+                        'Deny this quote? We will release the aircraft hold.',
+                      )
+                    ) {
+                      return
+                    }
+                    setError(null)
+                    setBusyId('deny')
+                    void declineHardQuote(token!)
+                      .then(() => setDeclined(true))
+                      .catch((e) =>
+                        setError(e instanceof Error ? e.message : String(e)),
+                      )
+                      .finally(() => setBusyId(null))
+                  },
+                  changeRequestHref: buildChangeRequestMailto({
+                    lane: trip.lane,
+                    acceptToken: hq.accept_token,
+                  }),
+                }
+          }
         />
 
         {error ? <p className="text-sm text-[#C0392B]">{error}</p> : null}

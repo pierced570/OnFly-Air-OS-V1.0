@@ -23,6 +23,7 @@ import {
   referralMonthLabel,
   shareTermsLabel,
 } from '@/domain/referrals'
+import { formatInvoicePoHint } from '@/domain/invoicePoHint'
 import { getReferralByName } from '@/lib/referralStore'
 import { sendFinancialInvoice } from '@/lib/invoiceFlow'
 import { useQuickBooksDashboard } from '@/lib/useQuickBooksDashboard'
@@ -32,6 +33,15 @@ import {
   initialAircraftTypeSelectValue,
 } from '@/components/AircraftTypeSelect'
 import { BrandLockup } from '@/components/BrandLockup'
+import { InvoicePoVendorFields } from '@/components/InvoicePoVendorFields'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
+import {
+  listClients,
+  recordPoUsed,
+  recordVendorNumber,
+  suggestNextPo,
+  subscribeClients,
+} from '@/lib/clientStore'
 import {
   canUseStorage,
   uploadTripDocToStorage,
@@ -901,7 +911,20 @@ function FragmentRow({
           {usd(r.client_invoiced_amount)}
         </td>
         <td className="avionic px-2 py-2 text-right text-muted">
-          {r.tax_total > 0 ? usd(r.tax_total) : '—'}
+          {r.tax_total > 0 ? (
+            <div>
+              <div>{usd(r.tax_total)}</div>
+              {r.tax_breakdown?.length ? (
+                <div className="mt-0.5 text-[9px] leading-snug text-muted/80">
+                  {r.tax_breakdown
+                    .map((l) => `${l.code.replace(/^FET_/, 'FET ').replace(/^SEG_FEE_DOM$/, 'Seg')} ${usd(l.amount)}`)
+                    .join(' · ')}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            '—'
+          )}
         </td>
         <td className="avionic px-2 py-2 text-right text-cream">
           {usd(r.vendor_amount)}
@@ -1071,6 +1094,23 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
               updateFinancialField(r.id, 'operator_po', e.target.value || null)
             }
           />
+          {(() => {
+            const c = listClients().find(
+              (x) =>
+                x.name.toLowerCase() ===
+                (r.client_name ?? '').trim().toLowerCase(),
+            )
+            if (!c) return null
+            return (
+              <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">
+                {formatInvoicePoHint({
+                  lastPo: c.last_po,
+                  lastPoTripRef: c.profile.last_po_trip_ref,
+                  suggestedPo: suggestNextPo(c.last_po),
+                })}
+              </span>
+            )
+          })()}
         </label>
         <label className="text-xs text-muted">
           Client
@@ -1176,75 +1216,72 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
         </label>
         <label className="text-xs text-muted">
           Referral share ($)
-          <input
-            key={`rfs-${r.id}-${r.referral_share_amount}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.referral_share_amount || 0}
-            onBlur={(e) =>
-              updateFinancialField(
-                r.id,
-                'referral_share_amount',
-                Number(e.target.value) || 0,
-              )
+            value={r.referral_share_amount}
+            onValueChange={(n) =>
+              updateFinancialField(r.id, 'referral_share_amount', n ?? 0)
             }
           />
         </label>
         <label className="text-xs text-muted">
           Client charged ($)
-          <input
-            key={`chg-${r.id}-${r.client_invoiced_amount}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.client_invoiced_amount}
-            onBlur={(e) =>
+            value={r.client_invoiced_amount}
+            onValueChange={(n) =>
               updateFinancialRecord(r.id, {
-                client_invoiced_amount: Number(e.target.value) || 0,
+                client_invoiced_amount: n ?? 0,
               })
             }
           />
         </label>
         <label className="text-xs text-muted">
           Pre-tax subtotal ($)
-          <input
-            key={`sub-${r.id}-${r.client_subtotal_pre_tax}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.client_subtotal_pre_tax ?? ''}
-            onBlur={(e) =>
-              updateFinancialField(
-                r.id,
-                'client_subtotal_pre_tax',
-                e.target.value === '' ? null : Number(e.target.value) || 0,
-              )
+            value={r.client_subtotal_pre_tax}
+            onValueChange={(n) =>
+              updateFinancialField(r.id, 'client_subtotal_pre_tax', n)
             }
           />
         </label>
         <label className="text-xs text-muted">
           Operator owed ($)
-          <input
-            key={`ow-${r.id}-${r.vendor_amount}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.vendor_amount}
-            onBlur={(e) =>
+            value={r.vendor_amount}
+            onValueChange={(n) =>
               updateFinancialRecord(r.id, {
-                vendor_amount: Number(e.target.value) || 0,
+                vendor_amount: n ?? 0,
               })
             }
           />
         </label>
         <label className="text-xs text-muted">
           Tax total ($)
-          <input
-            key={`tax-${r.id}-${r.tax_total}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={`${field} avionic`}
-            defaultValue={r.tax_total}
-            onBlur={(e) =>
-              updateFinancialField(r.id, 'tax_total', Number(e.target.value) || 0)
+            value={r.tax_total}
+            onValueChange={(n) =>
+              updateFinancialField(r.id, 'tax_total', n ?? 0)
             }
           />
+          {r.tax_breakdown?.length ? (
+            <ul className="mt-1 space-y-0.5 text-[10px] text-muted">
+              {r.tax_breakdown.map((line) => (
+                <li key={`${line.code}-${line.amount}`} className="avionic">
+                  {line.code}
+                  {line.note ? ` — ${line.note}` : ''}: {usd(line.amount)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </label>
         <label className="text-xs text-muted">
           Funded by
@@ -1478,14 +1515,13 @@ function OpDrawer({ r }: { r: ComputedFinancial }) {
               </label>
               <label className="text-xs text-muted">
                 Owed ($)
-                <input
-                  type="number"
+                <NumericDraftInput
+                  blankZero
                   className={field}
-                  key={`am-${line.id}-${line.amount}`}
-                  defaultValue={line.amount}
-                  onBlur={(e) =>
+                  value={line.amount}
+                  onValueChange={(n) =>
                     updateFinancialVendorLine(r.id, line.id, {
-                      amount: Number(e.target.value) || 0,
+                      amount: n ?? 0,
                     })
                   }
                 />
@@ -1646,13 +1682,48 @@ function ClientDrawer({
   invoiceBusy: boolean
   onSendInvoice: () => void
 }) {
+  useSyncExternalStore(subscribeClients, listClients, listClients)
   const [confirmedType, setConfirmedType] = useState(() =>
     initialAircraftTypeSelectValue(r.aircraft_type),
+  )
+  const client = useMemo(() => {
+    const name = (r.client_name ?? '').trim().toLowerCase()
+    if (!name) return undefined
+    return listClients().find((c) => c.name.toLowerCase() === name)
+  }, [r.client_name])
+  const lastPo = client?.last_po ?? null
+  const suggestedPo = useMemo(() => suggestNextPo(lastPo), [lastPo])
+  const [poDraft, setPoDraft] = useState(
+    () => (r.operator_po || r.po_number || '').trim() || suggestedPo,
+  )
+  const [vendorDraft, setVendorDraft] = useState(
+    () => client?.profile.vendor_number?.trim() || '',
   )
 
   useEffect(() => {
     setConfirmedType((prev) => prev || initialAircraftTypeSelectValue(r.aircraft_type))
   }, [r.aircraft_type])
+
+  useEffect(() => {
+    const existing = (r.operator_po || r.po_number || '').trim()
+    setPoDraft(existing || suggestedPo)
+  }, [r.id, r.operator_po, r.po_number, suggestedPo])
+
+  useEffect(() => {
+    setVendorDraft(client?.profile.vendor_number?.trim() || '')
+  }, [client?.id, client?.profile.vendor_number])
+
+  function commitPo(next: string) {
+    const cleaned = next.trim()
+    updateFinancialField(r.id, 'operator_po', cleaned || null)
+    if (client && cleaned) {
+      recordPoUsed(client.id, cleaned)
+    }
+  }
+
+  function commitVendor(next: string) {
+    if (client) recordVendorNumber(client.id, next.trim() || null)
+  }
 
   return (
     <div className="rounded-lg border border-onplan/30 bg-onplan/5 p-3">
@@ -1666,12 +1737,15 @@ function ClientDrawer({
             invoiceBusy ||
             Boolean(r.qb_invoice_id) ||
             r.client_invoiced_amount <= 0 ||
-            !confirmedType.trim()
+            !confirmedType.trim() ||
+            !poDraft.trim()
           }
           onClick={() => {
             if (confirmedType.trim() !== (r.aircraft_type ?? '').trim()) {
               updateFinancialField(r.id, 'aircraft_type', confirmedType.trim())
             }
+            commitPo(poDraft)
+            commitVendor(vendorDraft)
             onSendInvoice()
           }}
           className="rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink disabled:opacity-40"
@@ -1683,6 +1757,26 @@ function ClientDrawer({
               : 'Send Invoice'}
         </button>
       </div>
+
+      <InvoicePoVendorFields
+        className="mb-3"
+        inputClassName={field}
+        poValue={poDraft}
+        onPoChange={setPoDraft}
+        onPoCommit={() => commitPo(poDraft)}
+        suggestedPo={suggestedPo}
+        lastPo={lastPo}
+        lastPoTripRef={client?.profile.last_po_trip_ref}
+        vendorValue={vendorDraft}
+        onVendorChange={setVendorDraft}
+        onVendorCommit={() => commitVendor(vendorDraft)}
+        vendorRecommended={client?.profile.needs_vendor_number === true}
+        onUseSuggestedPo={() => {
+          setPoDraft(suggestedPo)
+          commitPo(suggestedPo)
+        }}
+      />
+
       <AircraftTypeSelect
         className="mb-3 block text-xs text-muted"
         label="Confirm aircraft type before invoice"
@@ -1697,31 +1791,39 @@ function ClientDrawer({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-xs text-muted">
           Charged ($)
-          <input
-            key={`chg-${r.id}-${r.client_invoiced_amount}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={field}
-            defaultValue={r.client_invoiced_amount}
-            onBlur={(e) =>
+            value={r.client_invoiced_amount}
+            onValueChange={(n) =>
               updateFinancialField(
                 r.id,
                 'client_invoiced_amount',
-                Number(e.target.value) || 0,
+                n ?? 0,
               )
             }
           />
         </label>
         <label className="text-xs text-muted">
           Tax total ($)
-          <input
-            key={`tax-${r.id}-${r.tax_total}`}
-            type="number"
+          <NumericDraftInput
+            blankZero
             className={field}
-            defaultValue={r.tax_total}
-            onBlur={(e) =>
-              updateFinancialField(r.id, 'tax_total', Number(e.target.value) || 0)
+            value={r.tax_total}
+            onValueChange={(n) =>
+              updateFinancialField(r.id, 'tax_total', n ?? 0)
             }
           />
+          {r.tax_breakdown?.length ? (
+            <ul className="mt-1 space-y-0.5 text-[10px] text-muted">
+              {r.tax_breakdown.map((line) => (
+                <li key={`${line.code}-${line.amount}`} className="avionic">
+                  {line.code}
+                  {line.note ? ` — ${line.note}` : ''}: {usd(line.amount)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </label>
         <label className="text-xs text-muted">
           Deposited

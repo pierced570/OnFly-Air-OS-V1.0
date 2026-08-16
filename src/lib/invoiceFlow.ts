@@ -88,6 +88,9 @@ export async function sendFinancialInvoice(
 
   const lane = row.route_text || ''
   const itineraryLines = buildInvoiceItineraryLines({ lane })
+  const vendorNote = client?.profile.vendor_number?.trim()
+    ? `Vendor #${client.profile.vendor_number.trim()}`
+    : null
   const memo = buildInvoiceCustomerMemo({
     lane,
     flightDate: row.date_of_flight,
@@ -96,7 +99,9 @@ export async function sendFinancialInvoice(
     poNumber,
     payTerms: row.pay_terms || client?.pay_terms || 'Net 30',
     itineraryLines,
-    extraNotes: row.notes?.trim() || null,
+    extraNotes: [row.notes?.trim() || null, vendorNote]
+      .filter(Boolean)
+      .join('\n') || null,
   })
   if (hasInvoicePlaceholderCopy(memo)) {
     throw new Error(
@@ -142,6 +147,10 @@ export async function sendFinancialInvoice(
   })
 
   const doc = created.qbInvoiceNumber || poNumber
+  if (client) {
+    const { recordPoUsed } = await import('@/lib/clientStore')
+    recordPoUsed(client.id, doc)
+  }
   upsertFinancial({
     ...row,
     operator_po: doc,

@@ -947,7 +947,7 @@ export async function selectOffersAndHardQuote(
         missionChips,
         intro:
           logisticsOptions.length === 2
-            ? 'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Pick one and we lock it.'
+            ? 'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Go to the portal to pick one and lock it.'
             : null,
       }
       const toList = recipients.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))
@@ -1028,10 +1028,19 @@ export async function updateHardQuoteClientPricing(
 }
 
 export async function acceptHardQuoteOption(token: string, offerId: string) {
-  const trip = (await import('@/lib/tripStore')).getTripByAcceptToken(token)
+  const store = await import('@/lib/tripStore')
+  let trip = store.getTripByAcceptToken(token)
+  if (!trip) {
+    const { resolveTripByAcceptToken } = await import('@/lib/db/hydrateTrips')
+    trip = await resolveTripByAcceptToken(token)
+  }
   if (!trip) throw new Error('invalid accept token')
-  if (trip.state === 'booked' || trip.state === 'in_progress' || trip.state === 'delivered') {
-    return getTrip(trip.id)!
+  if (
+    trip.state === 'booked' ||
+    trip.state === 'in_progress' ||
+    trip.state === 'delivered'
+  ) {
+    return store.getTrip(trip.id)!
   }
   if (trip.state !== 'quoted_hard') {
     throw new Error(`cannot accept from state ${trip.state}`)
@@ -1039,21 +1048,28 @@ export async function acceptHardQuoteOption(token: string, offerId: string) {
   const opt = trip.hard_quote?.options?.find((o) => o.offer_id === offerId)
   const offer = trip.offers.find((o) => o.id === offerId)
   if (!offer && !opt) throw new Error('option not found')
-  mutateTrip(trip.id, (t) => {
+  // Mark selected only — do NOT shrink hard_quote.options here. Mutating the
+  // option list triggers a sync store re-render mid-click and the Accept
+  // button can appear to "eat" the first tap.
+  store.mutateTrip(trip.id, (t) => {
     for (const o of t.offers) {
       if (o.id === offerId) o.state = 'selected'
-      // Leave other quoted offers as quoted — acceptHardQuote sends
-      // stand-down notices, then marks them stood_down.
-    }
-    if (t.hard_quote?.options?.length) {
-      const kept = t.hard_quote.options.find((o) => o.offer_id === offerId)
-      if (kept) {
-        t.hard_quote.total = kept.client_total
-        t.hard_quote.options = [kept]
-      }
     }
   })
-  return acceptHardQuote(token)
+  const booked = await acceptHardQuote(token)
+  store.mutateTrip(booked.id, (t) => {
+    if (!t.hard_quote?.options?.length) return
+    const kept =
+      t.hard_quote.options.find((o) => o.offer_id === offerId) ??
+      t.hard_quote.options.find((o) =>
+        t.offers.some((x) => x.id === o.offer_id && x.state === 'selected'),
+      )
+    if (kept) {
+      t.hard_quote.total = kept.client_total
+      t.hard_quote.options = [kept]
+    }
+  })
+  return store.getTrip(booked.id)!
 }
 
 /**
@@ -1293,23 +1309,8 @@ export async function acceptHardQuote(
   const { portalTrackingUrlForTrip } = await import('@/lib/etaSheetSender')
   const trackPath = portalTrackingUrlForTrip(fresh.id)
 
-  // Client tracking SMS — best-effort only; never fail the accept UX.
-  try {
-    const comms = createCommsAdapter()
-    for (const cell of recipientCells(fresh)) {
-      try {
-        await comms.send({
-          channel: 'sms',
-          to: cell,
-          body: `OnFly booked ${fresh.lane}. Tracking: ${trackPath}`,
-        })
-      } catch (e) {
-        console.warn('[accept] client tracking SMS failed', cell, e)
-      }
-    }
-  } catch (e) {
-    console.warn('[accept] client tracking SMS skipped', e)
-  }
+  // Accept notifies the flying operator (and stand-downs) — never the client.
+  // Client invoice / ETA / tracking emails are desk actions after book.
 
   if (selected) {
     await notifyOperatorBookOutcome(selected, 'won', fresh.lane)
@@ -1337,9 +1338,10 @@ export async function acceptHardQuote(
         `${l.label}: ${l.est_start?.slice(0, 16) ?? '—'} → ${l.est_end?.slice(0, 16) ?? '—'}`,
     )
     .join('\n')
-  const opsRecipients = resolveOpsEmails(fresh)
-  if (opsRecipients.length) {
-    for (const to of opsRecipients) {
+  // OnFly desk participants only — never client AP / supply_chain on accept.
+  const deskRecipients = resolveDeskOpsEmails(fresh)
+  if (deskRecipients.length) {
+    for (const to of deskRecipients) {
       try {
         await email.send({
           to,
@@ -1355,7 +1357,7 @@ export async function acceptHardQuote(
           ].join('\n'),
         })
       } catch (e) {
-        console.warn('[accept] ops mission-go email failed', to, e)
+        console.warn('[accept] desk mission-go email failed', to, e)
       }
     }
   }
@@ -1453,20 +1455,19 @@ export async function declineHardQuote(token: string) {
   return getTrip(trip.id)!
 }
 
-function resolveOpsEmails(trip: NonNullable<ReturnType<typeof getTrip>>): string[] {
+function resolveDeskOpsEmails(
+  trip: NonNullable<ReturnType<typeof getTrip>>,
+): string[] {
   const out: string[] = []
-  if (trip.client_id) {
-    out.push(...listInvoiceEmails(trip.client_id))
-    const c = getClient(trip.client_id)
-    for (const contact of c?.contacts ?? []) {
-      if (contact.role === 'supply_chain' && contact.email) out.push(contact.email)
+  for (const p of trip.participants) {
+    if (p.email && (p.role === 'dispatcher' || p.role === 'ops')) {
+      out.push(p.email)
     }
   }
-  for (const p of trip.participants) {
-    if (p.email && (p.role === 'dispatcher' || p.role === 'ops')) out.push(p.email)
-  }
   return [
-    ...new Set(out.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'))),
+    ...new Set(
+      out.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')),
+    ),
   ]
 }
 

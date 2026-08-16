@@ -92,7 +92,7 @@ export async function flushInvoiceRetryQueue(): Promise<{
       continue
     }
     try {
-      const inv = await createInvoiceForTrip(item.tripId, { skipEmail: false })
+      const inv = await createInvoiceForTrip(item.tripId, { skipEmail: true })
       if (inv) {
         dequeueInvoiceRetry(item.tripId)
         ok++

@@ -12,6 +12,7 @@ import type {
 import {
   CLIENT_QUOTE_ALL_IN_NOTE,
   CLIENT_QUOTE_TAXES_NOTE,
+  PORTAL_ACCEPT_CTA,
 } from '@/domain/clientLogisticsQuote'
 
 export type LogisticsQuoteEmailInput = {
@@ -71,7 +72,7 @@ export function renderLogisticsQuoteEmailText(
     )
   }
   if (input.acceptUrl) {
-    lines.push(`Review & accept: ${input.acceptUrl}`, '')
+    lines.push(`Go to portal to accept: ${input.acceptUrl}`, '')
   }
   lines.push(
     'All-in includes repositioning, crew, fuel, FET & segment fees where applicable. On accept: confirmation, ETA sheet, live tracking.',
@@ -185,10 +186,13 @@ export function renderLogisticsQuoteEmailHtml(
 
 function defaultIntro(optionCount: number): string {
   if (optionCount <= 1) {
-    return 'All-in price · taxes & fees included. Accept to lock it.'
+    return 'All-in price · taxes & fees included. Go to the portal to accept and lock it.'
   }
-  return `${optionCount} options · all-in prices. Pick one to lock it.`
+  return `${optionCount} options · all-in prices. Go to the portal to pick one and lock it.`
 }
+
+/** Email / desk-preview CTA — real Accept buttons live on /accept only. */
+export { PORTAL_ACCEPT_CTA } from '@/domain/clientLogisticsQuote'
 
 function renderOptionCard(
   opt: LogisticsQuoteOptionView,
@@ -208,11 +212,9 @@ function renderOptionCard(
           .join('')}</tr></table>`
       : ''
 
-  const acceptHref = acceptUrl?.trim()
-    ? `${acceptUrl.trim()}${acceptUrl.includes('?') ? '&' : '?'}option=${encodeURIComponent(opt.offer_id)}`
-    : null
-  const cta = acceptHref
-    ? `<a href="${escapeAttr(acceptHref)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:13px">Accept ${escapeHtml(opt.option_number_label)}</a>`
+  const portalHref = acceptUrl?.trim() || null
+  const cta = portalHref
+    ? `<a href="${escapeAttr(portalHref)}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:13px">${escapeHtml(PORTAL_ACCEPT_CTA)}</a>`
     : ''
 
   return `<div style="margin:0 0 12px;padding:14px;border:1px solid #e5dfd0;border-radius:12px;background:#fff">

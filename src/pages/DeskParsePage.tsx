@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { isSmsDeliveryEnabled } from '@/adapters/comms'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
+import { NumericDraftInput } from '@/components/NumericDraftInput'
 import PhoneInput from '@/components/PhoneInput'
 import { bestClientMatch, matchClients } from '@/domain/matchClient'
 import type { EndpointKind } from '@/domain/missionMode'
@@ -1014,25 +1015,18 @@ export default function DeskParsePage() {
                   {!draft.cargo_only && (
                     <label className={label}>
                       PAX
-                      <input
-                        type="number"
+                      <NumericDraftInput
+                        integer
+                        blankZero
                         min={0}
-                        inputMode="numeric"
                         className={input}
-                        value={leg.pax || ''}
+                        value={leg.pax}
                         placeholder="0"
-                        onChange={(e) => {
-                          const raw = e.target.value
-                          if (raw === '') {
-                            patchLeg(leg.id, { pax: 0 })
-                            return
-                          }
-                          const n = Number(raw)
-                          if (!Number.isFinite(n)) return
+                        onValueChange={(n) =>
                           patchLeg(leg.id, {
-                            pax: Math.max(0, Math.floor(n)),
+                            pax: n == null ? 0 : Math.max(0, n),
                           })
-                        }}
+                        }
                       />
                     </label>
                   )}
