@@ -1,19 +1,16 @@
 /**
  * Build the portal soft-pricing package for a trip request.
- * Network doors + hourly class bands + optional Claude guidelines.
+ * Network doors + hourly class bands + static guidelines (no LLM).
  */
 
-import { createLlmAdapter } from '@/adapters/llm'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import { piecesHaveWeights } from '@/domain/dimsParser'
 import { haversineNm } from '@/domain/geo'
 import {
   buildSoftPricingPackage,
   mockSoftPricingGuidelines,
-  softPricingClaudePrompt,
   SOFT_PRICING_DISCLAIMER,
   type SoftFleetRow,
-  type SoftPricingPackage,
 } from '@/domain/softPricing'
 import {
   cargoPiecesFromDraft,
@@ -24,7 +21,7 @@ import {
 } from '@/domain/tripRequest'
 import { loadNetwork } from '@/lib/networkData'
 
-export type SoftPricingPackageResult = SoftPricingPackage & {
+export type SoftPricingPackageResult = import('@/domain/softPricing').SoftPricingPackage & {
   request_id: string
   request_ref: number
   error?: string
@@ -32,7 +29,6 @@ export type SoftPricingPackageResult = SoftPricingPackage & {
 
 export async function buildSoftPricingForRequest(
   row: TripRequestRecord,
-  opts?: { withClaude?: boolean },
 ): Promise<SoftPricingPackageResult> {
   const leg = row.legs[0]
   if (!leg?.origin_icao?.trim() || !leg?.dest_icao?.trim()) {
@@ -113,26 +109,9 @@ export async function buildSoftPricingForRequest(
     dims_assumed_small: dimsAssumed,
   })
 
-  const withClaude = opts?.withClaude !== false
-  if (withClaude) {
-    try {
-      const llm = createLlmAdapter()
-      const text = await llm.explainSoftPricing(softPricingClaudePrompt(pkg))
-      pkg = {
-        ...pkg,
-        claude_guidelines: text?.trim() || mockSoftPricingGuidelines(pkg),
-      }
-    } catch {
-      pkg = {
-        ...pkg,
-        claude_guidelines: mockSoftPricingGuidelines(pkg),
-      }
-    }
-  } else {
-    pkg = {
-      ...pkg,
-      claude_guidelines: mockSoftPricingGuidelines(pkg),
-    }
+  pkg = {
+    ...pkg,
+    guidelines: mockSoftPricingGuidelines(pkg),
   }
 
   return {
@@ -167,8 +146,7 @@ function emptyPackage(
     pricing_logic_overview: '',
     math_cards: [],
     disclaimer: SOFT_PRICING_DISCLAIMER,
-    claude_guidelines: null,
-    ask_chips: [],
+    guidelines: null,
     error,
   }
 }

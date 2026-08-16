@@ -328,8 +328,8 @@ export type SoftPricingPackage = {
   pricing_logic_overview: string
   math_cards: Array<{ title: string; body: string }>
   disclaimer: string
-  claude_guidelines: string | null
-  ask_chips: string[]
+  /** Static client-facing pricing guide (no LLM). */
+  guidelines: string | null
 }
 
 export type SoftFleetRow = {
@@ -520,7 +520,7 @@ export function buildSoftPricingPackage(input: {
   pieces: Piece[]
   fleet: SoftFleetRow[]
   ready_asap?: boolean
-  claude_guidelines?: string | null
+  guidelines?: string | null
   /** Client tapped “Not yet” on dims — treat cargo as small enough for every class. */
   dims_assumed_small?: boolean
 }): SoftPricingPackage {
@@ -619,34 +619,8 @@ export function buildSoftPricingPackage(input: {
       },
     ],
     disclaimer: SOFT_PRICING_DISCLAIMER,
-    claude_guidelines: input.claude_guidelines ?? null,
-    ask_chips: dimsAssumed
-      ? [
-          'Send cargo dims when you have them',
-          'Why is the repo leg billed?',
-          'Roundtrip pricing?',
-        ]
-      : [
-          'Why is the repo leg billed?',
-          'What if I split into 2 pieces?',
-          'Roundtrip pricing?',
-        ],
+    guidelines: input.guidelines ?? null,
   }
-}
-
-export function softPricingClaudePrompt(pkg: SoftPricingPackage): string {
-  const lines = [
-    `Lane ${pkg.origin_display}→${pkg.dest_display} · ${pkg.live_nm} NM live.`,
-    pkg.fit_summary,
-    'Per-class snapshots:',
-    ...pkg.classes.map((c) =>
-      c.pricing_mode === 'inquiry_only'
-        ? `- ${c.label}: hard quote only (no soft $) · ${c.inquiry_blurb ?? ''} · fit=${c.fit.fit}`
-        : `- ${c.label}: $${c.price_low}–$${c.price_high} · live ${formatHoursMinutes(c.timing.live_min)} @ ${c.timing.avg_gs_kts} kt · fit=${c.fit.fit} · ${c.fit.explanation}`,
-    ),
-    'Write short, calm client guidelines (no operator names, no margins, no “bid”). Do not publish exact door inches/feet or invite self-sizing — use categorical door/payload bands only and say dispatch confirms fit at hard quote. Mention super-heavy freighters exist on the network but are usually hard-quote only. Explain what class looks workable and that this is only an estimate.',
-  ]
-  return lines.join('\n')
 }
 
 export function mockSoftPricingGuidelines(pkg: SoftPricingPackage): string {
