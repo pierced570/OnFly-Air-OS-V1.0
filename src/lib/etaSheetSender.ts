@@ -200,24 +200,16 @@ async function sendEtaHtml(opts: {
   return recipients
 }
 
-/** Quick Dispatch — pass explicit recipient list (should be tracker/CC, not AP). */
+/** Quick Dispatch — same ETA sheet + portal links as waterfall booking. */
 export async function sendQuickDispatchEtaSheetAndPortalLinks(opts: {
   trip: TripStoreRow
   recipients: string[]
+  cc?: string[]
 }): Promise<{ sentTo: string[] }> {
-  const sheet = computeEtaSheetFromBookedTrip(opts.trip, new Date(), {
-    clientFacing: true,
-  })
-  if (!sheet) return { sentTo: [] }
-  const sentTo = await sendEtaHtml({
-    trip: opts.trip,
-    sheet,
-    recipients: opts.recipients,
-  })
-  return { sentTo }
+  return sendBookedEtaSheetToTrackers(opts)
 }
 
-/** After hard-quote accept — ETA + track links to tracker/supply-chain emails. */
+/** After hard-quote accept / desk send — ETA + track links (shared sheet pipeline). */
 export async function sendBookedEtaSheetToTrackers(opts: {
   trip: TripStoreRow
   recipients: string[]

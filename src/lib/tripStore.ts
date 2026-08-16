@@ -1528,6 +1528,59 @@ export function applyOfferLiveLegToTrip(
   })
 }
 
+/** Apply operator-quoted origin turn (acft_turn) onto trip + candidate chains. */
+export function applyOfferTurnToTrip(
+  tripId: string,
+  offerId: string,
+  turnMin: number,
+): void {
+  if (!(turnMin >= 0) || !Number.isFinite(turnMin)) return
+  const minutes = Math.max(0, Math.floor(turnMin))
+  mutateTrip(tripId, (t) => {
+    const offer = t.offers.find((o) => o.id === offerId)
+    if (!offer) return
+
+    const cand =
+      t.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
+      t.candidates.find((c) => c.tail === offer.tail)
+
+    const applyTo = (chain: typeof t.eta_chain) => {
+      const turn = chain.find(
+        (l) =>
+          l.duration_key === 'acft_turn' ||
+          (l.type === 'ground_stop' && l.event === 'Ready Wheels Up'),
+      )
+      if (!turn) return null
+      return editDuration(chain, turn.seq, minutes, 'quoted')
+    }
+
+    if (cand?.chain?.length) {
+      const updated = applyTo(cand.chain)
+      if (updated) {
+        cand.chain = updated.chain
+        cand.eta_end = projectedDeliveryUtc(updated.chain) ?? cand.eta_end
+      }
+    }
+
+    if (t.eta_chain.length) {
+      const updated = applyTo(t.eta_chain)
+      if (updated) {
+        syncLegsFromChain(t, updated.chain)
+        t.events.push({
+          at: new Date().toISOString(),
+          actor: offer.operator_name,
+          kind: 'eta_turn_quoted',
+          payload: {
+            offer_id: offerId,
+            quick_turn_min: minutes,
+            slipped_min: updated.slippedMinutes,
+          },
+        })
+      }
+    }
+  })
+}
+
 /** Dispatcher edits an assumption cell on the trip sheet. */
 export function editTripEtaDuration(
   tripId: string,

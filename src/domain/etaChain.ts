@@ -32,10 +32,14 @@ export const BUILTIN_ETA_DEFAULTS: EtaDefaults = {
   driver_unload: 30,
   fbo_transfer: 30,
   acft_ttp: 120,
-  acft_turn: 60,
+  /** Origin ground time after in-position — same autofill as offer/QD turn (40). */
+  acft_turn: 40,
   taxi_pad: 12,
   slip_threshold: 15,
 }
+
+/** Alias — offer forms, QD, and spine share one turn autofill. */
+export const DEFAULT_ACFT_TURN_MIN = BUILTIN_ETA_DEFAULTS.acft_turn
 
 /** @deprecated use EtaDefaults / BUILTIN_ETA_DEFAULTS */
 export type LegDefaults = {
