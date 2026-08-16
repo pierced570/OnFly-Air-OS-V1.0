@@ -10,6 +10,7 @@ import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalStopPicker } from '@/components/PortalStopPicker'
 import {
+  portalAircraftMapBlocked,
   portalAircraftMapVisible,
   clientOpsStageLabel,
   type OpsForecastRow,
@@ -38,18 +39,19 @@ function stageStatusLabel(status: OpsForecastRow['status']): string {
 
 function aircraftWhereLabel(view: PortalTrackingView): string {
   const a = view.aircraft
+  if (a.laddBlocked) return 'Blocked from view'
   if (a.source === 'adsb' && a.phase === 'airborne') {
-    return 'In the air · live ADS-B'
+    return 'In the air · live track'
   }
   if (a.phase === 'airborne') return 'In the air'
   if (a.phase === 'on_ground') {
     const icao = a.toIcao || a.fromIcao || view.flightFacts.originIcao
     return icao ? `On the ground · ${icao}` : 'On the ground'
   }
-  if (a.phase === 'positioning') return 'Positioning to pickup'
+  if (a.phase === 'positioning') return 'Enroute to pickup'
   const active = view.opsForecastRows.find((r) => r.status === 'active')
   if (active) return clientOpsStageLabel(active)
-  if (view.state === 'delivered') return 'Delivered'
+  if (view.state === 'delivered') return 'Landed at destination'
   if (view.state === 'booked') return 'Booked · standing by'
   return 'Standing by'
 }
@@ -80,7 +82,8 @@ export function PortalTrackingBody({
     [view.stops, fbos],
   )
   const a = view.aircraft
-  const showMap = portalAircraftMapVisible(a)
+  const mapBlocked = portalAircraftMapBlocked(a)
+  const showMap = !mapBlocked && portalAircraftMapVisible(a)
   const po =
     view.poNumber?.replace(/^PO\s*#?\s*/i, '') || `T-${view.ref}`
   const title = view.code
@@ -262,22 +265,46 @@ export function PortalTrackingBody({
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em]">
           <span className="text-gold">
             ●{' '}
-            {a.source === 'adsb'
-              ? 'Live ADS-B'
-              : a.source === 'eta'
-                ? 'Live track'
-                : 'Track'}
+            {mapBlocked
+              ? 'Track unavailable'
+              : a.source === 'adsb'
+                ? `Live · ${tail}`
+                : a.source === 'eta'
+                  ? `Track · ${tail}`
+                  : 'Track'}
           </span>
           <span className="text-cream/55">
-            {seenAgo ||
-              (view.state === 'in_progress'
-                ? a.phase === 'positioning'
-                  ? 'AT PICKUP'
-                  : 'LIVE'
-                : 'STANDING BY')}
+            {mapBlocked
+              ? 'BLOCKED'
+              : seenAgo ||
+                (view.state === 'in_progress'
+                  ? a.phase === 'positioning' || a.phase === 'airborne'
+                    ? 'LIVE'
+                    : 'AT PICKUP'
+                  : 'STANDING BY')}
           </span>
         </div>
-        {showMap ? (
+        {mapBlocked ? (
+          <div className="relative flex h-56 items-center justify-center bg-[#141414] px-6 text-center sm:h-72">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-40"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 30% 40%, #2a2a2e 0%, transparent 55%), radial-gradient(circle at 70% 60%, #1a1a1c 0%, transparent 50%)',
+              }}
+            />
+            <div className="relative max-w-md space-y-2">
+              <p className="avionic text-sm font-semibold tracking-wide text-gold">
+                {tail !== 'Pending' ? tail : 'Aircraft'}
+              </p>
+              <p className="text-sm leading-relaxed text-cream/85">
+                Unfortunately this tail number is blocked from view. Dispatch
+                will manually provide updates.
+              </p>
+            </div>
+          </div>
+        ) : showMap ? (
           <PortalAircraftMap
             aircraft={a}
             className="h-56 w-full border-y border-cream/10 bg-[#141414] sm:h-72"
@@ -286,8 +313,8 @@ export function PortalTrackingBody({
           <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-cream/50">
             {view.state === 'in_progress'
               ? tail === 'Pending'
-                ? 'Trip is live — assign a real tail on dispatch for ADS-B position.'
-                : 'Waiting for wheels-up or ADS-B lock on this tail.'
+                ? 'Trip is live — assign a real tail on dispatch for live track.'
+                : 'Waiting for wheels-up or a live lock on this tail.'
               : view.state === 'booked'
                 ? 'Aircraft position appears when the trip goes live.'
                 : 'Route map appears once the trip is live.'}
@@ -314,12 +341,7 @@ export function PortalTrackingBody({
             Stages appear once the trip is live.
           </p>
         ) : (
-          <ol
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: `repeat(${opsRows.length}, minmax(0, 1fr))`,
-            }}
-          >
+          <ol className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             {opsRows.map((row, i) => {
               const done = row.status === 'done'
               const active = row.status === 'active'
@@ -328,14 +350,14 @@ export function PortalTrackingBody({
               return (
                 <li
                   key={row.key}
-                  className="flex min-w-0 flex-col items-center text-center"
+                  className="flex min-w-0 flex-row items-center gap-3 text-left sm:flex-col sm:items-center sm:text-center"
                 >
-                  <div className="relative flex h-8 w-full items-center justify-center">
+                  <div className="relative flex h-8 w-8 shrink-0 items-center justify-center sm:w-full">
                     {i > 0 ? (
                       <span
                         aria-hidden
                         className={[
-                          'absolute left-0 right-1/2 top-1/2 h-0.5 -translate-y-1/2',
+                          'absolute hidden sm:block left-0 right-1/2 top-1/2 h-0.5 -translate-y-1/2',
                           prevDone || done ? 'bg-gold' : 'bg-border',
                         ].join(' ')}
                       />
@@ -344,7 +366,7 @@ export function PortalTrackingBody({
                       <span
                         aria-hidden
                         className={[
-                          'absolute left-1/2 right-0 top-1/2 h-0.5 -translate-y-1/2',
+                          'absolute hidden sm:block left-1/2 right-0 top-1/2 h-0.5 -translate-y-1/2',
                           done ? 'bg-gold' : 'bg-border',
                         ].join(' ')}
                       />
@@ -362,25 +384,27 @@ export function PortalTrackingBody({
                       {done ? '✓' : ''}
                     </span>
                   </div>
-                  <div
-                    className={[
-                      'mt-2 w-full px-1 text-[10px] font-semibold uppercase leading-snug tracking-wider',
-                      active ? 'text-gold' : 'text-ink',
-                    ].join(' ')}
-                  >
-                    {clientOpsStageLabel(row)}
-                  </div>
-                  <div
-                    className={[
-                      'mt-0.5 w-full px-1 text-[10px] uppercase tracking-wider',
-                      done
-                        ? 'text-[#2E7D32]'
-                        : active
-                          ? 'text-gold'
-                          : 'text-muted',
-                    ].join(' ')}
-                  >
-                    {stageStatusLabel(row.status)}
+                  <div className="min-w-0 flex-1 sm:w-full">
+                    <div
+                      className={[
+                        'text-[10px] font-semibold uppercase leading-snug tracking-wider',
+                        active ? 'text-gold' : 'text-ink',
+                      ].join(' ')}
+                    >
+                      {clientOpsStageLabel(row)}
+                    </div>
+                    <div
+                      className={[
+                        'mt-0.5 text-[10px] uppercase tracking-wider',
+                        done
+                          ? 'text-[#2E7D32]'
+                          : active
+                            ? 'text-gold'
+                            : 'text-muted',
+                      ].join(' ')}
+                    >
+                      {stageStatusLabel(row.status)}
+                    </div>
                   </div>
                 </li>
               )

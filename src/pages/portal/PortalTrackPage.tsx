@@ -16,12 +16,13 @@ import {
 import { rememberPortalGuestTrack } from '@/lib/portalGuestTrack'
 import { getPortalAuthSession } from '@/lib/portalAuth'
 import { usePortalSession } from '@/hooks/usePortalSession'
+import { useAdsbForTail } from '@/hooks/useAdsbForTail'
 import {
   getPortalTrackRow,
   resolvePortalTrackTripId,
 } from '@/lib/portalTrackStore'
 import { canPersist } from '@/lib/db/client'
-import { createAdsbAdapter, type AdsbPosition } from '@/adapters/adsb'
+import type { AdsbPosition } from '@/adapters/adsb'
 import {
   buildPortalTrackingView,
   tripToTrackingInput,
@@ -30,34 +31,6 @@ import {
 import { ensurePortalTripTrackingReady } from '@/lib/portalTripHydrate'
 
 const REFRESH_MS = 30_000
-
-function useAdsbForTail(tail: string | null | undefined): AdsbPosition | null {
-  const [pos, setPos] = useState<AdsbPosition | null>(null)
-  useEffect(() => {
-    if (!tail) {
-      setPos(null)
-      return
-    }
-    let cancelled = false
-    const tick = () => {
-      void createAdsbAdapter()
-        .positions([tail])
-        .then((rows) => {
-          if (!cancelled) setPos(rows[0] ?? null)
-        })
-        .catch(() => {
-          if (!cancelled) setPos(null)
-        })
-    }
-    tick()
-    const id = window.setInterval(tick, REFRESH_MS)
-    return () => {
-      cancelled = true
-      window.clearInterval(id)
-    }
-  }, [tail])
-  return pos
-}
 
 function useClock(ms = REFRESH_MS): string {
   const [now, setNow] = useState(() => new Date().toISOString())
