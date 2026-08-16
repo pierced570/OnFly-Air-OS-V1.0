@@ -1,28 +1,52 @@
 /**
- * Client live-tracking body — map hero, ops timeline, Actual vs Forecast, cards.
+ * Client live-tracking body — route, aircraft position, tail, stage progress.
+ * No projected-vs-actual comparison (late teams must not look bad on the portal).
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { PortalAircraftMap } from '@/components/PortalAircraftMap'
-import { PortalDeltaPill, PortalShell } from '@/components/PortalShell'
+import { PortalShell } from '@/components/PortalShell'
 import {
   portalAircraftMapVisible,
+  clientOpsStageLabel,
   type OpsForecastRow,
   type PortalTrackingView,
 } from '@/domain/portalTracking'
 import { listFbos, subscribeFbos } from '@/lib/fboStore'
 import { enrichTrackingStops } from '@/lib/portalTrackingEnrich'
-import { setPortalStopAddresses } from '@/lib/tripStore'
+
+function stageStatusLabel(status: OpsForecastRow['status']): string {
+  if (status === 'done') return 'Complete'
+  if (status === 'active') return 'Current'
+  return 'Upcoming'
+}
+
+function aircraftWhereLabel(view: PortalTrackingView): string {
+  const a = view.aircraft
+  if (a.source === 'adsb' && a.phase === 'airborne') {
+    return 'In the air · live ADS-B'
+  }
+  if (a.phase === 'airborne') return 'In the air'
+  if (a.phase === 'on_ground') {
+    const icao = a.toIcao || a.fromIcao || view.flightFacts.originIcao
+    return icao ? `On the ground · ${icao}` : 'On the ground'
+  }
+  if (a.phase === 'positioning') return 'Positioning to pickup'
+  const active = view.opsForecastRows.find((r) => r.status === 'active')
+  if (active) return clientOpsStageLabel(active)
+  if (view.state === 'delivered') return 'Delivered'
+  if (view.state === 'booked') return 'Booked · standing by'
+  return 'Standing by'
+}
 
 export function PortalTrackingBody({
   view,
   backHref = '/portal',
-  tripId,
 }: {
   view: PortalTrackingView
   backHref?: string
-  /** When set, pickup/drop-off street fields can be saved on the trip. */
+  /** Kept for call-site compatibility; street edits removed from this view. */
   tripId?: string | null
 }) {
   const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
@@ -51,41 +75,12 @@ export function PortalTrackingBody({
   const depFbo = enrichedStops.find((s) => s.role === 'departure_fbo')
   const arrFbo = enrichedStops.find((s) => s.role === 'arrival_fbo')
 
-  const [pickupStreet, setPickupStreet] = useState(view.pickupStreet ?? '')
-  const [dropoffStreet, setDropoffStreet] = useState(view.dropoffStreet ?? '')
-  const [addrSaved, setAddrSaved] = useState(false)
-
-  useEffect(() => {
-    const active = document.activeElement?.getAttribute('data-portal-addr')
-    if (active !== 'pickup') setPickupStreet(view.pickupStreet ?? '')
-    if (active !== 'dropoff') setDropoffStreet(view.dropoffStreet ?? '')
-  }, [view.pickupStreet, view.dropoffStreet])
-
   const shareUrl =
     typeof window !== 'undefined' ? window.location.href : backHref
 
   function shareTracking() {
     void navigator.clipboard?.writeText(shareUrl).catch(() => undefined)
     window.alert('Tracking link copied')
-  }
-
-  function smsUpdates() {
-    window.alert(
-      'Ask your OnFly dispatcher to add your cell for SMS updates — or reply to your ETA sheet email.',
-    )
-  }
-
-  function saveAddresses() {
-    if (!tripId) {
-      window.alert('Open this trip from your portal home to save addresses.')
-      return
-    }
-    setPortalStopAddresses(tripId, {
-      pickup: pickupStreet,
-      dropoff: dropoffStreet,
-    })
-    setAddrSaved(true)
-    window.setTimeout(() => setAddrSaved(false), 2500)
   }
 
   const seenAgo = (() => {
@@ -98,11 +93,25 @@ export function PortalTrackingBody({
     return `UPDATED ${Math.round(sec / 60)} MIN AGO`
   })()
 
-  // Prefer ops rows (pickup / loading / live). Never fall back to raw ETA
-  // event labels — those made the stepper look broken and inconsistent.
   const opsRows: OpsForecastRow[] = view.opsForecastRows
-
-  const cargo = view.cargo
+  const currentStage =
+    opsRows.find((r) => r.status === 'active') ??
+    (opsRows.every((r) => r.status === 'done') ? opsRows.at(-1) : null)
+  const currentStageName = currentStage
+    ? clientOpsStageLabel(currentStage)
+    : aircraftWhereLabel(view)
+  const tail =
+    (a.tail !== '—' ? a.tail : view.tail)?.trim() || 'TBD'
+  const originLabel =
+    view.flightFacts.originIcao ||
+    depFbo?.icao ||
+    pickup?.icao ||
+    'Origin'
+  const destLabel =
+    view.flightFacts.destIcao ||
+    arrFbo?.icao ||
+    drop?.icao ||
+    'Destination'
 
   return (
     <PortalShell wide>
@@ -124,23 +133,19 @@ export function PortalTrackingBody({
             {title}
           </h1>
           <p className="avionic mt-1 text-sm text-muted">{view.lane}</p>
+          <p className="mt-2 text-sm text-ink">
+            <span className="font-semibold text-gold">{currentStageName}</span>
+            <span className="text-muted"> · Tail </span>
+            <span className="avionic font-semibold">{tail}</span>
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={shareTracking}
-            className="rounded-md border border-gold/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold hover:bg-gold/10"
-          >
-            Share tracking
-          </button>
-          <button
-            type="button"
-            onClick={smsUpdates}
-            className="rounded-md bg-gold px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
-          >
-            Get SMS updates
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={shareTracking}
+          className="rounded-md border border-gold/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold hover:bg-gold/10"
+        >
+          Share tracking
+        </button>
       </header>
 
       <section className="mt-6 overflow-hidden rounded-md border border-ink/20 bg-ink text-cream">
@@ -150,7 +155,7 @@ export function PortalTrackingBody({
             {a.source === 'adsb'
               ? 'Live ADS-B'
               : a.source === 'eta'
-                ? 'Live ETA track'
+                ? 'Live track'
                 : 'Track'}
           </span>
           <span className="text-cream/55">{seenAgo || 'STANDING BY'}</span>
@@ -163,35 +168,29 @@ export function PortalTrackingBody({
         ) : (
           <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-cream/50">
             {['booked', 'in_progress', 'delivered'].includes(view.state)
-              ? 'Route map loading — refresh if the ETA chain is still syncing.'
-              : 'Route map appears once the trip is live with an ETA chain.'}
+              ? 'Aircraft position appears when the trip is live.'
+              : 'Route map appears once the trip is live.'}
           </div>
         )}
-        <div className="grid gap-3 px-4 py-3 font-mono text-[11px] text-gold sm:grid-cols-5 sm:text-xs">
+        <div className="grid gap-2 px-4 py-3 font-mono text-[11px] text-gold sm:grid-cols-3 sm:text-xs">
           <div>
-            {(a.tail !== '—' ? a.tail : view.tail) || 'TBD'}
+            {tail}
             {view.aircraftType ? ` · ${view.aircraftType.toUpperCase()}` : ''}
           </div>
-          <div>GS {a.gsKts != null ? `${a.gsKts} KT` : '—'}</div>
-          <div>
-            ALT {a.altFt != null ? `${a.altFt.toLocaleString()} FT` : '—'}
-          </div>
-          <div>ETE REMAINING {view.eteLabel ? view.eteLabel : '—'}</div>
-          <div className="sm:text-right">
-            ETA{' '}
-            {view.flightFacts.nextArriveDisplay ||
-              view.projectedDisplay ||
-              '—'}
+          <div className="sm:text-center">{aircraftWhereLabel(view)}</div>
+          <div className="avionic sm:text-right">
+            {originLabel} → {destLabel}
           </div>
         </div>
       </section>
 
       <section className="mt-6">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+          Trip stages
+        </div>
         {opsRows.length === 0 ? (
           <p className="text-sm text-muted">
-            {['booked', 'in_progress', 'delivered'].includes(view.state)
-              ? 'Milestone timeline loading — refresh if the ETA chain is still syncing.'
-              : 'Milestone timeline appears once the trip is live.'}
+            Stages appear once the trip is live.
           </p>
         ) : (
           <ol
@@ -231,28 +230,36 @@ export function PortalTrackingBody({
                     ) : null}
                     <span
                       className={[
-                        'relative z-[1] box-border h-6 w-6 shrink-0 rounded-full border-2',
+                        'relative z-[1] flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold',
                         done
-                          ? 'border-gold bg-gold'
+                          ? 'border-gold bg-gold text-ink'
                           : active
-                            ? 'border-gold bg-[#F7F2E3] ring-4 ring-gold/25'
-                            : 'border-border bg-white',
+                            ? 'border-gold bg-[#F7F2E3] text-gold ring-4 ring-gold/25'
+                            : 'border-border bg-white text-transparent',
                       ].join(' ')}
-                    />
+                    >
+                      {done ? '✓' : ''}
+                    </span>
                   </div>
-                  <div className="mt-2 w-full px-1 text-[10px] font-semibold uppercase leading-snug tracking-wider text-ink">
-                    {row.label}
+                  <div
+                    className={[
+                      'mt-2 w-full px-1 text-[10px] font-semibold uppercase leading-snug tracking-wider',
+                      active ? 'text-gold' : 'text-ink',
+                    ].join(' ')}
+                  >
+                    {clientOpsStageLabel(row)}
                   </div>
-                  <div className="avionic mt-0.5 w-full px-1 text-[10px] text-muted">
-                    {active && row.isForecast
-                      ? row.actualOrForecastLocal || 'LIVE'
-                      : row.estimatedLocal || '—'}
-                  </div>
-                  <div className="mt-1 flex justify-center">
-                    <PortalDeltaPill
-                      deltaMin={row.deltaMin}
-                      live={active && row.isForecast}
-                    />
+                  <div
+                    className={[
+                      'mt-0.5 w-full px-1 text-[10px] uppercase tracking-wider',
+                      done
+                        ? 'text-[#2E7D32]'
+                        : active
+                          ? 'text-gold'
+                          : 'text-muted',
+                    ].join(' ')}
+                  >
+                    {stageStatusLabel(row.status)}
                   </div>
                 </li>
               )
@@ -261,170 +268,36 @@ export function PortalTrackingBody({
         )}
       </section>
 
-      <section className="mt-6 overflow-x-auto rounded-md border border-border bg-white">
-        <div className="border-b border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-          Actual vs forecast
-        </div>
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-[10px] uppercase tracking-[0.14em] text-muted">
-              <th className="px-3 py-3 font-semibold">Milestone</th>
-              <th className="px-3 py-3 font-semibold">Estimated</th>
-              <th className="px-3 py-3 font-semibold">Actual / Forecast</th>
-              <th className="px-3 py-3 font-semibold">Difference</th>
-            </tr>
-          </thead>
-          <tbody>
-            {opsRows.map((row) => (
-              <tr
-                key={`ops-${row.key}`}
-                className={[
-                  'border-b border-border/50 last:border-0',
-                  row.status === 'active' ? 'bg-gold/5' : '',
-                ].join(' ')}
-              >
-                <td
-                  className={[
-                    'px-3 py-3 font-medium',
-                    row.status === 'active' ? 'text-gold' : 'text-ink',
-                  ].join(' ')}
-                >
-                  {row.label}
-                </td>
-                <td className="avionic px-3 py-3 text-xs text-muted">
-                  <div>{row.estimatedLocal || '—'}</div>
-                  {row.estimatedZulu ? (
-                    <div className="text-[10px]">{row.estimatedZulu}</div>
-                  ) : null}
-                </td>
-                <td
-                  className={[
-                    'avionic px-3 py-3 text-xs',
-                    row.status === 'active'
-                      ? 'font-semibold text-gold'
-                      : row.isForecast
-                        ? 'text-[#C0392B]'
-                        : 'text-ink',
-                  ].join(' ')}
-                >
-                  {row.actualOrForecastLocal || '—'}
-                  {row.isForecast && row.status !== 'active' ? (
-                    <span className="ml-1 text-[10px]">forecast</span>
-                  ) : null}
-                </td>
-                <td className="px-3 py-3">
-                  <PortalDeltaPill
-                    deltaMin={row.deltaMin}
-                    live={row.status === 'active' && row.isForecast}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
       <section className="mt-6 grid gap-3 sm:grid-cols-2">
-        <AddressCard
-          title="Pickup location"
-          place={
-            pickup?.displayAddress ||
-            depFbo?.displayAddress ||
-            depFbo?.fboName ||
-            view.flightFacts.originIcao ||
-            '—'
-          }
-          sub={
-            pickup?.fboName ||
-            depFbo?.airportCityState ||
-            depFbo?.icao ||
-            undefined
-          }
-          street={pickupStreet}
-          onStreetChange={setPickupStreet}
-          fieldKey="pickup"
-          editable={Boolean(tripId)}
-        />
-        <AddressCard
-          title="Drop-off location"
-          place={
-            drop?.displayAddress ||
-            arrFbo?.displayAddress ||
-            arrFbo?.fboName ||
-            view.flightFacts.destIcao ||
-            '—'
-          }
-          sub={
-            drop?.fboName ||
-            arrFbo?.airportCityState ||
-            arrFbo?.icao ||
-            undefined
-          }
-          street={dropoffStreet}
-          onStreetChange={setDropoffStreet}
-          fieldKey="dropoff"
-          editable={Boolean(tripId)}
+        <InfoCard
+          title="Route"
+          body={`${originLabel} → ${destLabel}`}
+          sub={view.lane}
         />
         <InfoCard
           title="Aircraft"
-          body={`${view.tail || 'TBD'}${view.aircraftType ? ` · ${view.aircraftType}` : ''}`}
+          body={`${tail}${view.aircraftType ? ` · ${view.aircraftType}` : ''}`}
           sub={`Operated by ${view.carrierLabel}.`}
         />
-        <div className="rounded-md border border-border bg-white p-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-            Cargo
-          </div>
-          {cargo.paxCount > 0 ? (
-            <div className="mt-2 text-sm font-medium text-ink">
-              {cargo.paxCount} pax
-              {cargo.paxNames.length ? (
-                <ul className="mt-1 list-inside list-disc text-xs font-normal text-ink/90">
-                  {cargo.paxNames.map((n) => (
-                    <li key={n}>{n}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-1 text-xs font-normal text-muted">
-                  Passenger names appear when booked on the request form.
-                </p>
-              )}
-            </div>
-          ) : null}
-          {cargo.cargoLines.length > 0 ? (
-            <ul className="mt-2 space-y-1 text-sm text-ink">
-              {cargo.cargoLines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          ) : cargo.paxCount === 0 ? (
-            <div className="mt-2 text-sm font-medium text-ink">
-              {cargo.summaryLine || '—'}
-            </div>
-          ) : null}
-          {cargo.readyLabel ? (
-            <p className="mt-2 text-xs text-muted">Ready {cargo.readyLabel}</p>
-          ) : null}
-        </div>
+        <InfoCard
+          title="Pickup"
+          body={
+            pickup?.displayAddress ||
+            depFbo?.displayAddress ||
+            depFbo?.fboName ||
+            originLabel
+          }
+        />
+        <InfoCard
+          title="Drop-off"
+          body={
+            drop?.displayAddress ||
+            arrFbo?.displayAddress ||
+            arrFbo?.fboName ||
+            destLabel
+          }
+        />
       </section>
-
-      {tripId ? (
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={saveAddresses}
-            className="rounded-md bg-ink px-4 py-2 text-xs font-semibold text-gold hover:bg-[#1a1a1a]"
-          >
-            Save street addresses
-          </button>
-          {addrSaved ? (
-            <span className="text-xs text-[#2E7D32]">Addresses saved</span>
-          ) : (
-            <span className="text-xs text-muted">
-              Add a specific street address for pickup and drop-off when needed.
-            </span>
-          )}
-        </div>
-      ) : null}
     </PortalShell>
   )
 }
@@ -437,43 +310,6 @@ function InfoCard(props: { title: string; body: string; sub?: string }) {
       </div>
       <div className="mt-2 text-sm font-medium text-ink">{props.body}</div>
       {props.sub ? <p className="mt-1 text-xs text-muted">{props.sub}</p> : null}
-    </div>
-  )
-}
-
-function AddressCard(props: {
-  title: string
-  place: string
-  sub?: string
-  street: string
-  onStreetChange: (v: string) => void
-  fieldKey: 'pickup' | 'dropoff'
-  editable: boolean
-}) {
-  return (
-    <div className="rounded-md border border-border bg-white p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-        {props.title}
-      </div>
-      <div className="mt-2 text-sm font-medium text-ink">{props.place}</div>
-      {props.sub ? <p className="mt-1 text-xs text-muted">{props.sub}</p> : null}
-      <label className="mt-3 block text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-        Street address
-        {props.editable ? (
-          <textarea
-            data-portal-addr={props.fieldKey}
-            value={props.street}
-            onChange={(e) => props.onStreetChange(e.target.value)}
-            rows={2}
-            placeholder="Building, street, city, ZIP…"
-            className="mt-1 w-full rounded-md border border-border bg-[#F7F2E3]/60 px-3 py-2 text-sm font-normal normal-case tracking-normal text-ink outline-none focus:border-gold"
-          />
-        ) : (
-          <div className="mt-1 text-sm font-normal normal-case tracking-normal text-ink">
-            {props.street.trim() || '—'}
-          </div>
-        )}
-      </label>
     </div>
   )
 }

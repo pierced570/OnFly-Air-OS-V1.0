@@ -55,6 +55,7 @@ export type TrackingEtaRow = {
 
 /**
  * Client Actual vs Forecast — ADS-B / chain arrival, takeoff, air time, on-ground.
+ * Portal UI uses status only (complete / current / upcoming) — no clocks.
  */
 export type OpsForecastRow = {
   key: 'arrived_origin' | 'takeoff' | 'time_in_air' | 'on_ground_dest'
@@ -68,6 +69,22 @@ export type OpsForecastRow = {
   status: 'done' | 'active' | 'pending'
   isForecast: boolean
   kind: 'arrival' | 'departure' | 'duration' | 'ground'
+}
+
+/** Client portal stage names — progress only, never clocks. */
+export function clientOpsStageLabel(row: OpsForecastRow): string {
+  switch (row.key) {
+    case 'arrived_origin':
+      return 'At pickup'
+    case 'takeoff':
+      return 'Wheels up'
+    case 'time_in_air':
+      return 'En route'
+    case 'on_ground_dest':
+      return 'Delivered'
+    default:
+      return row.label
+  }
 }
 
 /** Portal-safe cargo / pax manifest (no operator cost). */

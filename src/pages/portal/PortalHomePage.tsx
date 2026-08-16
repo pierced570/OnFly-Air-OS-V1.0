@@ -23,6 +23,7 @@ import {
 } from '@/lib/tripStore'
 import {
   buildPortalTrackingView,
+  clientOpsStageLabel,
   summarizePortalShipments,
   tripToTrackingInput,
 } from '@/domain/portalTracking'
@@ -172,11 +173,14 @@ export default function PortalHomePage() {
         }
       }
       const view = buildPortalTrackingView(tripToTrackingInput(trip))
+      const activeOps = view.opsForecastRows.find((r) => r.status === 'active')
       return {
         ...card,
         trackHref: href,
-        etaHint: view.projectedDisplay,
-        nextLabel: view.nextMilestoneLabel,
+        etaHint: null,
+        nextLabel: activeOps
+          ? clientOpsStageLabel(activeOps)
+          : view.nextMilestoneLabel,
         phase: view.phase,
       }
     }
