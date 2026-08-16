@@ -19,6 +19,8 @@ export type TripInvoiceBuildInput = {
   clientTotal: number
   aircraftType?: string | null
   tail?: string | null
+  /** Client PO — included on the charter line description. */
+  poNumber?: string | null
   payloadKind?: 'cargo' | 'pax' | 'both'
   mtowLbs?: number | null
   segmentCount?: number
@@ -84,6 +86,7 @@ export function buildTripInvoiceLines(
     airAmount,
     aircraftType: input.aircraftType,
     tail: input.tail,
+    poNumber: input.poNumber,
     taxLines: taxBreakdown,
   })
 

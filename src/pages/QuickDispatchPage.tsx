@@ -124,7 +124,7 @@ export default function QuickDispatchPage() {
   const [clientPrice, setClientPrice] = useState('')
   const [payTerms, setPayTerms] = useState('Net 30')
 
-  const [sendInvoice, setSendInvoice] = useState(false)
+  const [sendInvoice, setSendInvoice] = useState(true)
   const [invoiceEmail, setInvoiceEmail] = useState('')
   const [invoiceCc, setInvoiceCc] = useState('')
   const [etaEmails, setEtaEmails] = useState('')
@@ -265,6 +265,28 @@ export default function QuickDispatchPage() {
       const poFinal = po.trim() || suggestedPo
       const invoiceCcList = parseCc(invoiceCc)
       const etaList = parseCc(etaEmails)
+
+      if (sendInvoice) {
+        if (!(Number(clientPrice) > 0)) {
+          setError('Client price required to send the invoice')
+          return
+        }
+        if (!poFinal.trim()) {
+          setError('PO # required to send the invoice')
+          return
+        }
+        const { listInvoiceEmails } = await import('@/lib/clientStore')
+        const toProbe = invoiceEmail.trim()
+          ? [invoiceEmail.trim()]
+          : listInvoiceEmails(client.id)
+        if (!toProbe.length) {
+          setError(
+            'Invoice To email required — add an AP address before sending',
+          )
+          return
+        }
+      }
+
       rememberEmailsOnClient(
         client.id,
         invoiceEmail,
@@ -318,28 +340,29 @@ export default function QuickDispatchPage() {
 
       recordPoUsed(client.id, poFinal, { tripRef: tripRefLabel(trip) })
 
-      // QuickBooks invoice PDF + branded OnFly email (logo header).
+      // QuickBooks invoice PDF + branded OnFly email (PO + trip itinerary).
+      let invoiceError: string | null = null
       if (sendInvoice && Number(clientPrice) > 0) {
+        const { listInvoiceEmails } = await import('@/lib/clientStore')
+        const toList = invoiceEmail.trim()
+          ? [invoiceEmail.trim()]
+          : listInvoiceEmails(client.id)
         try {
-          const { listInvoiceEmails } = await import('@/lib/clientStore')
-          const toList = invoiceEmail.trim()
-            ? [invoiceEmail.trim()]
-            : listInvoiceEmails(client.id)
-          if (toList.length) {
-            await sendTripInvoiceEmail(trip.id, {
-              to: toList,
-              cc: invoiceCcList,
-            })
-          } else {
-            await createInvoiceForTrip(trip.id, { skipEmail: true })
-          }
+          await sendTripInvoiceEmail(trip.id, {
+            to: toList,
+            cc: invoiceCcList,
+          })
         } catch (e) {
+          invoiceError =
+            e instanceof Error ? e.message : 'Invoice send failed'
           console.warn('[quick-dispatch] invoice failed', e)
+          // Still create a draft so desk can resend from Financials.
           try {
             await createInvoiceForTrip(trip.id, {
               skipEmail: true,
-              to: invoiceEmail.trim() ? [invoiceEmail.trim()] : undefined,
+              to: toList,
               cc: invoiceCcList,
+              poNumber: poFinal,
             })
           } catch (e2) {
             console.warn('[quick-dispatch] invoice create failed', e2)
@@ -377,6 +400,14 @@ export default function QuickDispatchPage() {
             ? `Trip saved but not live yet: ${e.message}`
             : 'Trip saved but live tracking failed — open trip and push live.',
         )
+      }
+
+      if (invoiceError) {
+        setError(
+          `Trip is live and ETA went out, but the invoice did not send: ${invoiceError}. Open Financials or the trip to resend (PO #${poFinal}).`,
+        )
+        setBusy(false)
+        return
       }
 
       nav(`/dispatch?drawer=tracking&focus=${encodeURIComponent(trip.id)}`)
@@ -862,8 +893,12 @@ export default function QuickDispatchPage() {
             checked={sendInvoice}
             onChange={(e) => setSendInvoice(e.target.checked)}
           />
-          Send invoice on dispatch (opt-in — never auto)
+          Send invoice on dispatch
         </label>
+        <p className="text-[11px] text-muted">
+          Creates the QuickBooks invoice (DocNumber = PO #) and emails AP with
+          the PDF + trip details. Uncheck only if you will invoice later.
+        </p>
         <label className={label}>
           Invoice To (email)
           <input

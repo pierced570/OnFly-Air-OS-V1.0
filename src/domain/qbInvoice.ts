@@ -104,16 +104,19 @@ export function extractPoNumeric(po: string | null | undefined): number | null {
 
 /**
  * Line description matching live OFA invoices:
- * Charter Flight: KNQA → KDFW | 2026-07-28 | MU2 | Tail: N175CA
+ * Charter Flight: KNQA → KDFW | PO #PSA1234 | 2026-07-28 | MU2 | Tail: N175CA
  */
 export function charterFlightLineDescription(opts: {
   lane: string
   flightDate?: string | null
   aircraftType?: string | null
   tail?: string | null
+  poNumber?: string | null
 }): string {
+  const po = (opts.poNumber ?? '').trim().replace(/^PO\s*#?\s*/i, '')
   const bits = [
     `Charter Flight: ${opts.lane.trim() || 'TBD'}`,
+    po ? `PO #${po}` : null,
     opts.flightDate?.trim() || null,
     opts.aircraftType?.trim() || null,
     opts.tail?.trim() ? `Tail: ${opts.tail.trim().toUpperCase()}` : null,
@@ -305,12 +308,15 @@ export function tripInvoiceLines(opts: {
   /** Confirmed aircraft type — appears on the air line description. */
   aircraftType?: string | null
   tail?: string | null
+  /** Client PO — stamped on the charter line + DocNumber. */
+  poNumber?: string | null
 }): QbInvoiceLineInput[] {
   const desc = charterFlightLineDescription({
     lane: opts.lane,
     flightDate: opts.flightDate,
     aircraftType: opts.aircraftType,
     tail: opts.tail,
+    poNumber: opts.poNumber,
   })
   const taxSum = (opts.taxLines ?? []).reduce(
     (s, t) => s + Math.max(0, Number(t.amount) || 0),

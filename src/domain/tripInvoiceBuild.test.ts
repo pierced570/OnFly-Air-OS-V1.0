@@ -10,6 +10,7 @@ describe('tripInvoiceBuild', () => {
       flightDate: '2026-07-18',
       clientTotal: 10625,
       aircraftType: 'King Air 200',
+      poNumber: 'PSA0042',
       payloadKind: 'cargo',
       mtowLbs: 12500,
       rates: TEST_TAX_RATES_2026,
@@ -19,6 +20,7 @@ describe('tripInvoiceBuild', () => {
     expect(r.fetExempt).toBe(false)
     expect(r.lines).toHaveLength(1)
     expect(r.lines[0]!.description).toMatch(/Charter Flight:/)
+    expect(r.lines[0]!.description).toContain('PO #PSA0042')
     expect(r.lines[0]!.amount).toBe(10625)
     expect(r.lines.some((l) => /FET_/i.test(l.description))).toBe(false)
     expect(r.taxBreakdown.some((l) => l.code === 'FET_CARGO')).toBe(true)

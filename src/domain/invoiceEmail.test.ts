@@ -80,6 +80,7 @@ describe('invoiceEmail', () => {
     })
     expect(html).toContain('INVOICE')
     expect(html).toContain('PO #T-76 · CAK → HPN')
+    expect(html).toContain('PO #: T-76')
     expect(html).toContain('AIRPORT → AIRPORT')
     expect(html).toContain('BALANCE DUE')
     expect(html).toContain('$12,658.00')
