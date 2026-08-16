@@ -161,8 +161,10 @@ export function PortalTrackingBody({
             className="h-56 w-full border-y border-cream/10 bg-[#141414] sm:h-72"
           />
         ) : (
-          <div className="flex h-40 items-center justify-center text-sm text-cream/50">
-            Route map appears once the trip is booked with an ETA chain.
+          <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-cream/50">
+            {['booked', 'in_progress', 'delivered'].includes(view.state)
+              ? 'Route map loading — refresh if the ETA chain is still syncing.'
+              : 'Route map appears once the trip is live with an ETA chain.'}
           </div>
         )}
         <div className="grid gap-3 px-4 py-3 font-mono text-[11px] text-gold sm:grid-cols-5 sm:text-xs">
@@ -187,7 +189,9 @@ export function PortalTrackingBody({
       <section className="mt-6">
         {opsRows.length === 0 ? (
           <p className="text-sm text-muted">
-            Milestone timeline appears once the trip is booked.
+            {['booked', 'in_progress', 'delivered'].includes(view.state)
+              ? 'Milestone timeline loading — refresh if the ETA chain is still syncing.'
+              : 'Milestone timeline appears once the trip is live.'}
           </p>
         ) : (
           <ol

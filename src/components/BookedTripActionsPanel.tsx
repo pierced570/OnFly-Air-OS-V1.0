@@ -24,6 +24,7 @@ import {
   sendBookedEtaSheetToTrackers,
 } from '@/lib/etaSheetSender'
 import {
+  flushPersistTrip,
   getTrip,
   listTripsStable,
   mutateTrip,
@@ -336,6 +337,8 @@ export function BookedTripActionsPanel({ tripId }: Props) {
                 safeTransitionTrip(trip.id, 'in_progress', 'dispatcher', {
                   reason: 'desk_start_live_tracking',
                 })
+                // Flush ETA nodes so magic-link portal can hydrate immediately.
+                void flushPersistTrip(trip.id)
                 setMsg('Moved to Live tracking')
               } catch (e) {
                 setErr(e instanceof Error ? e.message : String(e))
