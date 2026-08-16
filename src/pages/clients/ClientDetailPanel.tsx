@@ -10,6 +10,15 @@ import {
   type ClientBaseRef,
 } from '@/domain/clientBaseEmails'
 import {
+  applyFreightPolicyToRules,
+  summarizeClientRulesGuide,
+} from '@/domain/clientRulesGuide'
+import {
+  emptyMissionAircraftPolicy,
+  normalizeMissionPolicy,
+  type MissionAircraftPolicy,
+} from '@/domain/clientOnboard'
+import {
   addClientContact,
   listMixedDirectoryContacts,
   removeClientContact,
@@ -28,8 +37,10 @@ import {
 const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
 const label = 'block text-xs font-medium uppercase tracking-wider text-muted'
+const check =
+  'flex items-start gap-2 text-sm text-cream'
 
-type TabId = 'info' | 'contacts' | 'bases' | 'billing'
+type TabId = 'info' | 'contacts' | 'bases' | 'billing' | 'rules'
 
 function payTermsSelectValue(terms: string): string {
   const known = ['Prepay', 'Net 15', 'Net 30', 'Net 60']
@@ -63,6 +74,17 @@ export function ClientDetailPanel({
   const apCount = client.contacts.filter((c) => c.notify_prefs.invoice).length
   const baseCount = profile.bases?.length ?? 0
 
+  const guide = useMemo(
+    () =>
+      summarizeClientRulesGuide({
+        notes: client.notes,
+        rules: client.rules,
+        profile,
+      }),
+    [client.notes, client.rules, profile],
+  )
+  const hardCount = guide.chips.filter((c) => c.tone === 'hard').length
+
   function patchProfile(patch: Partial<NonNullable<ClientProfile['profile']>>) {
     updateClient(client.id, { profile: { ...profile, ...patch } })
   }
@@ -72,6 +94,10 @@ export function ClientDetailPanel({
     { id: 'contacts', label: `Contacts (${mixed.length})` },
     { id: 'bases', label: `Bases (${baseCount})` },
     { id: 'billing', label: 'Billing' },
+    {
+      id: 'rules',
+      label: hardCount ? `Rules guide (${hardCount})` : 'Rules guide',
+    },
   ]
 
   return (
@@ -134,6 +160,13 @@ export function ClientDetailPanel({
       )}
       {tab === 'billing' && (
         <BillingTab client={client} profile={profile} patchProfile={patchProfile} />
+      )}
+      {tab === 'rules' && (
+        <RulesGuideTab
+          client={client}
+          profile={profile}
+          patchProfile={patchProfile}
+        />
       )}
     </div>
   )
@@ -278,31 +311,10 @@ function InfoTab({
             }
           />
         </label>
-
-        <h3 className="pt-2 text-xs font-medium uppercase tracking-wider text-muted">
-          Aircraft rules
-        </h3>
-        {(
-          [
-            ['dual_pilot_required', 'Dual pilot required'],
-            ['multi_engine_only', 'Multi-engine only'],
-            ['freight_only', 'Freight only'],
-            ['exceptions_with_permission', 'Exceptions w/ permission'],
-          ] as const
-        ).map(([key, text]) => (
-          <label key={key} className="flex items-center gap-2 text-sm text-cream">
-            <input
-              type="checkbox"
-              checked={Boolean(client.rules[key])}
-              onChange={(e) =>
-                updateClient(client.id, {
-                  rules: { [key]: e.target.checked },
-                })
-              }
-            />
-            {text}
-          </label>
-        ))}
+        <p className="pt-2 text-xs text-muted">
+          Aircraft / hazmat / standing trip rules live on the{' '}
+          <span className="text-gold">Rules guide</span> tab.
+        </p>
       </section>
     </div>
   )
@@ -452,12 +464,18 @@ function ContactsTab({
                           <input
                             type="checkbox"
                             checked={c.notify_prefs.invoice}
-                            onChange={(e) =>
-                              updateClientContact(client.id, c.id, {
-                                notify_prefs: { invoice: e.target.checked },
-                                role: e.target.checked ? 'ap' : c.role,
-                              })
-                            }
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                updateClientContact(client.id, c.id, {
+                                  role: 'ap',
+                                  notify_prefs: { invoice: true },
+                                })
+                              } else {
+                                updateClientContact(client.id, c.id, {
+                                  notify_prefs: { invoice: false },
+                                })
+                              }
+                            }}
                           />
                           AP / Invoice
                         </label>
@@ -933,6 +951,335 @@ function BillingTab({
           </ul>
         )}
       </section>
+    </div>
+  )
+}
+
+function toneClass(tone: 'attention' | 'hard' | 'ok'): string {
+  if (tone === 'hard') return 'border-late/50 bg-late/10 text-late'
+  if (tone === 'ok') return 'border-onplan/40 bg-onplan/10 text-onplan'
+  return 'border-gold/40 bg-gold/10 text-gold'
+}
+
+function RulesGuideTab({
+  client,
+  profile,
+  patchProfile,
+}: {
+  client: ClientProfile
+  profile: NonNullable<ClientProfile['profile']>
+  patchProfile: (p: Partial<NonNullable<ClientProfile['profile']>>) => void
+}) {
+  const guide = useMemo(
+    () =>
+      summarizeClientRulesGuide({
+        notes: client.notes,
+        rules: client.rules,
+        profile,
+      }),
+    [client.notes, client.rules, profile],
+  )
+
+  const freight = normalizeMissionPolicy(
+    profile.freight_policy ?? guide.freight,
+  )
+  const passenger = normalizeMissionPolicy(
+    profile.passenger_policy ?? emptyMissionAircraftPolicy(),
+  )
+  const movesPax = Boolean(profile.passenger_policy) || guide.hasPassengerRules
+
+  function setFreight(next: MissionAircraftPolicy) {
+    const rules = applyFreightPolicyToRules(
+      client.rules,
+      next,
+      client.rules.exceptions_with_permission,
+    )
+    updateClient(client.id, {
+      rules,
+      profile: { ...profile, freight_policy: next },
+    })
+  }
+
+  function setPassenger(next: MissionAircraftPolicy | undefined) {
+    patchProfile({ passenger_policy: next })
+  }
+
+  const otherText = client.rules.other_rules.join('\n')
+
+  return (
+    <div className="space-y-4">
+      <header className="rounded-lg border border-border bg-surface p-4">
+        <h3 className="text-sm font-semibold text-cream">Client rules guide</h3>
+        <p className="mt-1 text-sm text-muted">
+          Standing constraints desk must honor on every trip for{' '}
+          <span className="text-cream">{client.name}</span>. Hard filters block
+          candidates; exceptions-with-permission soft-blocks with sign-off.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {guide.chips.map((c) => (
+            <span
+              key={c.id}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${toneClass(c.tone)}`}
+            >
+              {c.label}
+            </span>
+          ))}
+        </div>
+      </header>
+
+      {guide.standingNotes.length > 0 && (
+        <section className="rounded-lg border border-gold/35 bg-gold/10 p-4">
+          <h4 className="text-xs font-medium uppercase tracking-wider text-gold">
+            Standing notes (read first)
+          </h4>
+          <ul className="mt-2 space-y-2">
+            {guide.standingNotes.map((n) => (
+              <li key={n.slice(0, 80)} className="text-sm text-cream">
+                {n}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
+          <h4 className="text-xs font-medium uppercase tracking-wider text-muted">
+            Freight aircraft
+          </h4>
+          <p className="text-xs text-muted">
+            Everything allowed unless checked — maps into quote hard filters.
+          </p>
+          <RestrictionChecksDesk policy={freight} onChange={setFreight} />
+          <label className={check}>
+            <input
+              type="checkbox"
+              checked={client.rules.freight_only}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { freight_only: e.target.checked },
+                })
+              }
+            />
+            Freight only (no passenger trips)
+          </label>
+        </section>
+
+        <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
+          <h4 className="text-xs font-medium uppercase tracking-wider text-muted">
+            Passenger aircraft
+          </h4>
+          <label className={check}>
+            <input
+              type="checkbox"
+              checked={movesPax}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setPassenger(
+                    profile.passenger_policy ?? emptyMissionAircraftPolicy(),
+                  )
+                } else {
+                  setPassenger(undefined)
+                }
+              }}
+            />
+            This client moves passengers with us
+          </label>
+          {movesPax ? (
+            <RestrictionChecksDesk
+              policy={passenger}
+              onChange={(next) => setPassenger(next)}
+            />
+          ) : (
+            <p className="text-xs text-muted">No passenger policy on file.</p>
+          )}
+        </section>
+      </div>
+
+      <section className="grid gap-4 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2">
+        <div className="space-y-3">
+          <h4 className="text-xs font-medium uppercase tracking-wider text-muted">
+            Hazmat & value
+          </h4>
+          <label className={check}>
+            <input
+              type="checkbox"
+              checked={client.rules.hazmat_allowed}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { hazmat_allowed: e.target.checked },
+                })
+              }
+            />
+            Hazmat allowed
+          </label>
+          <label className={label}>
+            Hazmat notes
+            <input
+              className={input}
+              value={client.rules.hazmat_notes}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { hazmat_notes: e.target.value },
+                })
+              }
+            />
+          </label>
+          <label className={label}>
+            Declared value norm
+            <input
+              className={input}
+              value={client.rules.declared_value_norm}
+              onChange={(e) =>
+                updateClient(client.id, {
+                  rules: { declared_value_norm: e.target.value },
+                })
+              }
+              placeholder="e.g. under $1M"
+            />
+          </label>
+        </div>
+        <div className="space-y-3">
+          <h4 className="text-xs font-medium uppercase tracking-wider text-muted">
+            Shipping flags
+          </h4>
+          {(
+            [
+              ['hazmat_sometimes', 'Hazmat sometimes'],
+              ['temp_control', 'Temp control'],
+              ['oversized', 'Oversized'],
+              ['high_declared_value', 'High declared value'],
+            ] as const
+          ).map(([key, text]) => (
+            <label key={key} className={check}>
+              <input
+                type="checkbox"
+                checked={Boolean(profile.shipping_flags?.[key])}
+                onChange={(e) =>
+                  patchProfile({
+                    shipping_flags: {
+                      ...profile.shipping_flags,
+                      [key]: e.target.checked,
+                    },
+                  })
+                }
+              />
+              {text}
+            </label>
+          ))}
+          <label className={check}>
+            <input
+              type="checkbox"
+              checked={client.rules.exceptions_with_permission}
+              onChange={(e) => {
+                const exceptions_with_permission = e.target.checked
+                updateClient(client.id, {
+                  rules: applyFreightPolicyToRules(
+                    { ...client.rules, exceptions_with_permission },
+                    freight,
+                    exceptions_with_permission,
+                  ),
+                })
+              }}
+            />
+            Exceptions OK with client confirmation (soft block)
+          </label>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
+        <h4 className="text-xs font-medium uppercase tracking-wider text-muted">
+          Other standing rules
+        </h4>
+        <p className="text-xs text-muted">
+          One rule per line (shown with standing notes above).
+        </p>
+        <textarea
+          className={`${input} min-h-[100px]`}
+          value={otherText}
+          onChange={(e) =>
+            updateClient(client.id, {
+              rules: {
+                other_rules: e.target.value
+                  .split('\n')
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              },
+            })
+          }
+          placeholder="e.g. Always dual pilot on overnight legs"
+        />
+        <label className={label}>
+          Free-form client notes (also surfaced above)
+          <textarea
+            className={`${input} min-h-[80px]`}
+            value={client.notes}
+            onChange={(e) => updateClient(client.id, { notes: e.target.value })}
+          />
+        </label>
+      </section>
+    </div>
+  )
+}
+
+function RestrictionChecksDesk({
+  policy,
+  onChange,
+}: {
+  policy: MissionAircraftPolicy
+  onChange: (next: MissionAircraftPolicy) => void
+}) {
+  function set(partial: Partial<MissionAircraftPolicy>) {
+    const next = { ...policy, ...partial }
+    if (partial.no_single_engine === true) next.no_single_engine_pistons = false
+    if (partial.no_single_engine_pistons === true) next.no_single_engine = false
+    if (partial.other_restriction === false) next.other_notes = ''
+    onChange(next)
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label className={check}>
+        <input
+          type="checkbox"
+          checked={policy.no_single_engine}
+          onChange={(e) => set({ no_single_engine: e.target.checked })}
+        />
+        No single-engine aircraft
+      </label>
+      <label className={check}>
+        <input
+          type="checkbox"
+          checked={policy.no_single_engine_pistons}
+          disabled={policy.no_single_engine}
+          onChange={(e) => set({ no_single_engine_pistons: e.target.checked })}
+        />
+        No single-engine pistons (SE turboprops OK)
+      </label>
+      <label className={check}>
+        <input
+          type="checkbox"
+          checked={policy.dual_pilot_required}
+          onChange={(e) => set({ dual_pilot_required: e.target.checked })}
+        />
+        Dual pilot required
+      </label>
+      <label className={check}>
+        <input
+          type="checkbox"
+          checked={policy.other_restriction}
+          onChange={(e) => set({ other_restriction: e.target.checked })}
+        />
+        Other restriction
+      </label>
+      {policy.other_restriction ? (
+        <input
+          className={input}
+          value={policy.other_notes}
+          onChange={(e) => set({ other_notes: e.target.value })}
+          placeholder="Describe the restriction"
+        />
+      ) : null}
     </div>
   )
 }
