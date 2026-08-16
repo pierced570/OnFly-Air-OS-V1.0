@@ -5,7 +5,7 @@
 import type { ChainLeg } from '@/domain/etaChain'
 import {
   patternLabelForService,
-  shortLaneLabel,
+  fullLaneLabel,
   type EtaSheetEmailMilestone,
   type EtaSheetEmailStop,
   type EtaSheetEmailTemplate,
@@ -157,12 +157,29 @@ function milestonesFromTrip(
   const chain = trip.eta_chain ?? []
   if (chain.length) {
     const out: EtaSheetEmailMilestone[] = []
+    /** After landing at an airport, skip the next “Arrive / position” there — already on the ground. */
+    let lastLandedIcao: string | null = null
     for (const leg of chain) {
       if (leg.type === 'air_leg') {
         out.push(...airMilestones(leg))
-      } else {
-        const m = milestoneFromLeg(leg)
-        if (m) out.push(m)
+        lastLandedIcao = shortIcao(leg.to.icao || leg.to.label)
+        continue
+      }
+      if (leg.type === 'position' || leg.duration_key === 'acft_ttp') {
+        const to = shortIcao(leg.to.icao || leg.to.label)
+        if (
+          lastLandedIcao &&
+          to !== '—' &&
+          to === lastLandedIcao
+        ) {
+          // Multi-leg: aircraft did not leave — no reposition arrive before the next wheels-up.
+          continue
+        }
+      }
+      const m = milestoneFromLeg(leg)
+      if (m) out.push(m)
+      if (leg.type === 'ground_stop' || leg.duration_key === 'acft_turn') {
+        lastLandedIcao = shortIcao(leg.from.icao || leg.from.label)
       }
     }
     if (out.length) return out
@@ -241,9 +258,9 @@ export function buildEtaSheetEmailTemplate(opts: {
     lane.split(/→|->/)[0] ||
     'DEP'
   const destIcao =
-    air?.to.icao ||
-    trip.quick?.legs[0]?.dest_icao ||
-    trip.legs.find((l) => l.dest)?.dest ||
+    [...trip.eta_chain].reverse().find((l) => l.type === 'air_leg')?.to.icao ||
+    trip.quick?.legs[trip.quick.legs.length - 1]?.dest_icao ||
+    [...trip.legs].reverse().find((l) => l.dest)?.dest ||
     lane.split(/→|->/).pop() ||
     'ARR'
   const tz =
@@ -251,10 +268,14 @@ export function buildEtaSheetEmailTemplate(opts: {
     trip.eta_chain[0]?.from.tz ||
     'America/New_York'
 
+  const fullLane =
+    fullLaneLabel(lane) ||
+    `${shortIcao(originIcao)} → ${shortIcao(destIcao)}`
+
   return {
     logoUrl: invoiceEmailLogoUrl(),
     poNumber: sheet.po || trip.po_number || `T-${trip.ref}`,
-    laneShort: shortLaneLabel(lane) || `${shortIcao(originIcao)} → ${shortIcao(destIcao)}`,
+    laneShort: fullLane,
     preparedLabel: preparedLabel(tz),
     patternLabel: patternLabelForService(trip.service_pattern ?? sheet.pattern),
     aircraftType: sheet.aircraft_type || 'Aircraft TBD',
