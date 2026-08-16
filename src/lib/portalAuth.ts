@@ -1,11 +1,14 @@
 /**
- * Portal magic-link session — link contact email → client, list own trips.
+ * Portal session — domain work-email sign-in (no magic link) + optional Supabase session.
  * Guest track memory + portal client id clear together on sign-out so
  * home ↔ track ↔ login stay one loop.
  */
 
-import { clearPortalClient } from '@/lib/clientOnboardStore'
 import { clearPortalGuestTrack } from '@/lib/portalGuestTrack'
+import {
+  endPortalDomainSession,
+  readPortalDomainSession,
+} from '@/lib/portalDomainSession'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import {
   mapPortalTripRow,
@@ -15,6 +18,9 @@ import {
 } from '@/domain/portalAuth'
 
 export async function getPortalAuthSession(): Promise<PortalSession | null> {
+  const domain = readPortalDomainSession()
+  if (domain?.clientId) return domain
+
   if (!isSupabaseConfigured || !supabase) return null
   const { data } = await supabase.auth.getSession()
   const user = data.session?.user
@@ -29,8 +35,8 @@ export async function getPortalAuthSession(): Promise<PortalSession | null> {
 }
 
 /**
- * Live portal auth — fires on magic-link exchange, refresh, and sign-out.
- * Callers should also run getPortalAuthSession once for the initial paint.
+ * Live portal auth — fires on Supabase session changes (legacy OTP exchange, refresh, sign-out).
+ * Domain sign-in updates session via setSession on the landing form.
  */
 export function subscribePortalAuth(
   onChange: (session: PortalSession | null) => void,
@@ -44,6 +50,12 @@ export function subscribePortalAuth(
     // INITIAL_SESSION is covered by getPortalAuthSession on mount.
     if (event === 'INITIAL_SESSION') return
     void (async () => {
+      // Prefer an active domain session over a bare Supabase auth row.
+      const domain = readPortalDomainSession()
+      if (domain?.clientId) {
+        onChange(domain)
+        return
+      }
       if (!authSession?.user) {
         onChange(null)
         return
@@ -79,9 +91,14 @@ export async function ensurePortalUserLinked(): Promise<{
   }
 }
 
-/** Active trips for the signed-in portal client (RLS-scoped). */
+/** Active trips for the signed-in portal client (RLS-scoped when authenticated). */
 export async function listPortalTripsForSession(): Promise<PortalTripCard[]> {
   if (!isSupabaseConfigured || !supabase) return []
+  const domain = readPortalDomainSession()
+  if (domain?.clientId) {
+    // Domain sign-in has no auth.uid — company trips come from local store.
+    return []
+  }
   await ensurePortalUserLinked()
   const { data, error } = await supabase
     .from('portal_trips')
@@ -103,14 +120,16 @@ export async function signOutPortal(): Promise<void> {
   await supabase.auth.signOut()
 }
 
-/** Sign out and drop guest track + local portal client so landing shows again. */
+/** Sign out and drop guest track + domain/local portal client so landing shows again. */
 export async function endPortalSession(): Promise<void> {
   await signOutPortal()
+  endPortalDomainSession()
   clearPortalGuestTrack()
-  clearPortalClient()
 }
 
 /** After a company link succeeds, drop guest memory — company list is source of truth. */
 export function promotePortalGuestToSignedIn(): void {
   clearPortalGuestTrack()
 }
+
+export { signInPortalByWorkEmail } from '@/lib/portalDomainSession'

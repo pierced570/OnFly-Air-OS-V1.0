@@ -121,7 +121,7 @@ export default function PortalHomePage() {
     }
   }, [session?.clientId])
 
-  // Magic-link guests: hydrate the trip they were tracking for "Your shipments".
+  // Remembered guest track: hydrate the trip they were tracking for "Your shipments".
   useEffect(() => {
     const g = readPortalGuestTrack()
     setGuest(g)
@@ -287,7 +287,7 @@ export default function PortalHomePage() {
     </>
   )
 
-  // Dark gate from PDF — magic link + request CTA (no empty Welcome wall).
+  // Dark gate — work-email sign-in + request CTA (no empty Welcome wall).
   if (
     !loadingAuth &&
     guestReady &&
@@ -295,7 +295,16 @@ export default function PortalHomePage() {
     !guest &&
     !(session && !session.clientId)
   ) {
-    return <PortalLanding />
+    return (
+      <PortalLanding
+        onSignedIn={(s) => {
+          setSession(s)
+          setGuest(null)
+          setGuestTrip(null)
+          setGuestReady(true)
+        }}
+      />
+    )
   }
 
   return (
@@ -306,12 +315,11 @@ export default function PortalHomePage() {
 
       {session && !session.clientId ? (
         <section className="rounded-md border border-[#C0392B]/40 bg-white p-5">
-          <h2 className="font-medium">Email not linked</h2>
+          <h2 className="font-medium">Email not verified</h2>
           <p className="mt-1 text-sm text-muted">
-            {session.email} isn&apos;t linked to a company yet. Only approved
-            work emails can sign in — ask OnFly to add your corporate domain
-            (or this exact address) under Clients → Portal email domains, then
-            sign in again.
+            {session.email} isn&apos;t set up for portal access yet. Verified
+            emails will be routed to the correct client portal — contact OnFly
+            if you need access, then sign in again.
           </p>
         </section>
       ) : null}
