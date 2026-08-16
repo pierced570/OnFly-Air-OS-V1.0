@@ -83,7 +83,7 @@ describe('offerQuoteTiming', () => {
     expect(t.destEta.local).toBeTruthy()
   })
 
-  it('builds desk AT PICKUP → DELIVERED timeline with handoff', () => {
+  it('builds desk AT PICKUP → DELIVERED timeline with location subjects + 5m handoff', () => {
     const now = DateTime.utc(2026, 7, 26, 13, 0, 0) // 09:00 EDT
     const tl = buildDeskOfferQuoteTimeline({
       lane: 'KCAK→KHPN',
@@ -93,18 +93,44 @@ describe('offerQuoteTiming', () => {
       liveLegMin: 75,
       destHandoffMin: DEFAULT_DEST_HANDOFF_MIN,
     })
+    expect(DEFAULT_DEST_HANDOFF_MIN).toBe(5)
     expect(tl.milestones.map((m) => m.key)).toEqual([
       'at_pickup',
       'wheels_up',
       'landing',
       'delivered',
     ])
+    expect(tl.milestones.map((m) => m.label)).toEqual([
+      'At Pickup Location (CAK)',
+      'Wheels Up For (HPN)',
+      'Landing ETA (HPN)',
+      'Delivered (HPN FBO)',
+    ])
     expect(tl.milestones[0]!.clock).toBe('10:30 AM')
     expect(tl.milestones[1]!.clock).toBe('11:10 AM')
     expect(tl.milestones[2]!.clock).toBe('12:25 PM')
-    expect(tl.milestones[3]!.clock).toBe('12:40 PM')
-    expect(tl.deliversBadge).toBe('Delivers ~12:40 PM')
+    // Landing + 5 min
+    expect(tl.milestones[3]!.clock).toBe('12:30 PM')
+    expect(tl.deliversBadge).toBe('Delivers ~12:30 PM')
     expect(tl.chainHint).toMatch(/TTP 1h 30m/)
-    expect(tl.chainHint).toMatch(/handoff 0h 15m/)
+    expect(tl.chainHint).toMatch(/handoff 0h 5m/)
+  })
+
+  it('uses pickup address and drop-off / FBO overrides in subjects', () => {
+    const now = DateTime.utc(2026, 7, 26, 13, 0, 0)
+    const tl = buildDeskOfferQuoteTimeline({
+      lane: 'KCAK→KHPN',
+      nowUtc: now,
+      timeToPositionMin: 90,
+      quickTurnMin: 40,
+      liveLegMin: 75,
+      pickupLocation: 'Hangar 5 · CAK',
+      destination: 'White Plains',
+      dropoffLocation: 'Signature HPN',
+    })
+    expect(tl.milestones[0]!.label).toBe('At Pickup Location (Hangar 5 · CAK)')
+    expect(tl.milestones[1]!.label).toBe('Wheels Up For (White Plains)')
+    expect(tl.milestones[2]!.label).toBe('Landing ETA (White Plains)')
+    expect(tl.milestones[3]!.label).toBe('Delivered (Signature HPN)')
   })
 })

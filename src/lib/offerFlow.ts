@@ -902,6 +902,8 @@ export async function selectOffersAndHardQuote(
           client_total: o.client_total,
           lane: trip.lane,
           goAtIso: sentAt,
+          pickup_location: trip.portal_pickup_address,
+          dropoff_location: trip.portal_dropoff_address,
         }),
       ),
     )

@@ -11,6 +11,7 @@ import {
   DEFAULT_QUICK_TURN_MIN,
   buildDeskOfferQuoteTimeline,
   computeOfferQuoteTiming,
+  shortAirportSubject,
   type DeskQuoteMilestone,
   type ZuluLocal,
 } from '@/domain/offerQuoteTiming'
@@ -192,8 +193,22 @@ export function buildLogisticsQuoteOption(input: {
   lane: string
   /** When the "from Go" clock starts (hard quote sent_at, else now). */
   goAtIso?: string | null
+  /** Override pickup subject (address); else origin airport code. */
+  pickup_location?: string | null
+  /** Override drop-off / FBO subject; else "{dest} FBO". */
+  dropoff_location?: string | null
 }): LogisticsQuoteOptionView {
-  const { originLabel, destLabel } = laneEndpoints(input.lane)
+  const { originIcao, destIcao, originLabel, destLabel } = laneEndpoints(
+    input.lane,
+  )
+  const originShort = shortAirportSubject(originIcao)
+  const destShort = shortAirportSubject(destIcao)
+  const pickupLocation =
+    input.pickup_location?.trim() || originShort || null
+  const destinationSubject = destShort || destLabel
+  const dropoffLocation =
+    input.dropoff_location?.trim() ||
+    (destShort ? `${destShort} FBO` : null)
   const ttp = input.time_to_position_min
   const turn =
     input.quick_turn_min != null && Number.isFinite(input.quick_turn_min)
@@ -222,6 +237,9 @@ export function buildLogisticsQuoteOption(input: {
           quickTurnMin: turn,
           liveLegMin: live,
           destHandoffMin: DEFAULT_DEST_HANDOFF_MIN,
+          pickupLocation,
+          destination: destinationSubject,
+          dropoffLocation,
         })
       : null
 
@@ -233,9 +251,10 @@ export function buildLogisticsQuoteOption(input: {
   const destTzLabel = timing
     ? timing.destEta.tzLabel
     : null
+  const deliverPlace = dropoffLocation || destLabel
   const deliveredSummary =
-    delivered && destLabel
-      ? `Delivered to your team at ${destLabel} by ${delivered.clock}${
+    delivered && deliverPlace
+      ? `Delivered to your team at ${deliverPlace} by ${delivered.clock}${
           destTzLabel ? ` ${destTzLabel}` : ''
         }.`
       : null

@@ -302,6 +302,8 @@ export function DeskOfferQuoteWorkbench({
               client_total: p.client_total,
               lane: liveTrip.lane,
               goAtIso: new Date().toISOString(),
+              pickup_location: liveTrip.portal_pickup_address,
+              dropoff_location: liveTrip.portal_dropoff_address,
             })
           }),
         )
@@ -337,6 +339,8 @@ export function DeskOfferQuoteWorkbench({
           client_total: p.client_total,
           lane: liveTrip.lane,
           goAtIso: new Date().toISOString(),
+          pickup_location: liveTrip.portal_pickup_address,
+          dropoff_location: liveTrip.portal_dropoff_address,
         })
       })
       .filter((x): x is NonNullable<typeof x> => x != null)
@@ -415,6 +419,8 @@ export function DeskOfferQuoteWorkbench({
             timeToPositionMin: o.time_to_position_min,
             quickTurnMin: turn,
             liveLegMin: o.live_leg_min,
+            pickupLocation: liveTrip.portal_pickup_address,
+            dropoffLocation: liveTrip.portal_dropoff_address,
           })
         : null
     const feeLabel = feeBadgeLabel(o.fee_scope)
@@ -527,7 +533,7 @@ export function DeskOfferQuoteWorkbench({
                           : 'border-border/50 bg-ink/50',
                       ].join(' ')}
                     >
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-muted">
                         {m.label}
                       </div>
                       <div className="avionic mt-0.5 text-sm text-cream">
