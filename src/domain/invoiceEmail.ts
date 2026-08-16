@@ -28,6 +28,17 @@ export function isInvoicePoPlaceholder(po?: string | null): boolean {
   )
 }
 
+/** True when copy still has human template blanks like (ENTER TAIL NUMBER). */
+export function hasInvoicePlaceholderCopy(text?: string | null): boolean {
+  const s = String(text ?? '')
+  if (!s.trim()) return false
+  return (
+    /\(\s*ENTER[^)]*\)/i.test(s) ||
+    /\bENTER\s+(TAIL|FBO|ETA|DEP|ARR|HH|SIT|RETURN)\b/i.test(s) ||
+    /\bADD SIT TIME\b/i.test(s)
+  )
+}
+
 /**
  * Client-facing invoice subject — same shape as ETA sheet:
  * OnFly invoice · PO #T-76 · CAK → HPN · N6209X
@@ -80,6 +91,12 @@ export type InvoiceEmailTemplate = {
   payUrl?: string | null
   /** Jotform (or other) charter contract sign URL. */
   contractUrl?: string | null
+  /** Explicit trip itinerary lines (pickup ETA, live leg, drop-off). */
+  itineraryLines?: string[] | null
+  /** Flight date (yyyy-mm-dd or display). */
+  flightDate?: string | null
+  /** Full note-to-customer / memo lines for the email middle. */
+  detailLines?: string[] | null
 }
 
 export function formatInvoiceUsd(amount: number): string {
@@ -122,6 +139,38 @@ export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
   const payUrl = tpl.payUrl?.trim()
   const contractUrl = tpl.contractUrl?.trim()
   const client = tpl.clientName?.trim()
+  const flightDate = tpl.flightDate?.trim() || null
+  const itinerary = (tpl.itineraryLines ?? [])
+    .map((l) => l.trim())
+    .filter((l) => l && !hasInvoicePlaceholderCopy(l))
+  const detailLines = (tpl.detailLines ?? [])
+    .map((l) => l.trim())
+    .filter((l) => l && !hasInvoicePlaceholderCopy(l))
+  const tripDetailRows = [
+    tpl.tail?.trim()
+      ? `Tail Number: ${tpl.tail.trim().toUpperCase()}`
+      : null,
+    tpl.laneShort?.trim() ? `Route: ${tpl.laneShort.trim()}` : null,
+    flightDate ? `Date: ${flightDate}` : null,
+    tpl.aircraftType?.trim() ? `Aircraft: ${tpl.aircraftType.trim()}` : null,
+    ...itinerary,
+    ...detailLines,
+  ].filter((l): l is string => Boolean(l))
+
+  const tripDetailsBlock =
+    tripDetailRows.length > 0
+      ? `<tr>
+          <td style="padding:22px;border-bottom:1px solid #e8e4dc;background:#ffffff">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;color:#c9a227">TRIP DETAILS</div>
+            ${tripDetailRows
+              .map(
+                (l) =>
+                  `<div style="margin-top:6px;font-size:14px;color:#0c0c0e;line-height:1.45;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${escapeHtml(l)}</div>`,
+              )
+              .join('')}
+          </td>
+        </tr>`
+      : ''
 
   const stopCard = (stop: EtaSheetEmailStop) => {
     const kind = stop.kind === 'pickup' ? 'PICKUP' : 'DROP-OFF'
@@ -238,6 +287,8 @@ export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
             }
           </td>
         </tr>
+
+        ${tripDetailsBlock}
 
         <tr>
           <td style="padding:0;border-bottom:1px solid #e8e4dc">

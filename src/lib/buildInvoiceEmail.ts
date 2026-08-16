@@ -3,7 +3,7 @@
  */
 
 import type { InvoiceEmailTemplate } from '@/domain/invoiceEmail'
-import { charterContractUrlFromEnv } from '@/lib/invoiceTripFacts'
+import { charterContractUrlFromEnv, invoiceTripFacts } from '@/lib/invoiceTripFacts'
 import { buildEtaSheetEmailTemplate } from '@/lib/buildEtaSheetEmail'
 import {
   computeEtaSheetFromBookedTrip,
@@ -108,6 +108,10 @@ export function buildInvoiceEmailTemplate(opts: {
   sheet?: EtaSheetContext | null
 }): InvoiceEmailTemplate {
   const { trip, portalUrl } = opts
+  const facts = invoiceTripFacts(trip, {
+    poNumber: opts.poNumber ?? undefined,
+    clientName: opts.clientName ?? undefined,
+  })
   const sheet =
     opts.sheet ??
     computeEtaSheetFromBookedTrip(trip, new Date(), { clientFacing: true })
@@ -129,9 +133,9 @@ export function buildInvoiceEmailTemplate(opts: {
       laneShort: eta.laneShort,
       preparedLabel: eta.preparedLabel,
       patternLabel: eta.patternLabel,
-      aircraftType: eta.aircraftType,
+      aircraftType: eta.aircraftType || facts.aircraftType || 'Aircraft TBD',
       aircraftBlurb: eta.aircraftBlurb,
-      tail: eta.tail,
+      tail: eta.tail || facts.tail || 'TBD',
       pickup: eta.pickup,
       dropoff: eta.dropoff,
       milestones: eta.milestones,
@@ -146,6 +150,17 @@ export function buildInvoiceEmailTemplate(opts: {
       amountUsd: opts.amountUsd,
       payUrl: opts.payUrl ?? null,
       contractUrl: opts.contractUrl ?? charterContractUrlFromEnv(),
+      itineraryLines: facts.itineraryLines,
+      flightDate: facts.flightDate,
+      detailLines: [
+        ...(facts.pickupAddress
+          ? [`Pick up the part at ${facts.pickupAddress}`]
+          : []),
+        ...(facts.dropoffAddress
+          ? [`Drop off part at ${facts.dropoffAddress}`]
+          : []),
+        ...(facts.extraNotes ? [facts.extraNotes] : []),
+      ],
     }
   }
 
@@ -165,10 +180,12 @@ export function buildInvoiceEmailTemplate(opts: {
     air?.from.tz || trip.eta_chain[0]?.from.tz || 'America/New_York'
   const stops = fallbackStops(trip, originIcao, destIcao)
   const aircraft =
+    facts.aircraftType ||
     trip.quick?.aircraft_type ||
     trip.offers.find((o) => o.state === 'selected')?.type_name ||
     'Aircraft TBD'
   const tail =
+    facts.tail ||
     trip.quick?.tail ||
     trip.offers.find((o) => o.state === 'selected')?.tail ||
     'TBD'
@@ -198,5 +215,16 @@ export function buildInvoiceEmailTemplate(opts: {
     amountUsd: opts.amountUsd,
     payUrl: opts.payUrl ?? null,
     contractUrl: opts.contractUrl ?? charterContractUrlFromEnv(),
+    itineraryLines: facts.itineraryLines,
+    flightDate: facts.flightDate,
+    detailLines: [
+      ...(facts.pickupAddress
+        ? [`Pick up the part at ${facts.pickupAddress}`]
+        : []),
+      ...(facts.dropoffAddress
+        ? [`Drop off part at ${facts.dropoffAddress}`]
+        : []),
+      ...(facts.extraNotes ? [facts.extraNotes] : []),
+    ],
   }
 }
