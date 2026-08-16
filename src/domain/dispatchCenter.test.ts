@@ -209,17 +209,19 @@ describe('dispatchCenter', () => {
       client_total: 6000,
       po: 'PO-9001',
     })
-    expect(buckets.approved[0]?.quote_history).toHaveLength(2)
+    expect(buckets.approved[0]?.quote_history).toHaveLength(1)
     expect(buckets.approved[0]?.quote_history?.[0]?.status).toBe('selected')
-    expect(buckets.approved[0]?.quote_history?.[1]?.operator_name).toBe(
-      'Delta Airlift',
+    expect(buckets.approved[0]?.quote_history?.[0]?.operator_name).toBe(
+      'Charlie Jets',
     )
-    expect(buckets.approved[0]?.quote_history?.[1]?.status).toBe('stood_down')
     expect(buckets.quotes).toHaveLength(1)
     expect(buckets.quotes[0]?.approvable).toBe(true)
     expect(buckets.quotes[0]?.approve_offer_id).toBe('o-q')
     expect(buckets.tracking).toHaveLength(1)
-    expect(buckets.tracking[0]?.quote_history).toHaveLength(2)
+    expect(buckets.tracking[0]?.quote_history).toHaveLength(1)
+    expect(buckets.tracking[0]?.quote_history?.[0]?.operator_name).toBe(
+      'Echo Jets',
+    )
     expect(buckets.tracking[0]?.deletable).toBe(false)
     expect(buckets.tracking[0]?.code).toBe('T-5')
     expect(buckets.tracking[0]?.meta).toBe('Live')

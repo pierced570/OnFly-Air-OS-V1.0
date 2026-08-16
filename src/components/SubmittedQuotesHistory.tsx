@@ -1,6 +1,7 @@
 /**
- * Read-only ledger of every operator quote submitted on a trip —
- * selected winner + stood-down losers. Desk-only; never client-facing.
+ * Read-only ledger of operator quotes on a trip.
+ * After approve, callers pass only the winning row(s) — stood-down drop off.
+ * Desk-only; never client-facing.
  */
 
 import { OfferQuoteFactsBlock } from '@/components/OfferQuoteFactsBlock'

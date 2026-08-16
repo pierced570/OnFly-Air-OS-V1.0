@@ -104,8 +104,8 @@ export type DispatchCard = {
     po: string | null
   } | null
   /**
-   * All operator quotes that were submitted (selected + stood down).
-   * Populated on Approved / Live tracking so losers stay visible.
+   * Winning operator quote(s) on Approved / Live tracking.
+   * Stood-down operators are dropped after approve.
    */
   quote_history?: SubmittedQuoteRow[]
   /** Structured quote facts (submitted quotes stage). */
@@ -456,7 +456,7 @@ export function buildDispatchDrawers(input: {
 
     const quote_history =
       drawer === 'approved' || drawer === 'tracking'
-        ? listSubmittedQuotes(t.offers ?? [])
+        ? listSubmittedQuotes(t.offers ?? [], { includeStoodDown: false })
         : undefined
 
     out[drawer].push({
