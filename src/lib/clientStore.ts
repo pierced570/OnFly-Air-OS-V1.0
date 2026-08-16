@@ -315,7 +315,7 @@ export async function ensureClientsDirectorySeeded(): Promise<number> {
       .slice(0, 40)
     const id = `fin-${slug || crypto.randomUUID().slice(0, 8)}`
     if (clients.has(id)) continue
-    const stub = withEnsuredPortalDomains({
+    const stub: ClientProfile = {
       id,
       name,
       email: '',
@@ -329,8 +329,25 @@ export async function ensureClientsDirectorySeeded(): Promise<number> {
       rules: { ...DEFAULT_CLIENT_RULES },
       qb_customer_id: null,
       profile: { source: 'import' },
+    }
+    const ensured = withEnsuredPortalDomains({
+      id: stub.id,
+      name: stub.name,
+      email: stub.email,
+      invoice_email: stub.invoice_email,
+      contacts: stub.contacts,
+      profile: {
+        allowed_email_domains: stub.profile.allowed_email_domains,
+        website: stub.profile.website,
+        bases: stub.profile.bases,
+      },
     })
-    clients.set(id, stub as ClientProfile)
+    stub.profile = {
+      ...stub.profile,
+      allowed_email_domains: ensured.profile?.allowed_email_domains,
+      website: ensured.profile?.website ?? stub.profile.website,
+    }
+    clients.set(id, stub)
     existing.push(clients.get(id)!)
     added++
   }

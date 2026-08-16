@@ -481,7 +481,7 @@ export function profilesFromClientExportCsv(csvText: string): ClientImportDraft[
       const ops = p.contacts.find((c) => c.notify_prefs.request_alert)
       p.email = ops?.email || p.contacts[0]?.email || p.invoice_email || ''
     }
-    out.push(withEnsuredPortalDomains(p) as ClientImportDraft)
+    out.push(withEnsuredPortalDomains(p))
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }

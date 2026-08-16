@@ -9,7 +9,7 @@ import {
   domainFromEmail,
   domainFromWebsite,
   isPublicEmailDomain,
-} from '@/domain/clientBaseEmails'
+} from './clientBaseEmails'
 
 /** Never auto-grant this domain to a client portal (staff use exact grants). */
 const OPERATOR_PORTAL_DOMAIN = 'onflyair.com'
@@ -69,7 +69,7 @@ export function emailMatchesPortalDomains(
 }
 
 export type PortalDomainClient = {
-  id: string
+  id?: string
   name?: string
   email?: string | null
   invoice_email?: string | null
@@ -196,16 +196,16 @@ export function resolveClientIdByPortalEmail(
   if (!needle.includes('@')) return null
 
   for (const c of clients) {
-    if ((c.email ?? '').trim().toLowerCase() === needle) return c.id
-    if ((c.invoice_email ?? '').trim().toLowerCase() === needle) return c.id
+    if ((c.email ?? '').trim().toLowerCase() === needle) return c.id ?? null
+    if ((c.invoice_email ?? '').trim().toLowerCase() === needle) return c.id ?? null
     for (const contact of c.contacts ?? []) {
-      if ((contact.email ?? '').trim().toLowerCase() === needle) return c.id
+      if ((contact.email ?? '').trim().toLowerCase() === needle) return c.id ?? null
     }
   }
 
   for (const c of clients) {
     if (emailMatchesPortalDomains(needle, effectivePortalDomains(c))) {
-      return c.id
+      return c.id ?? null
     }
   }
 
@@ -249,7 +249,9 @@ export function withEnsuredPortalDomains<T extends PortalDomainClient>(client: T
   // contacts still work via exact match, but domain login is @psaairlines.com.
   const finalDomains =
     required.length > 0
-      ? required.filter((d) => normalizePortalDomain(d))
+      ? required
+          .map((d) => normalizePortalDomain(d))
+          .filter((d): d is string => Boolean(d))
       : domains
   return {
     ...client,
