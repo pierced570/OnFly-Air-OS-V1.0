@@ -118,11 +118,14 @@ export default function PortalAccessPage() {
             client portal
           </Link>
           . Prefer company-wide access? Set{' '}
-          <span className="text-cream">Portal access domains</span> on the{' '}
+          <span className="text-cream">Portal email domains</span> on the{' '}
           <Link className="text-gold hover:text-gold-lt" to="/clients">
             Clients
           </Link>{' '}
-          profile (anyone @theirdomain.com). Use this page for one-off emails.
+          profile (anyone @theirdomain.com — e.g. @psaairlines.com for PSA).
+          Domains are inferred from emails on file and can be edited manually.
+          Only approved work emails can sign in. Use this page for one-off
+          addresses.
         </p>
       </header>
 
