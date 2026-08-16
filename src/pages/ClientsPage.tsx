@@ -107,7 +107,7 @@ function ClientInvitePanel({ onClose }: { onClose: () => void }) {
       <div className="mt-2 flex flex-wrap gap-2">
         <button
           type="button"
-          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          className="min-h-11 rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
           onClick={() => {
             void navigator.clipboard?.writeText(url).then(() => {
               setCopied(true)
@@ -119,7 +119,7 @@ function ClientInvitePanel({ onClose }: { onClose: () => void }) {
         </button>
         <Link
           to="/client"
-          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
           target="_blank"
           rel="noreferrer"
         >
@@ -127,7 +127,7 @@ function ClientInvitePanel({ onClose }: { onClose: () => void }) {
         </Link>
         <button
           type="button"
-          className="rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+          className="min-h-11 rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
           onClick={() => setPreviewOpen(true)}
         >
           Preview email

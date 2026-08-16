@@ -421,7 +421,7 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
                 <option value="sms">SMS only</option>
               </select>
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input
                 className={input}
                 type="email"

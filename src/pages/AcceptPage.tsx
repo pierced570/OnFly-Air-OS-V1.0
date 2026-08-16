@@ -140,7 +140,7 @@ export default function AcceptPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#ECE8DF] p-8 text-ink" data-theme="client">
+      <div className="min-h-screen bg-[#ECE8DF] px-4 py-8 text-ink" data-theme="client">
         <p>Loading quote…</p>
       </div>
     )
@@ -148,7 +148,7 @@ export default function AcceptPage() {
 
   if (!trip || !hq) {
     return (
-      <div className="min-h-screen bg-[#ECE8DF] p-8 text-ink" data-theme="client">
+      <div className="min-h-screen bg-[#ECE8DF] px-4 py-8 text-ink" data-theme="client">
         <p>This accept link is invalid or expired.</p>
         <p className="mt-2 text-sm text-muted">
           Ask OnFly dispatch to resend the quote — the link may not have saved

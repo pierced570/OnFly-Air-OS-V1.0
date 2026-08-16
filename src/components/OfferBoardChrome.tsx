@@ -11,7 +11,7 @@ import {
 } from '@/domain/offerMissionDisplay'
 
 const shell =
-  'min-h-dvh bg-ink px-4 py-5 text-cream text-base leading-snug sm:py-8'
+  'min-h-dvh bg-ink px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] text-cream text-base leading-snug sm:py-8'
 const card = 'mx-auto w-full max-w-md space-y-5'
 
 export const offerInput =

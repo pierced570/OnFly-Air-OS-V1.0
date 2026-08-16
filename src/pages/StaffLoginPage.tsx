@@ -46,7 +46,7 @@ export default function StaffLoginPage() {
       className="relative flex min-h-screen flex-col items-center justify-center bg-ink px-4 text-cream"
       data-theme="dispatcher"
     >
-      <div className="absolute right-4 top-4">
+      <div className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))]">
         <ThemeToggle compact />
       </div>
       <div className="w-full max-w-sm">

@@ -61,7 +61,9 @@ export default function ReferralsPage() {
     [payouts],
   )
 
-  const selected = people.find((p) => p.id === selectedId) ?? people[0] ?? null
+  const selected = selectedId
+    ? people.find((p) => p.id === selectedId) ?? null
+    : null
   const selectedPayout = selected
     ? payouts.find(
         (p) =>
@@ -136,7 +138,14 @@ export default function ReferralsPage() {
           </button>
         </div>
 
-        <ul className="max-h-[50vh] space-y-1 overflow-auto">
+        <ul
+          className={[
+            'space-y-1 overflow-auto',
+            selected
+              ? 'hidden max-h-[50vh] lg:block lg:max-h-[calc(100vh-14rem)]'
+              : 'max-h-[60vh]',
+          ].join(' ')}
+        >
           {people.length === 0 && (
             <li className="rounded-md border border-border px-3 py-4 text-center text-xs text-muted">
               No referral partners yet — add someone who sends you trips.
@@ -186,7 +195,12 @@ export default function ReferralsPage() {
           })}
         </ul>
 
-        <div className="rounded-lg border border-border bg-surface p-3">
+        <div
+          className={[
+            'rounded-lg border border-border bg-surface p-3',
+            selected ? 'hidden lg:block' : '',
+          ].join(' ')}
+        >
           <div className="text-xs uppercase tracking-wider text-muted">
             Running tabs
           </div>
@@ -212,9 +226,25 @@ export default function ReferralsPage() {
 
       <main className="min-w-0 flex-1 space-y-6">
         {!selected ? (
-          <p className="text-sm text-muted">Select or add a referral partner.</p>
+          <p className="text-sm text-muted">
+            <span className="lg:hidden">Tap a partner above, or add one.</span>
+            <span className="hidden lg:inline">
+              Select or add a referral partner.
+            </span>
+          </p>
         ) : (
           <>
+            <button
+              type="button"
+              className="tap text-sm text-gold hover:text-gold-lt lg:hidden"
+              onClick={() => {
+                setSelectedId(null)
+                setSelectedMonth(null)
+                setCopied(false)
+              }}
+            >
+              ← Referrals
+            </button>
             <ReferralDetail
               id={selected.id}
               unpaid={selectedPayout?.unpaid_share ?? 0}

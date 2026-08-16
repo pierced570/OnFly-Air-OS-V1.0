@@ -60,7 +60,7 @@ export function PortalLanding(props?: {
       className="min-h-screen bg-[#0C0C0E] text-cream"
       data-theme="client"
     >
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-8">
+      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
         <img
           src={BRAND_LOGO_PATH}
           alt="OnFly Air"
@@ -68,7 +68,7 @@ export function PortalLanding(props?: {
         />
         <a
           href={`tel:${BRAND_PHONE_E164}`}
-          className="inline-flex items-center gap-2 rounded-full border border-cream/15 bg-[#141414] px-3 py-1.5 text-[11px] text-cream/85"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-cream/15 bg-[#141414] px-3 py-1.5 text-[11px] text-cream/85"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]" aria-hidden />
           24-hr ops ·{' '}
@@ -155,7 +155,7 @@ export function PortalLanding(props?: {
             </span>
           </Link>
 
-          <div className="rounded-2xl border border-cream/10 bg-[#141414] px-5 py-4 text-sm text-cream/65">
+          <div className="rounded-2xl border border-cream/10 bg-[#141414] px-5 py-4 text-sm text-cream/65 safe-bottom">
             Time-critical right now? Call 24-hr ops at{' '}
             <a
               href={`tel:${BRAND_PHONE_E164}`}

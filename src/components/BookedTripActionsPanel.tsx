@@ -223,7 +223,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
             !confirmedType.trim() ||
             !poDraft.trim()
           }
-          className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
+          className="min-h-11 rounded-md bg-gold px-3 py-2 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
           onClick={() => {
             saveBillingIds()
             if (!poDraft.trim()) {
@@ -269,7 +269,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           their list before send.
         </p>
         {sheet ? (
-          <div className="font-mono text-[11px] text-cream/80 space-y-0.5">
+          <div className="min-w-0 break-words font-mono text-[11px] text-cream/80 space-y-0.5">
             <div>
               Tail {sheet.tail || 'TBD'}
               {sheet.aircraft_type ? ` · ${sheet.aircraft_type}` : ''}
@@ -306,7 +306,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           <button
             type="button"
             disabled={busy !== null || etaSel.to.length === 0}
-            className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
+            className="min-h-11 rounded-md bg-gold px-3 py-2 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
             onClick={() => {
               setBusy('eta')
               setErr(null)
@@ -333,7 +333,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           </button>
           <button
             type="button"
-            className="rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
+            className="min-h-11 rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
             onClick={() => {
               const html = buildEtaSheetPreviewHtml(trip)
               if (!html) {
@@ -364,7 +364,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
           <button
             type="button"
             disabled={busy !== null}
-            className="rounded-md border border-gold/50 bg-gold/15 px-3 py-2 text-xs font-semibold text-gold hover:bg-gold/25 disabled:opacity-40"
+            className="min-h-11 rounded-md border border-gold/50 bg-gold/15 px-3 py-2 text-sm font-semibold text-gold hover:bg-gold/25 disabled:opacity-40"
             onClick={() => {
               setBusy('start')
               setErr(null)

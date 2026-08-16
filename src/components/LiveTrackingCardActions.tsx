@@ -99,14 +99,14 @@ export function LiveTrackingCardActions({ tripId }: Props) {
           href={trackUrl}
           target="_blank"
           rel="noreferrer"
-          className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-cream hover:border-gold/40"
+          className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-xs font-semibold text-cream hover:border-gold/40"
         >
           Open tracking portal
         </a>
         <button
           type="button"
           className={[
-            'rounded-md px-3 py-2 text-xs font-semibold',
+            'min-h-11 rounded-md px-3 py-2 text-xs font-semibold',
             chatOpen
               ? 'border border-gold/50 bg-gold/10 text-gold'
               : 'bg-gold text-ink hover:bg-gold-lt',
@@ -122,7 +122,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
           <button
             type="button"
             disabled={completing || deleting}
-            className="rounded-md border border-onplan/50 bg-onplan/10 px-3 py-2 text-xs font-semibold text-onplan hover:bg-onplan/20 disabled:opacity-40"
+            className="min-h-11 rounded-md border border-onplan/50 bg-onplan/10 px-3 py-2 text-xs font-semibold text-onplan hover:bg-onplan/20 disabled:opacity-40"
             onClick={logAsComplete}
           >
             {completing ? 'Logging…' : 'Log as complete'}
@@ -131,7 +131,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
         <button
           type="button"
           disabled={deleting || completing}
-          className="rounded-md border border-late/50 bg-late/10 px-3 py-2 text-xs font-semibold text-late hover:bg-late/20 disabled:opacity-40"
+          className="min-h-11 rounded-md border border-late/50 bg-late/10 px-3 py-2 text-xs font-semibold text-late hover:bg-late/20 disabled:opacity-40"
           onClick={discardLiveTrip}
         >
           {deleting ? 'Deleting…' : 'Delete trip'}
