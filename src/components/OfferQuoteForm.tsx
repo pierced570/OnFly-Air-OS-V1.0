@@ -381,7 +381,7 @@ export function OfferQuoteForm({
               />
               <CreamTimeRow
                 title="Turn time"
-                hint="Load pax/freight and fuel if needed, ready to depart"
+                hint="Load pax/freight and fuel if needed — minutes alone are fine"
                 totalMinutes={quickTurn}
                 placeholderTotalMinutes={DEFAULT_QUICK_TURN_MIN}
                 onChange={setQuickTurn}
