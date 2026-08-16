@@ -4,6 +4,7 @@ import {
   buildChangeRequestMailto,
   buildCharterMissionChips,
   buildLogisticsQuoteOption,
+  deskRankLabels,
   finalizeLogisticsQuoteOptions,
   formatLiveLeg,
   formatTtpFromGo,
@@ -61,7 +62,7 @@ describe('clientLogisticsQuote', () => {
     ).toContain('Live leg time')
   })
 
-  it('marks earliest delivery as recommended', () => {
+  it('flags fastest and cheapest for desk — no Recommended badge', () => {
     const a = buildLogisticsQuoteOption({
       offer_id: 'fast',
       label: 'A',
@@ -87,10 +88,32 @@ describe('clientLogisticsQuote', () => {
       goAtIso: '2026-07-26T13:00:00.000Z',
     })
     const ranked = finalizeLogisticsQuoteOptions([a, b])
-    expect(ranked[0]!.recommended).toBe(true)
-    expect(ranked[0]!.recommended_badge).toMatch(/Earliest delivery/i)
-    expect(ranked[1]!.recommended).toBe(false)
-    expect(ranked[1]!.aircraft_blurb).toMatch(/Lower price/i)
+    expect(ranked[0]!.fastest).toBe(true)
+    expect(ranked[0]!.cheapest).toBe(false)
+    expect(ranked[1]!.fastest).toBe(false)
+    expect(ranked[1]!.cheapest).toBe(true)
+    expect(deskRankLabels(ranked[0]!)).toEqual(['Fastest'])
+    expect(deskRankLabels(ranked[1]!)).toEqual(['Cheapest'])
+    expect(ranked[0]!.aircraft_blurb).toBe('Aircraft option')
+    expect(ranked[1]!.aircraft_blurb).toBe('Aircraft option')
+  })
+
+  it('leaves desk rank flags off for a single option', () => {
+    const only = buildLogisticsQuoteOption({
+      offer_id: 'solo',
+      label: 'A',
+      type_name: 'Cessna 310',
+      time_to_position_min: 90,
+      quick_turn_min: 40,
+      live_leg_min: 75,
+      client_total: 10000,
+      lane: 'KCAK → KHPN',
+      goAtIso: '2026-07-26T13:00:00.000Z',
+    })
+    const ranked = finalizeLogisticsQuoteOptions([only])
+    expect(ranked[0]!.fastest).toBe(false)
+    expect(ranked[0]!.cheapest).toBe(false)
+    expect(deskRankLabels(ranked[0]!)).toEqual([])
   })
 
   it('builds mission chips from payload summary', () => {
