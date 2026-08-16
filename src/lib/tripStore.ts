@@ -2133,9 +2133,43 @@ export async function createInvoiceForTrip(
         to: uniqueTo,
         cc: uniqueCc,
         bcc: uniqueBcc,
+        tax_total: built.taxTotal,
+        tax_breakdown: built.taxBreakdown,
       },
     })
   })
+  // Ledger: all-in on QBO; FET / segment logged on Financials only.
+  try {
+    const { ensureFinancialFromBookedTrip, financialIdForTrip } = await import(
+      '@/lib/ensureFinancialFromTrip'
+    )
+    const { getFinancial, upsertFinancial } = await import('@/lib/financialsStore')
+    const freshest = trips.get(tripId) ?? t
+    ensureFinancialFromBookedTrip(freshest)
+    const finId = financialIdForTrip(tripId)
+    const fin = getFinancial(finId)
+    if (fin) {
+      upsertFinancial({
+        ...fin,
+        client_subtotal_pre_tax: built.airAmount,
+        tax_total: built.taxTotal,
+        tax_breakdown: built.taxBreakdown.map((l) => ({
+          code: l.code,
+          amount: l.amount,
+          note: l.note,
+        })),
+        client_invoiced_amount: total,
+        qb_invoice_id: inv.qb_invoice_id,
+        qb_invoice_number: created.qbInvoiceNumber || po,
+        invoice_date: txnDate,
+        po_number: created.qbInvoiceNumber || po,
+        operator_po: created.qbInvoiceNumber || po,
+        bill_logged_in_qb: true,
+      })
+    }
+  } catch (e) {
+    console.warn('[invoice] financials tax sync failed', e)
+  }
   if (wasDelivered) {
     try {
       safeTransitionTrip(tripId, 'invoiced', 'system', {

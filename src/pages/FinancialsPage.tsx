@@ -901,7 +901,20 @@ function FragmentRow({
           {usd(r.client_invoiced_amount)}
         </td>
         <td className="avionic px-2 py-2 text-right text-muted">
-          {r.tax_total > 0 ? usd(r.tax_total) : '—'}
+          {r.tax_total > 0 ? (
+            <div>
+              <div>{usd(r.tax_total)}</div>
+              {r.tax_breakdown?.length ? (
+                <div className="mt-0.5 text-[9px] leading-snug text-muted/80">
+                  {r.tax_breakdown
+                    .map((l) => `${l.code.replace(/^FET_/, 'FET ').replace(/^SEG_FEE_DOM$/, 'Seg')} ${usd(l.amount)}`)
+                    .join(' · ')}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            '—'
+          )}
         </td>
         <td className="avionic px-2 py-2 text-right text-cream">
           {usd(r.vendor_amount)}
@@ -1245,6 +1258,16 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
               updateFinancialField(r.id, 'tax_total', Number(e.target.value) || 0)
             }
           />
+          {r.tax_breakdown?.length ? (
+            <ul className="mt-1 space-y-0.5 text-[10px] text-muted">
+              {r.tax_breakdown.map((line) => (
+                <li key={`${line.code}-${line.amount}`} className="avionic">
+                  {line.code}
+                  {line.note ? ` — ${line.note}` : ''}: {usd(line.amount)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </label>
         <label className="text-xs text-muted">
           Funded by
@@ -1722,6 +1745,16 @@ function ClientDrawer({
               updateFinancialField(r.id, 'tax_total', Number(e.target.value) || 0)
             }
           />
+          {r.tax_breakdown?.length ? (
+            <ul className="mt-1 space-y-0.5 text-[10px] text-muted">
+              {r.tax_breakdown.map((line) => (
+                <li key={`${line.code}-${line.amount}`} className="avionic">
+                  {line.code}
+                  {line.note ? ` — ${line.note}` : ''}: {usd(line.amount)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </label>
         <label className="text-xs text-muted">
           Deposited
