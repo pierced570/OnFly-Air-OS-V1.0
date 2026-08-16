@@ -17,7 +17,7 @@ export const NETWORK_HUB_TABS = [
   {
     id: 'recommend',
     label: 'Recommend',
-    blurb: 'Ordered calls by ICAO',
+    blurb: 'Priority calls by client + base',
   },
   {
     id: 'radar',

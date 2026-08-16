@@ -11,7 +11,7 @@ import {
 } from '@/domain/networkHub'
 import { OperatorInvitePanel } from '@/components/OperatorInvitePanel'
 import { GroundCouriersPanel } from '@/pages/network/GroundCouriersPanel'
-import { LocationRecommendPanel } from '@/pages/network/LocationRecommendPanel'
+import { BasePriorityPanel } from '@/pages/network/BasePriorityPanel'
 
 const NetworkPage = lazy(() => import('@/pages/NetworkPage'))
 const RadarPage = lazy(() => import('@/pages/RadarPage'))
@@ -24,7 +24,7 @@ function TabBody({ tab }: { tab: NetworkHubTabId }) {
     case 'operators':
       return <NetworkPage embedded />
     case 'recommend':
-      return <LocationRecommendPanel />
+      return <BasePriorityPanel />
     case 'radar':
       return <RadarPage embedded />
     case 'fbos':
