@@ -290,7 +290,7 @@ export default function PortalHomePage() {
                 to="/portal/request"
                 className="rounded-md bg-gold px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
               >
-                Request a quote
+                Request a trip
               </Link>
             </div>
           </div>
