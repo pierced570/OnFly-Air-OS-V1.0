@@ -50,6 +50,17 @@ describe('qbInvoice', () => {
         flightDate: '2026-07-28',
         aircraftType: 'MU2',
         tail: 'N175CA',
+        poNumber: 'PO #PSA1234',
+      }),
+    ).toBe(
+      'Charter Flight: KNQA → KDFW | PO #PSA1234 | 2026-07-28 | MU2 | Tail: N175CA',
+    )
+    expect(
+      charterFlightLineDescription({
+        lane: 'KNQA → KDFW',
+        flightDate: '2026-07-28',
+        aircraftType: 'MU2',
+        tail: 'N175CA',
       }),
     ).toBe('Charter Flight: KNQA → KDFW | 2026-07-28 | MU2 | Tail: N175CA')
 

@@ -147,6 +147,7 @@ export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
     .map((l) => l.trim())
     .filter((l) => l && !hasInvoicePlaceholderCopy(l))
   const tripDetailRows = [
+    po && po !== '—' ? `PO #: ${invoicePoDisplay(tpl.poNumber)}` : null,
     tpl.tail?.trim()
       ? `Tail Number: ${tpl.tail.trim().toUpperCase()}`
       : null,
