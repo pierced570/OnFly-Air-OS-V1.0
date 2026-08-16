@@ -13,6 +13,7 @@ import {
 import {
   addClient,
   applyClientExportProfile,
+  ensureAllClientPortalDomains,
   listClients,
   removeClient,
   type ClientContact,
@@ -154,6 +155,9 @@ export async function ensureClientsExportHydrated(): Promise<{
     removeClient(stub.id)
     removed++
   }
+
+  // Every client profile gets portal domains (on-file + manual; PSA → psaairlines.com).
+  ensureAllClientPortalDomains()
 
   return { created, updated, removed }
 }

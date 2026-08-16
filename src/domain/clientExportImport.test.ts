@@ -46,6 +46,7 @@ describe('clientExportImport', () => {
     expect(psa!.profile.bases?.length).toBe(8)
     expect(psa!.contacts.some((c) => c.kind === 'dl')).toBe(true)
     expect(psa!.contacts.some((c) => c.notify_prefs.invoice)).toBe(true)
+    expect(psa!.profile.allowed_email_domains).toEqual(['psaairlines.com'])
     expect(
       psa!.contacts.some(
         (c) => c.eta_icaos?.includes('CAK') || c.eta_icaos?.includes('CLT'),

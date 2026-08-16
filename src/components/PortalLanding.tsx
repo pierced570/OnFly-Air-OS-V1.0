@@ -139,11 +139,13 @@ export function PortalLanding() {
                     {busy ? 'Sending…' : 'Email me a sign-in link'}
                   </button>
                 </form>
-                <p className="mt-3 text-[11px] text-muted">
-                  Use your work email (you@yourcompany.com). Access is granted by
-                  your company&apos;s domain or an address OnFly has on file. Not
-                  set up yet? Request a trip below and we&apos;ll take it from
-                  there.
+                <p className="mt-3 text-[11px] leading-relaxed text-muted">
+                  Only approved work emails can sign in. Access is granted by
+                  your company&apos;s email domain (for example{' '}
+                  <span className="avionic">@psaairlines.com</span> for PSA) or
+                  an exact address OnFly has on file for that client. Personal
+                  mailboxes (Gmail, etc.) are not accepted. Not set up yet?
+                  Request a trip below and we&apos;ll take it from there.
                 </p>
               </>
             ) : (

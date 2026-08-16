@@ -59,6 +59,7 @@ describe('ensureClientsExportHydrated', () => {
     )
     const psa = clients.find((c) => c.name === 'PSA Airlines')
     expect(psa?.contacts.length).toBeGreaterThan(0)
+    expect(psa?.profile.allowed_email_domains).toEqual(['psaairlines.com'])
   })
 
   it('does not re-seed blank financials stubs after export hydrate', async () => {
