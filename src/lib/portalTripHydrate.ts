@@ -1,5 +1,6 @@
 /**
- * Hydrate a portal-safe trip shell (magic link / signed-in) with legs + ETA chain.
+ * Hydrate a portal-safe trip shell (magic link / signed-in) with legs + ETA chain
+ * + award facts (tail / type / stop addresses) — never costs or operator names.
  */
 
 import type { ChainLeg } from '@/domain/etaChain'
@@ -33,11 +34,63 @@ export function mapPortalLegs(
   }))
 }
 
+function asStringList(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v.map((n) => String(n ?? '').trim()).filter(Boolean)
+}
+
+/** Portal-safe quick slice — no vendor_cost / client_price / invoice email. */
+export function portalSafeQuickFromRow(
+  tripRow: Record<string, unknown>,
+  award?: { tail?: string | null; aircraft_type?: string | null } | null,
+): TripStoreRow['quick'] {
+  const tail =
+    String(tripRow.tail ?? '').trim() ||
+    String(award?.tail ?? '').trim() ||
+    ''
+  const aircraftType =
+    String(tripRow.aircraft_type ?? '').trim() ||
+    String(award?.aircraft_type ?? '').trim() ||
+    ''
+  const po = String(tripRow.po_number ?? '').trim()
+  const notes = String(tripRow.cargo_notes ?? '').trim()
+  const cargoOnly =
+    tripRow.cargo_only === true
+      ? true
+      : tripRow.cargo_only === false
+        ? false
+        : true
+  if (!tail && !aircraftType && !po && !notes) return undefined
+  return {
+    client_id: '',
+    client_name: '',
+    po,
+    timing: 'asap',
+    roundtrip: false,
+    cargo_only: cargoOnly,
+    operator_name: '',
+    aircraft_type: aircraftType,
+    tail: tail || 'TBD',
+    vendor_cost: 0,
+    client_price: 0,
+    pay_terms: '',
+    invoice_email: '',
+    cc_emails: [],
+    send_invoice: false,
+    referred_by: '',
+    notes,
+    legs: [],
+  }
+}
+
 export function stubTripFromPortalRow(
   tripRow: Record<string, unknown>,
   legs: TripStoreRow['legs'],
   etaChain: ChainLeg[] = [],
+  award?: { tail?: string | null; aircraft_type?: string | null } | null,
 ): TripStoreRow {
+  const quick = portalSafeQuickFromRow(tripRow, award)
+  const paxNames = asStringList(tripRow.portal_pax_names)
   return {
     id: String(tripRow.id),
     ref: Number(tripRow.ref ?? 0),
@@ -64,25 +117,86 @@ export function stubTripFromPortalRow(
     documents: [],
     invoice: null,
     po_number: tripRow.po_number ? String(tripRow.po_number) : null,
+    quick,
+    portal_pickup_address: tripRow.portal_pickup_address
+      ? String(tripRow.portal_pickup_address)
+      : null,
+    portal_dropoff_address: tripRow.portal_dropoff_address
+      ? String(tripRow.portal_dropoff_address)
+      : null,
+    portal_pax_names: paxNames,
   }
 }
 
 const PORTAL_TRIP_COLS =
-  'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number'
+  'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number,tail,aircraft_type,portal_pickup_address,portal_dropoff_address,portal_pax_names,cargo_notes,cargo_only'
 
-/** Merge ETA chain (+ legs) into session trip when the portal hydrate is richer. */
+function needsPortalFacts(trip: TripStoreRow | null | undefined): boolean {
+  if (!trip) return true
+  if (!trip.eta_chain.length) return true
+  const hasTail =
+    Boolean(trip.quick?.tail?.trim() && trip.quick.tail !== 'TBD') ||
+    Boolean(trip.offers.some((o) => o.state === 'selected' && o.tail?.trim()))
+  const hasType = Boolean(
+    trip.quick?.aircraft_type?.trim() ||
+      trip.offers.some((o) => o.state === 'selected' && o.type_name?.trim()),
+  )
+  return !hasTail || !hasType
+}
+
+/** Merge ETA chain + award/stop facts into session when portal hydrate is richer. */
+export function mergePortalTripIntoSession(
+  tripId: string,
+  remote: TripStoreRow,
+): void {
+  const existing = getTrip(tripId)
+  if (!existing) return
+  mutateTrip(tripId, (t) => {
+    if (!t.eta_chain.length && remote.eta_chain.length) {
+      t.eta_chain = remote.eta_chain
+    }
+    if ((!t.legs.length || t.legs.every((l) => !l.est_start)) && remote.legs.length) {
+      t.legs = remote.legs
+    }
+    if (!t.quick?.tail?.trim() || t.quick.tail === 'TBD') {
+      if (remote.quick) t.quick = { ...(t.quick ?? remote.quick), ...remote.quick }
+    } else if (remote.quick?.aircraft_type && !t.quick?.aircraft_type) {
+      t.quick = { ...t.quick!, aircraft_type: remote.quick.aircraft_type }
+    }
+    if (!t.portal_pickup_address && remote.portal_pickup_address) {
+      t.portal_pickup_address = remote.portal_pickup_address
+    }
+    if (!t.portal_dropoff_address && remote.portal_dropoff_address) {
+      t.portal_dropoff_address = remote.portal_dropoff_address
+    }
+    if (!(t.portal_pax_names?.length) && remote.portal_pax_names?.length) {
+      t.portal_pax_names = remote.portal_pax_names
+    }
+    if (!t.po_number?.trim() && remote.po_number?.trim()) {
+      t.po_number = remote.po_number
+    }
+    if (!t.code?.trim() && remote.code?.trim()) t.code = remote.code
+    if (!t.service_pattern && remote.service_pattern) {
+      t.service_pattern = remote.service_pattern
+    }
+    if (!t.promised_delivery && remote.promised_delivery) {
+      t.promised_delivery = remote.promised_delivery
+    }
+  })
+}
+
+/** @deprecated Prefer mergePortalTripIntoSession */
 export function mergePortalEtaIntoSession(
   tripId: string,
   etaChain: ChainLeg[],
   legs?: TripStoreRow['legs'],
 ): void {
-  if (!etaChain.length && !(legs && legs.length)) return
   const existing = getTrip(tripId)
   if (!existing) return
-  if (existing.eta_chain.length && (!legs || existing.legs.length)) return
-  mutateTrip(tripId, (t) => {
-    if (!t.eta_chain.length && etaChain.length) t.eta_chain = etaChain
-    if (legs?.length && !t.legs.length) t.legs = legs
+  mergePortalTripIntoSession(tripId, {
+    ...existing,
+    eta_chain: etaChain.length ? etaChain : existing.eta_chain,
+    legs: legs?.length ? legs : existing.legs,
   })
 }
 
@@ -90,7 +204,7 @@ export async function fetchPortalTripByToken(
   token: string,
 ): Promise<TripStoreRow | null> {
   if (!canPersist()) return null
-  const [tripRows, legRows, etaRows] = await Promise.all([
+  const [tripRows, legRows, etaRows, awardRows] = await Promise.all([
     safeQuery<Record<string, unknown>[]>('portal_trip_by_token', () =>
       db().rpc('portal_trip_by_token', { p_token: token }),
     ),
@@ -100,12 +214,28 @@ export async function fetchPortalTripByToken(
     safeQuery<Record<string, unknown>[]>('portal_eta_nodes_by_token', () =>
       db().rpc('portal_eta_nodes_by_token', { p_token: token }),
     ),
+    safeQuery<Record<string, unknown>[]>('portal_award_by_token', () =>
+      db().rpc('portal_award_by_token', { p_token: token }),
+    ),
   ])
   const tripRow = Array.isArray(tripRows) ? tripRows[0] : null
   if (!tripRow) return null
   const legs = mapPortalLegs(legRows as never)
   const etaChain = mapEtaNodeRows(etaRows as never)
-  return stubTripFromPortalRow(tripRow, legs, etaChain)
+  const award = Array.isArray(awardRows) ? awardRows[0] : null
+  return stubTripFromPortalRow(
+    tripRow,
+    legs,
+    etaChain,
+    award
+      ? {
+          tail: award.tail ? String(award.tail) : null,
+          aircraft_type: award.aircraft_type
+            ? String(award.aircraft_type)
+            : null,
+        }
+      : null,
+  )
 }
 
 export async function fetchPortalTripById(
@@ -133,26 +263,76 @@ export async function fetchPortalTripById(
   ])
   const tripRow = Array.isArray(tripRows) ? tripRows[0] : null
   if (!tripRow) return null
+  // Best-effort selected offer when quick meta missing (signed-in portal).
+  let award: { tail?: string | null; aircraft_type?: string | null } | null =
+    null
+  if (!tripRow.tail || !tripRow.aircraft_type) {
+    const offerRows = await safeQuery<Record<string, unknown>[]>(
+      'offers.portal_award',
+      () =>
+        db()
+          .from('offers')
+          .select('notes,aircraft_id,state')
+          .eq('trip_id', tripId)
+          .eq('state', 'selected')
+          .limit(1),
+    )
+    const o = Array.isArray(offerRows) ? offerRows[0] : null
+    if (o) {
+      let notes: Record<string, unknown> = {}
+      try {
+        notes =
+          typeof o.notes === 'string' && o.notes.trim().startsWith('{')
+            ? (JSON.parse(o.notes) as Record<string, unknown>)
+            : {}
+      } catch {
+        notes = {}
+      }
+      award = {
+        tail: notes.tail ? String(notes.tail) : null,
+        aircraft_type: notes.type_name ? String(notes.type_name) : null,
+      }
+      if ((!award.tail || !award.aircraft_type) && o.aircraft_id) {
+        const ac = await safeQuery<Record<string, unknown>>(
+          'aircraft.portal_award',
+          () =>
+            db()
+              .from('aircraft')
+              .select('tail,type_name')
+              .eq('id', String(o.aircraft_id))
+              .maybeSingle(),
+        )
+        if (ac && typeof ac === 'object') {
+          award = {
+            tail: award.tail || (ac.tail ? String(ac.tail) : null),
+            aircraft_type:
+              award.aircraft_type ||
+              (ac.type_name ? String(ac.type_name) : null),
+          }
+        }
+      }
+    }
+  }
   const legs = mapPortalLegs(legRows as never)
   const etaChain = mapEtaNodeRows(etaRows as never)
-  return stubTripFromPortalRow(tripRow, legs, etaChain)
+  return stubTripFromPortalRow(tripRow, legs, etaChain, award)
 }
 
-/** Ensure session trip has ETA chain for live tracking (fetch if empty). */
+/** Ensure session trip has ETA chain + award facts for live tracking. */
 export async function ensurePortalTripTrackingReady(opts: {
   tripId: string
   token?: string | null
 }): Promise<TripStoreRow | null> {
   const local = getTrip(opts.tripId)
-  if (local?.eta_chain.length) return local
+  if (local && !needsPortalFacts(local)) return local
 
   const remote = opts.token
     ? await fetchPortalTripByToken(opts.token)
     : await fetchPortalTripById(opts.tripId)
-  if (!remote) return local
+  if (!remote) return local ?? null
 
   if (local) {
-    mergePortalEtaIntoSession(opts.tripId, remote.eta_chain, remote.legs)
+    mergePortalTripIntoSession(opts.tripId, remote)
     return getTrip(opts.tripId) ?? local
   }
   return ensureTripInSession(remote)

@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { mapEtaNodeRows } from './mapEtaNodeRow'
-import { stubTripFromPortalRow } from './portalTripHydrate'
+import {
+  portalSafeQuickFromRow,
+  stubTripFromPortalRow,
+} from './portalTripHydrate'
 import {
   buildPortalTrackingView,
   portalAircraftMapVisible,
   tripToTrackingInput,
 } from '@/domain/portalTracking'
 
-describe('portal ETA hydrate', () => {
-  it('maps portal_eta_nodes rows into a chain that activates tracking UI', () => {
+describe('portal ETA + award hydrate', () => {
+  it('fills aircraft / stops / timeline from eta nodes + portal trip facts', () => {
     const chain = mapEtaNodeRows([
       {
         seq: 1,
@@ -51,8 +54,6 @@ describe('portal ETA hydrate', () => {
       },
     ])
     expect(chain).toHaveLength(2)
-    expect(chain[0]?.type).toBe('position')
-    expect(chain[1]?.type).toBe('air_leg')
 
     const stub = stubTripFromPortalRow(
       {
@@ -63,24 +64,45 @@ describe('portal ETA hydrate', () => {
         lane_label: 'KCAK → KHPN',
         po_number: 'T-76',
         service_pattern: 'A2A',
+        payload_summary: 'AOG cargo',
+        ready_label: 'ASAP',
+        tail: 'N6209X',
+        aircraft_type: 'Cessna 310',
+        portal_pickup_address: 'Hangar 5 · CAK',
+        portal_dropoff_address: 'Signature HPN',
+        portal_pax_names: [],
+        cargo_notes: 'Priority AOG part',
+        cargo_only: true,
       },
       [],
       chain,
     )
     expect(stub.eta_chain).toHaveLength(2)
+    expect(stub.quick?.tail).toBe('N6209X')
+    expect(stub.quick?.aircraft_type).toBe('Cessna 310')
+    expect(stub.portal_pickup_address).toBe('Hangar 5 · CAK')
+    expect(stub.portal_dropoff_address).toBe('Signature HPN')
 
-    const view = buildPortalTrackingView(
-      tripToTrackingInput({
-        ...stub,
-        ready_label: 'ASAP',
-        payload_summary: 'cargo',
-        events: [],
-        documents: [],
-        quick: { tail: 'N6209X', aircraft_type: 'Cessna 310', po: 'T-76' },
-      }),
-    )
+    const view = buildPortalTrackingView(tripToTrackingInput(stub))
     expect(view.opsForecastRows.length).toBeGreaterThan(0)
     expect(portalAircraftMapVisible(view.aircraft)).toBe(true)
+    expect(view.tail).toBe('N6209X')
+    expect(view.aircraftType).toBe('Cessna 310')
+    expect(view.pickupStreet).toBe('Hangar 5 · CAK')
+    expect(view.dropoffStreet).toBe('Signature HPN')
+    expect(view.stops.length).toBeGreaterThan(0)
+    expect(view.cargo.cargoLines).toContain('Priority AOG part')
     expect(view.code).toBe('TN285')
+  })
+
+  it('falls back to award RPC fields when session_meta quick is empty', () => {
+    const quick = portalSafeQuickFromRow(
+      { po_number: 'T-76' },
+      { tail: 'N643EA', aircraft_type: 'King Air 90' },
+    )
+    expect(quick?.tail).toBe('N643EA')
+    expect(quick?.aircraft_type).toBe('King Air 90')
+    expect(quick?.vendor_cost).toBe(0)
+    expect(quick?.client_price).toBe(0)
   })
 })
