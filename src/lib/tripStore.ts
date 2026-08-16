@@ -452,6 +452,8 @@ export type TripStoreRow = {
   /** Closest piston / turboprop / jet shortlist (Phase A). */
   shortlist?: BandShortlist | null
   po_number?: string | null
+  /** Optional OnFly vendor # printed on the client invoice (some APs require it). */
+  vendor_number?: string | null
   declared_value_usd?: number | null
   hard_deadline_at?: string | null
   forklift_recommended?: boolean
@@ -1987,6 +1989,7 @@ export async function createInvoiceForTrip(
     tail: facts.tail,
     poNumber: po,
     payTerms,
+    vendorNumber: (trips.get(tripId) ?? t).vendor_number,
     itineraryLines: facts.itineraryLines,
     pickupAddress: facts.pickupAddress,
     dropoffAddress: facts.dropoffAddress,
@@ -2247,6 +2250,7 @@ export async function sendTripInvoiceEmail(
     tail: facts.tail,
     poNumber: po,
     payTerms: facts.payTerms,
+    vendorNumber: trip.vendor_number,
     itineraryLines: facts.itineraryLines,
     pickupAddress: facts.pickupAddress,
     dropoffAddress: facts.dropoffAddress,

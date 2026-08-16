@@ -104,6 +104,10 @@ export type ClientExtendedProfile = {
   po_assigned_by?: 'client' | 'onfly' | null
   needs_vendor_number?: boolean | null
   vendor_number_notes?: string
+  /** Saved OnFly vendor # with this client (optional invoice field). */
+  vendor_number?: string | null
+  /** Trip label (code or T-ref) when last_po was recorded. */
+  last_po_trip_ref?: string | null
   vendor_packet_to?: string
   update_channel?: 'email' | 'sms' | 'both'
   /** Freight vs passenger aircraft restrictions from /client setup. */
@@ -713,9 +717,29 @@ export function suggestNextPo(lastPo: string | null): string {
   return `${s}-2`
 }
 
-export function recordPoUsed(clientId: string, po: string): void {
+export function recordPoUsed(
+  clientId: string,
+  po: string,
+  opts?: { tripRef?: string | null },
+): void {
   const row = clients.get(clientId)
   if (!row) return
   row.last_po = po.trim()
+  const tripRef = opts?.tripRef?.trim()
+  if (tripRef) {
+    row.profile = { ...row.profile, last_po_trip_ref: tripRef }
+  }
+  bump(clientId)
+}
+
+/** Persist optional vendor # on the client profile. */
+export function recordVendorNumber(
+  clientId: string,
+  vendorNumber: string | null | undefined,
+): void {
+  const row = clients.get(clientId)
+  if (!row) return
+  const v = vendorNumber?.trim() || null
+  row.profile = { ...row.profile, vendor_number: v }
   bump(clientId)
 }

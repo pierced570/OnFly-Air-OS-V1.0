@@ -99,6 +99,13 @@ export async function sendFinancialInvoice(
     }
   }
 
+  const vendorNote = client?.profile.vendor_number?.trim()
+    ? `Vendor #${client.profile.vendor_number.trim()}`
+    : null
+  const memoNotes = [row.notes?.trim() || null, vendorNote]
+    .filter(Boolean)
+    .join('\n')
+
   const created = await acct.createInvoice({
     customerName: clientName,
     customerId: client?.qb_customer_id,
@@ -106,10 +113,14 @@ export async function sendFinancialInvoice(
     txnDate,
     payTerms: row.pay_terms || client?.pay_terms || 'Net 30',
     lines,
-    notes: row.notes,
+    notes: memoNotes || undefined,
   })
 
   const doc = created.qbInvoiceNumber || poNumber
+  if (client) {
+    const { recordPoUsed } = await import('@/lib/clientStore')
+    recordPoUsed(client.id, doc)
+  }
   upsertFinancial({
     ...row,
     operator_po: doc,
