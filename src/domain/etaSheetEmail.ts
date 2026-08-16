@@ -1,6 +1,6 @@
 /**
- * Branded client ETA sheet email HTML — cream/white body, ink header + gold accents.
- * Pure TS (no React / adapters). Portal track CTA required.
+ * Branded client ETA sheet — cream portal tracking look (not a separate email skin).
+ * Pure TS. UTF-8 + HTML entities so preview/email never mojibake · / →.
  */
 
 import { BRAND_EMAIL, BRAND_PHONE } from '@/domain/brand'
@@ -19,7 +19,7 @@ export type EtaSheetEmailMilestone = {
   label: string
   detail?: string | null
   projected: string | null
-  /** When null, shows “— live on portal”. */
+  /** When null, shows “live on portal”. */
   actual?: string | null
 }
 
@@ -29,7 +29,7 @@ export type EtaSheetEmailTemplate = {
   /** Short lane e.g. CAK → HPN */
   laneShort: string
   preparedLabel: string
-  /** DOOR → DOOR / AIRPORT → AIRPORT */
+  /** Door to door / Airport to airport — portal wording */
   patternLabel: string
   aircraftType: string
   aircraftBlurb?: string | null
@@ -61,20 +61,21 @@ export function etaSheetEmailSubject(tpl: {
     .join(' · ')
 }
 
+/** Match portal tracking pattern copy. */
 export function patternLabelForService(
   pattern: string | null | undefined,
 ): string {
   switch ((pattern ?? '').toUpperCase()) {
     case 'D2D':
-      return 'DOOR → DOOR'
+      return 'Door to door'
     case 'D2A':
-      return 'DOOR → AIRPORT'
+      return 'Door to airport'
     case 'A2D':
-      return 'AIRPORT → DOOR'
+      return 'Airport to door'
     case 'A2A':
-      return 'AIRPORT → AIRPORT'
+      return 'Airport to airport'
     default:
-      return 'AIRPORT → AIRPORT'
+      return 'Airport to airport'
   }
 }
 
@@ -105,44 +106,45 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
   const logo = tpl.logoUrl?.trim()
   const logoBlock = logo
     ? `<img src="${escapeAttr(logo)}" alt="OnFly Air" width="160" style="display:block;max-width:160px;height:auto;border:0" />`
-    : `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;letter-spacing:0.14em;color:#c9a227">ONFLYAIR</div>`
+    : `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.16em;color:#c9a227">ONFLY AIR</div>`
 
   const aircraft = escapeHtml(tpl.aircraftType.trim() || 'TBD')
   const aircraftBlurb = escapeHtml(
     tpl.aircraftBlurb?.trim() || 'Cargo configuration',
   )
   const tail = escapeHtml(tpl.tail.trim().toUpperCase() || 'TBD')
-  const pattern = escapeHtml(tpl.patternLabel.trim() || 'AIRPORT → AIRPORT')
+  const pattern = escapeHtml(tpl.patternLabel.trim() || 'Airport to airport')
   const prepared = escapeHtml(tpl.preparedLabel.trim())
   const tzNote = escapeHtml(
-    tpl.timezoneNote?.trim() || 'All times local to each stop · Zulu in parentheses',
+    tpl.timezoneNote?.trim() ||
+      'Stop-local times &middot; Zulu in parentheses',
   )
 
   const stopCard = (stop: EtaSheetEmailStop) => {
     const kind = stop.kind === 'pickup' ? 'PICKUP' : 'DROP-OFF'
     const badge = stop.placeBadge?.trim()
     const lines = stop.addressLines.map((l) => l.trim()).filter(Boolean)
-    return `<td style="width:50%;padding:8px;vertical-align:top">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5e5e5;border-radius:10px">
-        <tr><td style="padding:16px 16px 14px">
+    return `<td style="width:50%;padding:6px;vertical-align:top">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5dfd0;border-radius:8px">
+        <tr><td style="padding:14px 14px 12px">
           <div>
-            <span style="display:inline-block;background:#0c0c0e;color:#f7f2e3;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:999px">${kind}</span>
+            <span style="display:inline-block;background:#0c0c0e;color:#f7f2e3;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:4px">${kind}</span>
             ${
               badge
-                ? `<span style="display:inline-block;background:#c9a227;color:#0c0c0e;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:999px;margin-left:6px">${escapeHtml(badge)}</span>`
+                ? `<span style="display:inline-block;background:#c9a227;color:#0c0c0e;font-size:10px;font-weight:700;letter-spacing:0.12em;padding:4px 8px;border-radius:4px;margin-left:6px">${escapeHtml(badge)}</span>`
                 : ''
             }
           </div>
-          <div style="margin-top:12px;font-size:15px;font-weight:700;color:#0c0c0e;line-height:1.35">${escapeHtml(stop.title)}</div>
+          <div style="margin-top:10px;font-size:15px;font-weight:700;color:#0c0c0e;line-height:1.35">${escapeHtml(stop.title)}</div>
           ${lines
             .map(
               (l) =>
-                `<div style="margin-top:4px;font-size:13px;color:#5c5852;line-height:1.45">${escapeHtml(l)}</div>`,
+                `<div style="margin-top:4px;font-size:13px;color:#6b6560;line-height:1.45">${escapeHtml(l)}</div>`,
             )
             .join('')}
           ${
             stop.footer?.trim()
-              ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #ececec;font-size:12px;color:#0c0c0e;line-height:1.45">${escapeHtml(stop.footer.trim())}</div>`
+              ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5dfd0;font-size:12px;color:#0c0c0e;line-height:1.45">${escapeHtml(stop.footer.trim())}</div>`
               : ''
           }
         </td></tr>
@@ -150,14 +152,16 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
     </td>`
   }
 
-  const milestoneRows = tpl.milestones
-    .map((m, i) => {
-      const actual = m.actual?.trim()
-      const actualHtml = actual
-        ? `<span style="color:#0c0c0e;font-weight:600">${escapeHtml(actual)}</span>`
-        : `<span style="color:#9a948a;font-style:italic">— live on portal</span>`
-      return `<tr>
-        <td style="padding:14px 12px;border-top:1px solid ${i === 0 ? '#e5e5e5' : '#ececec'};vertical-align:top">
+  const milestoneRows =
+    tpl.milestones.length > 0
+      ? tpl.milestones
+          .map((m, i) => {
+            const actual = m.actual?.trim()
+            const actualHtml = actual
+              ? `<span style="color:#0c0c0e;font-weight:600">${escapeHtml(actual)}</span>`
+              : `<span style="color:#c9a227;font-weight:600">Live on portal</span>`
+            return `<tr style="${i % 2 === 0 ? 'background:#fffdf8' : 'background:#ffffff'}">
+        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:top">
           <div style="font-size:14px;font-weight:700;color:#0c0c0e">${escapeHtml(m.label)}</div>
           ${
             m.detail?.trim()
@@ -165,113 +169,47 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
               : ''
           }
         </td>
-        <td style="padding:14px 12px;border-top:1px solid ${i === 0 ? '#e5e5e5' : '#ececec'};vertical-align:top;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;color:#0c0c0e;white-space:nowrap">${escapeHtml(m.projected || '—')}</td>
-        <td style="padding:14px 12px;border-top:1px solid ${i === 0 ? '#e5e5e5' : '#ececec'};vertical-align:top;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">${actualHtml}</td>
+        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:top;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#6b6560;white-space:nowrap">${escapeHtml(m.projected || '—')}</td>
+        <td style="padding:12px 12px;border-top:1px solid #e5dfd0;vertical-align:top;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px">${actualHtml}</td>
       </tr>`
-    })
-    .join('')
+          })
+          .join('')
+      : `<tr><td colspan="3" style="padding:18px 12px;border-top:1px solid #e5dfd0;font-size:13px;color:#6b6560">
+        Milestone timeline fills in once the trip is booked with an ETA chain &mdash; open the portal for live actuals.
+      </td></tr>`
+
+  // Stepper dots (portal-style) when we have milestones
+  const stepper =
+    tpl.milestones.length > 0
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px"><tr>${tpl.milestones
+          .map((m, i) => {
+            const n = tpl.milestones.length
+            const w = Math.floor(100 / n)
+            return `<td style="width:${w}%;padding:0 4px;vertical-align:top;text-align:center">
+            <div style="margin:0 auto 8px;width:12px;height:12px;border-radius:50%;border:2px solid #c9a227;background:#f7f2e3"></div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0c0c0e;line-height:1.3">${escapeHtml(m.label)}</div>
+            <div style="margin-top:4px;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#6b6560">${escapeHtml(m.projected || '—')}</div>
+          </td>`
+          })
+          .join('')}</tr></table>`
+      : ''
 
   return `<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#f4f1ea;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0c0c0e">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ea;padding:0">
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OnFly ETA sheet · PO #${po}</title>
+</head>
+<body style="margin:0;padding:0;background:#f7f2e3;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0c0c0e">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f2e3">
     <tr>
-      <td style="background:#0c0c0e;padding:22px 24px">
+      <td style="background:#0c0c0e;padding:14px 20px;border-bottom:1px solid rgba(247,242,227,0.12)">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td style="vertical-align:middle">${logoBlock}</td>
-            <td align="right" style="vertical-align:middle">
-              <span style="display:inline-block;border:1px solid rgba(201,162,39,0.45);border-radius:999px;padding:6px 12px;font-size:11px;color:#f7f2e3;letter-spacing:0.02em">
-                <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2E7D32;margin-right:6px;vertical-align:middle"></span>
-                24-hr ops · ${phone}
-              </span>
-            </td>
-          </tr>
-        </table>
-        <div style="margin-top:22px;font-size:11px;font-weight:700;letter-spacing:0.18em;color:#c9a227">ETA SHEET</div>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">
-          <tr>
-            <td style="vertical-align:top">
-              <div style="font-size:26px;font-weight:700;color:#ffffff;line-height:1.2">PO #${po} · ${lane}</div>
-              <div style="margin-top:8px;font-size:13px;color:#b8b2a6;line-height:1.45">${prepared} — projected times below; actuals fill in live on your portal.</div>
-            </td>
-            <td align="right" style="vertical-align:top;padding-left:12px">
-              <span style="display:inline-block;background:#c9a227;color:#0c0c0e;font-size:10px;font-weight:700;letter-spacing:0.1em;padding:6px 10px;border-radius:6px">${pattern}</span>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-
-    <tr><td align="center" style="padding:0 12px">
-      <table role="presentation" width="100%" style="max-width:640px;background:#ffffff;border-radius:0 0 0 0">
-        <tr>
-          <td style="padding:0;border-bottom:1px solid #e8e4dc">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="width:50%;padding:20px 22px;border-right:1px solid #e8e4dc;vertical-align:top">
-                  <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;color:#c9a227">AIRCRAFT</div>
-                  <div style="margin-top:8px;font-size:22px;font-weight:700;color:#0c0c0e">${aircraft}</div>
-                  <div style="margin-top:4px;font-size:12px;color:#6b6560">${aircraftBlurb}</div>
-                </td>
-                <td style="width:50%;padding:20px 22px;vertical-align:top">
-                  <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;color:#c9a227">TAIL NUMBER</div>
-                  <div style="margin-top:8px;font-size:22px;font-weight:700;color:#0c0c0e;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${tail}</div>
-                  <div style="margin-top:4px;font-size:12px;color:#6b6560">Track this tail live on your portal</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <tr>
-          <td style="padding:16px 14px;background:#f3f1eb">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                ${stopCard(tpl.pickup)}
-                ${stopCard(tpl.dropoff)}
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <tr>
-          <td style="padding:22px 22px 8px">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="font-size:11px;font-weight:700;letter-spacing:0.14em;color:#0c0c0e">PROJECTED TIMELINE</td>
-                <td align="right" style="font-size:11px;color:#6b6560">${tzNote}</td>
-              </tr>
-            </table>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;border-collapse:collapse">
-              <tr>
-                <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700">MILESTONE</th>
-                <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700">PROJECTED</th>
-                <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700">ACTUAL</th>
-              </tr>
-              ${milestoneRows}
-            </table>
-            <p style="margin:14px 0 0;font-size:12px;color:#6b6560;line-height:1.45">
-              Projections assume current winds and slot times. If any milestone slips more than 15 minutes, dispatch calls your urgent number.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-
-    <tr>
-      <td align="center" style="padding:0 12px 0">
-        <table role="presentation" width="100%" style="max-width:640px;background:#0c0c0e">
-          <tr>
-            <td style="padding:22px 22px;vertical-align:middle">
-              <div style="font-size:18px;font-weight:700;color:#ffffff">Watch it move, live</div>
-              <div style="margin-top:6px;font-size:13px;color:#b8b2a6;line-height:1.45;max-width:320px">
-                Your portal shows live ADS-B position and milestone actuals as they fill in.
-              </div>
-            </td>
-            <td align="right" style="padding:22px 22px;vertical-align:middle">
-              <a href="${portalAttr}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-size:14px;font-weight:700;padding:12px 16px;border-radius:8px">Open live tracking portal →</a>
-              <div style="margin-top:10px;font-size:11px;color:#8a847a;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all">${portalDisplay}</div>
+            <td align="right" style="vertical-align:middle;font-size:11px;color:#f7f2e3;letter-spacing:0.06em;text-transform:uppercase">
+              24-hr ops <span style="color:#c9a227;font-weight:700;text-transform:none;letter-spacing:0">${phone}</span>
             </td>
           </tr>
         </table>
@@ -279,10 +217,114 @@ export function renderEtaSheetEmailHtml(tpl: EtaSheetEmailTemplate): string {
     </tr>
 
     <tr>
-      <td align="center" style="padding:18px 16px 28px">
+      <td align="center" style="padding:0 12px">
+        <table role="presentation" width="100%" style="max-width:720px">
+          <tr>
+            <td style="padding:22px 8px 8px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c9a227">${pattern}</div>
+              <div style="margin-top:6px;font-size:26px;font-weight:700;color:#0c0c0e;line-height:1.2;letter-spacing:-0.02em">PO #${po} &middot; ${lane}</div>
+              <div style="margin-top:6px;font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#6b6560">${prepared}</div>
+              <div style="margin-top:4px;font-size:12px;color:#6b6560;line-height:1.45">Projected times below; actuals fill in live on your portal.</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:12px 0">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0c0c0e;border-radius:8px;overflow:hidden">
+                <tr>
+                  <td style="padding:8px 14px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#c9a227">&#9679; Live ETA track</td>
+                  <td align="right" style="padding:8px 14px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(247,242,227,0.55)">Standing by</td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding:14px 14px 16px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c9a227">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding:2px 8px 2px 0;color:#c9a227">${tail} &middot; ${aircraft.toUpperCase()}</td>
+                        <td style="padding:2px 8px;color:#c9a227">${escapeHtml(aircraftBlurb)}</td>
+                        <td align="right" style="padding:2px 0 2px 8px;color:#f7f2e3">Open portal for ADS-B</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:8px 0 4px">
+              ${stepper}
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:4px 0 12px">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  ${stopCard(tpl.pickup)}
+                  ${stopCard(tpl.dropoff)}
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 0 16px">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5dfd0;border-radius:8px;overflow:hidden">
+                <tr>
+                  <td style="padding:10px 14px;border-bottom:1px solid #e5dfd0;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#6b6560">
+                    Actual vs forecast
+                  </td>
+                  <td align="right" style="padding:10px 14px;border-bottom:1px solid #e5dfd0;font-size:11px;color:#6b6560">${tzNote}</td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding:0">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+                      <tr>
+                        <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700;text-transform:uppercase">Milestone</th>
+                        <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700;text-transform:uppercase">Estimated</th>
+                        <th align="left" style="padding:8px 12px;font-size:10px;letter-spacing:0.12em;color:#6b6560;font-weight:700;text-transform:uppercase">Actual / Forecast</th>
+                      </tr>
+                      ${milestoneRows}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:12px 4px 0;font-size:12px;color:#6b6560;line-height:1.45">
+                Projections assume current winds and slot times. If any milestone slips more than 15 minutes, dispatch calls your urgent number.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 0 20px">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0c0c0e;border-radius:8px">
+                <tr>
+                  <td style="padding:18px 18px;vertical-align:middle">
+                    <div style="font-size:16px;font-weight:700;color:#f7f2e3">Watch it move, live</div>
+                    <div style="margin-top:6px;font-size:13px;color:#b8b2a6;line-height:1.45;max-width:340px">
+                      Your portal shows live ADS-B position and milestone actuals as they fill in.
+                    </div>
+                  </td>
+                  <td align="right" style="padding:18px 18px;vertical-align:middle">
+                    <a href="${portalAttr}" style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;font-size:13px;font-weight:700;padding:11px 14px;border-radius:6px">Open live tracking portal &rarr;</a>
+                    <div style="margin-top:10px;font-size:11px;color:#8a847a;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all">${portalDisplay}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td align="center" style="padding:8px 16px 28px;border-top:1px solid #e5dfd0">
         <div style="font-size:12px;color:#6b6560">
-          OnFly Air · 24-hr ops ${phone} ·
-          <a href="mailto:${support}" style="color:#1a56db;text-decoration:underline">${support}</a>
+          <a href="https://onflyair.com" style="color:#6b6560;text-decoration:none">onflyair.com</a>
+          &nbsp;&middot;&nbsp;
+          <span style="color:#c9a227">${phone}</span>
+          &nbsp;&middot;&nbsp;
+          <a href="mailto:${support}" style="color:#0c0c0e;text-decoration:underline">${support}</a>
         </div>
       </td>
     </tr>
@@ -295,6 +337,7 @@ export function renderEtaSheetEmailText(tpl: EtaSheetEmailTemplate): string {
   const po = tpl.poNumber.replace(/^PO\s*#?\s*/i, '').trim() || tpl.poNumber
   const lines = [
     `OnFly ETA sheet — PO #${po} · ${tpl.laneShort}`,
+    tpl.patternLabel,
     tpl.preparedLabel,
     '',
     `Aircraft: ${tpl.aircraftType}`,
@@ -310,7 +353,7 @@ export function renderEtaSheetEmailText(tpl: EtaSheetEmailTemplate): string {
     ...tpl.dropoff.addressLines,
     tpl.dropoff.footer || null,
     '',
-    'Projected timeline',
+    'Actual vs forecast',
     ...tpl.milestones.map(
       (m) =>
         `${m.label}: ${m.projected || '—'} | Actual: ${m.actual?.trim() || 'live on portal'}`,
