@@ -14,6 +14,7 @@ import {
   type QbInvoiceLineInput,
 } from '@/domain/qbInvoice'
 import {
+  hasInvoicePlaceholderCopy,
   isInvoicePoPlaceholder,
   invoicePoDisplay,
 } from '@/domain/invoiceEmail'
@@ -270,6 +271,16 @@ export class MockAccountingAdapter implements AccountingAdapter {
     if (isInvoicePoPlaceholder(opts.poNumber)) {
       throw new Error('Invoice PO required before send — refuse placeholder PO')
     }
+    if (!opts.html?.trim()) {
+      throw new Error(
+        'Branded invoice HTML required — refusing blank / native QBO template send',
+      )
+    }
+    if (hasInvoicePlaceholderCopy(opts.html) || hasInvoicePlaceholderCopy(opts.text)) {
+      throw new Error(
+        'Invoice email still contains ENTER placeholders — fill trip details before send',
+      )
+    }
     console.info(
       '[MockQB] send-invoice (branded payment-request simulated)',
       {
@@ -442,6 +453,17 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
     if (isInvoicePoPlaceholder(opts.poNumber)) {
       throw new Error('Invoice PO required before send — refuse placeholder PO')
     }
+    const html = opts.html?.trim() || ''
+    if (!html) {
+      throw new Error(
+        'Branded invoice HTML required — refusing blank / native QBO template send',
+      )
+    }
+    if (hasInvoicePlaceholderCopy(html) || hasInvoicePlaceholderCopy(opts.text)) {
+      throw new Error(
+        'Invoice email still contains ENTER placeholders — fill trip details before send',
+      )
+    }
     const sendTo = opts.to
       .map((e) => e.trim().toLowerCase())
       .find((e) => e.includes('@'))
@@ -449,8 +471,14 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
 
     const po = invoicePoDisplay(opts.poNumber) || opts.poNumber.trim()
     const memo = opts.customerMemo?.trim() || ''
+    if (hasInvoicePlaceholderCopy(memo)) {
+      throw new Error(
+        'Invoice memo still contains ENTER placeholders — fill trip details before send',
+      )
+    }
 
     // Stamp DocNumber + CustomerMemo so the attached PDF has real trip details.
+    // Do not call native QBO /send — company template leaves (ENTER …) blanks.
     await this.invoke('prepare_invoice', {
       invoice_id: opts.qbInvoiceId,
       po_number: po,
@@ -475,7 +503,7 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
     const { data, error } = await supabase.functions.invoke(
       'send-invoice-email',
       {
-        body: invoiceEmailInvokeBody({ ...opts, pdfBase64: pdf }),
+        body: invoiceEmailInvokeBody({ ...opts, pdfBase64: pdf, html }),
       },
     )
     if (!error) {

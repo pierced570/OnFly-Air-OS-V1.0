@@ -72,7 +72,16 @@ Deno.serve(async (req) => {
       case 'prepare_invoice':
         return json(await prepareInvoice(cfg, body))
       case 'send_invoice':
-        return json(await sendInvoice(cfg, body))
+        // Native QBO payment-request uses the company email template with
+        // literal (ENTER TAIL/FBO/ETA) blanks. Never send that way — branded
+        // Resend (send-invoice-email) is the only allowed client delivery.
+        return json(
+          {
+            error:
+              'Native QuickBooks invoice email is disabled — it leaves trip fields blank. Use branded send-invoice-email (Resend) with filled HTML.',
+          },
+          400,
+        )
       case 'get_dashboard_stats':
         return json(await getDashboardStats(cfg))
       case 'get_last_po':

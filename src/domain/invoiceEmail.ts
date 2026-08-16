@@ -154,6 +154,7 @@ export function renderInvoiceEmailHtml(tpl: InvoiceEmailTemplate): string {
     tpl.laneShort?.trim() ? `Route: ${tpl.laneShort.trim()}` : null,
     flightDate ? `Date: ${flightDate}` : null,
     tpl.aircraftType?.trim() ? `Aircraft: ${tpl.aircraftType.trim()}` : null,
+    itinerary.length ? 'Trip Itinerary' : null,
     ...itinerary,
     ...detailLines,
   ].filter((l): l is string => Boolean(l))
@@ -385,6 +386,12 @@ export function renderInvoiceEmailText(tpl: InvoiceEmailTemplate): string {
     tpl.amountUsd != null && Number.isFinite(tpl.amountUsd)
       ? formatInvoiceUsd(tpl.amountUsd)
       : null
+  const itinerary = (tpl.itineraryLines ?? [])
+    .map((l) => l.trim())
+    .filter((l) => l && !hasInvoicePlaceholderCopy(l))
+  const detailLines = (tpl.detailLines ?? [])
+    .map((l) => l.trim())
+    .filter((l) => l && !hasInvoicePlaceholderCopy(l))
   const lines = [
     `OnFly invoice — PO #${po} · ${tpl.laneShort}`,
     tpl.preparedLabel,
@@ -393,7 +400,13 @@ export function renderInvoiceEmailText(tpl: InvoiceEmailTemplate): string {
     tpl.payUrl?.trim() ? `View and pay: ${tpl.payUrl.trim()}` : null,
     '',
     `Aircraft: ${tpl.aircraftType}`,
-    `Tail: ${tpl.tail}`,
+    `Tail Number: ${tpl.tail}`,
+    tpl.laneShort?.trim() ? `Route: ${tpl.laneShort.trim()}` : null,
+    tpl.flightDate?.trim() ? `Date: ${tpl.flightDate.trim()}` : null,
+    '',
+    itinerary.length ? 'Trip Itinerary' : null,
+    ...itinerary,
+    ...detailLines,
     '',
     'PICKUP',
     tpl.pickup.title,
