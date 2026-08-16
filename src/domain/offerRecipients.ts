@@ -322,8 +322,9 @@ export type SubmittedQuoteRow = {
 }
 
 /**
- * Ledger of every operator quote on a trip (selected + stood down + still
- * quoted). Sorted: Selected first, then NET ascending. Pure — no UI.
+ * Ledger of operator quotes on a trip. By default includes selected + stood
+ * down + still quoted (Submitted quotes drawer). After approve, pass
+ * `includeStoodDown: false` so losers drop off the waterfall.
  */
 export function listSubmittedQuotes(
   offers: Array<{
@@ -338,9 +339,12 @@ export function listSubmittedQuotes(
     type_name?: string | null
     tail?: string | null
   }>,
+  opts?: { includeStoodDown?: boolean },
 ): SubmittedQuoteRow[] {
+  const includeStoodDown = opts?.includeStoodDown !== false
   const rows: SubmittedQuoteRow[] = []
   for (const o of offers) {
+    if (o.state === 'stood_down' && !includeStoodDown) continue
     if (
       o.state !== 'quoted' &&
       o.state !== 'selected' &&

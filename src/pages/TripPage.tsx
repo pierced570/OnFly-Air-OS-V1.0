@@ -117,7 +117,12 @@ export default function TripPage() {
   const nextStates = (
     ['in_progress', 'delivered', 'invoiced', 'closed', 'cancelled', 'lost'] as const
   ).filter((to) => canTransition(trip.state, to))
-  const quoteHistory = listSubmittedQuotes(trip.offers)
+  const quoteHistory = listSubmittedQuotes(trip.offers, {
+    // After book, only the winning operator stays on the waterfall.
+    includeStoodDown: !['booked', 'in_progress', 'delivered', 'invoiced', 'closed'].includes(
+      trip.state,
+    ),
+  })
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-8">

@@ -70,6 +70,33 @@ describe('offerRecipients', () => {
     )
   })
 
+  it('drops stood-down operators after approve when includeStoodDown is false', () => {
+    const rows = listSubmittedQuotes(
+      [
+        {
+          id: 'o1',
+          operator_name: 'Alpha',
+          state: 'stood_down',
+          price_net: 5200,
+          type_name: 'King Air 200',
+          tail: 'N100AA',
+        },
+        {
+          id: 'o2',
+          operator_name: 'Bravo',
+          state: 'selected',
+          price_net: 4800,
+          type_name: 'PC-12',
+          tail: 'N200BB',
+        },
+      ],
+      { includeStoodDown: false },
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.operator_name).toBe('Bravo')
+    expect(rows[0]?.status).toBe('selected')
+  })
+
   it('formats link-ready vs notified timestamps', () => {
     const link = formatOfferSentAt(
       '2026-07-26T18:00:00.000Z',
