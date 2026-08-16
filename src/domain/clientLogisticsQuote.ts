@@ -14,6 +14,10 @@ import {
   type DeskQuoteMilestone,
   type ZuluLocal,
 } from '@/domain/offerQuoteTiming'
+import {
+  STANDARD_TOOLING,
+  isStandardToolingPieces,
+} from '@/domain/standardTooling'
 
 export const CLIENT_QUOTE_TAXES_NOTE = 'All taxes and fees included'
 export const CLIENT_QUOTE_ALL_IN_NOTE = 'All-in · taxes & fees included'
@@ -135,25 +139,31 @@ export function buildCharterMissionChips(input: {
 
   const summary = (input.payload_summary ?? '').trim()
   if (summary) {
-    const pc = summary.match(/(\d+)\s*(?:pc|pcs|pieces?|skids?|pallets?)\b/i)
-    if (pc) chips.push({ label: `${pc[1]} pc` })
-    const dims = summary.match(
-      /(\d+)\s*[x×]\s*(\d+)\s*[x×]\s*(\d+)\s*(?:in|inch|inches)?/i,
-    )
-    if (dims) {
-      chips.push({ label: `${dims[1]}x${dims[2]}x${dims[3]} in` })
-    }
-    const lbs = summary.match(/(\d[\d,]*)\s*(?:lb|lbs|pounds?)\b/i)
-    if (lbs) chips.push({ label: `${lbs[1]} lb` })
-    // Fallback chip when nothing structured matched.
-    if (
-      !pc &&
-      !dims &&
-      !lbs &&
-      summary.length <= 40 &&
-      !/^cargo/i.test(summary)
-    ) {
-      chips.push({ label: summary })
+    // Hard quote / accept: never expose standard-tooling dims to the client
+    // (operators still see dims on trip offers).
+    if (isStandardToolingPieces(summary)) {
+      chips.push({ label: STANDARD_TOOLING.client_label })
+    } else {
+      const pc = summary.match(/(\d+)\s*(?:pc|pcs|pieces?|skids?|pallets?)\b/i)
+      if (pc) chips.push({ label: `${pc[1]} pc` })
+      const dims = summary.match(
+        /(\d+)\s*[x×]\s*(\d+)\s*[x×]\s*(\d+)\s*(?:in|inch|inches)?/i,
+      )
+      if (dims) {
+        chips.push({ label: `${dims[1]}x${dims[2]}x${dims[3]} in` })
+      }
+      const lbs = summary.match(/(\d[\d,]*)\s*(?:lb|lbs|pounds?)\b/i)
+      if (lbs) chips.push({ label: `${lbs[1]} lb` })
+      // Fallback chip when nothing structured matched.
+      if (
+        !pc &&
+        !dims &&
+        !lbs &&
+        summary.length <= 40 &&
+        !/^cargo/i.test(summary)
+      ) {
+        chips.push({ label: summary })
+      }
     }
   }
 
