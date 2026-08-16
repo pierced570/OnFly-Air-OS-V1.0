@@ -116,4 +116,28 @@ describe('offerQuotePreview', () => {
     expect(p.tax_total).toBe(0)
     expect(p.client_air).toBe(5000)
   })
+
+  it('unknown MTOW does not invent FET on forward pricing', () => {
+    const p = buildOfferQuotePreview(
+      {
+        offer_id: 'o1',
+        operator_name: 'Unknown',
+        tail: 'N???',
+        price_net: 4000,
+        time_to_position_min: 60,
+        quick_turn_min: 40,
+        live_leg_min: 70,
+        fee_scope: 'aircraft_and_fees',
+        mtow_lbs: null,
+        payload_kind: 'pax',
+      },
+      TEST_TAX_RATES_2026,
+      0,
+    )
+    expect(p.fet_mtow_unknown).toBe(true)
+    expect(p.fet_exempt).toBe(false)
+    expect(p.fet_total).toBe(0)
+    expect(p.tax_total).toBe(0)
+    expect(p.client_total).toBe(p.client_air)
+  })
 })

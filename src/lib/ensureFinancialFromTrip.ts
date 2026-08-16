@@ -3,16 +3,20 @@
  * Keeps OFA ledger on the Trip spine (no parallel books).
  */
 
+import { buildTripInvoiceLines } from '@/domain/tripInvoiceBuild'
+import { resolveAircraftMtowLbs } from '@/lib/resolveAircraftMtow'
 import { computeReferralShareAmount } from '@/domain/referrals'
 import {
   newVendorLine,
   type FinancialRecord,
   type FinancialVendorLine,
+  type TaxBreakdownLine,
 } from '@/domain/financials'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import { getReferral, getReferralByName } from '@/lib/referralStore'
 import { upsertFinancial, getFinancial } from '@/lib/financialsStore'
-import type { TripStoreRow } from '@/lib/tripStore'
+import { getTaxRates } from '@/lib/taxRatesStore'
+import { payloadKindOf, type TripStoreRow } from '@/lib/tripStore'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -86,6 +90,52 @@ export function ensureFinancialFromBookedTrip(trip: TripStoreRow): FinancialReco
     null
   const payTerms = trip.quick?.pay_terms || existing?.pay_terms || 'Net 30'
 
+  // Internal tax split for Financials (FET vs segment, etc.) — not on QBO lines.
+  let client_subtotal_pre_tax: number | null =
+    existing?.client_subtotal_pre_tax ?? null
+  let tax_total = existing?.tax_total ?? 0
+  let tax_breakdown: TaxBreakdownLine[] = existing?.tax_breakdown ?? []
+  if (Number(clientPrice) > 0) {
+    try {
+      const mtow = resolveAircraftMtowLbs({
+        selectedAircraftId: selected?.aircraft_id,
+        tail,
+        typeName: aircraftType,
+        candidates: trip.candidates,
+      })
+      const payloadKind =
+        trip.hard_quote?.payload_kind ??
+        (trip.quick
+          ? trip.quick.cargo_only
+            ? 'cargo'
+            : 'pax'
+          : payloadKindOf(trip))
+      const built = buildTripInvoiceLines({
+        tripRef: trip.ref,
+        lane: trip.lane,
+        flightDate: flightDateFromTrip(trip),
+        clientTotal: Number(clientPrice),
+        aircraftType,
+        tail,
+        payloadKind,
+        mtowLbs: mtow,
+        rates: getTaxRates(),
+      })
+      client_subtotal_pre_tax = built.airAmount
+      tax_total = built.taxTotal
+      tax_breakdown = built.taxBreakdown.map((l) => ({
+        code: l.code,
+        amount: l.amount,
+        note: l.note,
+      }))
+    } catch (e) {
+      console.warn('[financials] tax breakdown compute failed', e)
+      if (client_subtotal_pre_tax == null) {
+        client_subtotal_pre_tax = Number(clientPrice) || null
+      }
+    }
+  }
+
   // Keep extra vendors already on the ledger; refresh / seed the primary aircraft line.
   const priorLines = existing?.vendor_lines ?? []
   const nonAircraft = priorLines.filter((l) => l.kind !== 'aircraft')
@@ -133,9 +183,9 @@ export function ensureFinancialFromBookedTrip(trip: TripStoreRow): FinancialReco
     referral_name: referralName,
     referral_share_amount,
     client_subtotal_pre_tax:
-      existing?.client_subtotal_pre_tax ?? (Number(clientPrice) || null),
-    tax_total: existing?.tax_total ?? 0,
-    tax_breakdown: existing?.tax_breakdown ?? [],
+      client_subtotal_pre_tax ?? (Number(clientPrice) || null),
+    tax_total,
+    tax_breakdown,
     client_invoiced_amount: Number(clientPrice) || 0,
     vendor_amount: Number(vendorCost) || 0,
     margin,

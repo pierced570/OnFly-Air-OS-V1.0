@@ -48,6 +48,7 @@ import {
   updateHardQuoteClientPricing,
 } from '@/lib/offerFlow'
 import { offerQuotePreviewFor } from '@/lib/offerPricing'
+import { resolveAircraftMtowLbs } from '@/lib/resolveAircraftMtow'
 import { getTaxRates } from '@/lib/taxRatesStore'
 import {
   getTrip,
@@ -393,7 +394,13 @@ export function DeskOfferQuoteWorkbench({
     const cand =
       liveTrip.candidates.find((c) => c.aircraft_id === o.aircraft_id) ??
       liveTrip.candidates.find((c) => c.tail === o.tail)
-    const mtowLbs = cand?.mtow_lbs ?? null
+    const mtowLbs = resolveAircraftMtowLbs({
+      mtowLbs: cand?.mtow_lbs ?? null,
+      typeName: cand?.type_name ?? o.type_name,
+      tail: o.tail,
+      selectedAircraftId: o.aircraft_id,
+      candidates: liveTrip.candidates,
+    })
     const exemptThresh = fetExemptMtowThreshold(getTaxRates())
     const canManual = status !== 'no' && hardQuoteStatus !== 'accepted'
     const inHardQuote = Boolean(hqOpt)
@@ -568,6 +575,12 @@ export function DeskOfferQuoteWorkbench({
                     FET-exempt — MTOW
                     {mtowLbs != null ? ` ${Math.round(mtowLbs)} lbs` : ''} ≤{' '}
                     {Math.round(exemptThresh).toLocaleString()} lbs (IRC §4281)
+                  </div>
+                ) : null}
+                {preview?.fet_mtow_unknown ? (
+                  <div className="text-xs text-gold">
+                    MTOW unknown — FET not charged until confirmed over{' '}
+                    {Math.round(exemptThresh).toLocaleString()} lbs (§4281)
                   </div>
                 ) : null}
               </div>
