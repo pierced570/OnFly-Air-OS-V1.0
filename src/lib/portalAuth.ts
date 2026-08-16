@@ -1,7 +1,11 @@
 /**
  * Portal magic-link session — link contact email → client, list own trips.
+ * Guest track memory + portal client id clear together on sign-out so
+ * home ↔ track ↔ login stay one loop.
  */
 
+import { clearPortalClient } from '@/lib/clientOnboardStore'
+import { clearPortalGuestTrack } from '@/lib/portalGuestTrack'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import {
   mapPortalTripRow,
@@ -22,6 +26,38 @@ export async function getPortalAuthSession(): Promise<PortalSession | null> {
     email,
     clientId: linked?.client_id ?? null,
   }
+}
+
+/**
+ * Live portal auth — fires on magic-link exchange, refresh, and sign-out.
+ * Callers should also run getPortalAuthSession once for the initial paint.
+ */
+export function subscribePortalAuth(
+  onChange: (session: PortalSession | null) => void,
+): () => void {
+  if (!isSupabaseConfigured || !supabase) {
+    return () => {}
+  }
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((event, authSession) => {
+    // INITIAL_SESSION is covered by getPortalAuthSession on mount.
+    if (event === 'INITIAL_SESSION') return
+    void (async () => {
+      if (!authSession?.user) {
+        onChange(null)
+        return
+      }
+      const email = portalEmailFromUser(authSession.user)
+      const linked = await ensurePortalUserLinked()
+      onChange({
+        userId: authSession.user.id,
+        email,
+        clientId: linked?.client_id ?? null,
+      })
+    })()
+  })
+  return () => subscription.unsubscribe()
 }
 
 export async function ensurePortalUserLinked(): Promise<{
@@ -65,4 +101,16 @@ export async function listPortalTripsForSession(): Promise<PortalTripCard[]> {
 export async function signOutPortal(): Promise<void> {
   if (!supabase) return
   await supabase.auth.signOut()
+}
+
+/** Sign out and drop guest track + local portal client so landing shows again. */
+export async function endPortalSession(): Promise<void> {
+  await signOutPortal()
+  clearPortalGuestTrack()
+  clearPortalClient()
+}
+
+/** After a company link succeeds, drop guest memory — company list is source of truth. */
+export function promotePortalGuestToSignedIn(): void {
+  clearPortalGuestTrack()
 }

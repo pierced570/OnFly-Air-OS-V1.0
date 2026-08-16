@@ -182,11 +182,11 @@ export default function PortalRequestPage() {
   if (done && intent === 'hard_quote') {
     return (
       <WizardShell>
-        <h1 className="text-2xl font-semibold text-cream">
+        <h1 className="text-2xl font-semibold text-ink">
           Quote request received
         </h1>
-        <p className="mt-1 text-sm text-cream/60">
-          Ref <span className="avionic text-cream">R-{done.ref}</span> ·{' '}
+        <p className="mt-1 text-sm text-muted">
+          Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
           {done.lane}
         </p>
         <section className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-5 py-5 text-ink">
@@ -269,8 +269,8 @@ export default function PortalRequestPage() {
         </Link>
         <p className="text-ink/70">
           Already moving?{' '}
-          <Link to="/portal" className="font-semibold text-ink underline">
-            Sign in on portal home
+          <Link to="/portal/login" className="font-semibold text-ink underline">
+            Sign in
           </Link>
         </p>
       </div>

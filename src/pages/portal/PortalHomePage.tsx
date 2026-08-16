@@ -11,11 +11,11 @@ import {
 import { listClients, subscribeClients } from '@/lib/clientStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
 import {
-  getPortalAuthSession,
+  endPortalSession,
   listPortalTripsForSession,
-  signOutPortal,
 } from '@/lib/portalAuth'
-import type { PortalSession, PortalTripCard } from '@/domain/portalAuth'
+import type { PortalTripCard } from '@/domain/portalAuth'
+import { usePortalSession } from '@/hooks/usePortalSession'
 import {
   getTrip,
   listTripsStable,
@@ -81,9 +81,13 @@ export default function PortalHomePage() {
   const allRequests = useRequests().filter((r) => r.source === 'portal')
   const client = usePortalClient()
   const localTrips = useLocalTrips()
-  const [session, setSession] = useState<PortalSession | null>(null)
+  const {
+    session,
+    loading: loadingAuth,
+    signedIn,
+    setSession,
+  } = usePortalSession()
   const [remoteTrips, setRemoteTrips] = useState<PortalTripCard[]>([])
-  const [loadingAuth, setLoadingAuth] = useState(true)
   const [nowLabel, setNowLabel] = useState(() => clockLabel())
   const [guest, setGuest] = useState<PortalGuestTrack | null>(() =>
     readPortalGuestTrack(),
@@ -97,23 +101,25 @@ export default function PortalHomePage() {
     return () => window.clearInterval(id)
   }, [])
 
+  // Load company trips when signed in; clear guest memory (session hook also clears storage).
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const s = await getPortalAuthSession()
-      if (cancelled) return
-      setSession(s)
-      if (s?.clientId) {
-        setPortalClientId(s.clientId)
-        const rows = await listPortalTripsForSession()
-        if (!cancelled) setRemoteTrips(rows)
+      if (!session?.clientId) {
+        if (!cancelled) setRemoteTrips([])
+        return
       }
-      setLoadingAuth(false)
+      setPortalClientId(session.clientId)
+      setGuest(null)
+      setGuestTrip(null)
+      setGuestReady(true)
+      const rows = await listPortalTripsForSession()
+      if (!cancelled) setRemoteTrips(rows)
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [session?.clientId])
 
   // Magic-link guests: hydrate the trip they were tracking for "Your shipments".
   useEffect(() => {
@@ -160,7 +166,6 @@ export default function PortalHomePage() {
     }
   }, [session?.clientId, localTrips])
 
-  const signedIn = Boolean(session?.clientId)
   const clientKey = session?.clientId || null
 
   const requests = useMemo(() => {
@@ -252,13 +257,19 @@ export default function PortalHomePage() {
   const headerActions = session ? (
     <>
       <span className="hidden text-cream/60 md:inline">{session.email}</span>
+      <Link to="/portal/request" className="text-gold hover:text-gold-lt">
+        Request a trip
+      </Link>
       <button
         type="button"
         className="text-gold hover:text-gold-lt"
         onClick={() => {
-          void signOutPortal().then(() => {
+          void endPortalSession().then(() => {
             setSession(null)
             setRemoteTrips([])
+            setGuest(null)
+            setGuestTrip(null)
+            setGuestReady(true)
           })
         }}
       >
@@ -266,9 +277,14 @@ export default function PortalHomePage() {
       </button>
     </>
   ) : (
-    <Link to="/portal/request" className="text-gold hover:text-gold-lt">
-      Request a trip
-    </Link>
+    <>
+      <Link to="/portal/login" className="text-gold hover:text-gold-lt">
+        Sign in
+      </Link>
+      <Link to="/portal/request" className="text-gold hover:text-gold-lt">
+        Request a trip
+      </Link>
+    </>
   )
 
   // Dark gate from PDF — magic link + request CTA (no empty Welcome wall).
@@ -408,42 +424,26 @@ export default function PortalHomePage() {
             </div>
           </div>
 
-          {guestTrip ? (
+          {guestTrip && guest ? (
             <ul className="space-y-4">
-              <li className="overflow-hidden rounded-md border border-ink bg-ink text-cream">
-                <div className="px-4 pb-3 pt-4 sm:px-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cream/80">
-                    {guestView?.phase === 'in_flight'
-                      ? 'In flight'
-                      : guestView?.phase === 'on_truck'
-                        ? 'On delivery truck'
-                        : guestView?.phase === 'delivered'
-                          ? 'Delivered'
-                          : 'In progress'}
-                  </div>
-                  <div className="mt-3 text-2xl font-semibold tracking-tight">
-                    PO #
-                    {(
-                      guestView?.poNumber ||
-                      guestTrip.po_number ||
-                      `T-${guestTrip.ref}`
-                    ).replace(/^PO\s*#?\s*/i, '')}
-                  </div>
-                  <div className="avionic mt-1 text-sm font-medium text-gold">
-                    {guestTrip.lane}
-                    {guestView?.tail ? ` · ${guestView.tail}` : ''}
-                  </div>
-                  <div className="mt-0.5 text-xs text-cream/70">
-                    {guestTrip.payload_summary || guestTrip.ready_label}
-                  </div>
-                </div>
-                <Link
-                  to={`/portal/track/${guest.token}`}
-                  className="block bg-gold px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.14em] text-ink hover:bg-gold-lt sm:px-5"
-                >
-                  View live tracking
-                </Link>
-              </li>
+              <PortalHomeTripCard
+                id={guestTrip.id}
+                tripRef={guestTrip.ref}
+                state={guestTrip.state}
+                lane={guestTrip.lane}
+                ready_label={guestTrip.ready_label}
+                payload_summary={guestTrip.payload_summary}
+                trackHref={`/portal/track/${guest.token}`}
+                etaHint={null}
+                nextLabel={(() => {
+                  const active = guestView?.opsForecastRows.find(
+                    (r) => r.status === 'active',
+                  )
+                  return active
+                    ? clientOpsStageLabel(active)
+                    : guestView?.nextMilestoneLabel ?? null
+                })()}
+              />
             </ul>
           ) : null}
 

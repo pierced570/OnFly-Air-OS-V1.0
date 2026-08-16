@@ -14,6 +14,8 @@ import {
   type TripStoreRow,
 } from '@/lib/tripStore'
 import { rememberPortalGuestTrack } from '@/lib/portalGuestTrack'
+import { getPortalAuthSession } from '@/lib/portalAuth'
+import { usePortalSession } from '@/hooks/usePortalSession'
 import {
   getPortalTrackRow,
   resolvePortalTrackTripId,
@@ -102,7 +104,13 @@ export default function PortalTrackPage() {
       const id = await resolvePortalTrackTripId(token)
       if (cancelled) return
       setTripId(id)
-      if (id) rememberPortalGuestTrack({ token, tripId: id })
+      if (id) {
+        // Only remember for guests — signed-in clients use /portal/trips/:id.
+        const session = await getPortalAuthSession()
+        if (!session?.clientId) {
+          rememberPortalGuestTrack({ token, tripId: id })
+        }
+      }
       if (id && canPersist()) {
         const ready = await ensurePortalTripTrackingReady({
           tripId: id,
@@ -165,14 +173,23 @@ export default function PortalTrackPage() {
       <PortalShell>
         <h1 className="text-2xl font-semibold">Tracking link expired</h1>
         <p className="mt-2 text-sm text-muted">
-          This magic link isn&apos;t recognized. Ask dispatch for a fresh link.
+          This magic link isn&apos;t recognized. Ask dispatch for a fresh link,
+          or sign in to see your company&apos;s shipments.
         </p>
-        <Link
-          to="/portal"
-          className="mt-4 inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
-        >
-          Back to shipments
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            to="/portal/login"
+            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
+          >
+            Sign in
+          </Link>
+          <Link
+            to="/portal"
+            className="inline-flex rounded-md border border-border px-4 py-2 text-sm font-semibold text-ink"
+          >
+            Back to shipments
+          </Link>
+        </div>
       </PortalShell>
     )
   }
@@ -191,12 +208,13 @@ export function PortalTripTrackPage() {
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const nowIso = useClock()
   const { id } = useParams()
+  const { signedIn, loading: authLoading } = usePortalSession()
   const [remoteTrip, setRemoteTrip] = useState<TripStoreRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [etaReadyTick, setEtaReadyTick] = useState(0)
 
   useEffect(() => {
-    if (!id) return
+    if (!id || !signedIn) return
     let cancelled = false
     setLoading(true)
     void (async () => {
@@ -211,7 +229,7 @@ export function PortalTripTrackPage() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, signedIn])
 
   const trip = useMemo(() => {
     return (id ? getTrip(id) : null) ?? remoteTrip
@@ -222,7 +240,31 @@ export function PortalTripTrackPage() {
   const adsb = useAdsbForTail(input?.tail)
   const view = trip ? viewFromTrip(trip, adsb, nowIso) : null
 
-  if (loading) return <PortalLoading />
+  if (authLoading || (signedIn && loading)) return <PortalLoading />
+
+  if (!signedIn) {
+    return (
+      <PortalShell>
+        <h1 className="text-xl font-semibold">Sign in to track</h1>
+        <p className="mt-2 text-sm text-muted">
+          Company shipment links need a portal sign-in. Use the tracking link
+          from your ETA email to watch as a guest, or sign in for every
+          shipment.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            to="/portal/login"
+            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
+          >
+            Sign in
+          </Link>
+          <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
+            ← All shipments
+          </Link>
+        </div>
+      </PortalShell>
+    )
+  }
 
   if (!view) {
     return (
