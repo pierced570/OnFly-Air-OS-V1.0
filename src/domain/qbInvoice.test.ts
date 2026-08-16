@@ -77,19 +77,43 @@ describe('qbInvoice', () => {
         lane: 'KNQA → KDFW',
         pickupEtaMin: 135,
         liveLegMin: 105,
+        originIcao: 'KNQA',
+        destIcao: 'KDFW',
       }),
     })
     expect(memo).toContain('Tail Number: N175CA')
     expect(memo).toContain('Route: KNQA → KDFW')
     expect(memo).toContain('PO #00346')
     expect(memo).toContain('Terms: Net 30')
-    expect(memo).toContain('Pickup in NQA ETA 2hr 15 min')
+    expect(memo).toContain('Trip Itinerary')
+    expect(memo).toContain('Pickup @ NQA ETA 2hr 15 min')
+    expect(memo).toContain('NQA - DFW')
+    expect(memo).toContain('Live Leg Time 1hr 45 min')
+    expect(memo).toContain('Drop Off @ DFW')
     expect(memo).toContain('Pick up the part at Millington Airport Authority in NQA')
     expect(memo).toContain('Drop off part at PSA hanger in DFW')
     expect(formatInvoiceDuration(105)).toBe('1hr 45 min')
     expect(buildInvoiceStopNotes({ pickupAddress: 'A', dropoffAddress: 'B' })).toEqual([
       'Pick up the part at A',
       'Drop off part at B',
+    ])
+  })
+
+  it('fills FBO + local ETA like the old payment-request template', () => {
+    const lines = buildInvoiceItineraryLines({
+      lane: 'KCAK → KHPN',
+      originIcao: 'KCAK',
+      destIcao: 'KHPN',
+      pickupFbo: 'Signature CAK',
+      dropoffFbo: 'Landmark HPN',
+      pickupEtaLocal: '14:30 EDT',
+      liveLegMin: 131,
+    })
+    expect(lines).toEqual([
+      'Pickup @ Signature CAK ETA 14:30 EDT',
+      'CAK - HPN',
+      'Live Leg Time 2hr 11 min',
+      'Drop Off @ Landmark HPN',
     ])
   })
 

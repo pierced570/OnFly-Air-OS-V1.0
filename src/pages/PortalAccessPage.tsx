@@ -122,10 +122,9 @@ export default function PortalAccessPage() {
           <Link className="text-gold hover:text-gold-lt" to="/clients">
             Clients
           </Link>{' '}
-          profile (anyone @theirdomain.com — e.g. @psaairlines.com for PSA).
+          profile. Verified emails will be routed to the correct client portal.
           Domains are inferred from emails on file and can be edited manually.
-          Only approved work emails can sign in. Use this page for one-off
-          addresses.
+          Use this page for one-off addresses.
         </p>
       </header>
 

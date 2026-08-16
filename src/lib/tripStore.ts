@@ -2177,12 +2177,9 @@ export async function createInvoiceForTrip(
     rates: getTaxRates(),
   })
   const lines = built.lines
-  const billEmail =
-    opts?.to?.[0] ||
-    t.quick?.invoice_email ||
-    client?.invoice_email ||
-    (t.client_id ? listInvoiceEmails(t.client_id)[0] : undefined) ||
-    null
+  // Omit BillEmail on create — some QBO company settings auto-email the blank
+  // company template when BillEmail is set. Bill email is stamped in prepare_invoice
+  // immediately before branded Resend delivery.
   let created
   try {
     created = await acct.createInvoice({
@@ -2194,7 +2191,7 @@ export async function createInvoiceForTrip(
       tripRef: t.ref,
       lines,
       notes: memo,
-      billEmail,
+      billEmail: null,
       allowOnlineAch: true,
     })
   } catch (e) {
@@ -2249,6 +2246,7 @@ export async function createInvoiceForTrip(
     opts?.skipEmail === false &&
     uniqueTo.length > 0 &&
     t.quick?.send_invoice === true
+  let emailedOk = false
   if (shouldEmail) {
     try {
       const mail = await buildTripInvoiceMailPayload({
@@ -2269,8 +2267,9 @@ export async function createInvoiceForTrip(
         qbInvoiceId: created.qbInvoiceId,
         ...mail,
       })
+      emailedOk = true
     } catch (e) {
-      console.warn('[invoice] QBO send failed (invoice still created)', e)
+      console.warn('[invoice] branded email failed (invoice still created)', e)
     }
   }
 
@@ -2278,7 +2277,7 @@ export async function createInvoiceForTrip(
     id: crypto.randomUUID(),
     qb_invoice_id: created.qbInvoiceId,
     total,
-    status: shouldEmail ? 'sent' : 'draft',
+    status: emailedOk ? 'sent' : 'draft',
     url: created.url,
     created_at: new Date().toISOString(),
   }

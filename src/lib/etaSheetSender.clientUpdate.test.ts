@@ -57,10 +57,26 @@ describe('eta sheet client update thread', () => {
       t.state = 'in_progress'
       t.po_number = '9911'
       t.quick = {
-        legs: [],
-        tail: 'N123AB',
-        aircraft_type: 'King Air',
+        client_id: '',
+        client_name: '',
         po: '9911',
+        timing: 'asap',
+        roundtrip: false,
+        cargo_only: true,
+        operator_name: 'Op',
+        aircraft_type: 'King Air',
+        tail: 'N123AB',
+        vendor_cost: 0,
+        client_price: 0,
+        pay_terms: '',
+        invoice_email: '',
+        cc_emails: [],
+        send_invoice: false,
+        referred_by: '',
+        referral_id: null,
+        referral_share_amount: null,
+        notes: '',
+        legs: [],
       }
       t.events.push({
         at: '2026-07-15T12:00:00.000Z',

@@ -1,8 +1,8 @@
 /**
  * Client portal access by corporate email domain (pure).
  * Desk sets allowed_email_domains on the client profile; anyone @thatdomain
- * can magic-link into that company's portal. Exact emails on file still work
- * one-by-one (contacts / grants) even when their domain is not allowlisted.
+ * signs into that company's portal (no magic link). Exact emails on file still
+ * work one-by-one (contacts / grants) even when their domain is not allowlisted.
  */
 
 import {

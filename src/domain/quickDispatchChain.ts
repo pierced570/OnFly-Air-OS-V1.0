@@ -1,7 +1,7 @@
 /**
  * Build trip.eta_chain from Quick Dispatch desk inputs.
  * Same A2A spine shape as waterfall `buildTripChain`:
- *   position (TTP) → ground_stop (turn) → air_leg(s) → offload
+ *   position (TTP) → ground_stop / load-taxi (+40) → air_leg(s) → parking/handoff (+10)
  * Desk-entered repo / live / turn override assumptions as `quoted`.
  */
 
@@ -9,13 +9,19 @@ import { DateTime } from 'luxon'
 import { lookupAirport } from '@/domain/airports'
 import {
   BUILTIN_ETA_DEFAULTS,
-  DEFAULT_ACFT_TURN_MIN,
   type ChainLeg,
   type EtaSource,
   type Place,
 } from '@/domain/etaChain'
 import { haversineNm } from '@/domain/geo'
+import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
 import { localInputToUtc } from '@/domain/timeFmt'
+
+/** Standard origin ground time after arrive: loading + taxi out (= spine turn). */
+export const QD_LOADING_TAXI_MIN = DEFAULT_QUICK_TURN_MIN
+
+/** Standard dest ground time after landing: taxi to parking + shutdown. */
+export const QD_PARKING_SHUTDOWN_MIN = 10
 
 export type QuickDispatchLegInput = {
   origin_icao: string
@@ -134,8 +140,9 @@ function quotedOrAssumed(raw: string | undefined): {
 
 /**
  * Materialize the shared A2A ETA spine from Quick Dispatch leg times.
- * Empty repo → default aircraft TTP; empty turn → DEFAULT_ACFT_TURN_MIN (40);
- * empty live → great-circle estimate. Same leg types as waterfall booking.
+ * Empty repo → default aircraft TTP; empty turn → QD_LOADING_TAXI_MIN (40);
+ * empty live → great-circle estimate. Dest parking = QD_PARKING_SHUTDOWN_MIN (10).
+ * Same leg types / duration_keys as waterfall booking.
  */
 export function buildQuickDispatchChain(
   legs: QuickDispatchLegInput[],
@@ -145,13 +152,24 @@ export function buildQuickDispatchChain(
     defaultRepoMin?: number
     /** Origin turn autofill — defaults to shared spine 40. */
     defaultTurnMin?: number
+    /** Override standard +40 loading/taxi at origin. */
+    loadingTaxiMin?: number
+    /** Override standard +10 parking/shutdown at dest. */
+    parkingShutdownMin?: number
   },
 ): ChainLeg[] {
   if (!legs.length) return []
   const now = opts?.now ?? new Date()
   const timing = opts?.timing ?? 'asap'
   const defaultRepo = opts?.defaultRepoMin ?? BUILTIN_ETA_DEFAULTS.acft_ttp
-  const defaultTurn = opts?.defaultTurnMin ?? DEFAULT_ACFT_TURN_MIN
+  const defaultTurn = Math.max(
+    0,
+    opts?.loadingTaxiMin ?? opts?.defaultTurnMin ?? QD_LOADING_TAXI_MIN,
+  )
+  const parkingShutdown = Math.max(
+    0,
+    opts?.parkingShutdownMin ?? QD_PARKING_SHUTDOWN_MIN,
+  )
   let cursor = readyAtUtc(legs, timing, now)
   const chain: ChainLeg[] = []
   let seq = 1
@@ -163,8 +181,13 @@ export function buildQuickDispatchChain(
     const liveQ = quotedOrAssumed(leg.live_leg_time)
     const turnQ = quotedOrAssumed(leg.turn_time)
 
-    if (i === 0) {
-      // Position (TTP) — same as waterfall buildTripChain air branch.
+    // Skip a full reposition when the previous landing left us at this origin.
+    const alreadyHere =
+      i > 0 &&
+      (legs[i - 1]?.dest_icao ?? '').trim().toUpperCase() ===
+        (leg.origin_icao ?? '').trim().toUpperCase()
+
+    if (!alreadyHere) {
       const repo = repoQ.min ?? defaultRepo
       const posEnd = addMin(cursor, repo)
       chain.push({
@@ -190,40 +213,26 @@ export function buildQuickDispatchChain(
         duration_source: repoQ.source,
       })
       cursor = posEnd
+    }
 
-      // Origin turn / load — same key as waterfall acft_turn.
-      const turn = turnQ.min ?? defaultTurn
+    // Origin / intermediate turn (load + taxi) — same key as waterfall acft_turn.
+    const turn =
+      turnQ.min ??
+      (alreadyHere ? (repoQ.min ?? defaultTurn) : defaultTurn)
+    const turnSrc: EtaSource =
+      turnQ.min != null || (alreadyHere && repoQ.min != null)
+        ? 'quoted'
+        : 'assumed'
+    if (turn > 0) {
       const turnEnd = addMin(cursor, turn)
       chain.push({
         seq: seq++,
         type: 'ground_stop',
-        branch: 'air',
-        label: 'Turnaround at origin',
-        event: 'Ready Wheels Up',
-        from: origin,
-        to: origin,
-        est_start: cursor,
-        est_end: turnEnd,
-        actual_start: null,
-        actual_end: null,
-        duration_min: turn,
-        duration_key: 'acft_turn',
-        source: turnQ.min != null ? turnQ.source : 'assumed',
-        duration_source: turnQ.min != null ? turnQ.source : 'assumed',
-      })
-      cursor = turnEnd
-    } else {
-      // Intermediate stop: form "repo" = turn on the ground (already in position).
-      const turn = turnQ.min ?? repoQ.min ?? defaultTurn
-      const turnSrc: EtaSource =
-        turnQ.min != null || repoQ.min != null ? 'quoted' : 'assumed'
-      const turnEnd = addMin(cursor, turn)
-      chain.push({
-        seq: seq++,
-        type: 'ground_stop',
-        branch: 'merged',
-        label: `Turnaround ${origin.icao || ''}`,
-        event: 'Turnaround',
+        branch: alreadyHere ? 'merged' : 'air',
+        label: alreadyHere
+          ? `Turnaround ${origin.icao || ''}`
+          : `Load / taxi ${origin.icao || '?'}`,
+        event: alreadyHere ? 'Turnaround' : 'Ready Wheels Up',
         from: origin,
         to: origin,
         est_start: cursor,
@@ -268,21 +277,20 @@ export function buildQuickDispatchChain(
   }
 
   const lastDest = placeFromIcao(legs.at(-1)!.dest_icao)
-  const offloadMin = BUILTIN_ETA_DEFAULTS.fbo_transfer
-  const offEnd = addMin(cursor, offloadMin)
+  const offEnd = addMin(cursor, parkingShutdown)
   chain.push({
     seq: seq++,
     type: 'offload',
     branch: 'merged',
     label: 'Delivered / POD',
-    event: 'Freight Roadside',
+    event: 'Taxi to parking + shutdown',
     from: lastDest,
     to: lastDest,
     est_start: cursor,
     est_end: offEnd,
     actual_start: null,
     actual_end: null,
-    duration_min: offloadMin,
+    duration_min: parkingShutdown,
     duration_key: 'fbo_transfer',
     source: 'assumed',
     duration_source: 'assumed',

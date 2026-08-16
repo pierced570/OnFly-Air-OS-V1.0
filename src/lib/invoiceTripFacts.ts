@@ -7,6 +7,7 @@ import {
   buildInvoiceStopNotes,
 } from '@/domain/qbInvoice'
 import { parseLooseDurationMinutes } from '@/domain/quickDispatchChain'
+import { formatClientLocal } from '@/domain/timeFmt'
 import type { TripStoreRow } from '@/lib/tripStore'
 
 export type InvoiceTripFacts = {
@@ -32,6 +33,12 @@ export function charterContractUrlFromEnv(): string | null {
     if (u.startsWith('https://') || u.startsWith('http://')) return u
   }
   return null
+}
+
+function shortIcao(code: string | null | undefined): string {
+  const c = (code ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!c) return ''
+  return c.length === 4 && c.startsWith('K') ? c.slice(1) : c
 }
 
 export function invoiceTripFacts(
@@ -72,20 +79,34 @@ export function invoiceTripFacts(
     null
   const destIcao = airLeg?.to.icao || quickLeg?.dest_icao || null
 
+  const pickupAddress = trip.portal_pickup_address?.trim() || null
+  const dropoffAddress = trip.portal_dropoff_address?.trim() || null
+
+  // Local wheels-up clock at origin (fills "ETA (ENTER ETA in LOCAL TIME)").
+  const pickupEtaIso = airLeg?.est_start || positionLeg?.est_end || null
+  const pickupTz =
+    airLeg?.from.tz || positionLeg?.to.tz || positionLeg?.from.tz || 'UTC'
+  const pickupEtaLocal = pickupEtaIso
+    ? formatClientLocal(pickupEtaIso, pickupTz).local
+    : null
+
+  const pickupFbo =
+    pickupAddress ||
+    (shortIcao(originIcao) ? shortIcao(originIcao) : null)
+  const dropoffFbo =
+    dropoffAddress ||
+    (shortIcao(destIcao) ? shortIcao(destIcao) : null)
+
   const itineraryLines = buildInvoiceItineraryLines({
     lane,
     pickupEtaMin,
     liveLegMin,
     originIcao,
     destIcao,
+    pickupFbo,
+    dropoffFbo,
+    pickupEtaLocal,
   })
-
-  const pickupAddress =
-    trip.portal_pickup_address?.trim() ||
-    null
-  const dropoffAddress =
-    trip.portal_dropoff_address?.trim() ||
-    null
 
   const stopNotes = buildInvoiceStopNotes({
     pickupAddress,
@@ -93,8 +114,10 @@ export function invoiceTripFacts(
   })
   const notes = trip.quick?.notes?.trim() || null
   // Prefer structured stop notes; keep freeform notes if they aren't duplicates.
+  // Never pass through leftover QBO (ENTER …) template paste.
   const extraNotes =
     notes &&
+    !/\(\s*ENTER[^)]*\)/i.test(notes) &&
     !stopNotes.some((s) => notes.toLowerCase().includes(s.toLowerCase()))
       ? notes
       : null
