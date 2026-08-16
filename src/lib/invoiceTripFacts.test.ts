@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { buildInvoiceItineraryLines } from '@/domain/qbInvoice'
 import type { TripStoreRow } from '@/lib/tripStore'
 import { invoiceTripFacts } from './invoiceTripFacts'
 
@@ -94,15 +93,13 @@ describe('invoiceTripFacts', () => {
     expect(facts.amountUsd).toBe(10600)
     expect(facts.tail).toBe('N175CA')
     expect(facts.aircraftType).toBe('MU2')
-    expect(facts.itineraryLines).toEqual(
-      buildInvoiceItineraryLines({
-        lane: 'KNQA → KDFW',
-        pickupEtaMin: 135,
-        liveLegMin: 105,
-        originIcao: 'KNQA',
-        destIcao: 'KDFW',
-      }),
-    )
-    expect(facts.itineraryLines.some((l) => /Pickup in NQA/.test(l))).toBe(true)
+    expect(facts.itineraryLines[0]).toMatch(/^Pickup @ NQA ETA /)
+    expect(facts.itineraryLines).toContain('NQA - DFW')
+    expect(facts.itineraryLines).toContain('Live Leg Time 1hr 45 min')
+    expect(facts.itineraryLines).toContain('Drop Off @ DFW')
+    expect(facts.itineraryLines.some((l) => /Pickup @ NQA/.test(l))).toBe(true)
+    expect(facts.itineraryLines.some((l) => /NQA - DFW/.test(l))).toBe(true)
+    expect(facts.itineraryLines.some((l) => /Live Leg Time/.test(l))).toBe(true)
+    expect(facts.itineraryLines.some((l) => /Drop Off @ DFW/.test(l))).toBe(true)
   })
 })

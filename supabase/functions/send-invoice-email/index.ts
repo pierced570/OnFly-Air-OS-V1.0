@@ -86,6 +86,20 @@ Deno.serve(async (req) => {
     const preSubject = String(body.subject ?? '').trim()
     const preText = String(body.text ?? '').trim()
 
+    if (
+      /\(\s*ENTER[^)]*\)/i.test(preHtml) ||
+      /\(\s*ENTER[^)]*\)/i.test(preText) ||
+      /\bADD SIT TIME\b/i.test(preHtml + preText)
+    ) {
+      return json(
+        {
+          error:
+            'html/text still contains ENTER placeholders — refuse blank QBO-style body',
+        },
+        400,
+      )
+    }
+
     const contractUrl =
       String(body.contract_url ?? '').trim() ||
       Deno.env.get('CHARTER_CONTRACT_URL')?.trim() ||
@@ -93,6 +107,19 @@ Deno.serve(async (req) => {
     const portalUrl = String(body.portal_url ?? '').trim()
     const lane = String(body.lane ?? '').trim()
     const tail = String(body.tail ?? '').trim().toUpperCase()
+    const itineraryLines = Array.isArray(body.itinerary_lines)
+      ? body.itinerary_lines.map(String).map((l) => l.trim()).filter(Boolean)
+      : []
+
+    if (!preHtml && !itineraryLines.length && !lane && !tail) {
+      return json(
+        {
+          error:
+            'html or trip details (lane/tail/itinerary_lines) required — refuse blank invoice body',
+        },
+        400,
+      )
+    }
 
     const subject =
       preSubject ||
@@ -116,9 +143,7 @@ Deno.serve(async (req) => {
         flightDate: body.flight_date ?? null,
         aircraftType: body.aircraft_type ?? null,
         tail: tail || null,
-        itineraryLines: Array.isArray(body.itinerary_lines)
-          ? body.itinerary_lines.map(String)
-          : [],
+        itineraryLines,
         contractUrl: contractUrl || null,
         payUrl: body.pay_url ?? null,
         portalUrl: portalUrl || null,
@@ -240,10 +265,10 @@ function renderInvoiceHtmlFallback(opts: {
           <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;color:#c9a227">BALANCE DUE</div>
           ${amount ? `<div style="margin-top:8px;font-size:34px;font-weight:700">${escapeHtml(amount)}</div>` : ''}
           <div style="margin-top:16px">${payBtn}</div>
-          ${tail || aircraft ? `<div style="margin-top:22px"><div style="font-size:10px;letter-spacing:0.16em;color:#c9a227">AIRCRAFT / TAIL</div><div style="margin-top:6px;font-size:18px;font-weight:700">${escapeHtml([aircraft, tail].filter(Boolean).join(' · '))}</div></div>` : ''}
+          ${tail || aircraft ? `<div style="margin-top:22px"><div style="font-size:10px;letter-spacing:0.16em;color:#c9a227">TAIL NUMBER</div><div style="margin-top:6px;font-size:18px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${escapeHtml(tail || '')}</div>${aircraft ? `<div style="margin-top:4px;font-size:14px;color:#6b6560">${escapeHtml(aircraft)}</div>` : ''}</div>` : ''}
           ${
             itinerary.length
-              ? `<div style="margin-top:18px"><div style="font-size:10px;letter-spacing:0.16em;color:#c9a227">TRIP DETAILS</div>${itinerary
+              ? `<div style="margin-top:18px"><div style="font-size:10px;letter-spacing:0.16em;color:#c9a227">TRIP ITINERARY</div>${itinerary
                   .map(
                     (l) =>
                       `<div style="font-size:14px;margin:6px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${escapeHtml(l)}</div>`,

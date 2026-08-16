@@ -126,11 +126,12 @@ export function charterFlightLineDescription(opts: {
 
 /**
  * Trip itinerary lines for invoice email / PDF note (OFA payment-request style).
+ * Fills the fields the old QBO company template left as (ENTER …).
  * Example:
- *   KNQA → KDFW
- *   Pickup in NQA ETA 2hr 15 min
- *   NQA-DFW 1 hr 45 min
- *   Drop Off at DFW
+ *   Pickup @ Signature CAK ETA 14:30 EDT
+ *   CAK - HPN
+ *   Live Leg Time 2hr 11 min
+ *   Drop Off @ Landmark HPN
  */
 export function buildInvoiceItineraryLines(opts: {
   lane: string
@@ -140,6 +141,12 @@ export function buildInvoiceItineraryLines(opts: {
   liveLegMin?: number | null
   originIcao?: string | null
   destIcao?: string | null
+  /** FBO / address label for pickup (falls back to airport id). */
+  pickupFbo?: string | null
+  /** FBO / address label for drop-off. */
+  dropoffFbo?: string | null
+  /** Stop-local pickup clock, e.g. "14:30 EDT". */
+  pickupEtaLocal?: string | null
 }): string[] {
   const lane = opts.lane.trim()
   const origin = (
@@ -154,26 +161,39 @@ export function buildInvoiceItineraryLines(opts: {
   ).toUpperCase()
   const originShort = origin.replace(/^K/, '') || origin
   const destShort = dest.replace(/^K/, '') || dest
+  const pickupPlace =
+    opts.pickupFbo?.trim() ||
+    (originShort ? originShort : '') ||
+    'origin'
+  const dropPlace =
+    opts.dropoffFbo?.trim() ||
+    (destShort ? destShort : '') ||
+    'destination'
+  const etaClock =
+    opts.pickupEtaLocal?.trim() ||
+    (opts.pickupEtaMin != null && Number.isFinite(opts.pickupEtaMin)
+      ? formatInvoiceDuration(opts.pickupEtaMin)
+      : '')
+
   const lines: string[] = []
-  if (lane) lines.push(lane)
-  if (originShort && opts.pickupEtaMin != null && Number.isFinite(opts.pickupEtaMin)) {
+  if (pickupPlace) {
     lines.push(
-      `Pickup in ${originShort} ETA ${formatInvoiceDuration(opts.pickupEtaMin)}`,
-    )
-  } else if (originShort) {
-    lines.push(`Pickup in ${originShort}`)
-  }
-  if (
-    originShort &&
-    destShort &&
-    opts.liveLegMin != null &&
-    Number.isFinite(opts.liveLegMin)
-  ) {
-    lines.push(
-      `${originShort}-${destShort} ${formatInvoiceDuration(opts.liveLegMin)}`,
+      etaClock
+        ? `Pickup @ ${pickupPlace} ETA ${etaClock}`
+        : `Pickup @ ${pickupPlace}`,
     )
   }
-  if (destShort) lines.push(`Drop Off at ${destShort}`)
+  if (originShort && destShort) {
+    lines.push(`${originShort} - ${destShort}`)
+  } else if (lane) {
+    lines.push(lane)
+  }
+  if (opts.liveLegMin != null && Number.isFinite(opts.liveLegMin)) {
+    lines.push(`Live Leg Time ${formatInvoiceDuration(opts.liveLegMin)}`)
+  }
+  if (dropPlace) {
+    lines.push(`Drop Off @ ${dropPlace}`)
+  }
   return lines
 }
 
@@ -239,6 +259,7 @@ export function buildInvoiceCustomerMemo(opts: {
       : null,
     opts.payTerms?.trim() ? `Terms: ${opts.payTerms.trim()}` : null,
     itinerary.length ? '' : null,
+    itinerary.length ? 'Trip Itinerary' : null,
     ...itinerary,
     ...stopNotes,
     opts.extraNotes?.trim() || null,
