@@ -14,6 +14,7 @@ import {
   DEFAULT_QUICK_TURN_MIN,
   buildDeskOfferQuoteTimeline,
 } from '@/domain/offerQuoteTiming'
+import { QD_LOADING_TAXI_MIN } from '@/domain/quickDispatchChain'
 import { formatClientLocal } from '@/domain/timeFmt'
 import { invoiceEmailLogoUrl } from '@/lib/invoiceEmailLogo'
 import type { EtaSheetContext } from '@/lib/etaSheet'
@@ -76,7 +77,6 @@ function stopFromTrip(
 }
 
 function milestoneFromLeg(leg: ChainLeg): EtaSheetEmailMilestone | null {
-  const from = shortIcao(leg.from.icao || leg.from.label)
   const to = shortIcao(leg.to.icao || leg.to.label)
   const tz = leg.to.tz || leg.from.tz || 'UTC'
   const projectedIso =
@@ -90,8 +90,12 @@ function milestoneFromLeg(leg: ChainLeg): EtaSheetEmailMilestone | null {
       ? leg.actual_start
       : leg.actual_end ?? leg.actual_start
 
-  // For air legs we emit two milestones (wheels up + landing) elsewhere.
+  // Air legs emit wheels up + time enroute + landing elsewhere.
   if (leg.type === 'air_leg') return null
+  // Loading/taxi turn is folded into the Wheels up detail (+40), not its own row.
+  if (leg.type === 'ground_stop' || leg.duration_key === 'acft_turn') {
+    return null
+  }
 
   let label = leg.event || leg.label || 'Milestone'
   let detail: string | null = null
@@ -100,13 +104,10 @@ function milestoneFromLeg(leg: ChainLeg): EtaSheetEmailMilestone | null {
     detail = 'Courier at dock, cargo loaded'
   } else if (leg.type === 'position' || leg.duration_key === 'acft_ttp') {
     label = `Arrive ${to}`
-    detail = 'In position for live leg'
-  } else if (leg.type === 'ground_stop' || leg.duration_key === 'acft_turn') {
-    label = `Ready wheels · ${from}`
-    detail = 'Turn / load complete'
+    detail = 'In position for pickup and loading'
   } else if (leg.type === 'truck_delivery' || leg.type === 'offload') {
     label = 'Cargo handoff'
-    detail = 'Released to your team'
+    detail = 'Taxi to parking + shutdown time'
   }
 
   const proj = projectedIso ? formatClientLocal(projectedIso, tz) : null
@@ -117,6 +118,15 @@ function milestoneFromLeg(leg: ChainLeg): EtaSheetEmailMilestone | null {
     projected: proj?.display ?? null,
     actual: act?.display ?? null,
   }
+}
+
+function formatLiveLegClock(min: number): string {
+  const t = Math.max(0, Math.round(min))
+  const h = Math.floor(t / 60)
+  const m = t % 60
+  if (h > 0 && m > 0) return `${h}hr ${m} min`
+  if (h > 0) return `${h} hr`
+  return `${m} min`
 }
 
 function airMilestones(leg: ChainLeg): EtaSheetEmailMilestone[] {
@@ -134,16 +144,24 @@ function airMilestones(leg: ChainLeg): EtaSheetEmailMilestone[] {
   const downAct = leg.actual_end
     ? formatClientLocal(leg.actual_end, tzTo)
     : null
+  const liveMin = Math.max(0, Math.round(leg.duration_min || 0))
+  const loadMin = QD_LOADING_TAXI_MIN
   return [
     {
       label: `Wheels up · ${from}`,
-      detail: `Departs ${from}`,
+      detail: `Assumes ${loadMin}min for loading and taxi out`,
       projected: upEst?.display ?? null,
       actual: upAct?.display ?? null,
     },
     {
+      label: 'Time enroute',
+      detail: 'Live leg time',
+      projected: liveMin > 0 ? formatLiveLegClock(liveMin) : null,
+      actual: null,
+    },
+    {
       label: `Landing · ${to}`,
-      detail: `Taxi / FBO ramp at ${to}`,
+      detail: `Projected ETD + live leg (${formatLiveLegClock(liveMin) || '—'})`,
       projected: downEst?.display ?? null,
       actual: downAct?.display ?? null,
     },

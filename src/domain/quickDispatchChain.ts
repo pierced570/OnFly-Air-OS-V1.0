@@ -1,6 +1,7 @@
 /**
  * Build trip.eta_chain from Quick Dispatch desk inputs (repo + live times).
- * Pure — no React / Supabase. A2A spine: position → air → (repeat) → offload.
+ * Pure — no React / Supabase.
+ * A2A spine: position → load/taxi (+40) → air → (repeat) → parking/handoff (+10).
  */
 
 import { DateTime } from 'luxon'
@@ -11,7 +12,14 @@ import {
   type Place,
 } from '@/domain/etaChain'
 import { haversineNm } from '@/domain/geo'
+import { DEFAULT_QUICK_TURN_MIN } from '@/domain/offerQuoteTiming'
 import { localInputToUtc } from '@/domain/timeFmt'
+
+/** Standard origin ground time after arrive: loading + taxi out. */
+export const QD_LOADING_TAXI_MIN = DEFAULT_QUICK_TURN_MIN
+
+/** Standard dest ground time after landing: taxi to parking + shutdown. */
+export const QD_PARKING_SHUTDOWN_MIN = 10
 
 export type QuickDispatchLegInput = {
   origin_icao: string
@@ -120,6 +128,7 @@ function readyAtUtc(
 /**
  * Materialize an A2A-ish ETA chain from Quick Dispatch leg times.
  * Empty repo → default aircraft TTP; empty live → great-circle estimate.
+ * Always inserts +40 min loading/taxi after arrive and +10 min parking after landing.
  */
 export function buildQuickDispatchChain(
   legs: QuickDispatchLegInput[],
@@ -127,6 +136,10 @@ export function buildQuickDispatchChain(
     timing?: 'asap' | 'scheduled'
     now?: Date
     defaultRepoMin?: number
+    /** Override standard +40 loading/taxi at origin. */
+    loadingTaxiMin?: number
+    /** Override standard +10 parking/shutdown at dest. */
+    parkingShutdownMin?: number
   },
 ): ChainLeg[] {
   if (!legs.length) return []
@@ -134,6 +147,14 @@ export function buildQuickDispatchChain(
   const timing = opts?.timing ?? 'asap'
   const defaultRepo =
     opts?.defaultRepoMin ?? BUILTIN_ETA_DEFAULTS.acft_ttp
+  const loadingTaxi = Math.max(
+    0,
+    opts?.loadingTaxiMin ?? QD_LOADING_TAXI_MIN,
+  )
+  const parkingShutdown = Math.max(
+    0,
+    opts?.parkingShutdownMin ?? QD_PARKING_SHUTDOWN_MIN,
+  )
   let cursor = readyAtUtc(legs, timing, now)
   const chain: ChainLeg[] = []
   let seq = 1
@@ -147,32 +168,63 @@ export function buildQuickDispatchChain(
       parseLooseDurationMinutes(leg.live_leg_time) ??
       estimateLiveMin(origin, dest)
 
-    const posEnd = addMin(cursor, repo)
-    chain.push({
-      seq: seq++,
-      type: 'position',
-      branch: 'air',
-      label: `Position to ${origin.icao || '?'}`,
-      event: 'Aircraft TTP',
-      from: {
-        lat: origin.lat,
-        lon: origin.lon,
-        icao: origin.icao,
-        tz: origin.tz,
-      },
-      to: origin,
-      est_start: cursor,
-      est_end: posEnd,
-      actual_start: null,
-      actual_end: null,
-      duration_min: repo,
-      duration_key: 'acft_ttp',
-      source: parseLooseDurationMinutes(leg.repo_time) ? 'quoted' : 'assumed',
-      duration_source: parseLooseDurationMinutes(leg.repo_time)
-        ? 'quoted'
-        : 'assumed',
-    })
-    cursor = posEnd
+    // Skip a full reposition when the previous landing left us at this origin.
+    const alreadyHere =
+      i > 0 &&
+      (legs[i - 1]?.dest_icao ?? '').trim().toUpperCase() ===
+        (leg.origin_icao ?? '').trim().toUpperCase()
+
+    if (!alreadyHere) {
+      const posEnd = addMin(cursor, repo)
+      chain.push({
+        seq: seq++,
+        type: 'position',
+        branch: 'air',
+        label: `Position to ${origin.icao || '?'}`,
+        event: 'Aircraft TTP',
+        from: {
+          lat: origin.lat,
+          lon: origin.lon,
+          icao: origin.icao,
+          tz: origin.tz,
+        },
+        to: origin,
+        est_start: cursor,
+        est_end: posEnd,
+        actual_start: null,
+        actual_end: null,
+        duration_min: repo,
+        duration_key: 'acft_ttp',
+        source: parseLooseDurationMinutes(leg.repo_time) ? 'quoted' : 'assumed',
+        duration_source: parseLooseDurationMinutes(leg.repo_time)
+          ? 'quoted'
+          : 'assumed',
+      })
+      cursor = posEnd
+    }
+
+    // Standard +40: loading + taxi out before wheels up.
+    if (loadingTaxi > 0) {
+      const turnEnd = addMin(cursor, loadingTaxi)
+      chain.push({
+        seq: seq++,
+        type: 'ground_stop',
+        branch: 'air',
+        label: `Load / taxi ${origin.icao || '?'}`,
+        event: 'Loading & taxi out',
+        from: origin,
+        to: origin,
+        est_start: cursor,
+        est_end: turnEnd,
+        actual_start: null,
+        actual_end: null,
+        duration_min: loadingTaxi,
+        duration_key: 'acft_turn',
+        source: 'assumed',
+        duration_source: 'assumed',
+      })
+      cursor = turnEnd
+    }
 
     const landAt = addMin(cursor, live)
     chain.push({
@@ -207,21 +259,20 @@ export function buildQuickDispatchChain(
   }
 
   const lastDest = placeFromIcao(legs.at(-1)!.dest_icao)
-  const offloadMin = BUILTIN_ETA_DEFAULTS.fbo_transfer
-  const offEnd = addMin(cursor, offloadMin)
+  const offEnd = addMin(cursor, parkingShutdown)
   chain.push({
     seq: seq++,
     type: 'offload',
     branch: 'merged',
     label: 'Delivered / POD',
-    event: 'Freight Roadside',
+    event: 'Taxi to parking + shutdown',
     from: lastDest,
     to: lastDest,
     est_start: cursor,
     est_end: offEnd,
     actual_start: null,
     actual_end: null,
-    duration_min: offloadMin,
+    duration_min: parkingShutdown,
     duration_key: 'fbo_transfer',
     source: 'assumed',
     duration_source: 'assumed',

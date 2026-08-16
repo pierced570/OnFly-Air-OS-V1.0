@@ -23,7 +23,7 @@ describe('parseLooseDurationMinutes', () => {
 })
 
 describe('buildQuickDispatchChain', () => {
-  it('builds position → air → offload with desk times', () => {
+  it('builds position → load/taxi → air → parking with desk times', () => {
     const chain = buildQuickDispatchChain(
       [
         {
@@ -37,16 +37,22 @@ describe('buildQuickDispatchChain', () => {
     )
     expect(chain.map((l) => l.type)).toEqual([
       'position',
+      'ground_stop',
       'air_leg',
       'offload',
     ])
     expect(chain[0]!.duration_min).toBe(120)
-    expect(chain[1]!.duration_min).toBe(60)
+    expect(chain[1]!.duration_min).toBe(40) // +40 loading/taxi
+    expect(chain[2]!.duration_min).toBe(60)
+    expect(chain[3]!.duration_min).toBe(10) // +10 parking/shutdown
     expect(chain[0]!.est_start).toBe('2026-07-26T12:00:00.000Z')
-    expect(chain[0]!.est_end).toBe('2026-07-26T14:00:00.000Z')
-    expect(chain[1]!.est_end).toBe('2026-07-26T15:00:00.000Z')
-    expect(chain[1]!.from.icao).toBe('KCAK')
-    expect(chain[1]!.to.icao).toBe('KMDW')
+    expect(chain[0]!.est_end).toBe('2026-07-26T14:00:00.000Z') // Arrive CAK
+    expect(chain[1]!.est_end).toBe('2026-07-26T14:40:00.000Z') // Wheels up
+    expect(chain[2]!.est_start).toBe('2026-07-26T14:40:00.000Z')
+    expect(chain[2]!.est_end).toBe('2026-07-26T15:40:00.000Z') // Landing
+    expect(chain[3]!.est_end).toBe('2026-07-26T15:50:00.000Z') // Handoff
+    expect(chain[2]!.from.icao).toBe('KCAK')
+    expect(chain[2]!.to.icao).toBe('KMDW')
   })
 
   it('uses defaults when times blank', () => {
@@ -62,11 +68,14 @@ describe('buildQuickDispatchChain', () => {
       { now: new Date('2026-07-26T12:00:00.000Z') },
     )
     expect(chain[0]!.duration_min).toBe(120) // acft_ttp default
-    expect(chain[1]!.duration_min).toBeGreaterThan(0)
+    expect(chain[1]!.type).toBe('ground_stop')
+    expect(chain.find((l) => l.type === 'air_leg')!.duration_min).toBeGreaterThan(
+      0,
+    )
     expect(chain[0]!.source).toBe('assumed')
   })
 
-  it('handles multi-leg', () => {
+  it('handles multi-leg with load/taxi on each departure', () => {
     const chain = buildQuickDispatchChain(
       [
         {
@@ -85,6 +94,10 @@ describe('buildQuickDispatchChain', () => {
       { now: new Date('2026-07-26T12:00:00.000Z') },
     )
     expect(chain.filter((l) => l.type === 'air_leg')).toHaveLength(2)
+    expect(chain.filter((l) => l.type === 'ground_stop')).toHaveLength(2)
+    // Second origin is previous dest — no reposition, just load/taxi.
+    expect(chain.filter((l) => l.type === 'position')).toHaveLength(1)
     expect(chain.at(-1)!.type).toBe('offload')
+    expect(chain.at(-1)!.duration_min).toBe(10)
   })
 })
