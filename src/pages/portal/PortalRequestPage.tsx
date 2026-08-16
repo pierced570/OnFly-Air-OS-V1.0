@@ -10,7 +10,7 @@ import {
   type TripRequestDraft,
   type TripRequestRecord,
 } from '@/domain/tripRequest'
-import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
+import { BRAND_PHONE, BRAND_PHONE_E164, dialBrandOps } from '@/domain/brand'
 import {
   getPortalClient,
   setPortalClientId,
@@ -155,6 +155,9 @@ export default function PortalRequestPage() {
         setDone({ ...updated })
         setHardQuoteDone(true)
       }
+      // Click handlers also dial — keep this as a desktop fallback if the
+      // form path somehow skips dialBrandOps on the button.
+      dialBrandOps()
       try {
         const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
         await createRoutedTripFromRequest(updated ?? row)
@@ -191,9 +194,12 @@ export default function PortalRequestPage() {
         </p>
         <section className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-5 py-5 text-ink">
           <p className="text-sm">
-            Our team is working this now. Monitor{' '}
-            <span className="font-medium">{done.email || 'your email'}</span> for
-            questions and next steps — typical quote time is 10–15 minutes.
+            Your details went to the desk by email. Your phone should open a
+            call to{' '}
+            <span className="avionic font-medium">{BRAND_PHONE}</span> — if it
+            didn&apos;t, tap below. We&apos;ll also follow up at{' '}
+            <span className="font-medium">{done.email || 'your email'}</span>.
+            Typical quote time is 10–15 minutes.
           </p>
         </section>
         <a
@@ -249,6 +255,7 @@ export default function PortalRequestPage() {
               hardQuoteDone={hardQuoteDone || Boolean(done.hard_quote_requested_at)}
               hardQuoteEmail={done.email || undefined}
               onHardQuote={() => {
+                dialBrandOps()
                 const updated = requestHardQuote(done.id)
                 if (updated) {
                   setDone({ ...updated })

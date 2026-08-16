@@ -27,6 +27,7 @@ import {
   type PaxRow,
 } from '@/domain/tripRequest'
 import { TripRequestLegPayloadSection } from '@/components/TripRequestLegPayloadSection'
+import { dialBrandOps, BRAND_PHONE } from '@/domain/brand'
 import {
   STANDARD_TOOLING,
   composeStandardCargoDims,
@@ -1793,7 +1794,11 @@ export function TripRequestForm({
             <button
               type="button"
               disabled={busy}
-              onClick={(e) => void handleSubmit(e, 'hard_quote')}
+              onClick={(e) => {
+                // Dial in the same click gesture — awaits after this get blocked on mobile.
+                dialBrandOps()
+                void handleSubmit(e, 'hard_quote')
+              }}
               className="w-full rounded-xl bg-ink px-4 py-4 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
             >
               {busy && pendingIntent === 'hard_quote'
@@ -1801,8 +1806,9 @@ export function TripRequestForm({
                 : 'Have OnFly quote this NOW'}
             </button>
             <p className="mt-2 text-xs text-muted">
-              Our team starts on this immediately. Typical quote time 10–15
-              minutes — watch your email for questions and next steps.
+              Submits your details by email and opens a call to 24-hr ops at{' '}
+              <span className="avionic font-medium text-ink">{BRAND_PHONE}</span>
+              . Typical quote time 10–15 minutes.
             </p>
           </div>
         </div>

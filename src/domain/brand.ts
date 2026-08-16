@@ -10,6 +10,16 @@ export const BRAND_PHONE = '(858) 529-7860'
 export const BRAND_PHONE_E164 = '+18585297860'
 export const BRAND_EMAIL = 'info@onflyair.com'
 
+/**
+ * Start a phone call to 24-hr ops (or open the dialer with our number).
+ * Must run in the same user-gesture tick as the click — await first and
+ * mobile browsers often block tel: navigation.
+ */
+export function dialBrandOps(): void {
+  if (typeof window === 'undefined') return
+  window.location.href = `tel:${BRAND_PHONE_E164}`
+}
+
 /** Small / mini logo — aircraft in ring */
 export const BRAND_MARK_PATH = '/brand/onfly-mark.png'
 /** Full wordmark for dark / ink backgrounds (white FL letters) */
