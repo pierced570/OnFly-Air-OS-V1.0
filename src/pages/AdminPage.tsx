@@ -1,5 +1,5 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
 import {
   WizardShell,
@@ -104,12 +104,27 @@ const CLIENT_STEPS = [
 ]
 const FBO_STEPS = ['Airport', 'Hours', 'Forklift', 'Fees', 'Summary']
 
+function wizardKindFromQuery(raw: string | null): WizardKind | null {
+  if (raw === 'operator' || raw === 'client' || raw === 'fbo' || raw === 'invite') {
+    return raw
+  }
+  return null
+}
+
 export default function AdminPage() {
-  const [kind, setKind] = useState<WizardKind>('invite')
+  const [searchParams] = useSearchParams()
+  const [kind, setKind] = useState<WizardKind>(
+    () => wizardKindFromQuery(searchParams.get('wizard')) ?? 'invite',
+  )
   const [inviteAudience, setInviteAudience] = useState<
     'client' | 'operator' | 'vendor'
   >('client')
   const doors = useMemo(() => listAdapterDoorStatus(), [])
+
+  useEffect(() => {
+    const next = wizardKindFromQuery(searchParams.get('wizard'))
+    if (next) setKind(next)
+  }, [searchParams])
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
@@ -118,40 +133,6 @@ export default function AdminPage() {
         <p className="mt-1 text-sm text-muted">
           Invite clients or operators by email, or run guided interviews — skip
           writes NEEDS-INFO, never blank tables.
-        </p>
-        <p className="mt-2 text-sm text-muted">
-          Day-to-day contact flags:{' '}
-          <Link to="/clients" className="text-gold hover:text-gold-lt">
-            Clients
-          </Link>
-          {' · '}
-          <Link to="/fbos" className="text-gold hover:text-gold-lt">
-            FBOs
-          </Link>
-          {' · '}
-          <Link to="/admin/staff" className="text-gold hover:text-gold-lt">
-            Staff access
-          </Link>
-          {' · '}
-          <Link to="/admin/portal-access" className="text-gold hover:text-gold-lt">
-            Portal access
-          </Link>
-          {' · '}
-          <Link to="/admin/keys" className="text-gold hover:text-gold-lt">
-            Logins &amp; keys
-          </Link>
-          {' · '}
-          <Link to="/onboard" className="text-gold hover:text-gold-lt">
-            Operator onboard
-          </Link>
-          {' · '}
-          <Link to="/vendor" className="text-gold hover:text-gold-lt">
-            W-9 / vendor packet
-          </Link>
-          {' · '}
-          <Link to="/client" className="text-gold hover:text-gold-lt">
-            Client page (send link)
-          </Link>
         </p>
         <ul className="mt-3 flex flex-wrap gap-2">
           {doors.map((d) => (
