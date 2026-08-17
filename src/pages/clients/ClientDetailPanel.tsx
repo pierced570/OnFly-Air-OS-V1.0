@@ -866,9 +866,6 @@ function BasesTab({
                     />
                   </a>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-xs text-muted">
-                      {base.diagram_caption || 'Hangar diagram'}
-                    </span>
                     <a
                       href={base.diagram_url}
                       download={base.diagram_caption || `${base.icao}-diagram`}
@@ -878,42 +875,26 @@ function BasesTab({
                     >
                       Download
                     </a>
+                    <button
+                      type="button"
+                      className="text-xs text-muted hover:text-late"
+                      onClick={() => {
+                        const next = [...bases]
+                        next[i] = {
+                          ...base,
+                          diagram_url: undefined,
+                          diagram_caption: undefined,
+                        }
+                        setBases(next)
+                      }}
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
               ) : (
                 <p className="mt-2 text-xs text-muted">No diagram on file.</p>
               )}
-              <label className={`${label} mt-2`}>
-                Diagram URL
-                <input
-                  className={input}
-                  value={base.diagram_url ?? ''}
-                  onChange={(e) => {
-                    const next = [...bases]
-                    next[i] = {
-                      ...base,
-                      diagram_url: e.target.value.trim() || undefined,
-                    }
-                    setBases(next)
-                  }}
-                  placeholder="https://…/hangar.jpg"
-                />
-              </label>
-              <label className={label}>
-                Caption / filename
-                <input
-                  className={input}
-                  value={base.diagram_caption ?? ''}
-                  onChange={(e) => {
-                    const next = [...bases]
-                    next[i] = {
-                      ...base,
-                      diagram_caption: e.target.value.trim() || undefined,
-                    }
-                    setBases(next)
-                  }}
-                />
-              </label>
             </div>
           </div>
         ))}
