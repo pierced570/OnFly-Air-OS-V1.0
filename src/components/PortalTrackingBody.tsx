@@ -8,6 +8,7 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 import { PortalShell } from '@/components/PortalShell'
+import { PortalTripManifestForm } from '@/components/PortalTripManifestForm'
 import {
   portalAircraftMapBlocked,
   portalAircraftMapVisible,
@@ -50,10 +51,11 @@ function aircraftWhereLabel(view: PortalTrackingView): string {
 export function PortalTrackingBody({
   view,
   backHref = '/portal',
+  tripId = null,
 }: {
   view: PortalTrackingView
   backHref?: string
-  /** @deprecated Desk edits moved to OnFly Live tracking — ignored. */
+  /** Enables client passenger / cargo details form on this trip. */
   tripId?: string | null
 }) {
   const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
@@ -325,6 +327,8 @@ export function PortalTrackingBody({
         <InfoCard title="Pickup" body={pickupTitle} sub={pickupSub} />
         <InfoCard title="Drop-off" body={dropoffTitle} sub={dropoffSub} />
       </section>
+
+      {tripId ? <PortalTripManifestForm tripId={tripId} /> : null}
     </PortalShell>
   )
 }

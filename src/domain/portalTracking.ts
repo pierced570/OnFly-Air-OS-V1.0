@@ -1767,7 +1767,15 @@ export function tripToTrackingInput(trip: {
   portal_pickup_stop?: PortalStopLocation | null
   portal_dropoff_stop?: PortalStopLocation | null
   portal_pax_names?: string[] | null
-  passengers?: Array<{ name?: string }> | null
+  passengers?: Array<{
+    name?: string
+    first_name?: string
+    last_name?: string
+  }> | null
+  portal_cargo?: {
+    dims?: string
+    total_weight_lbs?: number | '' | null
+  } | null
   portal_ops_stage?: PortalOpsStageKey | null
 }): PortalTrackingTripInput {
   const selected =
@@ -1777,7 +1785,14 @@ export function tripToTrackingInput(trip: {
     trip.quick?.legs?.reduce((n, l) => n + (Number(l.pax) || 0), 0) ?? 0
   const eventPax = paxNamesFromEvents(trip.events)
   const structuredNames = (trip.passengers ?? [])
-    .map((p) => String(p.name ?? '').trim())
+    .map((p) => {
+      const full = String(p.name ?? '').trim()
+      if (full) return full
+      return [p.first_name, p.last_name]
+        .map((s) => String(s ?? '').trim())
+        .filter(Boolean)
+        .join(' ')
+    })
     .filter(Boolean)
   const paxNames = [
     ...structuredNames,
@@ -1785,6 +1800,22 @@ export function tripToTrackingInput(trip: {
     ...eventPax,
   ].filter((n, i, arr) => n && arr.indexOf(n) === i)
   const cargoLines = cargoLinesFromEvents(trip.events)
+  if (trip.portal_cargo?.dims?.trim()) {
+    const dims = `Dims: ${trip.portal_cargo.dims.trim()}`
+    if (!cargoLines.some((l) => l.toLowerCase() === dims.toLowerCase())) {
+      cargoLines.push(dims)
+    }
+  }
+  if (
+    trip.portal_cargo?.total_weight_lbs != null &&
+    trip.portal_cargo.total_weight_lbs !== '' &&
+    Number.isFinite(Number(trip.portal_cargo.total_weight_lbs))
+  ) {
+    const wt = `Total weight: ${Number(trip.portal_cargo.total_weight_lbs)} lb`
+    if (!cargoLines.some((l) => l.toLowerCase() === wt.toLowerCase())) {
+      cargoLines.push(wt)
+    }
+  }
   if (trip.quick?.notes?.trim()) {
     const note = trip.quick.notes.trim()
     if (!cargoLines.some((l) => l.toLowerCase() === note.toLowerCase())) {
