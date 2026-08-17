@@ -30,12 +30,12 @@ import {
   listInvoiceEmails,
   rememberEmailsOnClient,
   recordPoUsed,
-  suggestNextPo,
   subscribeClients,
   type ClientProfile,
 } from '@/lib/clientStore'
 import { formatInvoicePoHint, tripRefLabel } from '@/domain/invoicePoHint'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
+import { clientLastPoHint } from '@/lib/resolveClientLastPo'
 import {
   createInvoiceForTrip,
   createQuickDispatchTrip,
@@ -149,8 +149,15 @@ export default function QuickDispatchPage({
     ? getClient(clientId)
     : undefined
 
-  const lastPoHint = client?.last_po ?? null
-  const suggestedPo = useMemo(() => suggestNextPo(lastPoHint), [lastPoHint])
+  const poHint = useMemo(
+    () => (clientId ? clientLastPoHint(clientId) : null),
+    // Recompute when directory or client selection changes (trips/financials
+    // feed last_po via resolveClientLastPo → recordPoUsed → subscribeClients).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clients snapshot
+    [clientId, clients, client?.last_po, client?.profile.last_po_trip_ref],
+  )
+  const lastPoHint = poHint?.lastPo ?? null
+  const suggestedPo = poHint?.suggestedPo ?? '00001'
 
   const margin = useMemo(() => {
     const v = Number(vendorCost)
@@ -206,7 +213,8 @@ export default function QuickDispatchPage({
     setClientId(id)
     const c = getClient(id)
     if (!c) return
-    setPo(suggestNextPo(c.last_po))
+    const hint = clientLastPoHint(id, { sync: true })
+    setPo(hint.suggestedPo)
     setPayTerms(c.pay_terms || 'Net 30')
     const invoiceTargets = listInvoiceEmails(id)
     setInvoiceEmail(invoiceTargets[0] || c.invoice_email || c.email || '')
@@ -571,7 +579,8 @@ export default function QuickDispatchPage({
             <span className="mt-1 block text-[11px] text-muted">
               {formatInvoicePoHint({
                 lastPo: lastPoHint,
-                lastPoTripRef: client.profile.last_po_trip_ref,
+                lastPoTripRef:
+                  poHint?.lastPoTripRef ?? client.profile.last_po_trip_ref,
                 suggestedPo,
               })}
             </span>
