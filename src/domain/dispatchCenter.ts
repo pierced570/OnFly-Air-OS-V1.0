@@ -48,7 +48,7 @@ export const DISPATCH_DRAWERS = [
     label: 'Approved trips',
     shortLabel: 'Approved',
     blurb:
-      'Booked — confirm invoice + tracking recipients; all submitted quotes stay on the card',
+      'Booked — review & send invoice + ETA (dispatcher approval); then start live tracking',
   },
   {
     id: 'tracking',

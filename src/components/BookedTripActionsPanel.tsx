@@ -170,8 +170,8 @@ export function BookedTripActionsPanel({ tripId }: Props) {
             Invoice &amp; ETA sheet
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            QuickBooks payment request (PDF + ACH View and pay), then ETA sheet
-            with tail and times.
+            Dispatcher approval required — review recipients, then send. Nothing
+            emails the client until you hit send below.
           </p>
         </div>
         <div className="font-mono text-xs text-cream/85">

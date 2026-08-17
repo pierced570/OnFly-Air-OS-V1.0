@@ -1461,6 +1461,7 @@ export async function acceptHardQuote(
     const booked = getTrip(trip.id)!
     // Never invent a PO here (e.g. CLI0001). Desk enters PO on Approved /
     // hard-quote composer; invoice draft waits until a real PO exists.
+    // Never email AP here — desk sends from Approved after reviewing recipients.
     if (booked.po_number?.trim() || booked.quick?.po?.trim()) {
       const { createInvoiceForTrip } = await import('@/lib/tripStore')
       await createInvoiceForTrip(trip.id, { skipEmail: true })
@@ -1469,9 +1470,22 @@ export async function acceptHardQuote(
     console.warn('[accept] invoice create failed', e)
   }
 
+  mutateTrip(trip.id, (t) => {
+    t.events.push({
+      at: new Date().toISOString(),
+      actor: 'system',
+      kind: 'desk_outbound_pending',
+      payload: {
+        invoice: true,
+        eta_sheet: true,
+        reason: 'dispatcher_approval_required',
+      },
+    })
+  })
+
   const { runOnBookedAutomations } = await import('@/lib/onBooked')
-  // ETA sheet is a desk action on Approved (bubble + send) — not auto-blast.
-  await runOnBookedAutomations(trip.id, { skipEtaEmail: true })
+  // Invoice + ETA sheet require dispatcher approval on Approved — never auto.
+  await runOnBookedAutomations(trip.id)
 
   return getTrip(trip.id)!
 }

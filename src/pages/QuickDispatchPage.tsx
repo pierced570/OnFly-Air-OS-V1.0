@@ -48,10 +48,7 @@ import {
   createInvoiceForTrip,
   createQuickDispatchTrip,
   flushPersistTrip,
-  safeTransitionTrip,
-  sendTripInvoiceEmail,
 } from '@/lib/tripStore'
-import { sendQuickDispatchEtaSheetAndPortalLinks } from '@/lib/etaSheetSender'
 import {
   getReferral,
   listActiveReferrals,
@@ -296,7 +293,7 @@ export default function QuickDispatchPage({
 
       if (sendInvoice) {
         if (!(Number(clientPrice) > 0)) {
-          setError('Client price required to send the invoice')
+          setError('Client price required to prepare the invoice draft')
           return
         }
         if (!poTyped) {
@@ -311,7 +308,7 @@ export default function QuickDispatchPage({
           : listInvoiceEmails(client.id)
         if (!toProbe.length) {
           setError(
-            'Invoice To email required — add an AP address before sending',
+            'Invoice To email required — add an AP address before preparing the draft',
           )
           return
         }
@@ -379,96 +376,40 @@ export default function QuickDispatchPage({
         ? [invoiceEmail.trim()]
         : listInvoiceEmails(client.id)
 
-      // Start invoice in parallel — never block "Dispatch complete" / waterfall.
-      const invoicePromise =
-        sendInvoice && Number(clientPrice) > 0
-          ? sendTripInvoiceEmail(trip.id, {
-              to: invoiceToList,
-              cc: invoiceCcList,
-            }).catch(async (e) => {
-              const msg =
-                e instanceof Error ? e.message : 'Invoice send failed'
-              console.warn('[quick-dispatch] invoice failed', e)
-              try {
-                await createInvoiceForTrip(trip.id, {
-                  skipEmail: true,
-                  to: invoiceToList,
-                  cc: invoiceCcList,
-                  poNumber: poFinal,
-                })
-              } catch (e2) {
-                console.warn('[quick-dispatch] invoice create failed', e2)
-              }
-              return { error: msg as string }
-            })
-          : null
-
-      // Manifest + checkpoints; ETA blast uses trip.quick.eta_emails via onBooked
-      const { runOnBookedAutomations } = await import('@/lib/onBooked')
-      if (etaList.length) {
-        await runOnBookedAutomations(trip.id, { skipEtaEmail: true })
-        await sendQuickDispatchEtaSheetAndPortalLinks({
-          trip,
-          recipients: etaList,
-        })
-      } else {
-        await runOnBookedAutomations(trip.id)
+      // Draft invoice only — never email AP from QD submit. Desk reviews
+      // recipients on Approved and sends explicitly.
+      if (sendInvoice && Number(clientPrice) > 0) {
+        try {
+          await createInvoiceForTrip(trip.id, {
+            skipEmail: true,
+            to: invoiceToList,
+            cc: invoiceCcList,
+            poNumber: poFinal,
+          })
+        } catch (e) {
+          console.warn('[quick-dispatch] invoice draft failed', e)
+        }
       }
 
-      // Persist booked shell + ETA chain before live transition so magic-link
-      // portal hydrate sees nodes / tail (avoids STANDING BY + Tail TBD).
+      // Manifest + checkpoints only — ETA sheet never auto-blasts.
+      const { runOnBookedAutomations } = await import('@/lib/onBooked')
+      await runOnBookedAutomations(trip.id)
+
       await flushPersistTrip(trip.id)
 
-      // Straight into Live tracking — no Approved holding pattern.
-      try {
-        safeTransitionTrip(trip.id, 'in_progress', 'dispatcher', {
-          reason: 'quick_dispatch',
-          via: 'quick_dispatch',
-        })
-        await flushPersistTrip(trip.id)
-      } catch (e) {
-        console.warn('[quick-dispatch] start tracking failed', e)
-        setError(
-          e instanceof Error
-            ? `Trip saved but not live yet: ${e.message}`
-            : 'Trip saved but live tracking failed — open trip and push live.',
-        )
-        return
-      }
-
+      // Hold on Approved so desk reviews invoice + ETA recipients before send
+      // / live tracking. Do not auto-transition to in_progress.
       const { setDeskFlash } = await import('@/lib/deskFlash')
       setDeskFlash({
         kind: 'dispatch_complete',
         tripId: trip.id,
         po: poFinal,
-        invoicePending: Boolean(invoicePromise),
+        invoicePending: false,
       })
 
-      // Drop into Live tracking waterfall immediately.
       nav(
-        `/dispatch?drawer=tracking&focus=${encodeURIComponent(trip.id)}&notice=dispatch_complete`,
+        `/dispatch?drawer=approved&focus=${encodeURIComponent(trip.id)}&notice=dispatch_complete`,
       )
-
-      // Finish invoice after navigation (do not keep the Dispatching… spinner).
-      if (invoicePromise) {
-        void invoicePromise.then((result) => {
-          if (result && 'error' in result && result.error) {
-            setDeskFlash({
-              kind: 'invoice_failed',
-              tripId: trip.id,
-              po: poFinal,
-              message: result.error,
-            })
-            return
-          }
-          setDeskFlash({
-            kind: 'invoice_sent',
-            tripId: trip.id,
-            po: poFinal,
-            to: invoiceToList,
-          })
-        })
-      }
     } finally {
       setBusy(false)
     }
@@ -493,8 +434,8 @@ export default function QuickDispatchPage({
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-cream">Quick Dispatch</h1>
           <p className="mt-1 text-sm text-muted">
-            Skip offers &amp; quotes. Invoice + ETA sheet go out on submit, trip
-            lands in Live tracking.
+            Skip offers &amp; quotes. Trip lands on Approved — review invoice +
+            ETA recipients, then send and start live tracking.
           </p>
         </div>
         <Link
@@ -975,11 +916,11 @@ export default function QuickDispatchPage({
             checked={sendInvoice}
             onChange={(e) => setSendInvoice(e.target.checked)}
           />
-          Send invoice on dispatch
+          Prepare invoice draft (send later)
         </label>
         <p className="text-[11px] text-muted">
-          Creates the QuickBooks invoice (DocNumber = PO #) and emails AP with
-          the PDF + trip details. Uncheck only if you will invoice later.
+          Creates a QuickBooks draft (DocNumber = PO #) and saves AP recipients.
+          Nothing emails until you send from Approved after reviewing To/CC.
         </p>
         <label className={label}>
           Invoice To (email)
@@ -1053,8 +994,8 @@ export default function QuickDispatchPage({
           ETA sheet email
         </div>
         <p className="text-[11px] text-muted">
-          Separate from invoice. Who gets the ETA sheet + live tracker on
-          dispatch (supply chain / bases — not AP).
+          Separate from invoice. Prefill supply-chain / base recipients — desk
+          reviews and sends from Approved (nothing auto-emails on dispatch).
         </p>
 
         <label className={label}>
@@ -1070,7 +1011,8 @@ export default function QuickDispatchPage({
           />
           <span className="mt-1 block text-[11px] text-muted">
             Type who should receive the ETA sheet. Comma-separate multiple
-            addresses. Blank = no ETA email on dispatch.
+            addresses. Saved for Approved — nothing sends until you confirm
+            there.
           </span>
         </label>
 
