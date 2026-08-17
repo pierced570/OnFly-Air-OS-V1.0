@@ -90,7 +90,7 @@ export function AirportSelect({
   }
 
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
+    <div ref={rootRef} className={`relative min-w-0 max-w-full ${className}`}>
       {label && (
         <span className="block text-xs font-medium uppercase tracking-wider text-muted">
           {label}
@@ -118,8 +118,8 @@ export function AirportSelect({
         }}
         className={
           inputClassName.trim()
-            ? inputClassName
-            : 'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
+            ? `${inputClassName} min-w-0 max-w-full`
+            : 'mt-1 w-full min-w-0 max-w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
         }
       />
       {value && !known && (
@@ -130,7 +130,10 @@ export function AirportSelect({
         </p>
       )}
       {value && known && !open && (
-        <p className="mt-1 truncate text-[11px] text-[var(--text)]/70">
+        <p
+          className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--text)]/70"
+          title={formatAirportLabel(known)}
+        >
           {formatAirportLabel(known)}
         </p>
       )}
@@ -138,7 +141,7 @@ export function AirportSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-[var(--surface-2)] shadow-lg"
+          className="absolute z-30 mt-1 max-h-56 w-full max-w-full overflow-auto rounded-md border border-border bg-[var(--surface-2)] shadow-lg"
         >
           {results.length === 0 ? (
             <li className="px-3 py-2 text-sm text-[var(--text)] opacity-70">
