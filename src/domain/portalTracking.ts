@@ -12,6 +12,7 @@ import {
   projectedDeliveryUtc,
 } from '@/domain/etaChain'
 import { haversineNm } from '@/domain/geo'
+import { parseLaneAirports } from '@/domain/offerMissionDisplay'
 import {
   formatPortalStopAddress,
   formatPortalStopTitle,
@@ -1080,50 +1081,55 @@ export function buildTrackingStops(
   if (!chain.length) {
     const first = trip.legs[0]
     const last = trip.legs[trip.legs.length - 1]
-    if (first?.origin) {
+    const lane = parseLaneAirports(trip.lane)
+    const origin =
+      first?.origin?.toUpperCase() || lane?.origin || null
+    const dest =
+      last?.dest?.toUpperCase() || lane?.dest || null
+    if (origin) {
       push({
         role: 'departure_fbo',
         title: 'Departure airport',
-        icao: first.origin.toUpperCase(),
-        placeLabel: first.origin.toUpperCase(),
+        icao: origin,
+        placeLabel: origin,
         addressHint: null,
-        etaDisplay: first.est_start
+        etaDisplay: first?.est_start
           ? formatClientLocal(first.est_start, 'UTC').display
           : null,
-        etaActualDisplay: first.actual_start
+        etaActualDisplay: first?.actual_start
           ? formatClientLocal(first.actual_start, 'UTC').display
           : null,
         status:
-          first.status === 'done'
+          first?.status === 'done'
             ? 'done'
-            : first.status === 'active'
+            : first?.status === 'active'
               ? 'active'
               : 'pending',
         tz: 'UTC',
-        event: first.label,
+        event: first?.label || 'Origin',
       })
     }
-    if (last?.dest) {
+    if (dest) {
       push({
         role: 'arrival_fbo',
         title: 'Arrival airport',
-        icao: last.dest.toUpperCase(),
-        placeLabel: last.dest.toUpperCase(),
+        icao: dest,
+        placeLabel: dest,
         addressHint: null,
-        etaDisplay: last.est_end
+        etaDisplay: last?.est_end
           ? formatClientLocal(last.est_end, 'UTC').display
           : null,
-        etaActualDisplay: last.actual_end
+        etaActualDisplay: last?.actual_end
           ? formatClientLocal(last.actual_end, 'UTC').display
           : null,
         status:
-          last.status === 'done'
+          last?.status === 'done'
             ? 'done'
-            : last.status === 'active'
+            : last?.status === 'active'
               ? 'active'
               : 'pending',
         tz: 'UTC',
-        event: last.label,
+        event: last?.label || 'Destination',
       })
     }
     return stops
@@ -1252,14 +1258,17 @@ export function buildFlightFacts(
         (l.actual_start ||
           trip.legs.find((x) => x.seq === l.seq)?.status === 'active'),
     ) ?? trip.eta_chain.find((l) => l.type === 'air_leg')
+  const lane = parseLaneAirports(trip.lane)
   const originIcao =
     air?.from.icao?.toUpperCase() ??
     trip.legs.find((l) => l.origin)?.origin?.toUpperCase() ??
+    lane?.origin ??
     null
   const destIcao =
     air?.to.icao?.toUpperCase() ??
     trip.legs.find((l) => l.type === 'air_leg' && l.dest)?.dest?.toUpperCase() ??
     [...trip.legs].reverse().find((l) => l.dest)?.dest?.toUpperCase() ??
+    lane?.dest ??
     null
 
   const wheelsUpDisplay = air

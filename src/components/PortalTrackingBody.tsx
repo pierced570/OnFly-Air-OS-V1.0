@@ -262,7 +262,9 @@ export function PortalTrackingBody({
         </div>
         {opsRows.length === 0 ? (
           <p className="text-sm text-muted">
-            Stages appear once the trip is live.
+            {view.state === 'in_progress' || view.state === 'booked'
+              ? 'Trip schedule is updating — check back shortly, or ask dispatch.'
+              : 'Stages appear once the trip is live.'}
           </p>
         ) : (
           <ol className="divide-y divide-border overflow-hidden rounded-md border border-border bg-white">
