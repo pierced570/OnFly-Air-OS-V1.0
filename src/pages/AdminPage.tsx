@@ -134,39 +134,6 @@ export default function AdminPage() {
           Invite clients or operators by email, or run guided interviews — skip
           writes NEEDS-INFO, never blank tables.
         </p>
-<<<<<<< HEAD
-        <p className="mt-2 text-sm text-muted">
-          Day-to-day contact flags:{' '}
-          <Link to="/clients" className="text-gold hover:text-gold-lt">
-            Clients
-          </Link>
-          {' · '}
-          <Link to="/fbos" className="text-gold hover:text-gold-lt">
-            FBOs
-          </Link>
-          {' · '}
-          <Link to="/admin/staff" className="text-gold hover:text-gold-lt">
-            Staff access
-          </Link>
-          {' · '}
-          <Link to="/admin/keys" className="text-gold hover:text-gold-lt">
-            Logins &amp; keys
-          </Link>
-          {' · '}
-          <Link to="/onboard" className="text-gold hover:text-gold-lt">
-            Operator onboard
-          </Link>
-          {' · '}
-          <Link to="/vendor" className="text-gold hover:text-gold-lt">
-            W-9 / vendor packet
-          </Link>
-          {' · '}
-          <Link to="/client" className="text-gold hover:text-gold-lt">
-            Client page (send link)
-          </Link>
-        </p>
-=======
->>>>>>> origin/cursor/delete-tasks-page-c47e
         <ul className="mt-3 flex flex-wrap gap-2">
           {doors.map((d) => (
             <li
