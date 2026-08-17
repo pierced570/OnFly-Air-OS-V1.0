@@ -1,5 +1,6 @@
 /**
- * Admin — Portal access: which emails may open which client company.
+ * One-off portal email grants — lives on Clients (company-wide domains stay
+ * on each client profile).
  */
 
 import { useMemo, useState, useSyncExternalStore, type FormEvent } from 'react'
@@ -21,17 +22,15 @@ import {
   removePortalAccessGrant,
   subscribePortalAccess,
 } from '@/lib/portalAccessStore'
-import {
-  getSession,
-  sessionCan,
-  subscribeStaff,
-} from '@/lib/staffStore'
 
 const field =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
 
-export default function PortalAccessPage() {
-  useSyncExternalStore(subscribeStaff, getSession, getSession)
+export function PortalAccessPanel(props?: {
+  /** Prefill company when opened from a selected client. */
+  defaultClientId?: string
+  onClose?: () => void
+}) {
   const grants = useSyncExternalStore(
     subscribePortalAccess,
     listPortalAccessGrantsStable,
@@ -40,12 +39,10 @@ export default function PortalAccessPage() {
   const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
   const [email, setEmail] = useState('')
   const [label, setLabel] = useState('')
-  const [clientId, setClientId] = useState('')
+  const [clientId, setClientId] = useState(props?.defaultClientId ?? '')
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
   const [q, setQ] = useState('')
-
-  const canManage = sessionCan('clients') || sessionCan('admin')
 
   const sortedClients = useMemo(
     () =>
@@ -70,14 +67,6 @@ export default function PortalAccessPage() {
       )
     })
   }, [grants, q])
-
-  if (!canManage) {
-    return (
-      <div className="p-6 text-sm text-late">
-        Portal access is limited to staff with Clients or Admin enabled.
-      </div>
-    )
-  }
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -109,32 +98,42 @@ export default function PortalAccessPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:p-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-cream">Portal access</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          Control which emails can sign into the{' '}
-          <Link className="text-gold hover:text-gold-lt" to="/portal" target="_blank">
-            client portal
-          </Link>
-          . Prefer company-wide access? Set{' '}
-          <span className="text-cream">Portal email domains</span> on the{' '}
-          <Link className="text-gold hover:text-gold-lt" to="/clients">
-            Clients
-          </Link>{' '}
-          profile. Verified emails will be routed to the correct client portal.
-          Domains are inferred from emails on file and can be edited manually.
-          Use this page for one-off addresses.
-        </p>
-      </header>
+    <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-gold">
+            Portal access
+          </div>
+          <p className="mt-1 max-w-2xl text-sm text-muted">
+            Grant one-off emails to the{' '}
+            <Link
+              className="text-gold hover:text-gold-lt"
+              to="/portal"
+              target="_blank"
+              rel="noreferrer"
+            >
+              client portal
+            </Link>
+            . Prefer company-wide access? Set{' '}
+            <span className="text-cream">Portal email domains</span> on the
+            company profile below.
+          </p>
+        </div>
+        {props?.onClose ? (
+          <button
+            type="button"
+            className="shrink-0 text-xs text-muted hover:text-cream"
+            onClick={props.onClose}
+          >
+            Close
+          </button>
+        ) : null}
+      </div>
 
       <form
         onSubmit={submit}
-        className="grid max-w-3xl gap-3 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2"
+        className="grid max-w-3xl gap-3 sm:grid-cols-2"
       >
-        <div className="sm:col-span-2 text-[11px] uppercase tracking-wider text-gold">
-          Grant access
-        </div>
         <label className="block text-xs text-muted">
           Email
           <input
@@ -175,11 +174,7 @@ export default function PortalAccessPage() {
         </label>
         {sortedClients.length === 0 ? (
           <p className="sm:col-span-2 text-xs text-muted">
-            No companies yet — add one under{' '}
-            <Link className="text-gold hover:text-gold-lt" to="/clients">
-              Clients
-            </Link>{' '}
-            first.
+            No companies yet — add one in the list first.
           </p>
         ) : null}
         {error ? (
@@ -218,7 +213,7 @@ export default function PortalAccessPage() {
             No portal emails yet. Add one above.
           </p>
         ) : (
-          <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
+          <ul className="divide-y divide-border rounded-lg border border-border bg-ink/40">
             {filtered.map((g) => (
               <li
                 key={g.id}

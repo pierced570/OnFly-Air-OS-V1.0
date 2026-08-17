@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   isLiveEmailConfigured,
   isRealEmailEnabled,
@@ -17,6 +17,7 @@ import {
   sendClientOnboardInvite,
 } from '@/lib/clientOnboardEmail'
 import { ClientDetailPanel } from '@/pages/clients/ClientDetailPanel'
+import { PortalAccessPanel } from '@/pages/clients/PortalAccessPanel'
 
 const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
@@ -221,12 +222,20 @@ function ClientInvitePanel({ onClose }: { onClose: () => void }) {
 }
 
 export default function ClientsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [newName, setNewName] = useState('')
   const [seedNote, setSeedNote] = useState<string | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [portalOpen, setPortalOpen] = useState(
+    () => searchParams.get('tab') === 'portal',
+  )
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'portal') setPortalOpen(true)
+  }, [searchParams])
 
   useEffect(() => {
     void (async () => {
@@ -265,6 +274,16 @@ export default function ClientsPage() {
   const selected =
     clients.find((c) => c.id === selectedId) ?? filtered[0] ?? null
 
+  function togglePortal(open: boolean) {
+    setPortalOpen(open)
+    if (open) {
+      setInviteOpen(false)
+      setSearchParams({ tab: 'portal' }, { replace: true })
+    } else if (searchParams.get('tab') === 'portal') {
+      setSearchParams({}, { replace: true })
+    }
+  }
+
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -274,8 +293,8 @@ export default function ClientsPage() {
           </div>
           <h1 className="mt-1 text-xl font-semibold text-cream">Clients</h1>
           <p className="mt-1 max-w-xl text-xs text-muted">
-            Company profile, contacts, bases, billing, and standing rules — same
-            subjects as the public /client form.
+            Company profile, contacts, bases, billing, portal access, and
+            standing rules — same subjects as the public /client form.
           </p>
           {seedNote && (
             <p className="mt-2 text-[11px] text-gold/90">{seedNote}</p>
@@ -290,20 +309,36 @@ export default function ClientsPage() {
           <button
             type="button"
             className="rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
-            onClick={() => setInviteOpen((v) => !v)}
+            onClick={() => {
+              setInviteOpen((v) => !v)
+              if (!inviteOpen) togglePortal(false)
+            }}
           >
             {inviteOpen ? 'Hide invite' : 'Invite client'}
           </button>
-          <Link
-            to="/admin/portal-access"
-            className="rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
+          <button
+            type="button"
+            className={[
+              'rounded-md border px-3 py-2 text-xs',
+              portalOpen
+                ? 'border-gold/50 bg-gold/10 text-gold'
+                : 'border-border text-cream hover:border-gold/40',
+            ].join(' ')}
+            onClick={() => togglePortal(!portalOpen)}
           >
-            Portal access
-          </Link>
+            {portalOpen ? 'Hide portal access' : 'Portal access'}
+          </button>
         </div>
       </header>
 
       {inviteOpen && <ClientInvitePanel onClose={() => setInviteOpen(false)} />}
+      {portalOpen && (
+        <PortalAccessPanel
+          key={selected?.id ?? 'none'}
+          defaultClientId={selected?.id}
+          onClose={() => togglePortal(false)}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         <aside className="w-full shrink-0 space-y-3 lg:w-80">
