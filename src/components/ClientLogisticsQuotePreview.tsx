@@ -3,11 +3,10 @@
  * Portal-safe: no operator names, margins, or carrier branding.
  * Keep the card about price + times; supporting copy stays fine print.
  *
- * Visual system (client cream theme):
- * - Ink header/footer brand bars; cream body; white option cards
- * - One gold CTA style for every Accept
- * - Recommended = gold badge + gold border only (same weight as siblings)
- * - Milestone cells share one cream tile; Delivered is gold-labelled, not inverted
+ * Visual system (matches hard-quote email dark brand shell):
+ * - Ink header/footer brand bars; dark body; dark option cards
+ * - Gold CTA (ink text) for portal accept / Accept
+ * - Milestone cells share dark tiles; Delivered is gold-ringed
  */
 
 import { BRAND_EMAIL, BRAND_PHONE } from '@/domain/brand'
@@ -41,7 +40,7 @@ type Props = {
   /** Show Accept / Deny / Change request controls (live accept page). */
   interactive?: boolean
   /**
-   * When not interactive (email / desk preview), link for “Go to portal to accept”.
+   * When not interactive (email / desk preview), link for portal accept CTA.
    * Real Accept buttons only render when `interactive` + `optionActions.onAccept`.
    */
   portalAcceptUrl?: string | null
@@ -61,7 +60,7 @@ type Props = {
 }
 
 const acceptCtaClass =
-  'rounded-lg bg-[#C9A227] px-3.5 py-2 text-sm font-semibold text-[#0C0C0E]'
+  'rounded-lg border border-[#E3B341] bg-[#C9A227] px-3.5 py-2.5 text-center text-xs font-bold leading-snug text-[#0C0C0E] sm:text-sm'
 
 export function ClientLogisticsQuotePreview({
   title,
@@ -83,27 +82,30 @@ export function ClientLogisticsQuotePreview({
   const introText =
     intro?.trim() ||
     (options.length <= 1
-      ? 'All-in price · taxes & fees included. Go to the portal to accept and lock it.'
-      : `${options.length} options · all-in prices. Go to the portal to pick one and lock it.`)
+      ? 'All-in price · taxes & fees included. Click here to accept quote in portal.'
+      : `${options.length} options · all-in prices. Click here to accept quote in portal.`)
 
   return (
     <div
       className={[
-        'overflow-hidden rounded-xl border border-[#E5DFD0] bg-[#F7F2E3] text-[#0C0C0E] shadow-sm',
+        'overflow-hidden rounded-xl border border-[#2A2A2E] bg-[#141414] text-[#F7F2E3] shadow-sm',
         className ?? '',
       ].join(' ')}
-      data-theme="client"
+      data-theme="dispatcher"
+      data-appearance="dark"
     >
       {previewBanner ? (
-        <div className="border-b border-[#C9A227]/35 bg-[#C9A227]/20 px-4 py-1.5 text-[11px] font-medium text-[#0C0C0E]">
+        <div className="border-b border-[#C9A227]/35 bg-[#C9A227]/20 px-4 py-1.5 text-[11px] font-medium text-[#F7F2E3]">
           {previewBanner}
         </div>
       ) : null}
 
       <header className="bg-[#0C0C0E] px-5 py-4 text-[#F7F2E3]">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="text-[11px] font-semibold tracking-[0.16em] text-[#C9A227]">
-            ONFLY AIR
+          <div className="text-[11px] font-semibold tracking-[0.16em]">
+            <span className="text-[#C9A227]">ON</span>
+            <span className="text-[#F7F2E3]">FLY</span>{' '}
+            <span className="text-[#C9A227]">AIR</span>
           </div>
           {refLabel?.trim() ? (
             <div className="rounded-full border border-[#C9A227] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#C9A227]">
@@ -119,7 +121,7 @@ export function ClientLogisticsQuotePreview({
             {missionChips.map((c) => (
               <span
                 key={c.label}
-                className="rounded-full border border-[#F7F2E3]/20 bg-[#1A1A1C] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#F7F2E3]/90"
+                className="rounded-full border border-[#2A2A2E] bg-[#1A1A1C] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#F7F2E3]/90"
               >
                 {c.label}
               </span>
@@ -138,15 +140,15 @@ export function ClientLogisticsQuotePreview({
             return (
               <li
                 key={opt.offer_id}
-                className="overflow-hidden rounded-xl border border-[#E5DFD0] bg-white"
+                className="overflow-hidden rounded-xl border border-[#2A2A2E] bg-[#1C1C1F]"
               >
                 <div className="space-y-2.5 px-3.5 py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                    <div className="min-w-0 text-base font-semibold text-[#0C0C0E]">
+                    <div className="min-w-0 text-base font-semibold text-[#F7F2E3]">
                       {opt.option_number_label} · {opt.aircraft_type}
                     </div>
                     <div className="text-right">
-                      <div className="avionic text-2xl font-semibold text-[#0C0C0E] sm:text-3xl">
+                      <div className="avionic text-2xl font-semibold text-[#F7F2E3] sm:text-3xl">
                         {money(opt.price)}
                       </div>
                       <div className="text-[10px] font-medium text-[#2E7D32]">
@@ -163,19 +165,19 @@ export function ClientLogisticsQuotePreview({
                           <div
                             key={m.key}
                             className={[
-                              'rounded-md bg-[#F7F2E3] px-2 py-1.5',
-                              hi ? 'ring-1 ring-[#C9A227]/55' : '',
+                              'rounded-md border bg-[#0C0C0E] px-2 py-1.5',
+                              hi ? 'border-[#C9A227]' : 'border-[#2A2A2E]',
                             ].join(' ')}
                           >
                             <div
                               className={[
                                 'text-[8px] font-semibold uppercase leading-tight tracking-wider',
-                                hi ? 'text-[#C9A227]' : 'text-[#6B6560]',
+                                hi ? 'text-[#C9A227]' : 'text-[#8A8680]',
                               ].join(' ')}
                             >
                               {m.label}
                             </div>
-                            <div className="avionic mt-0.5 text-sm font-semibold text-[#0C0C0E]">
+                            <div className="avionic mt-0.5 text-sm font-semibold text-[#F7F2E3]">
                               {m.clock}
                             </div>
                           </div>
@@ -185,7 +187,7 @@ export function ClientLogisticsQuotePreview({
                   ) : null}
 
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-[11px] text-[#6B6560]">
+                    <div className="text-[11px] text-[#8A8680]">
                       {[opt.flight_time_label, opt.door_to_door_label]
                         .filter(Boolean)
                         .join(' · ')}
@@ -212,23 +214,27 @@ export function ClientLogisticsQuotePreview({
                     ) : !interactive && portalAcceptUrl?.trim() ? (
                       <a
                         href={portalAcceptUrl.trim()}
-                        className={acceptCtaClass}
+                        className={[acceptCtaClass, 'max-w-[14rem]'].join(' ')}
                       >
                         {PORTAL_ACCEPT_CTA}
                       </a>
                     ) : !interactive ? (
-                      <div className={acceptCtaClass}>{PORTAL_ACCEPT_CTA}</div>
+                      <div
+                        className={[acceptCtaClass, 'max-w-[14rem]'].join(' ')}
+                      >
+                        {PORTAL_ACCEPT_CTA}
+                      </div>
                     ) : null}
                   </div>
 
                   {interactive &&
                   (actions?.onDeny || actions?.changeRequestHref) ? (
-                    <div className="flex flex-wrap gap-2 border-t border-[#E5DFD0] pt-2">
+                    <div className="flex flex-wrap gap-2 border-t border-[#2A2A2E] pt-2">
                       {actions.onDeny ? (
                         <button
                           type="button"
                           className={[
-                            'rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]',
+                            'rounded-md border border-[#2A2A2E] bg-[#0C0C0E] px-2.5 py-1.5 text-[11px] font-medium text-[#F7F2E3]',
                             actions.busy ? 'pointer-events-none opacity-50' : '',
                           ].join(' ')}
                           onClick={actions.onDeny}
@@ -238,7 +244,7 @@ export function ClientLogisticsQuotePreview({
                       ) : null}
                       {actions.changeRequestHref ? (
                         <a
-                          className="rounded-md border border-[#C9A227]/45 bg-[#C9A227]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]"
+                          className="rounded-md border border-[#C9A227]/45 bg-[#C9A227]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#F7F2E3]"
                           href={actions.changeRequestHref}
                         >
                           Add details / Change request
@@ -255,12 +261,12 @@ export function ClientLogisticsQuotePreview({
         {interactive &&
         sharedActions &&
         (sharedActions.onDeny || sharedActions.changeRequestHref) ? (
-          <div className="flex flex-wrap gap-2 rounded-xl border border-[#E5DFD0] bg-white px-3.5 py-3">
+          <div className="flex flex-wrap gap-2 rounded-xl border border-[#2A2A2E] bg-[#1C1C1F] px-3.5 py-3">
             {sharedActions.onDeny ? (
               <button
                 type="button"
                 className={[
-                  'rounded-md border border-[#E5DFD0] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]',
+                  'rounded-md border border-[#2A2A2E] bg-[#0C0C0E] px-2.5 py-1.5 text-[11px] font-medium text-[#F7F2E3]',
                   sharedActions.busy ? 'pointer-events-none opacity-50' : '',
                 ].join(' ')}
                 onClick={sharedActions.onDeny}
@@ -270,7 +276,7 @@ export function ClientLogisticsQuotePreview({
             ) : null}
             {sharedActions.changeRequestHref ? (
               <a
-                className="rounded-md border border-[#C9A227]/45 bg-[#C9A227]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#0C0C0E]"
+                className="rounded-md border border-[#C9A227]/45 bg-[#C9A227]/12 px-2.5 py-1.5 text-[11px] font-medium text-[#F7F2E3]"
                 href={sharedActions.changeRequestHref}
               >
                 Add details / Change request
@@ -302,10 +308,10 @@ export function ClientLogisticsQuotePreview({
       </footer>
 
       {trackingHintUrl?.trim() ? (
-        <p className="border-t border-[#E5DFD0] bg-[#F7F2E3] px-5 py-2 text-center text-[11px] text-[#6B6560]">
+        <p className="border-t border-[#2A2A2E] bg-[#141414] px-5 py-2 text-center text-[11px] text-[#8A8680]">
           Once booked:{' '}
           <a
-            className="font-semibold text-[#0C0C0E] underline"
+            className="font-semibold text-[#C9A227] underline"
             href={trackingHintUrl}
           >
             {trackingHintUrl}
@@ -313,11 +319,10 @@ export function ClientLogisticsQuotePreview({
         </p>
       ) : null}
 
-      <p className="border-t border-[#E5DFD0] bg-[#F3EBDA] px-5 py-1.5 text-[9px] leading-snug text-[#8A8680]">
+      <p className="border-t border-[#2A2A2E] bg-[#0C0C0E] px-5 py-1.5 text-[9px] leading-snug text-[#8A8680]">
         {disclosureText?.trim() ||
           'Operated by a vetted Part 135 carrier. OnFly Air acts as broker and is not the air carrier.'}
       </p>
     </div>
   )
 }
-

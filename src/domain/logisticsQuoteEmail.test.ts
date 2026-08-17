@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildLogisticsQuoteOption,
   finalizeLogisticsQuoteOptions,
+  PORTAL_ACCEPT_CTA,
 } from '@/domain/clientLogisticsQuote'
 import {
   logisticsQuoteEmailSubject,
@@ -39,7 +40,7 @@ function sampleOptions() {
 }
 
 describe('logisticsQuoteEmail', () => {
-  it('renders charter quote HTML matching client mock layout', () => {
+  it('renders charter quote HTML matching dark brand shell', () => {
     const html = renderLogisticsQuoteEmailHtml({
       title: 'Charter Quote',
       originLabel: 'Akron CAK',
@@ -55,7 +56,7 @@ describe('logisticsQuoteEmail', () => {
         { label: 'Ready ASAP' },
       ],
       intro:
-        'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Go to the portal to pick one and lock it.',
+        'Two aircraft options below, both able to launch today. Prices are all-in — taxes and fees included. Click here to accept quote in portal.',
     })
     expect(html).toContain('Akron CAK')
     expect(html).toContain('White Plains HPN')
@@ -72,23 +73,24 @@ describe('logisticsQuoteEmail', () => {
     expect(html).toContain('Delivered (HPN FBO)')
     expect(html).toContain('$12,658')
     expect(html).toContain('$10,634')
-    expect(html).toContain('Go to portal to accept')
+    expect(html).toContain(PORTAL_ACCEPT_CTA)
+    expect(html).not.toContain('Go to portal to accept')
     expect(html).not.toContain('Accept Option 1')
     expect(html).not.toContain('Accept Option 2')
     expect(html).toContain('https://app.example/accept/abc')
     expect(html).not.toContain('option=o1')
-    // Uniform gold portal CTAs (not per-option Accept)
-    expect(
-      html.match(/Go to portal to accept/g)?.length,
-    ).toBeGreaterThanOrEqual(2)
-    expect(
-      html.match(/background:#c9a227;color:#0c0c0e/g)?.length,
-    ).toBeGreaterThanOrEqual(2)
-    expect(html).not.toContain('color:#c9a227;border:1px solid #c9a227')
-    expect(html).not.toContain('background:#0c0c0e;color:#c9a227')
-    // Milestone tiles stay cream — no inverted black time cells
-    expect(html).toContain('background:#f7f2e3')
-    expect(html).not.toContain('background:#0c0c0e;border-radius:6px')
+    // Uniform gold portal CTAs (ink text — survives email link restyles)
+    expect(html.match(new RegExp(PORTAL_ACCEPT_CTA, 'g'))?.length).toBeGreaterThanOrEqual(
+      2,
+    )
+    expect(html).toContain('background:#c9a227')
+    expect(html).toContain('color:#0c0c0e !important')
+    expect(html).toContain('bgcolor="#0c0c0e"')
+    // Dark shell — no white option cards / cream body that wash out logo
+    expect(html).not.toContain('background:#fff')
+    expect(html).not.toContain('background:#f7f2e3')
+    expect(html).toContain('background:#0c0c0e')
+    expect(html).toContain('background:#1c1c1f')
     expect(html).toContain('All-in includes')
     expect(html).toContain('On accept:')
     expect(html).toContain('24-hr ops')
@@ -121,7 +123,7 @@ describe('logisticsQuoteEmail', () => {
     expect(text).toContain('Option 1 · Cessna 310')
     expect(text).toContain('Option 2 · Aerostar 600')
     expect(text).toContain('Price: $12,658')
-    expect(text).toContain('Go to portal to accept:')
+    expect(text).toContain(`${PORTAL_ACCEPT_CTA}:`)
     expect(text).not.toContain('Review & accept:')
     expect(text).toMatch(/At Pickup Location \(CAK\):/i)
   })
