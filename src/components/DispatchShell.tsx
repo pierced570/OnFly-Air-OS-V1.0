@@ -21,6 +21,7 @@ const nav: {
   // QD / new trip condensed — tools drawer keeps full pages).
   { to: '/dispatch', label: 'Dispatch center', section: 'board', end: true },
   { to: '/financials', label: 'Financials', section: 'financials' },
+  { to: '/all-time', label: 'All Time Info', section: 'all_time' },
   { to: '/referrals', label: 'Referrals', section: 'referrals' },
   { to: '/clients', label: 'Clients', section: 'clients' },
   { to: '/leads', label: 'Leads', section: 'leads' },
@@ -79,6 +80,15 @@ export function DispatchShell({ children }: { children: ReactNode }) {
   // QuickBooks: paid→closed poll + invoice retry flush
   useEffect(() => {
     startQbPaidPoller()
+  }, [])
+
+  // All Time Info — keep CSV master rows in sync with the trip spine
+  useEffect(() => {
+    let stop: (() => void) | undefined
+    void import('@/lib/allTimeInfoStore').then((m) => {
+      stop = m.ensureAllTimeSync()
+    })
+    return () => stop?.()
   }, [])
 
   // Presence heartbeat — keeps this dispatcher on the Board "Logged in" list

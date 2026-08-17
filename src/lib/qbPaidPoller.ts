@@ -42,6 +42,17 @@ export async function pollQbPaidInvoices(): Promise<{
         qb_invoice_id: qbId,
         reason: 'qb_paid',
       })
+      void import('@/lib/allTimeInfoStore')
+        .then((m) => {
+          m.logAllTimeEvent({
+            kind: 'invoice_paid',
+            trip_id: trip.id,
+            trip_code: trip.code,
+            summary: `Invoice paid · QB ${qbId} · ${trip.code}`,
+            payload: { qb_invoice_id: qbId },
+          })
+        })
+        .catch(() => {})
       closed++
     } catch (e) {
       console.warn('[qb paid poll]', trip.ref, e)

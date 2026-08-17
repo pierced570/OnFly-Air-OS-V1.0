@@ -1245,6 +1245,12 @@ export function ensureTripInSession(row: TripStoreRow): TripStoreRow {
  */
 export function deleteTrip(id: string): boolean {
   if (!trips.has(id) && !deletedTripIds.has(id)) return false
+  const snapshot = trips.get(id)
+  if (snapshot) {
+    void import('@/lib/allTimeInfoStore')
+      .then((m) => m.recordTripDiscarded(snapshot))
+      .catch(() => {})
+  }
   deletedTripIds.add(id)
   for (const key of [...deletedOfferKeys]) {
     if (key.startsWith(`${id}:`)) deletedOfferKeys.delete(key)
@@ -2435,6 +2441,20 @@ export async function createInvoiceForTrip(
       },
     })
   })
+  void import('@/lib/allTimeInfoStore')
+    .then((m) => {
+      const fresh = trips.get(tripId)
+      m.logAllTimeEvent({
+        kind: 'invoice_created',
+        trip_id: tripId,
+        trip_code: fresh?.code ?? t.code,
+        summary: `Invoice created · $${total.toFixed(0)} · PO ${po}`,
+        payload: { total, po_number: po, qb_invoice_id: inv.qb_invoice_id },
+        at: inv.created_at,
+      })
+      if (fresh) m.syncTripToAllTime(fresh)
+    })
+    .catch(() => {})
   // Ledger: all-in on QBO; FET / segment logged on Financials only.
   try {
     const { ensureFinancialFromBookedTrip, financialIdForTrip } = await import(
@@ -2612,6 +2632,19 @@ export async function sendTripInvoiceEmail(
       payload: { to, cc, bcc, po_number: po },
     })
   })
+  void import('@/lib/allTimeInfoStore')
+    .then((m) => {
+      const fresh = getTrip(tripId)
+      m.logAllTimeEvent({
+        kind: 'invoice_sent',
+        trip_id: tripId,
+        trip_code: fresh?.code ?? null,
+        summary: `Invoice emailed · PO ${po} · ${to.join(', ')}`,
+        payload: { to, cc, bcc, po_number: po },
+      })
+      if (fresh) m.syncTripToAllTime(fresh)
+    })
+    .catch(() => {})
   return { poNumber: po, emailed: true }
 }
 
