@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AirportSelect } from '@/components/AirportSelect'
+import {
+  AircraftTailFleetSelect,
+  AircraftTypeFleetSelect,
+} from '@/components/AircraftFleetSelects'
 import { HrsMinsInput } from '@/components/HrsMinsInput'
 import { NumericDraftInput } from '@/components/NumericDraftInput'
 import { OperatorSelect } from '@/components/OperatorSelect'
@@ -118,6 +122,7 @@ export default function QuickDispatchPage({
   const [legs, setLegs] = useState<Leg[]>([newLeg()])
 
   const [operator, setOperator] = useState('')
+  const [operatorId, setOperatorId] = useState<string | null>(null)
   const [aircraftType, setAircraftType] = useState('')
   const [tail, setTail] = useState('')
 
@@ -808,6 +813,7 @@ export default function QuickDispatchPage({
           required
           onChange={(name, hit) => {
             setOperator(name)
+            setOperatorId(hit?.operator_id ?? null)
             if (hit?.type_name && !aircraftType.trim()) {
               setAircraftType(unifyAircraftType(hit.type_name) || hit.type_name)
             }
@@ -820,29 +826,33 @@ export default function QuickDispatchPage({
             }
           }}
         />
-        <div className="grid grid-cols-2 gap-2">
-          <label className={label}>
-            Aircraft type
-            <input
-              className={input}
-              value={aircraftType}
-              onChange={(e) => setAircraftType(e.target.value)}
-              placeholder="e.g. C310, KA200"
-            />
-          </label>
-          <label className={label}>
-            Tail number <span className="text-gold">*</span>
-            <input
-              className={`${input} avionic uppercase`}
-              value={tail}
-              onChange={(e) => setTail(e.target.value.toUpperCase())}
-              placeholder="N12345"
-              required
-            />
-            <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">
-              Required for live ADS-B / portal track — not TBD.
-            </span>
-          </label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <AircraftTypeFleetSelect
+            value={aircraftType}
+            operatorName={operator}
+            operatorId={operatorId}
+            onChange={setAircraftType}
+          />
+          <AircraftTailFleetSelect
+            value={tail}
+            required
+            operatorName={operator}
+            operatorId={operatorId}
+            typeName={aircraftType}
+            onChange={(next) => setTail(normalizeAircraftTail(next))}
+            onPickAircraft={(hit) => {
+              setTail(hit.tail)
+              if (hit.type_name) {
+                setAircraftType(
+                  unifyAircraftType(hit.type_name) || hit.type_name,
+                )
+              }
+              if (hit.operator_name && !operator.trim()) {
+                setOperator(hit.operator_name)
+                setOperatorId(hit.operator_id)
+              }
+            }}
+          />
         </div>
       </section>
 
