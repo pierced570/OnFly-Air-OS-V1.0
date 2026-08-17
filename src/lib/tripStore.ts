@@ -20,6 +20,10 @@ import {
 import type { TripState } from '@/domain/stateMachine'
 import { transition } from '@/domain/stateMachine'
 import {
+  isAssignableAircraftTail,
+  normalizeAircraftTail,
+} from '@/domain/aircraftTail'
+import {
   generateTripCode,
   isValidTripCode,
   normalizeTripCode,
@@ -1019,6 +1023,47 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   const legs = chain.length
     ? asTripLegs(materializeChainToLegs(chain))
     : buildQuickLegs(meta)
+  const tailNorm = normalizeAircraftTail(meta.tail || '')
+  const hasTail = isAssignableAircraftTail(tailNorm)
+  // Synthetic selected offer so portal_award_by_token can recover the tail when
+  // session_meta.quick is missing / late on magic-link hydrate.
+  const qdOffer: OfferRow | null = hasTail
+    ? {
+        id: crypto.randomUUID(),
+        trip_id: id,
+        operator_id: '',
+        operator_name: meta.operator_name.trim() || 'QD',
+        aircraft_id: '',
+        tail: tailNorm,
+        type_name: meta.aircraft_type.trim() || null,
+        state: 'selected',
+        ping_sent_at: null,
+        notified_at: null,
+        declined_acked_at: null,
+        replied_at: new Date().toISOString(),
+        time_to_position_min: null,
+        quick_turn_min: null,
+        live_leg_min: null,
+        wait_ok: null,
+        max_wait_hrs: null,
+        price_net: meta.vendor_cost || null,
+        fee_scope: null,
+        notes: 'quick_dispatch',
+        duty_available_min: null,
+        duty_included_min: null,
+        magic_token: crypto.randomUUID().replace(/-/g, ''),
+        bookingGated: false,
+        needsInfo: [],
+        contact_cell: '',
+        contact_cell_is_mock: true,
+        contact_email: '',
+        quote_link_channel: 'email',
+      }
+    : null
+  const quickMeta: QuickDispatchMeta = {
+    ...structuredClone(meta),
+    tail: hasTail ? tailNorm : meta.tail,
+  }
   const row: TripStoreRow = {
     id,
     ref: ++refSeq,
@@ -1026,12 +1071,14 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
     state: 'booked',
     lane,
     payload_summary: meta.cargo_only
-      ? `cargo · ${meta.tail || 'TBD'}`
-      : `${meta.legs.reduce((n, l) => n + l.pax, 0)} pax · ${meta.tail || 'TBD'}`,
+      ? `cargo · ${hasTail ? tailNorm : 'TBD'}`
+      : `${meta.legs.reduce((n, l) => n + l.pax, 0)} pax · ${
+          hasTail ? tailNorm : 'TBD'
+        }`,
     ready_label: meta.timing === 'asap' ? 'ASAP' : meta.legs[0]?.date || 'scheduled',
     candidates: [],
-    offers: [],
-    quick: structuredClone(meta),
+    offers: qdOffer ? [qdOffer] : [],
+    quick: quickMeta,
     po_number: meta.po?.trim() || null,
     client_id: meta.client_id,
     client_name: meta.client_name?.trim() || null,
@@ -1058,6 +1105,20 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
       total: meta.client_price,
       accept_token: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
       payload_kind: meta.cargo_only ? 'cargo' : 'pax',
+      options: hasTail
+        ? [
+            {
+              offer_id: qdOffer!.id,
+              label: 'A',
+              client_total: meta.client_price,
+              eta_end: projectedDeliveryUtc(chain),
+              fee_scope: null,
+              type_name: meta.aircraft_type.trim() || null,
+              operator_name: meta.operator_name.trim() || undefined,
+              tail: tailNorm,
+            },
+          ]
+        : undefined,
     },
     referral: (() => {
       const person = meta.referral_id ? getReferral(meta.referral_id) : undefined
@@ -1106,6 +1167,9 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
           client_id: meta.client_id,
           vendor_cost: meta.vendor_cost,
           client_price: meta.client_price,
+          tail: hasTail ? tailNorm : null,
+          aircraft_type: meta.aircraft_type.trim() || null,
+          operator_name: meta.operator_name.trim() || null,
         },
       },
       {
@@ -1129,6 +1193,24 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   trips.set(id, row)
   bump()
   schedulePersist(id)
+  if (hasTail) {
+    void import('@/lib/watchedTailsStore').then((m) => {
+      m.watchTail({
+        tail: tailNorm,
+        type_name: meta.aircraft_type.trim() || null,
+        operator_name: meta.operator_name.trim() || 'QD',
+        operator_id: null,
+        base_icao: meta.legs[0]?.origin_icao?.trim().toUpperCase() || null,
+        source: 'manual',
+      })
+    })
+    void import('@/adapters/adsb').then((m) => {
+      if (!m.isRealAdsbEnabled()) return
+      void m.createAdsbAdapter().setMovementAlert(tailNorm, true).catch((e) => {
+        console.warn('[qd] ADS-B watch enable failed', tailNorm, e)
+      })
+    })
+  }
   void import('@/lib/ensureFinancialFromTrip').then((m) =>
     m.ensureFinancialFromBookedTrip(getTrip(id)!),
   )

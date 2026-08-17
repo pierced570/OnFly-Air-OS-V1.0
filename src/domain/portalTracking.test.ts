@@ -9,6 +9,7 @@ import {
   portalAircraftMapVisible,
   resolveAircraftPosition,
   summarizePortalShipments,
+  tripToTrackingInput,
   type PortalTrackingTripInput,
 } from './portalTracking'
 import type { ChainLeg } from './etaChain'
@@ -473,5 +474,48 @@ describe('portalTracking', () => {
     expect(rows[1]!.status).toBe('done')
     expect(rows[2]!.status).toBe('active')
     expect(rows[3]!.status).toBe('pending')
+  })
+})
+
+describe('tripToTrackingInput tail resolution', () => {
+  it('recovers tail from hard_quote option when quick is empty', () => {
+    const input = tripToTrackingInput({
+      ref: 89,
+      lane: 'KCAK→KSHV',
+      state: 'in_progress',
+      ready_label: 'ASAP',
+      payload_summary: 'cargo',
+      legs: [],
+      events: [],
+      quick: { tail: '', aircraft_type: '', po: '00002' },
+      hard_quote: {
+        payload_kind: 'cargo',
+        options: [{ offer_id: 'o1', label: 'A', client_total: 1, eta_end: null, fee_scope: null, tail: 'N310XX', type_name: 'C310' }],
+      },
+      offers: [],
+    } as never)
+    expect(input.tail).toBe('N310XX')
+  })
+
+  it('recovers tail from quick_dispatch event', () => {
+    const input = tripToTrackingInput({
+      ref: 90,
+      lane: 'KCAK→KSHV',
+      state: 'in_progress',
+      ready_label: 'ASAP',
+      payload_summary: 'cargo',
+      legs: [],
+      events: [
+        {
+          at: new Date().toISOString(),
+          actor: 'dispatcher',
+          kind: 'quick_dispatch',
+          payload: { tail: 'N450CJ', aircraft_type: 'Citation' },
+        },
+      ],
+      quick: { tail: '', po: '00002' },
+      offers: [],
+    } as never)
+    expect(input.tail).toBe('N450CJ')
   })
 })

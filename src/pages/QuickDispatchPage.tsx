@@ -350,6 +350,10 @@ export default function QuickDispatchPage({
 
       recordPoUsed(client.id, poFinal, { tripRef: tripRefLabel(trip) })
 
+      // Persist quick.tail + synthetic selected offer BEFORE any portal magic
+      // link / ETA email — otherwise guest hydrate shows Tail Pending.
+      await flushPersistTrip(trip.id)
+
       const { listInvoiceEmails } = await import('@/lib/clientStore')
       const invoiceToList = invoiceEmail.trim()
         ? [invoiceEmail.trim()]
