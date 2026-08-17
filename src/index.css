@@ -190,6 +190,10 @@ body {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
 .avionic {
   font-family: var(--font-avionic);
   letter-spacing: 0.02em;

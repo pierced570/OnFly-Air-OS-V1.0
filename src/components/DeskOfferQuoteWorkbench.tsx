@@ -487,7 +487,7 @@ export function DeskOfferQuoteWorkbench({
             <button
               type="button"
               className={[
-                'rounded-md px-2.5 py-1 text-xs font-semibold',
+                'min-h-11 rounded-md px-2.5 py-2 text-xs font-semibold',
                 manualQuoteOfferId === o.id
                   ? 'border border-gold/50 bg-transparent text-gold hover:bg-gold/10'
                   : 'bg-gold text-ink hover:bg-gold-lt',
@@ -508,7 +508,7 @@ export function DeskOfferQuoteWorkbench({
           {selectable || facts || canManual ? (
             <button
               type="button"
-              className="text-xs text-muted hover:text-cream"
+              className="min-h-11 rounded-md px-3 py-2 text-xs text-muted hover:bg-surface-2 hover:text-cream"
               onClick={() =>
                 setExpanded((m) => ({ ...m, [o.id]: !m[o.id] }))
               }
@@ -597,11 +597,11 @@ export function DeskOfferQuoteWorkbench({
                   <div className="text-[11px] uppercase tracking-wider text-gold">
                     Client · retail
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <label className="block text-xs text-muted">
                       Margin %
                       <NumericDraftInput
-                        className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
+                        className="mt-1 w-full rounded border border-border bg-ink px-2 py-2.5 avionic text-sm text-cream"
                         value={
                           lock === 'margin' ? draftMargin : preview.margin_pct
                         }
@@ -623,7 +623,7 @@ export function DeskOfferQuoteWorkbench({
                     <label className="block text-xs text-muted">
                       Client total $
                       <NumericDraftInput
-                        className="mt-1 w-full rounded border border-border bg-ink px-2 py-1 avionic text-sm text-cream"
+                        className="mt-1 w-full rounded border border-border bg-ink px-2 py-2.5 avionic text-sm text-cream"
                         value={
                           lock === 'total' && draftTotal != null
                             ? draftTotal
@@ -766,7 +766,7 @@ export function DeskOfferQuoteWorkbench({
         {onClose ? (
           <button
             type="button"
-            className="text-xs text-muted hover:text-cream"
+            className="min-h-11 rounded-md px-3 py-2 text-xs text-muted hover:bg-surface-2 hover:text-cream"
             onClick={onClose}
           >
             Close compare

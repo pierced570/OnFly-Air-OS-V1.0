@@ -346,7 +346,7 @@ export default function TripPage() {
           </ul>
           <Link
             to={`/trips/${trip.id}/manifest`}
-            className="mt-3 inline-flex rounded-md border border-border px-3 py-1.5 text-xs text-cream hover:border-gold/40"
+            className="mt-3 inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-xs text-cream hover:border-gold/40"
           >
             Open load manifest
           </Link>
@@ -354,7 +354,7 @@ export default function TripPage() {
             <button
               type="button"
               disabled={invoiceBusy}
-              className="mt-3 rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-ink"
+              className="mt-3 min-h-11 rounded-md bg-gold px-3 py-2 text-xs font-medium text-ink"
               onClick={() => {
                 setInvoiceBusy(true)
                 void createInvoiceForTrip(trip.id, { skipEmail: true }).finally(() =>

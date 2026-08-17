@@ -73,7 +73,7 @@ function TripChatCard({
         <button
           type="button"
           className={[
-            'rounded-md px-3 py-1.5 text-xs font-semibold',
+            'min-h-11 rounded-md px-3 py-2.5 text-xs font-semibold',
             open
               ? 'border border-gold/50 bg-gold/10 text-gold'
               : 'bg-gold text-ink hover:bg-gold-lt',

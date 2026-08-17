@@ -90,7 +90,12 @@ function parseCc(raw: string): string[] {
     .filter((s) => s.includes('@'))
 }
 
-export default function QuickDispatchPage() {
+export default function QuickDispatchPage({
+  embedded = false,
+}: {
+  /** When true (Dispatch center tool chrome), keep CTA in-flow instead of viewport-fixed. */
+  embedded?: boolean
+} = {}) {
   const nav = useNavigate()
   const clients = useSyncExternalStore(subscribeClients, listClients, listClients)
   const referrers = useSyncExternalStore(
@@ -423,7 +428,12 @@ export default function QuickDispatchPage() {
   const etaContacts = clientId ? listEtaTrackingContacts(clientId) : []
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-5 p-4 pb-28 sm:p-6">
+    <div
+      className={[
+        'mx-auto flex w-full max-w-lg flex-col gap-5 p-4 sm:p-6',
+        embedded ? 'pb-6' : 'pb-28',
+      ].join(' ')}
+    >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-cream">Quick Dispatch</h1>
@@ -485,7 +495,7 @@ export default function QuickDispatchPage() {
               value={newInvoice}
               onChange={(e) => setNewInvoice(e.target.value)}
             />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input
                 className={input}
                 placeholder="Contact name (optional)"
@@ -689,6 +699,8 @@ export default function QuickDispatchPage() {
                   />
                 </label>
               )}
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <HrsMinsInput
                 label="Repo time"
                 labelClassName={label}
@@ -830,7 +842,7 @@ export default function QuickDispatchPage() {
         <div className="text-xs font-medium uppercase tracking-wider text-muted">
           Pricing &amp; invoice
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <label className={label}>
             Vendor cost ($)
             <input
@@ -1149,7 +1161,13 @@ export default function QuickDispatchPage() {
         </p>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-ink/95 px-4 pt-3 safe-bottom backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div
+        className={
+          embedded
+            ? undefined
+            : 'fixed inset-x-0 bottom-0 z-10 border-t border-border bg-ink/95 px-4 pt-3 safe-bottom backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none'
+        }
+      >
         <button
           type="button"
           onClick={() => void dispatchNow()}

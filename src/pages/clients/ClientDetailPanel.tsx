@@ -143,7 +143,7 @@ export function ClientDetailPanel({
             type="button"
             onClick={() => setTab(t.id)}
             className={[
-              'rounded-md px-3 py-1.5 text-sm transition-colors',
+              'min-h-11 rounded-md px-3 py-2 text-sm transition-colors',
               tab === t.id
                 ? 'bg-gold/15 text-gold'
                 : 'text-muted hover:bg-surface-2 hover:text-cream',
@@ -400,7 +400,158 @@ function ContactsTab({
       </p>
       <p className="text-xs text-muted">{apCount} flagged for invoices</p>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      {/* Mobile contact cards */}
+      <ul className="space-y-2 sm:hidden">
+        {mixed.map((c) => {
+          const synthetic = c.id.startsWith('base:')
+          return (
+            <li
+              key={c.id}
+              className="space-y-2 rounded-lg border border-border bg-surface px-3 py-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span
+                  className={[
+                    'inline-block rounded-full px-2 py-0.5 text-[11px] font-medium',
+                    c.kind === 'dl'
+                      ? 'border border-border text-muted'
+                      : 'bg-gold/20 text-gold',
+                  ].join(' ')}
+                >
+                  {c.kind === 'dl' ? 'DL' : 'Person'}
+                </span>
+                {!synthetic && (
+                  <button
+                    type="button"
+                    className="tap text-xs text-muted hover:text-late"
+                    onClick={() => removeClientContact(client.id, c.id)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {synthetic ? (
+                <div className="text-sm text-cream">{c.name}</div>
+              ) : (
+                <input
+                  className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold"
+                  value={c.name}
+                  onChange={(e) =>
+                    updateClientContact(client.id, c.id, {
+                      name: e.target.value,
+                    })
+                  }
+                  placeholder="Name"
+                />
+              )}
+              {synthetic ? (
+                <div className="font-mono text-xs text-cream">{c.email}</div>
+              ) : (
+                <input
+                  className="w-full rounded-md border border-border bg-ink px-3 py-2.5 font-mono text-xs text-cream outline-none focus:border-gold"
+                  value={c.email}
+                  onChange={(e) =>
+                    updateClientContact(client.id, c.id, {
+                      email: e.target.value,
+                    })
+                  }
+                  placeholder="Email"
+                />
+              )}
+              {!synthetic && (
+                <>
+                  <input
+                    className="w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold"
+                    value={c.title ?? ''}
+                    placeholder="Title"
+                    onChange={(e) =>
+                      updateClientContact(client.id, c.id, {
+                        title: e.target.value,
+                      })
+                    }
+                  />
+                  <input
+                    className="w-full rounded-md border border-border bg-ink px-3 py-2.5 font-mono text-xs text-cream outline-none focus:border-gold"
+                    value={c.cell}
+                    placeholder="Phone"
+                    onChange={(e) =>
+                      updateClientContact(client.id, c.id, {
+                        cell: e.target.value,
+                      })
+                    }
+                  />
+                  <div className="flex flex-wrap gap-3 text-[11px] text-cream">
+                    <label className="flex min-h-11 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={c.notify_prefs.request_alert}
+                        onChange={(e) =>
+                          updateClientContact(client.id, c.id, {
+                            notify_prefs: {
+                              request_alert: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      Quotes
+                    </label>
+                    <label className="flex min-h-11 items-center gap-2 text-gold">
+                      <input
+                        type="checkbox"
+                        checked={c.notify_prefs.invoice}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            updateClientContact(client.id, c.id, {
+                              role: 'ap',
+                              notify_prefs: { invoice: true },
+                            })
+                          } else {
+                            updateClientContact(client.id, c.id, {
+                              notify_prefs: { invoice: false },
+                            })
+                          }
+                        }}
+                      />
+                      AP / Invoice
+                    </label>
+                    <label className="flex min-h-11 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={c.notify_prefs.tracker}
+                        onChange={(e) =>
+                          updateClientContact(client.id, c.id, {
+                            notify_prefs: { tracker: e.target.checked },
+                          })
+                        }
+                      />
+                      Always ETA
+                    </label>
+                  </div>
+                  <input
+                    className="w-full rounded-md border border-border bg-ink px-3 py-2.5 font-mono text-xs text-cream outline-none focus:border-gold"
+                    value={(c.eta_icaos ?? []).join(', ')}
+                    placeholder="ETA airports (CAK, CLT)"
+                    onChange={(e) => {
+                      const eta_icaos = e.target.value
+                        .split(/[,;\s]+/)
+                        .map((s) => s.trim().toUpperCase())
+                        .filter(Boolean)
+                      updateClientContact(client.id, c.id, { eta_icaos })
+                    }}
+                  />
+                </>
+              )}
+              {synthetic && (
+                <p className="text-[11px] text-muted">
+                  ETA @ {(c.eta_icaos ?? []).join(', ') || '—'}
+                </p>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-border sm:block">
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-border bg-surface text-xs uppercase tracking-wider text-muted">
             <tr>
@@ -928,7 +1079,7 @@ function BillingTab({
             }
           />
         </label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <label className={label}>
             City
             <input

@@ -116,7 +116,50 @@ export function NetworkSheetView({ filter }: { filter: string }) {
         edits apply to every tail for that operator · new operators still via
         Admin wizard
       </p>
-      <div className="board-rail max-h-[70vh] overflow-auto rounded-lg border border-border">
+      <p className="rounded-md border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-gold md:hidden">
+        Compact list on phone — open on a wider screen to edit the full sheet.
+      </p>
+      <ul className="space-y-2 md:hidden">
+        {filtered.map((r) => (
+          <li
+            key={r.aircraft_id}
+            className="rounded-lg border border-border bg-surface px-3 py-3"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="avionic text-sm font-semibold text-gold">
+                {r.tail}
+              </span>
+              <span
+                className={[
+                  'text-[10px] uppercase tracking-wider',
+                  r.active ? 'text-onplan' : 'text-muted',
+                ].join(' ')}
+              >
+                {r.active ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <div className="mt-1 text-sm text-cream">{r.operator_name}</div>
+            <div className="mt-0.5 text-xs text-muted">
+              {[r.type_name, r.category, r.base_icao]
+                .filter(Boolean)
+                .join(' · ') || '—'}
+            </div>
+            {(r.contact_name || r.contact_cell || r.contact_email) && (
+              <div className="mt-2 text-xs text-muted">
+                {[r.contact_name, r.contact_cell, r.contact_email]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+            )}
+          </li>
+        ))}
+        {filtered.length === 0 && (
+          <li className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted">
+            No aircraft match this filter.
+          </li>
+        )}
+      </ul>
+      <div className="board-rail hidden max-h-[70vh] overflow-auto rounded-lg border border-border md:block">
         <table className="w-full min-w-[1600px] border-collapse text-left text-xs">
           <thead className="sticky top-0 z-10 bg-surface-2 text-[10px] uppercase tracking-wider text-muted">
             <tr>

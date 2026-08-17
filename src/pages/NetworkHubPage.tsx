@@ -77,7 +77,7 @@ export default function NetworkHubPage() {
                 type="button"
                 onClick={() => select(t.id)}
                 className={[
-                  'shrink-0 rounded-md px-3 py-2.5 text-left transition-colors md:w-full',
+                  'min-h-11 shrink-0 rounded-md px-3 py-2.5 text-left transition-colors md:w-full',
                   active
                     ? 'bg-gold/15 text-gold'
                     : 'text-muted hover:bg-surface-2 hover:text-cream',

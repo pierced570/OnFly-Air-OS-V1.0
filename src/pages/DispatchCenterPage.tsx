@@ -219,7 +219,7 @@ function WaterfallCardHeader({
           aria-label={`Delete ${title}`}
           title="Delete"
           onClick={onDelete}
-          className="shrink-0 px-1 py-0.5 text-xs text-muted hover:text-late"
+          className="tap shrink-0 text-xs text-muted hover:text-late"
         >
           Delete
         </button>
@@ -656,7 +656,7 @@ function OfferTripList({
                             {c.trip_id ? (
                               <button
                                 type="button"
-                                className="text-xs text-muted hover:text-late"
+                                className="tap text-xs text-muted hover:text-late"
                                 onClick={() =>
                                   onDeleteOffer(c.trip_id!, r.offer_id, r.name)
                                 }
@@ -695,7 +695,7 @@ function OfferTripList({
                             {r.status === 'no' && c.trip_id ? (
                               <button
                                 type="button"
-                                className="font-medium text-gold hover:text-gold-lt"
+                                className="tap font-medium text-gold hover:text-gold-lt"
                                 onClick={() =>
                                   onAcknowledgeDeclined(
                                     c.trip_id!,
@@ -711,7 +711,7 @@ function OfferTripList({
                             c.trip_id ? (
                               <button
                                 type="button"
-                                className="font-semibold text-gold hover:text-gold-lt"
+                                className="tap font-semibold text-gold hover:text-gold-lt"
                                 onClick={() => {
                                   setUpdatingTripId(null)
                                   setAddingTripId(null)
@@ -725,7 +725,7 @@ function OfferTripList({
                             ) : null}
                             <button
                               type="button"
-                              className="text-muted hover:text-cream"
+                              className="tap text-muted hover:text-cream"
                               onClick={() => {
                                 const url = absoluteAppUrl(r.href)
                                 void navigator.clipboard?.writeText(url)
@@ -736,7 +736,7 @@ function OfferTripList({
                             {c.trip_id ? (
                               <button
                                 type="button"
-                                className="text-muted hover:text-late"
+                                className="tap text-xs text-muted hover:text-late"
                                 onClick={() =>
                                   onDeleteOffer(c.trip_id!, r.offer_id, r.name)
                                 }
@@ -1186,7 +1186,7 @@ export default function DispatchCenterPage() {
           <button
             type="button"
             onClick={() => setTool(null)}
-            className="text-sm text-gold hover:text-gold-lt"
+            className="inline-flex min-h-11 items-center text-sm text-gold hover:text-gold-lt"
           >
             ← Back to Dispatch center
           </button>
@@ -1196,13 +1196,13 @@ export default function DispatchCenterPage() {
               : TOOLS.find((t) => t.id === tool)?.label}
           </span>
         </div>
-        <div className="min-h-[70vh] rounded-lg border border-border bg-ink">
+        <div className="min-h-[70vh] overflow-hidden rounded-lg border border-border bg-ink">
           <Suspense
             fallback={
               <p className="p-6 text-sm text-muted">Loading tool…</p>
             }
           >
-            <Tool />
+            {tool === 'quick' ? <QuickDispatchPage embedded /> : <Tool />}
           </Suspense>
         </div>
       </div>

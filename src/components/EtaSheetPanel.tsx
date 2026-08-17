@@ -78,17 +78,17 @@ function EstCell({
       >
         <input
           autoFocus
-          className="avionic w-20 rounded border border-gold/50 bg-black/40 px-2 py-1 text-sm text-cream"
+          className="avionic min-h-10 w-28 rounded border border-gold/50 bg-black/40 px-2 py-2 text-sm text-cream"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="0:30"
         />
-        <button type="submit" className="text-xs text-gold">
+        <button type="submit" className="tap text-xs text-gold">
           Set
         </button>
         <button
           type="button"
-          className="text-xs text-muted"
+          className="tap text-xs text-muted"
           onClick={() => setEditing(false)}
         >
           Cancel
@@ -192,7 +192,66 @@ export function EtaSheetPanel({ trip }: { trip: TripStoreRow }) {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
+      {/* Mobile: stacked rows */}
+      <ul className="mt-4 space-y-2 sm:hidden">
+        {chain.map((leg) => {
+          const actTz = leg.to.tz || leg.from.tz || 'UTC'
+          const actualIso = leg.actual_end ?? leg.actual_start
+          const actualDisp = actualIso
+            ? formatZuluLocal(actualIso, actTz, { refUtcIso: refUtc }).display
+            : null
+          return (
+            <li
+              key={leg.seq}
+              className="rounded-lg border border-border/60 bg-ink/30 px-3 py-3"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-cream">
+                    {leg.event || leg.label}
+                  </div>
+                  <div className="avionic text-[10px] text-muted">
+                    {leg.from.icao || '—'}→{leg.to.icao || '—'}
+                  </div>
+                </div>
+                <SourceBadge source={leg.source} />
+              </div>
+              <dl className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <dt className="text-[10px] uppercase tracking-wider text-muted">
+                    EST
+                  </dt>
+                  <dd className="mt-0.5">
+                    <EstCell leg={leg} tripId={trip.id} refUtc={refUtc} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-wider text-muted">
+                    Actual
+                  </dt>
+                  <dd className="mt-0.5 avionic">
+                    {actualDisp ? (
+                      <span className="text-green-300">{actualDisp}</span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-wider text-muted">
+                    Slack
+                  </dt>
+                  <dd className="mt-0.5 avionic text-muted">
+                    {leg.slack_min != null ? `${leg.slack_min}m` : '—'}
+                  </dd>
+                </div>
+              </dl>
+            </li>
+          )
+        })}
+      </ul>
+
+      <div className="mt-4 hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[640px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-border text-[11px] uppercase tracking-wider text-muted">

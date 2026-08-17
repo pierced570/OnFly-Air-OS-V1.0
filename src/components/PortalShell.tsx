@@ -15,7 +15,7 @@ export function PortalShell(props: {
 }) {
   return (
     <div className="min-h-screen bg-[#F7F2E3] text-ink">
-      <header className="border-b border-ink/20 bg-ink text-cream">
+      <header className="border-b border-ink/20 bg-ink pt-[max(0.75rem,env(safe-area-inset-top))] text-cream">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link to="/portal" className="shrink-0">
             <img
@@ -27,7 +27,7 @@ export function PortalShell(props: {
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <a
               href={`tel:${BRAND_PHONE_E164}`}
-              className="text-cream/80"
+              className="inline-flex min-h-11 items-center text-cream/80"
             >
               24-HR OPS{' '}
               <span className="font-semibold text-gold">{BRAND_PHONE}</span>
@@ -46,7 +46,7 @@ export function PortalShell(props: {
         {props.children}
       </main>
 
-      <footer className="border-t border-border/60 px-4 py-6 text-center text-xs text-ink/70">
+      <footer className="safe-bottom border-t border-border/60 px-4 py-6 text-center text-xs text-ink/70">
         <a href="https://onflyair.com" className="hover:text-ink">
           onflyair.com
         </a>

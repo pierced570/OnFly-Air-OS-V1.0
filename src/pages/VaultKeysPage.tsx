@@ -254,14 +254,14 @@ export default function VaultKeysPage() {
             <div className="flex shrink-0 gap-2">
               <button
                 type="button"
-                className="rounded-md border border-border px-2.5 py-1.5 text-xs text-cream hover:border-gold"
+                className="min-h-11 rounded-md border border-border px-2.5 py-2 text-xs text-cream hover:border-gold"
                 onClick={() => setEditor(e)}
               >
                 Edit
               </button>
               <button
                 type="button"
-                className="rounded-md border border-border px-2.5 py-1.5 text-xs text-late hover:border-late"
+                className="min-h-11 rounded-md border border-border px-2.5 py-2 text-xs text-late hover:border-late"
                 onClick={() => {
                   if (confirm(`Delete ${displayVaultLabel(e)}?`)) {
                     deleteVaultEntry(e.id)
