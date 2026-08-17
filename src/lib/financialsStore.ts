@@ -15,12 +15,18 @@ import {
 } from '@/domain/financials'
 import { referralFlightMonthKey } from '@/domain/referrals'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
-import { persistFinancialRecord } from '@/lib/db/persistFinancial'
+import {
+  deleteFinancialRecordFromDb,
+  persistFinancialRecord,
+} from '@/lib/db/persistFinancial'
 
 const OVERRIDES_KEY = 'onfly.financials.overrides.v1'
+const DELETED_KEY = 'onfly.financials.deleted.v1'
 
 const records = new Map<string, FinancialRecord>()
 const overrides = new Map<string, Partial<FinancialRecord>>()
+/** Fixture / session ids removed by desk — survive reload so CSV seeds stay gone. */
+const deletedIds = new Set<string>()
 const listeners = new Set<() => void>()
 let snapshot: ComputedFinancial[] = []
 
@@ -102,6 +108,30 @@ function loadOverrides(): void {
   }
 }
 
+function loadDeleted(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const raw = localStorage.getItem(DELETED_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return
+    for (const id of parsed) {
+      if (typeof id === 'string' && id) deletedIds.add(id)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function persistDeleted(): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(DELETED_KEY, JSON.stringify([...deletedIds]))
+  } catch {
+    /* quota */
+  }
+}
+
 function persistOverrides(): void {
   if (typeof localStorage === 'undefined') return
   try {
@@ -139,7 +169,9 @@ function normalizeRecord(r: FinancialRecord): FinancialRecord {
 function seed() {
   if (records.size) return
   loadOverrides()
+  loadDeleted()
   for (const r of fixture.records as unknown as FinancialRecord[]) {
+    if (deletedIds.has(r.id)) continue
     const base = normalizeRecord({
       ...r,
       tax_breakdown: r.tax_breakdown ?? [],
@@ -154,6 +186,7 @@ function seed() {
   }
   // Edits that created brand-new ids (rare) — keep overrides-only rows
   for (const [id, patch] of overrides) {
+    if (deletedIds.has(id)) continue
     if (records.has(id)) continue
     if (!patch.id && !patch.client_name && !patch.operator_po) continue
     records.set(
@@ -223,6 +256,8 @@ export function getFinancial(id: string): ComputedFinancial | null {
 
 export function upsertFinancial(row: FinancialRecord): void {
   const normalized = normalizeRecord(row)
+  deletedIds.delete(normalized.id)
+  persistDeleted()
   records.set(normalized.id, normalized)
   applyOverride(normalized.id, normalized)
   bump(normalized.id)
@@ -231,10 +266,12 @@ export function upsertFinancial(row: FinancialRecord): void {
 /**
  * Overlay rows loaded from Supabase. DB wins over fixture for matching ids;
  * fixture-only rows remain until edited/persisted.
+ * Desk-deleted ids stay suppressed even if a stale cache tries to resurrect.
  */
 export function replaceFinancialsFromDb(rows: FinancialRecord[]): void {
   if (!rows.length) return
   for (const raw of rows) {
+    if (deletedIds.has(raw.id)) continue
     const normalized = normalizeRecord(raw)
     records.set(normalized.id, normalized)
     // Keep localStorage in sync so a cold boot before hydrate still shows DB edits
@@ -244,6 +281,34 @@ export function replaceFinancialsFromDb(rows: FinancialRecord[]): void {
   rebuild()
   persistOverrides()
   for (const l of listeners) l()
+}
+
+/**
+ * Remove ledger row(s) from the Financials sheet.
+ * Tombstones fixture ids so they do not reappear on reload; UUID rows delete from DB.
+ */
+export function deleteFinancialRecords(ids: string[]): number {
+  const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  if (!unique.length) return 0
+  let n = 0
+  for (const id of unique) {
+    if (!records.has(id) && !overrides.has(id) && !deletedIds.has(id)) continue
+    records.delete(id)
+    overrides.delete(id)
+    deletedIds.add(id)
+    n += 1
+    void deleteFinancialRecordFromDb(id)
+  }
+  if (!n) return 0
+  persistDeleted()
+  rebuild()
+  persistOverrides()
+  for (const l of listeners) l()
+  return n
+}
+
+export function deleteFinancialRecord(id: string): boolean {
+  return deleteFinancialRecords([id]) > 0
 }
 
 function commitVendorLines(
@@ -483,6 +548,17 @@ export function clearFinancialOverrides(): void {
   overrides.clear()
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(OVERRIDES_KEY)
+  }
+  records.clear()
+  seed()
+  for (const l of listeners) l()
+}
+
+/** Drop deletion tombstones and reload the ledger (tests / recovery). */
+export function clearFinancialDeletions(): void {
+  deletedIds.clear()
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(DELETED_KEY)
   }
   records.clear()
   seed()

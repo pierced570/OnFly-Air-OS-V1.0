@@ -144,3 +144,33 @@ export async function persistFinancialRecord(
 
   return { ok: true, vendor_lines: nextLines }
 }
+
+/** Soft-delete a ledger row from Postgres (vendor lines cascade via FK or explicit). */
+export async function deleteFinancialRecordFromDb(
+  storeId: string,
+): Promise<boolean> {
+  if (!canPersist()) return false
+  const ident = financialDbIdentity(storeId)
+  if (!ident) {
+    console.warn('[financials] skip DB delete — non-uuid id', storeId)
+    return false
+  }
+
+  const { error: lineErr } = await db()
+    .from('financial_vendor_lines')
+    .delete()
+    .eq('financial_record_id', ident.id)
+  if (lineErr) {
+    console.warn('[financials] vendor lines delete failed', lineErr.message)
+  }
+
+  const { error } = await db()
+    .from('financial_records')
+    .delete()
+    .eq('id', ident.id)
+  if (error) {
+    console.warn('[financials] record delete failed', error.message)
+    return false
+  }
+  return true
+}
