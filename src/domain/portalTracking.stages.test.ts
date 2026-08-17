@@ -33,6 +33,12 @@ describe('clientOpsStageLabel', () => {
     expect(clientOpsStageLabel(row('landed_dest'))).toBe(
       'Landed at destination',
     )
+    expect(
+      clientOpsStageLabel({
+        ...row('landed_dest', 'done'),
+        label: 'Delivered',
+      }),
+    ).toBe('Delivered')
   })
 })
 

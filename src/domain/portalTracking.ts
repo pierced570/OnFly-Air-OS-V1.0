@@ -4,7 +4,7 @@
  */
 
 import type { AdsbPosition } from '@/adapters/adsb'
-import { icaoMatch, proposeAdsbActuals } from '@/domain/adsbActuals'
+import { destDwellComplete, icaoMatch, proposeAdsbActuals } from '@/domain/adsbActuals'
 import { lookupAirport } from '@/domain/airports'
 import type { ChainLeg, Place, ServicePattern } from '@/domain/etaChain'
 import {
@@ -137,7 +137,9 @@ export function clientOpsStageLabel(
     case 'enroute_dest':
       return 'Enroute to destination'
     case 'landed_dest':
-      return 'Landed at destination'
+      return 'label' in row && row.label === 'Delivered'
+        ? 'Delivered'
+        : 'Landed at destination'
     default:
       return 'label' in row ? row.label : String(row.key)
   }
@@ -768,8 +770,11 @@ function isTurnStamp(s: OpsStamp): boolean {
 }
 
 /**
- * Enroute to pickup → at Pickup → enroute to dest → landed.
- * Prefers eta_chain actuals; overlays FlightAware / ADS-B actual_off/on + phase.
+ * FlightAware-gated stages:
+ * 1. Enroute to pickup until FA (or committed chain) shows a landing at origin ICAO
+ * 2. At pickup only after that origin landing
+ * 3. Enroute to dest when airborne again (takeoff from origin)
+ * 4. Landed at dest on dest ICAO; Delivered after DEST_GROUND_DELIVERED_MIN on ground
  */
 export function buildOpsForecastRows(
   trip: PortalTrackingTripInput,
@@ -807,9 +812,66 @@ export function buildOpsForecastRows(
     nowIso,
   })
 
-  const arrivedActFinal = position?.actual_end ?? adsbProp.originArrivalAt
-  const takeoffAct = air?.actual_start ?? adsbProp.takeoffAt
-  const landingAct = air?.actual_end ?? adsbProp.destLandingAt
+  const faDest = adsb?.destinationIcao ?? null
+  const faOrigin = adsb?.originIcao ?? null
+  const adsbAirborne = adsb?.phase === 'airborne'
+  const adsbOnGround = adsb?.phase === 'on_ground'
+  const faOnGroundHere =
+    adsb != null &&
+    !adsbAirborne &&
+    (adsbOnGround || adsb.landingIsActual === true)
+
+  // Stage 2 only when FA dest is the pickup ICAO (a landing there), not
+  // "on the ground" at some other airport.
+  const faLandedAtOrigin =
+    faOnGroundHere &&
+    icaoMatch(faDest, originIcao) &&
+    !icaoMatch(faDest, destIcao)
+
+  const arrivedActFinal =
+    position?.actual_end ??
+    adsbProp.originArrivalAt ??
+    (faLandedAtOrigin ? adsb?.lastLandingAt ?? adsb?.seenAt ?? null : null)
+  const originArrived = Boolean(arrivedActFinal) || faLandedAtOrigin
+
+  const liveRoute =
+    icaoMatch(faOrigin, originIcao) && icaoMatch(faDest, destIcao)
+  const faAirborneToDest = originArrived && adsbAirborne && liveRoute
+  const faTakeoffFromOrigin =
+    originArrived &&
+    liveRoute &&
+    (adsbAirborne || adsb?.takeoffIsActual === true)
+
+  const takeoffAct =
+    air?.actual_start ??
+    adsbProp.takeoffAt ??
+    (faTakeoffFromOrigin || faAirborneToDest
+      ? adsb?.lastTakeoffAt ?? null
+      : null)
+  const liveLegOff =
+    originArrived &&
+    (Boolean(takeoffAct) || faTakeoffFromOrigin || faAirborneToDest)
+
+  const faLandedAtDest =
+    originArrived &&
+    liveLegOff &&
+    faOnGroundHere &&
+    icaoMatch(faDest, destIcao) &&
+    (liveRoute || icaoMatch(faOrigin, originIcao))
+
+  const landingAct =
+    air?.actual_end ??
+    adsbProp.destLandingAt ??
+    (faLandedAtDest
+      ? (adsb?.landingIsActual === true ? adsb.lastLandingAt : null) ??
+        adsb?.seenAt ??
+        null
+      : null)
+
+  const destLanded =
+    Boolean(air?.actual_end) ||
+    Boolean(adsbProp.destLandingAt) ||
+    faLandedAtDest
 
   const arrivedEst = position?.est_end ?? null
   const takeoffEst = air?.est_start ?? null
@@ -819,49 +881,32 @@ export function buildOpsForecastRows(
   const airActMin =
     minutesBetween(takeoffAct, landingAct) ?? adsbProp.airTimeMin
 
-  const faDest = adsb?.destinationIcao ?? null
-  const faOrigin = adsb?.originIcao ?? null
-  const adsbAirborne = adsb?.phase === 'airborne'
-  const adsbOnGround = adsb?.phase === 'on_ground'
-
-  /** Ferry / position flight into the pickup airport. */
   const positioningTowardPickup =
-    !takeoffAct &&
-    !landingAct &&
+    !originArrived &&
+    !liveLegOff &&
+    !destLanded &&
     adsbAirborne &&
-    (icaoMatch(faDest, originIcao) ||
-      (!icaoMatch(faOrigin, originIcao) && !icaoMatch(faDest, destIcao)))
+    icaoMatch(faDest, originIcao)
 
-  const onGroundAtPickup =
-    !takeoffAct &&
-    !landingAct &&
-    (Boolean(arrivedActFinal) ||
-      (adsbOnGround &&
-        (icaoMatch(faDest, originIcao) ||
-          icaoMatch(faOrigin, originIcao) ||
-          !faDest)))
-
-  const liveToDest =
-    Boolean(takeoffAct && !landingAct) ||
-    (adsbAirborne &&
-      (icaoMatch(faOrigin, originIcao) || icaoMatch(faDest, destIcao)) &&
-      !icaoMatch(faDest, originIcao)) ||
-    air?.status === 'active'
+  const destGroundMin =
+    destLanded && landingAct
+      ? minutesBetween(landingAct, nowIso) ?? adsbProp.groundTimeDestMin
+      : destLanded
+        ? adsbProp.groundTimeDestMin
+        : null
+  const destDelivered =
+    trip.state === 'delivered' ||
+    trip.state === 'invoiced' ||
+    trip.state === 'closed' ||
+    destDwellComplete(landingAct, nowIso)
 
   const rows: OpsForecastRow[] = []
 
   {
     const status: OpsForecastRow['status'] =
-      arrivedActFinal || takeoffAct || landingAct
+      destLanded || liveLegOff || originArrived
         ? 'done'
-        : positioningTowardPickup ||
-            position?.status === 'active' ||
-            (position != null &&
-              !arrivedActFinal &&
-              !takeoffAct &&
-              position.status !== 'done')
-          ? 'active'
-          : 'pending'
+        : 'active'
     const estFmt = arrivedEst ? formatClientLocal(arrivedEst, tz) : null
     const zulu = arrivedEst ? formatZuluLocal(arrivedEst, tz) : null
     const actFmt = arrivedActFinal
@@ -881,7 +926,9 @@ export function buildOpsForecastRows(
       actualOrForecastLocal:
         actFmt?.local ??
         (status === 'active'
-          ? 'EN ROUTE TO PICKUP · LIVE'
+          ? positioningTowardPickup
+            ? 'EN ROUTE TO PICKUP · LIVE'
+            : 'WAITING FOR LANDING AT PICKUP'
           : estFmt?.local ?? null),
       deltaMin: arrivedActFinal ? deltaMin : null,
       status,
@@ -892,11 +939,9 @@ export function buildOpsForecastRows(
 
   {
     const status: OpsForecastRow['status'] =
-      takeoffAct || landingAct
+      destLanded || liveLegOff
         ? 'done'
-        : onGroundAtPickup ||
-            (arrivedActFinal && !takeoffAct) ||
-            (adsbOnGround && !takeoffAct && !positioningTowardPickup)
+        : originArrived
           ? 'active'
           : 'pending'
     const estFmt = takeoffEst ? formatClientLocal(takeoffEst, tz) : null
@@ -920,9 +965,9 @@ export function buildOpsForecastRows(
   }
 
   {
-    const status: OpsForecastRow['status'] = landingAct
+    const status: OpsForecastRow['status'] = destLanded
       ? 'done'
-      : liveToDest
+      : liveLegOff
         ? 'active'
         : 'pending'
     const liveAirMin =
@@ -954,43 +999,39 @@ export function buildOpsForecastRows(
     const estFmt = landingEst ? formatClientLocal(landingEst, tz) : null
     const zulu = landingEst ? formatZuluLocal(landingEst, tz) : null
     const actFmt = landingAct ? formatClientLocal(landingAct, tz) : null
-    const groundMin =
-      landingAct != null
-        ? minutesBetween(landingAct, nowIso) ?? adsbProp.groundTimeDestMin
-        : null
+    const groundMin = destGroundMin
     const deltaMin =
       landingEst && landingAct
         ? Math.round(
             (Date.parse(landingAct) - Date.parse(landingEst)) / 60_000,
           )
         : null
-    const landedActive =
-      !landingAct &&
-      adsbOnGround &&
-      Boolean(takeoffAct) &&
-      icaoMatch(faDest, destIcao)
-    const status: OpsForecastRow['status'] = landingAct
+    const status: OpsForecastRow['status'] = destDelivered
       ? 'done'
-      : landedActive
+      : destLanded
         ? 'active'
         : 'pending'
     rows.push({
       key: 'landed_dest',
-      label: `Landed ${destIcao}`,
+      label: destDelivered ? 'Delivered' : `Landed ${destIcao}`,
       estimatedLocal: estFmt?.local ?? null,
       estimatedZulu: zulu?.zulu ?? null,
-      actualOrForecastLocal: landingAct
-        ? `${actFmt!.local}${
-            groundMin != null && groundMin > 0
-              ? ` · ${formatDurationMin(groundMin)} on ground`
-              : ''
-          }`
-        : status === 'active'
-          ? `LANDING ${destIcao} · LIVE`
-          : estFmt?.local ?? null,
+      actualOrForecastLocal: destDelivered
+        ? groundMin != null
+          ? `DELIVERED · ${formatDurationMin(groundMin)} on ground`
+          : 'DELIVERED'
+        : landingAct && actFmt
+          ? `${actFmt.local}${
+              groundMin != null && groundMin > 0
+                ? ` · ${formatDurationMin(groundMin)} on ground`
+                : ''
+            }`
+          : status === 'active'
+            ? `LANDING ${destIcao} · LIVE`
+            : estFmt?.local ?? null,
       deltaMin: landingAct ? deltaMin : null,
       status,
-      isForecast: !landingAct,
+      isForecast: !destLanded,
       kind: 'ground',
     })
   }
@@ -1633,11 +1674,16 @@ export function buildPortalTrackingView(
       d.kind === 'manifest',
   )
 
-  const phase = classifyPortalShipmentPhase({
-    state: trip.state,
-    aircraftPhase: aircraft.phase,
-    legs: trip.legs,
-  })
+  const destDone =
+    opsForecastRows.find((r) => r.key === 'landed_dest')?.status === 'done' &&
+    opsForecastRows.find((r) => r.key === 'landed_dest')?.label === 'Delivered'
+  const phase = destDone
+    ? 'delivered'
+    : classifyPortalShipmentPhase({
+        state: trip.state,
+        aircraftPhase: aircraft.phase,
+        legs: trip.legs,
+      })
   const eteMin = eteMinutesRemaining(aircraft.nmRemaining, aircraft.gsKts)
 
   return {

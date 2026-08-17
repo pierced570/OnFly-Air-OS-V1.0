@@ -31,19 +31,15 @@ function stageStatusLabel(status: OpsForecastRow['status']): string {
 
 function aircraftWhereLabel(view: PortalTrackingView): string {
   const a = view.aircraft
+  if (view.phase === 'delivered' || view.state === 'delivered') return 'Delivered'
   if (a.laddBlocked && a.source === 'none') return 'Live track restricted'
+  const active = view.opsForecastRows.find((r) => r.status === 'active')
+  if (active) return clientOpsStageLabel(active)
   if (a.source === 'adsb' && a.phase === 'airborne') {
     return 'In the air · live track'
   }
   if (a.phase === 'airborne') return 'In the air'
-  if (a.phase === 'on_ground') {
-    const icao = a.toIcao || a.fromIcao || view.flightFacts.originIcao
-    return icao ? `On the ground · ${icao}` : 'On the ground'
-  }
   if (a.phase === 'positioning') return 'Enroute to pickup'
-  const active = view.opsForecastRows.find((r) => r.status === 'active')
-  if (active) return clientOpsStageLabel(active)
-  if (view.state === 'delivered') return 'Landed at destination'
   if (view.state === 'booked') return 'Booked · standing by'
   return 'Standing by'
 }
@@ -107,9 +103,12 @@ export function PortalTrackingBody({
   const currentStage =
     opsRows.find((r) => r.status === 'active') ??
     (opsRows.every((r) => r.status === 'done') ? opsRows.at(-1) : null)
-  const currentStageName = currentStage
-    ? clientOpsStageLabel(currentStage)
-    : aircraftWhereLabel(view)
+  const currentStageName =
+    view.phase === 'delivered' || view.state === 'delivered'
+      ? 'Delivered'
+      : currentStage
+        ? clientOpsStageLabel(currentStage)
+        : aircraftWhereLabel(view)
   const tailRaw =
     (a.tail !== '—' ? a.tail : view.tail)?.trim() || ''
   const tail =
@@ -202,12 +201,20 @@ export function PortalTrackingBody({
           <span className="text-cream/55">
             {mapBlocked
               ? 'BLOCKED'
-              : seenAgo ||
-                (view.state === 'in_progress'
-                  ? a.phase === 'positioning' || a.phase === 'airborne'
-                    ? 'LIVE'
-                    : 'AT PICKUP'
-                  : 'STANDING BY')}
+              : view.phase === 'delivered' || view.state === 'delivered'
+                ? 'DELIVERED'
+                : currentStage?.key === 'enroute_pickup'
+                  ? 'ENROUTE PICKUP'
+                  : currentStage?.key === 'at_pickup'
+                    ? 'AT PICKUP'
+                    : currentStage?.key === 'enroute_dest'
+                      ? 'ENROUTE'
+                      : currentStage?.key === 'landed_dest'
+                        ? currentStage.label === 'Delivered'
+                          ? 'DELIVERED'
+                          : 'LANDED'
+                        : seenAgo ||
+                          (view.state === 'in_progress' ? 'LIVE' : 'STANDING BY')}
           </span>
         </div>
         {mapBlocked ? (
@@ -237,10 +244,16 @@ export function PortalTrackingBody({
           />
         ) : (
           <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-cream/50">
-            {view.state === 'in_progress'
-              ? tail === 'Pending'
-                ? 'Trip is live — assign a real tail on dispatch for live track.'
-                : 'Waiting for wheels-up or a live lock on this tail.'
+            {view.phase === 'delivered' || view.state === 'delivered'
+              ? 'Delivered — tracking complete.'
+              : view.state === 'in_progress'
+                ? tail === 'Pending'
+                  ? 'Trip is live — assign a real tail on dispatch for live track.'
+                  : currentStage?.key === 'enroute_pickup'
+                    ? 'Waiting for FlightAware landing at pickup.'
+                    : currentStage?.key === 'at_pickup'
+                      ? 'On the ground at pickup — live track when airborne to destination.'
+                      : 'Waiting for a live lock on this tail.'
               : view.state === 'booked'
                 ? 'Aircraft position appears when the trip goes live.'
                 : 'Route map appears once the trip is live.'}

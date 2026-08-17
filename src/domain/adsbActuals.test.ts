@@ -3,6 +3,7 @@ import type { AdsbPosition } from '@/adapters/adsb'
 import type { ChainLeg } from '@/domain/etaChain'
 import {
   adsbUpdatesForChain,
+  destDwellComplete,
   icaoMatch,
   proposeAdsbActuals,
 } from './adsbActuals'
@@ -95,7 +96,6 @@ describe('adsbActuals', () => {
     expect(p.destLandingAt).toBe('2026-07-28T18:20:00.000Z')
     expect(p.airTimeMin).toBe(75)
     expect(p.groundTimeDestMin).toBe(20)
-
     const updates = adsbUpdatesForChain(chain, p)
     expect(updates).toEqual([
       {
@@ -104,6 +104,55 @@ describe('adsbActuals', () => {
         actual_end: '2026-07-28T18:20:00.000Z',
       },
     ])
+  })
+
+  it('dest dwell is complete at 10 minutes on ground', () => {
+    expect(
+      destDwellComplete('2026-07-28T18:20:00.000Z', '2026-07-28T18:29:00.000Z'),
+    ).toBe(false)
+    expect(
+      destDwellComplete('2026-07-28T18:20:00.000Z', '2026-07-28T18:30:00.000Z'),
+    ).toBe(true)
+    expect(destDwellComplete(null, '2026-07-28T18:40:00.000Z')).toBe(false)
+  })
+
+  it('does not treat an unrelated on-ground airport as origin or dest', () => {
+    const p = proposeAdsbActuals({
+      adsb: adsb({
+        phase: 'on_ground',
+        originIcao: 'KMSN',
+        destinationIcao: 'KHHG',
+        lastLandingAt: '2026-08-12T10:42:00.000Z',
+        landingIsActual: true,
+        lastTakeoffAt: '2026-08-12T10:00:00.000Z',
+        takeoffIsActual: true,
+      }),
+      airFromIcao: 'KCLT',
+      airToIcao: 'KICT',
+    })
+    expect(p.fromActuals).toBe(false)
+    expect(p.originArrivalAt).toBeNull()
+    expect(p.destLandingAt).toBeNull()
+    expect(p.takeoffAt).toBeNull()
+  })
+
+  it('treats positioning takeoff+landing into origin as origin arrival, not dest', () => {
+    const p = proposeAdsbActuals({
+      adsb: adsb({
+        phase: 'on_ground',
+        originIcao: 'KMSN',
+        destinationIcao: 'KCLT',
+        lastTakeoffAt: '2026-08-17T12:00:00.000Z',
+        lastLandingAt: '2026-08-17T14:50:00.000Z',
+        takeoffIsActual: true,
+        landingIsActual: true,
+      }),
+      airFromIcao: 'KCLT',
+      airToIcao: 'KICT',
+    })
+    expect(p.originArrivalAt).toBe('2026-08-17T14:50:00.000Z')
+    expect(p.destLandingAt).toBeNull()
+    expect(p.takeoffAt).toBeNull()
   })
 
   it('treats pre-takeoff landing at origin as arrived origin', () => {
