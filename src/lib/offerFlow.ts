@@ -1460,7 +1460,8 @@ export async function acceptHardQuote(
   try {
     const booked = getTrip(trip.id)!
     // Never invent a PO here (e.g. CLI0001). Desk enters PO on Approved /
-    // hard-quote composer; invoice draft waits until a real PO exists.
+    // invoice send — quotes do not require a PO. Invoice draft waits until
+    // a real PO exists.
     if (booked.po_number?.trim() || booked.quick?.po?.trim()) {
       const { createInvoiceForTrip } = await import('@/lib/tripStore')
       await createInvoiceForTrip(trip.id, { skipEmail: true })
