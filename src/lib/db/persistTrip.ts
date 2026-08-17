@@ -126,6 +126,7 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
           portal_pickup_stop: trip.portal_pickup_stop ?? null,
           portal_dropoff_stop: trip.portal_dropoff_stop ?? null,
           portal_pax_names: trip.portal_pax_names ?? [],
+          portal_ops_stage: trip.portal_ops_stage ?? null,
           passengers: trip.passengers ?? [],
           request_id: trip.request_id ?? null,
           awb_needed: trip.awb_needed ?? false,
