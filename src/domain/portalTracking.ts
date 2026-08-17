@@ -290,8 +290,8 @@ export type TrackingAircraftPosition = {
   progressPct: number | null
   nmRemaining: number | null
   /**
-   * True when FlightAware / ADS-B reports this registration as blocked (LADD).
-   * Portal covers the map; desk provides manual updates.
+   * True when FlightAware AeroAPI marks this registration/flight blocked (LADD).
+   * Missing position / no_data is NOT blocked — portal still shows ETA track.
    */
   laddBlocked: boolean
 }
