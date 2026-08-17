@@ -4,6 +4,7 @@
  */
 
 import { useMemo, useState, useSyncExternalStore } from 'react'
+import { listBaseGeneratedEmails } from '@/domain/clientBaseEmails'
 import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import {
   getClient,
@@ -40,6 +41,11 @@ type Props = {
    * `compact` — submitted-quotes hard-quote row: inline help + side-by-side fields.
    */
   layout?: 'default' | 'compact'
+  /**
+   * Hide base supervisor/stores DLs from the contact chips (quotes never go
+   * to bases — those belong on the ETA sheet).
+   */
+  omitBaseEmails?: boolean
 }
 
 function normalize(email: string): string {
@@ -149,15 +155,64 @@ function contactLabel(c: ClientContact): string {
   return name ? `${name} · ${c.email}` : c.email
 }
 
+/** Pure filter — quote chips skip base supervisor/stores DLs. */
+export function contactVisibleInEmailBubble(
+  contact: {
+    id: string
+    email: string
+    role?: string
+    notify_prefs?: { request_alert?: boolean }
+  },
+  opts: {
+    omitBaseEmails: boolean
+    baseEmails: Set<string>
+    selection: ClientEmailSelection
+  },
+): boolean {
+  const e = normalize(contact.email)
+  if (!e.includes('@')) return false
+  if (
+    opts.omitBaseEmails &&
+    (opts.baseEmails.has(e) || contact.id.startsWith('base:'))
+  ) {
+    return false
+  }
+  void opts.selection
+  return true
+}
+
 function useClientEmailContacts(
   clientId: string | null | undefined,
   value: ClientEmailSelection,
+  omitBaseEmails: boolean,
 ) {
   useSyncExternalStore(subscribeClients, listClients, listClients)
   const client = clientId ? getClient(clientId) : undefined
 
   return useMemo(() => {
     const fromProfile = client?.contacts ?? []
+    const baseEmails = new Set<string>()
+    if (omitBaseEmails && client) {
+      for (const row of listBaseGeneratedEmails({
+        email: client.email,
+        invoice_email: client.invoice_email,
+        website: client.profile.website,
+        contactEmails: client.contacts.map((c) => c.email),
+        bases: client.profile.bases,
+        frequent_lanes: client.profile.frequent_lanes,
+      })) {
+        baseEmails.add(normalize(row.email))
+      }
+      for (const base of client.profile.bases ?? []) {
+        for (const e of [
+          ...(base.emails ?? []),
+          ...(base.supervisor_emails ?? []),
+          ...(base.stores_emails ?? []),
+        ]) {
+          baseEmails.add(normalize(e))
+        }
+      }
+    }
     const extras: Array<{ id: string; name: string; email: string }> = []
     const seen = new Set(fromProfile.map((c) => normalize(c.email)))
     for (const email of [
@@ -169,19 +224,28 @@ function useClientEmailContacts(
     ]) {
       const e = normalize(email ?? '')
       if (!e.includes('@') || seen.has(e)) continue
+      if (omitBaseEmails && baseEmails.has(e)) continue
       seen.add(e)
       extras.push({ id: `extra-${e}`, name: e.split('@')[0] || e, email: e })
     }
     return [
-      ...fromProfile.map((c) => ({
-        id: c.id,
-        name: c.name,
-        email: c.email,
-        role: c.role,
-      })),
+      ...fromProfile
+        .filter((c) =>
+          contactVisibleInEmailBubble(c, {
+            omitBaseEmails,
+            baseEmails,
+            selection: value,
+          }),
+        )
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          role: c.role,
+        })),
       ...extras,
     ]
-  }, [client, value])
+  }, [client, value, omitBaseEmails])
 }
 
 type FieldKey = 'to' | 'cc' | 'bcc'
@@ -283,37 +347,45 @@ function ContactPills({
   contacts,
   value,
   onChange,
+  dense = false,
 }: {
   contacts: Array<{ id: string; name: string; email: string }>
   value: ClientEmailSelection
   onChange: (next: ClientEmailSelection) => void
+  /** Smaller chips for the hard-quote composer. */
+  dense?: boolean
 }) {
   if (!contacts.length) return null
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className={dense ? 'flex flex-wrap gap-1' : 'flex flex-wrap gap-1.5'}>
       {contacts.map((c) => {
         const email = normalize(c.email)
         const bucket = bucketOf(email, value)
         const on = bucket !== 'off'
+        const label = contactLabel(c as ClientContact)
         return (
           <button
             key={c.id}
             type="button"
-            title="Click to cycle To / CC / BCC"
+            title={`${label} — click to cycle To / CC / BCC`}
             onClick={() =>
               onChange(setBucket(value, email, cycleBucket(bucket)))
             }
             className={[
-              'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
+              dense
+                ? 'max-w-[10.5rem] truncate rounded border px-1.5 py-0.5 text-left text-[10px] leading-tight transition-colors'
+                : 'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
               on
-                ? 'border-gold bg-gold/25 text-cream'
-                : 'border-border bg-ink/40 text-muted hover:text-cream',
+                ? dense
+                  ? 'border-gold/50 bg-gold/10 text-cream'
+                  : 'border-gold bg-gold/25 text-cream'
+                : 'border-border/70 bg-ink/30 text-muted hover:text-cream',
             ].join(' ')}
           >
-            <span className="font-medium">
+            <span className={dense ? 'opacity-70' : 'font-medium'}>
               {bucket === 'off' ? '·' : bucket.toUpperCase()}
             </span>{' '}
-            {contactLabel(c as ClientContact)}
+            {label}
           </button>
         )
       })}
@@ -328,17 +400,25 @@ export function ClientEmailRecipientsBubble({
   title = 'Client emails — quote & ETA loop',
   embedded = false,
   layout = 'default',
+  omitBaseEmails = false,
 }: Props) {
-  const contacts = useClientEmailContacts(clientId, value)
+  const contacts = useClientEmailContacts(clientId, value, omitBaseEmails)
 
   if (layout === 'compact') {
     const help = contacts.length
-      ? 'Type emails below, or tap contacts to cycle To → CC → BCC → off'
+      ? omitBaseEmails
+        ? 'Quote recipients — tap contacts for To → CC → BCC (base emails stay on ETA)'
+        : 'Type emails below, or tap contacts to cycle To → CC → BCC → off'
       : 'Type emails in To / CC / BCC below · none saved on this client yet'
     return (
       <div className="space-y-2">
         <p className="text-[11px] text-muted">{help}</p>
-        <ContactPills contacts={contacts} value={value} onChange={onChange} />
+        <ContactPills
+          contacts={contacts}
+          value={value}
+          onChange={onChange}
+          dense
+        />
         <EmailFields value={value} onChange={onChange} columns />
       </div>
     )
@@ -362,7 +442,12 @@ export function ClientEmailRecipientsBubble({
 
       {contacts.length ? (
         <div className="mt-2">
-          <ContactPills contacts={contacts} value={value} onChange={onChange} />
+          <ContactPills
+            contacts={contacts}
+            value={value}
+            onChange={onChange}
+            dense={omitBaseEmails}
+          />
         </div>
       ) : (
         <p className="mt-2 text-xs text-muted">

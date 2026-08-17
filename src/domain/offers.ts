@@ -177,7 +177,7 @@ export function quoteSubmittedDeskEmail(opts: {
   ]
   const path = opts.tripPath?.trim()
   if (path) {
-    lines.push('', `Open trip: ${path}`)
+    lines.push('', `Open quote: ${path}`)
   }
   lines.push('', 'No SMS was sent — email notification only.')
   return { subject, text: lines.join('\n') }

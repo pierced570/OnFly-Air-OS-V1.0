@@ -183,6 +183,57 @@ export function drawerForTripState(state: TripState): DispatchDrawerId | null {
   }
 }
 
+/** Deep link into Submitted quotes with compare open (+ optional offer expand). */
+export function submittedQuoteDeepLink(
+  tripId: string,
+  offerId?: string | null,
+): string {
+  const q = new URLSearchParams()
+  q.set('drawer', 'submitted_quotes')
+  q.set('focus', tripId)
+  if (offerId?.trim()) q.set('expandOffer', offerId.trim())
+  return `/dispatch?${q.toString()}`
+}
+
+export type QuotedOfferKey = string
+
+/** Stable keys for quoted/selected offers that have a NET price. */
+export function quotedOfferKeys(
+  trips: Array<{
+    id: string
+    offers?: Array<{
+      id: string
+      state: string
+      price_net?: number | null
+    }> | null
+  }>,
+): Set<QuotedOfferKey> {
+  const keys = new Set<QuotedOfferKey>()
+  for (const t of trips) {
+    for (const o of t.offers ?? []) {
+      if (o.state !== 'quoted' && o.state !== 'selected') continue
+      if (o.price_net == null || !Number.isFinite(o.price_net)) continue
+      keys.add(`${t.id}:${o.id}`)
+    }
+  }
+  return keys
+}
+
+/** Offers that appear in `next` but not in `prev` (new operator/desk quotes). */
+export function findNewlyQuotedOffers(
+  prev: Set<QuotedOfferKey>,
+  next: Set<QuotedOfferKey>,
+): Array<{ tripId: string; offerId: string }> {
+  const out: Array<{ tripId: string; offerId: string }> = []
+  for (const key of next) {
+    if (prev.has(key)) continue
+    const i = key.indexOf(':')
+    if (i <= 0) continue
+    out.push({ tripId: key.slice(0, i), offerId: key.slice(i + 1) })
+  }
+  return out
+}
+
 type TripInput = {
   id: string
   ref: number
@@ -379,7 +430,7 @@ export function buildDispatchDrawers(input: {
         subtitle: quoteMeta,
         code: tripIdLabel,
         meta: quoteMeta,
-        href: `/dispatch?drawer=submitted_quotes&focus=${t.id}`,
+        href: submittedQuoteDeepLink(t.id),
         ref: t.ref,
         state: t.state,
         recipients: quotedRecipients,

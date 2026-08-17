@@ -3,7 +3,7 @@
  * client margin/tax edit. Meant to stay inside Dispatch center.
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   AircraftTypeSelect,
   initialAircraftTypeSelectValue,
@@ -40,7 +40,12 @@ import {
   offerQuoteFacts,
   offerRecipientStatus,
 } from '@/domain/offerRecipients'
-import { formatTaxLineDesk, fetExemptMtowThreshold } from '@/domain/tax'
+import {
+  fetAppliesAtMtow,
+  fetExemptMtowThreshold,
+  formatTaxLineDesk,
+  type FetOverride,
+} from '@/domain/tax'
 import { rememberEmailsOnClient } from '@/lib/clientStore'
 import {
   selectOffersAndHardQuote,
@@ -54,7 +59,6 @@ import { getTaxRates } from '@/lib/taxRatesStore'
 import {
   getTrip,
   listTripsStable,
-  mutateTrip,
   payloadKindOf,
   subscribeTrips,
 } from '@/lib/tripStore'
@@ -64,6 +68,8 @@ type Props = {
   onClose?: () => void
   /** Open the desk manual-quote form for this offer on mount. */
   initialManualOfferId?: string | null
+  /** Expand + select this quoted offer on mount (new quote deep link). */
+  initialExpandOfferId?: string | null
 }
 
 function feeBadgeLabel(feeScope: string | null | undefined): string | null {
@@ -72,10 +78,19 @@ function feeBadgeLabel(feeScope: string | null | undefined): string | null {
   return null
 }
 
+/** `undefined` edit → auto; otherwise force on/off. */
+function fetOverrideFromEdit(
+  edit: boolean | undefined,
+): FetOverride | null {
+  if (edit === undefined) return null
+  return edit ? 'on' : 'off'
+}
+
 export function DeskOfferQuoteWorkbench({
   tripId,
   onClose,
   initialManualOfferId = null,
+  initialExpandOfferId = null,
 }: Props) {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
@@ -84,6 +99,8 @@ export function DeskOfferQuoteWorkbench({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [clientEdits, setClientEdits] = useState<Record<string, number>>({})
   const [marginEdits, setMarginEdits] = useState<Record<string, number>>({})
+  /** Rare per-offer FET include override (`undefined` = auto from MTOW). */
+  const [fetEdits, setFetEdits] = useState<Record<string, boolean>>({})
   /** Which field the desk last edited — drives forward vs reverse tax math. */
   const [pricingLock, setPricingLock] = useState<
     Record<string, 'total' | 'margin'>
@@ -94,6 +111,10 @@ export function DeskOfferQuoteWorkbench({
   const [composeAnotherQuote, setComposeAnotherQuote] = useState(false)
   const [clientQuotePreview, setClientQuotePreview] = useState(false)
   const [sendBusy, setSendBusy] = useState(false)
+  const [hardQuoteSentToast, setHardQuoteSentToast] = useState(false)
+  const hardQuoteSentToastTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
   const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
     initialManualOfferId,
   )
@@ -103,7 +124,19 @@ export function DeskOfferQuoteWorkbench({
   const [confirmedTypes, setConfirmedTypes] = useState<Record<string, string>>(
     {},
   )
-  const [poDraft, setPoDraft] = useState('')
+  const didAutoExpand = useRef(false)
+
+  useEffect(() => {
+    didAutoExpand.current = false
+  }, [tripId])
+
+  useEffect(() => {
+    return () => {
+      if (hardQuoteSentToastTimer.current) {
+        clearTimeout(hardQuoteSentToastTimer.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!initialManualOfferId) return
@@ -111,15 +144,27 @@ export function DeskOfferQuoteWorkbench({
     setExpanded((m) => ({ ...m, [initialManualOfferId]: true }))
   }, [initialManualOfferId])
 
+  // New quote / deep link: open the expanded pricing panel automatically.
+  useEffect(() => {
+    if (!trip || didAutoExpand.current) return
+    const quoteable = trip.offers.filter(
+      (o) =>
+        (o.state === 'quoted' || o.state === 'selected') &&
+        o.price_net != null,
+    )
+    const target =
+      (initialExpandOfferId &&
+        quoteable.find((o) => o.id === initialExpandOfferId)?.id) ||
+      (quoteable.length === 1 ? quoteable[0]!.id : null)
+    if (!target) return
+    didAutoExpand.current = true
+    setExpanded((m) => ({ ...m, [target]: true }))
+    setSelected((s) => ({ ...s, [target]: true }))
+  }, [trip, initialExpandOfferId])
+
   useEffect(() => {
     setEmailSel(defaultClientEmailSelection(trip?.client_id))
   }, [trip?.client_id])
-
-  useEffect(() => {
-    setPoDraft(
-      trip?.po_number?.trim() || trip?.quick?.po?.trim() || '',
-    )
-  }, [trip?.id, trip?.po_number, trip?.quick?.po])
 
   useEffect(() => {
     if (!trip) return
@@ -208,27 +253,13 @@ export function DeskOfferQuoteWorkbench({
   const canPreviewClientQuote =
     picked.length > 0 &&
     emailSel.to.length > 0 &&
-    picked.every((oid) => (confirmedTypes[oid] ?? '').trim()) &&
-    Boolean(poDraft.trim())
+    picked.every((oid) => (confirmedTypes[oid] ?? '').trim())
 
   const needsTypeConfirm = picked.some(
     (oid) => !(confirmedTypes[oid] ?? '').trim(),
   )
 
-  function persistPoDraft() {
-    const cleaned = poDraft.trim()
-    mutateTrip(liveTrip.id, (t) => {
-      t.po_number = cleaned || null
-      if (t.quick) t.quick.po = cleaned
-    })
-  }
-
   function sendHardQuoteNow() {
-    if (!poDraft.trim()) {
-      setError('Enter PO # before sending the hard quote')
-      return
-    }
-    persistPoDraft()
     const totals: Record<string, number> = {}
     const typeNamesByOffer: Record<string, string> = {}
     let sendMargin = marginPct
@@ -247,6 +278,7 @@ export function DeskOfferQuoteWorkbench({
         0,
         lock === 'total' ? draftTotal : null,
         draftMargin,
+        fetOverrideFromEdit(fetEdits[oid]),
       )
       totals[oid] = p.client_total
       typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
@@ -266,6 +298,14 @@ export function DeskOfferQuoteWorkbench({
         setComposeAnotherQuote(false)
         setClientQuotePreview(false)
         setError(null)
+        setHardQuoteSentToast(true)
+        if (hardQuoteSentToastTimer.current) {
+          clearTimeout(hardQuoteSentToastTimer.current)
+        }
+        hardQuoteSentToastTimer.current = setTimeout(() => {
+          setHardQuoteSentToast(false)
+          hardQuoteSentToastTimer.current = null
+        }, 2800)
       })
       .catch((e) => setError(String(e)))
       .finally(() => setSendBusy(false))
@@ -289,6 +329,7 @@ export function DeskOfferQuoteWorkbench({
               0,
               lock === 'total' ? draftTotal : null,
               draftMargin,
+              fetOverrideFromEdit(fetEdits[oid]),
             )
             const typeName = confirmedTypes[oid]!.trim()
             return buildLogisticsQuoteOption({
@@ -328,6 +369,7 @@ export function DeskOfferQuoteWorkbench({
           0,
           lock === 'total' ? draftTotal : null,
           draftMargin,
+          fetOverrideFromEdit(fetEdits[oid]),
         )
         return buildLogisticsQuoteOption({
           offer_id: oid,
@@ -386,6 +428,7 @@ export function DeskOfferQuoteWorkbench({
     const lock = pricingLock[o.id] ?? (hqOpt != null ? 'total' : 'margin')
     const draftMargin = marginEdits[o.id] ?? marginPct
     const draftTotal = clientEdits[o.id] ?? hqOpt?.client_total ?? null
+    const fetOverride = fetOverrideFromEdit(fetEdits[o.id])
     const preview =
       o.price_net != null
         ? offerQuotePreviewFor(
@@ -394,6 +437,7 @@ export function DeskOfferQuoteWorkbench({
             0,
             lock === 'total' ? draftTotal : null,
             draftMargin,
+            fetOverride,
           )
         : null
     const cand =
@@ -406,7 +450,11 @@ export function DeskOfferQuoteWorkbench({
       selectedAircraftId: o.aircraft_id,
       candidates: liveTrip.candidates,
     })
-    const exemptThresh = fetExemptMtowThreshold(getTaxRates())
+    const rates = getTaxRates()
+    const exemptThresh = fetExemptMtowThreshold(rates)
+    const autoFetOn = fetAppliesAtMtow(mtowLbs, rates).applies
+    const fetOn = fetEdits[o.id] ?? autoFetOn
+    const fetIsOverride = fetEdits[o.id] !== undefined
     const canManual = status !== 'no' && hardQuoteStatus !== 'accepted'
     const inHardQuote = Boolean(hqOpt)
     const included = Boolean(selected[o.id])
@@ -577,14 +625,15 @@ export function DeskOfferQuoteWorkbench({
                     Live {formatMinutes(o.live_leg_min)}
                   </span>
                 </div>
-                {preview?.fet_exempt ? (
+                {preview?.fet_exempt && preview.fet_override === 'auto' ? (
                   <div className="text-xs text-onplan">
                     FET-exempt — MTOW
                     {mtowLbs != null ? ` ${Math.round(mtowLbs)} lbs` : ''} ≤{' '}
                     {Math.round(exemptThresh).toLocaleString()} lbs (IRC §4281)
                   </div>
                 ) : null}
-                {preview?.fet_mtow_unknown ? (
+                {preview?.fet_mtow_unknown &&
+                preview.fet_override === 'auto' ? (
                   <div className="text-xs text-gold">
                     MTOW unknown — FET not charged until confirmed over{' '}
                     {Math.round(exemptThresh).toLocaleString()} lbs (§4281)
@@ -594,8 +643,44 @@ export function DeskOfferQuoteWorkbench({
 
               {preview && hardQuoteStatus !== 'accepted' ? (
                 <div className="space-y-2 rounded-md border border-gold/30 bg-gold/5 px-3 py-2.5">
-                  <div className="text-[11px] uppercase tracking-wider text-gold">
-                    Client · retail
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[11px] uppercase tracking-wider text-gold">
+                      Client · retail
+                    </div>
+                    <label
+                      className="inline-flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wider text-muted"
+                      title={
+                        fetIsOverride
+                          ? 'Desk override — normally driven by aircraft MTOW'
+                          : 'Auto from aircraft MTOW (§4281). Toggle only to override.'
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3 accent-[#C9A227]"
+                        checked={fetOn}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                          setFetEdits((m) => ({ ...m, [o.id]: next }))
+                          // FET toggle always recomputes client total from margin.
+                          setPricingLock((m) => ({
+                            ...m,
+                            [o.id]: 'margin',
+                          }))
+                          setClientEdits((m) => {
+                            const cleared = { ...m }
+                            delete cleared[o.id]
+                            return cleared
+                          })
+                        }}
+                      />
+                      FET
+                      {fetIsOverride ? (
+                        <span className="normal-case tracking-normal text-gold/80">
+                          override
+                        </span>
+                      ) : null}
+                    </label>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <label className="block text-xs text-muted">
@@ -752,6 +837,19 @@ export function DeskOfferQuoteWorkbench({
 
   return (
     <div className="mt-3 space-y-4 rounded-xl border border-gold/50 bg-ink/50 px-3.5 py-3.5">
+      {hardQuoteSentToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed left-1/2 top-5 z-[60] -translate-x-1/2 animate-[hardQuoteSentIn_0.25s_ease-out]"
+        >
+          <div className="rounded-md border border-gold/60 bg-ink/95 px-4 py-2.5 shadow-lg shadow-black/40 backdrop-blur">
+            <div className="text-sm font-semibold tracking-wide text-gold">
+              Hard Quote Sent
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
@@ -827,22 +925,8 @@ export function DeskOfferQuoteWorkbench({
             }}
             layout="compact"
             embedded
+            omitBaseEmails
           />
-          <label className="block text-xs text-muted">
-            PO #{' '}
-            <span className="text-late">(required — goes on invoice / booking)</span>
-            <input
-              type="text"
-              className="mt-1 w-full rounded border border-border bg-ink px-2 py-1.5 font-mono text-sm text-cream"
-              value={poDraft}
-              placeholder="Client PO / DocNumber"
-              onChange={(e) => {
-                setPoDraft(e.target.value)
-                setClientQuotePreview(false)
-              }}
-              onBlur={persistPoDraft}
-            />
-          </label>
           {needsTypeConfirm ? (
             <div className="space-y-2">
               <div className="text-xs text-muted">
