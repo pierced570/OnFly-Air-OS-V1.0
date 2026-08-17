@@ -106,8 +106,8 @@ export async function listPortalTripsForSession(): Promise<PortalTripCard[]> {
       console.warn('[portal] portal_trips_for_work_email', error.message)
       return []
     }
-    return (data ?? []).map((r) =>
-      mapPortalTripRow(r as Record<string, unknown>),
+    return ((data ?? []) as Record<string, unknown>[]).map((r) =>
+      mapPortalTripRow(r),
     )
   }
   await ensurePortalUserLinked()

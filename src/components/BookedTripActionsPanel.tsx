@@ -39,18 +39,18 @@ import {
   getClient,
   recordPoUsed,
   recordVendorNumber,
-  suggestNextPo,
   subscribeClients,
   listClients,
 } from '@/lib/clientStore'
+import { clientLastPoHint } from '@/lib/resolveClientLastPo'
 
 type Props = {
   tripId: string
 }
 
 export function BookedTripActionsPanel({ tripId }: Props) {
-  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   useSyncExternalStore(subscribeClients, listClients, listClients)
+  const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
   const [invoiceSel, setInvoiceSel] = useState<ClientEmailSelection>(
     emptyClientEmailSelection,
@@ -99,9 +99,15 @@ export function BookedTripActionsPanel({ tripId }: Props) {
   }, [trip?.vendor_number, trip?.client_id, tripId])
 
   const client = trip?.client_id ? getClient(trip.client_id) : null
-  const lastPo = client?.last_po ?? null
-  const lastPoTripRef = client?.profile.last_po_trip_ref ?? null
-  const suggestedPo = useMemo(() => suggestNextPo(lastPo), [lastPo])
+  const poHint = useMemo(
+    () => (trip?.client_id ? clientLastPoHint(trip.client_id) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- directory snapshot
+    [trip?.client_id, client?.last_po, client?.profile.last_po_trip_ref],
+  )
+  const lastPo = poHint?.lastPo ?? null
+  const lastPoTripRef =
+    poHint?.lastPoTripRef ?? client?.profile.last_po_trip_ref ?? null
+  const suggestedPo = poHint?.suggestedPo ?? '00001'
 
   // Prefill empty PO with +1 suggestion once client is known.
   useEffect(() => {

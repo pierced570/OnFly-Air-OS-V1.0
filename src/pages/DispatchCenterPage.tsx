@@ -28,6 +28,7 @@ import {
 } from '@/domain/dispatchCenter'
 import { parseLaneAirports } from '@/domain/offerMissionDisplay'
 import { absoluteAppUrl } from '@/lib/appUrl'
+import { takeDeskFlash, type DeskFlash } from '@/lib/deskFlash'
 import {
   deleteRequest,
   listRequests,
@@ -971,6 +972,39 @@ export default function DispatchCenterPage() {
   const [pushError, setPushError] = useState<string | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [approveError, setApproveError] = useState<string | null>(null)
+  const [deskFlash, setDeskFlashBanner] = useState<DeskFlash | null>(null)
+
+  // Quick Dispatch → Live tracking: show "Dispatch complete" (+ invoice follow-up).
+  useEffect(() => {
+    const fromQuery = searchParams.get('notice') === 'dispatch_complete'
+    const flash = takeDeskFlash()
+    if (flash) {
+      setDeskFlashBanner(flash)
+      return
+    }
+    if (fromQuery && focusTripId) {
+      setDeskFlashBanner({
+        kind: 'dispatch_complete',
+        tripId: focusTripId,
+        po: '',
+        invoicePending: false,
+      })
+    }
+  }, [searchParams, focusTripId])
+
+  // Invoice finishes after navigate — pick up success/failure flash.
+  useEffect(() => {
+    if (!deskFlash || deskFlash.kind !== 'dispatch_complete') return
+    if (!deskFlash.invoicePending) return
+    const id = window.setInterval(() => {
+      const next = takeDeskFlash()
+      if (next && next.kind !== 'dispatch_complete') {
+        setDeskFlashBanner(next)
+        window.clearInterval(id)
+      }
+    }, 800)
+    return () => window.clearInterval(id)
+  }, [deskFlash])
 
   // Deep link from desk send / share: /dispatch?drawer=offers&focus=<tripId>
   // Quick Dispatch: /dispatch?tool=quick
@@ -1245,6 +1279,57 @@ export default function DispatchCenterPage() {
           setOpenDrawer(id)
         }}
       />
+
+      {deskFlash ? (
+        <div
+          className={[
+            'rounded-lg border px-3 py-2.5 text-sm',
+            deskFlash.kind === 'invoice_failed'
+              ? 'border-late/40 bg-late/10 text-late'
+              : deskFlash.kind === 'invoice_sent'
+                ? 'border-onplan/40 bg-onplan/10 text-cream'
+                : 'border-gold/40 bg-gold/10 text-cream',
+          ].join(' ')}
+        >
+          {deskFlash.kind === 'dispatch_complete' ? (
+            <>
+              <div className="font-semibold text-gold">Dispatch complete</div>
+              <p className="mt-1 text-cream/85">
+                Trip is live in Tracking
+                {deskFlash.po ? ` · PO #${deskFlash.po}` : ''}.
+                {deskFlash.invoicePending
+                  ? ' Invoice is still sending in the background…'
+                  : ''}
+              </p>
+            </>
+          ) : null}
+          {deskFlash.kind === 'invoice_sent' ? (
+            <>
+              <div className="font-semibold text-onplan">Invoice sent</div>
+              <p className="mt-1 text-cream/85">
+                PO #{deskFlash.po} → {deskFlash.to.join(', ') || 'AP'}
+              </p>
+            </>
+          ) : null}
+          {deskFlash.kind === 'invoice_failed' ? (
+            <>
+              <div className="font-semibold">Invoice did not reach AP</div>
+              <p className="mt-1 text-cream/85">
+                {deskFlash.message} Resend from Financials (PO #{deskFlash.po}).
+                Ignore any QuickBooks copy with (ENTER …) blanks — that is not
+                the branded OnFly invoice.
+              </p>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="mt-2 text-xs text-muted underline hover:text-cream"
+            onClick={() => setDeskFlashBanner(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
       {approveError ? (
         <p className="rounded-lg border border-late/40 bg-late/10 px-3 py-2 text-sm text-late">

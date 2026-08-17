@@ -149,6 +149,30 @@ function invoiceEmailInvokeBody(opts: SendInvoiceEmailOpts) {
   }
 }
 
+/** Pull JSON error body from FunctionsHttpError when invoke returns non-2xx. */
+async function readFunctionsErrorDetail(error: unknown): Promise<string> {
+  const err = error as {
+    message?: string
+    context?: Response
+    details?: string
+  }
+  try {
+    const ctx = err.context
+    if (ctx && typeof ctx.json === 'function') {
+      const body = (await ctx.json()) as {
+        error?: string
+        detail?: string
+        message?: string
+      }
+      const bits = [body.error, body.detail, body.message].filter(Boolean)
+      if (bits.length) return bits.join(' — ')
+    }
+  } catch {
+    /* ignore */
+  }
+  return err.message || err.details || String(error)
+}
+
 const mockInvoices = new Map<
   string,
   { status: 'sent' | 'viewed' | 'paid'; total: number; doc: string }
@@ -321,7 +345,10 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
     const { data, error } = await supabase.functions.invoke('quickbooks-api', {
       body: { action, company_id: 'onfly', ...payload },
     })
-    if (error) throw new Error(error.message || `quickbooks-api ${action} failed`)
+    if (error) {
+      const detail = await readFunctionsErrorDetail(error)
+      throw new Error(detail || `quickbooks-api ${action} failed`)
+    }
     const body = data as { error?: string; detail?: string } | null
     if (body?.error) {
       throw new Error(
@@ -479,12 +506,12 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
 
     // Stamp DocNumber + CustomerMemo so the attached PDF has real trip details.
     // Do not call native QBO /send — company template leaves (ENTER …) blanks.
+    // Do not stamp BillEmail (stamp_bill_email omitted) — that can trigger QBO
+    // auto-mail of the blank company template to BCC/info.
     await this.invoke('prepare_invoice', {
       invoice_id: opts.qbInvoiceId,
       po_number: po,
       customer_memo: memo || null,
-      send_to: sendTo,
-      cc: opts.cc ?? [],
       allow_online_ach: true,
     })
 
@@ -513,16 +540,15 @@ export class QuickBooksAccountingAdapter implements AccountingAdapter {
       }
       console.warn('[qb] branded send-invoice-email failed', body)
       throw new Error(
-        `Branded invoice email failed: ${body.error}${
+        `Invoice email to ${sendTo} failed: ${body.error}${
           body.detail ? ` (${body.detail})` : ''
-        }. Fix Resend / send-invoice-email — native QBO mail still has (ENTER …) placeholders.`,
+        }. BCC-only copies with (ENTER …) blanks are from QuickBooks — resend from Financials after fixing Resend.`,
       )
     }
-    console.warn('[qb] branded send-invoice-email invoke failed', error)
+    const detail = await readFunctionsErrorDetail(error)
+    console.warn('[qb] branded send-invoice-email invoke failed', error, detail)
     throw new Error(
-      `Branded invoice email failed: ${
-        error.message || String(error)
-      }. Native QBO payment-request email is disabled (company template leaves trip fields blank).`,
+      `Invoice email to ${sendTo} failed: ${detail}. Native QBO payment-request email is disabled (company template leaves trip fields blank).`,
     )
   }
 }

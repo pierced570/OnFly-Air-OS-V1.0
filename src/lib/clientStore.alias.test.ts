@@ -66,4 +66,25 @@ describe('getClient id alias', () => {
     expect(sameClientId('client-tester', uuid)).toBe(true)
     expect(sameClientId('client-tester', 'other')).toBe(false)
   })
+
+  it('preserves session last_po when DB hydrate has null', () => {
+    replaceClientsFromDb([
+      blankClient({
+        id: 'client-tester',
+        name: 'Tester',
+        last_po: '00007',
+        profile: { last_po_trip_ref: 'T-42' },
+      }),
+    ])
+    replaceClientsFromDb([
+      blankClient({
+        id: 'client-tester',
+        name: 'Tester',
+        last_po: null,
+        profile: {},
+      }),
+    ])
+    expect(getClient('client-tester')?.last_po).toBe('00007')
+    expect(getClient('client-tester')?.profile.last_po_trip_ref).toBe('T-42')
+  })
 })
