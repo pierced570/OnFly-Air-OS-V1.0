@@ -785,10 +785,11 @@ function BasesTab({
         {bases.map((base, i) => (
           <div
             key={`${base.icao}-${i}`}
-            className="space-y-3 rounded-lg border border-border bg-surface p-4"
+            className="min-w-0 space-y-3 overflow-hidden rounded-lg border border-border bg-surface p-4"
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2">
               <AirportSelect
+                className="min-w-0 flex-1"
                 value={base.icao}
                 onChange={(icao) => {
                   const next = [...bases]
@@ -800,7 +801,7 @@ function BasesTab({
               />
               <button
                 type="button"
-                className="mt-6 text-xs text-muted hover:text-late"
+                className="mt-6 shrink-0 text-xs text-muted hover:text-late"
                 onClick={() => {
                   const next = [...bases]
                   next.splice(i, 1)
