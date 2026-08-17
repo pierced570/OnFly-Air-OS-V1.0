@@ -51,6 +51,8 @@ type FaFlight = {
     timestamp?: string
   } | null
   status?: string
+  /** AeroAPI: flight restricted from public viewing (LADD / owner block). */
+  blocked?: boolean
   origin?: FaAirportRef | null
   destination?: FaAirportRef | null
 }
@@ -160,13 +162,18 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
   if (!flight && seed && isUsRegistration(tail)) {
     flight = await fetchFaLastFlight(key, tail)
   }
-  if (!flight) return noData(tail)
+  if (!flight) {
+    // No flight on the board ≠ LADD. Only mark blocked when AeroAPI says so.
+    const blocked = await fetchFaAircraftBlocked(key, tail)
+    return { ...noData(tail), laddBlocked: blocked === true }
+  }
 
   const status = String(flight.status ?? '').toLowerCase()
   const airborneHint =
     status.includes('en route') ||
     status.includes('airborne') ||
     (!flight.actual_on && Boolean(flight.actual_off))
+  const flightBlocked = flight.blocked === true
 
   let lat = flight.last_position?.latitude
   let lon = flight.last_position?.longitude
@@ -218,6 +225,7 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     flight.actual_on ?? flight.estimated_on ?? null
 
   if (lat == null || lon == null) {
+    // Missing fix (parked / old flight / API gap) is not LADD — only flight.blocked is.
     return {
       ...noData(tail),
       lastTakeoffAt,
@@ -226,7 +234,7 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
       landingIsActual,
       originIcao,
       destinationIcao,
-      laddBlocked: true,
+      laddBlocked: flightBlocked,
     }
   }
 
@@ -239,7 +247,8 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     alt,
     gs,
     seenAt: seenAt ?? new Date().toISOString(),
-    laddBlocked: false,
+    // Even with a fix, honor AeroAPI blocked flag (rare for Standard keys).
+    laddBlocked: flightBlocked,
     lastTakeoffAt,
     lastLandingAt,
     takeoffIsActual,
@@ -247,6 +256,24 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     originIcao,
     destinationIcao,
     phase: airborne ? ('airborne' as const) : ('on_ground' as const),
+  }
+}
+
+/** GET /aircraft/{ident}/blocked — true only for LADD / owner-restricted regs. */
+async function fetchFaAircraftBlocked(
+  key: string,
+  tail: string,
+): Promise<boolean | null> {
+  try {
+    const res = await fetch(
+      `${FA_BASE}/aircraft/${encodeURIComponent(tail)}/blocked`,
+      { headers: { 'x-apikey': key, Accept: 'application/json' } },
+    )
+    if (!res.ok) return null
+    const data = (await res.json().catch(() => ({}))) as { blocked?: boolean }
+    return typeof data.blocked === 'boolean' ? data.blocked : null
+  } catch {
+    return null
   }
 }
 
@@ -534,7 +561,8 @@ function noData(tail: string) {
     alt: 0,
     gs: 0,
     seenAt: new Date(0).toISOString(),
-    laddBlocked: true,
+    // No fix / empty board ≠ LADD. Only AeroAPI `blocked` marks laddBlocked.
+    laddBlocked: false,
     lastTakeoffAt: null,
     lastLandingAt: null,
     takeoffIsActual: false,

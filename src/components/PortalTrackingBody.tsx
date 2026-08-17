@@ -30,7 +30,7 @@ function stageStatusLabel(status: OpsForecastRow['status']): string {
 
 function aircraftWhereLabel(view: PortalTrackingView): string {
   const a = view.aircraft
-  if (a.laddBlocked) return 'Blocked from view'
+  if (a.laddBlocked && a.source === 'none') return 'Live track restricted'
   if (a.source === 'adsb' && a.phase === 'airborne') {
     return 'In the air · live track'
   }
@@ -223,8 +223,8 @@ export function PortalTrackingBody({
                 {tail !== 'Pending' ? tail : 'Aircraft'}
               </p>
               <p className="text-sm leading-relaxed text-cream/85">
-                Unfortunately this tail number is blocked from view. Dispatch
-                will manually provide updates.
+                Live ADS-B for this registration is restricted. Schedule track and
+                stage updates still appear when ETAs are on the trip.
               </p>
             </div>
           </div>
