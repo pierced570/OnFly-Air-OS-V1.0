@@ -302,6 +302,15 @@ export type QuickDispatchMeta = {
   vendor_cost: number
   client_price: number
   pay_terms: string
+  /**
+   * FET charge flag for ledger / invoice tax split.
+   * - null/undefined → auto from aircraft MTOW (§4281 via tax_rates)
+   * - true → charge FET (desk override when DB MTOW wrong)
+   * - false → no FET (desk override)
+   */
+  fet_apply?: boolean | null
+  /** Explicit MTOW when known from AC pick (optional; resolver also looks up by tail). */
+  mtow_lbs?: number | null
   invoice_email: string
   /** Invoice CC (AP). Not used for ETA / tracking. */
   cc_emails: string[]
@@ -1106,6 +1115,8 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
           client_id: meta.client_id,
           vendor_cost: meta.vendor_cost,
           client_price: meta.client_price,
+          mtow_lbs: meta.mtow_lbs ?? null,
+          fet_apply: meta.fet_apply ?? null,
         },
       },
       {
@@ -1129,9 +1140,27 @@ export function createQuickDispatchTrip(meta: QuickDispatchMeta): TripStoreRow {
   trips.set(id, row)
   bump()
   schedulePersist(id)
-  void import('@/lib/ensureFinancialFromTrip').then((m) =>
-    m.ensureFinancialFromBookedTrip(getTrip(id)!),
-  )
+  void import('@/lib/ensureFinancialFromTrip').then((m) => {
+    const fin = m.ensureFinancialFromBookedTrip(getTrip(id)!)
+    const live = trips.get(id)
+    if (!live) return
+    live.events.push({
+      at: new Date().toISOString(),
+      actor: 'system',
+      kind: 'tax_breakdown',
+      payload: {
+        tax_total: fin.tax_total,
+        tax_breakdown: fin.tax_breakdown,
+        client_subtotal_pre_tax: fin.client_subtotal_pre_tax,
+        fet_apply: meta.fet_apply ?? null,
+        mtow_lbs: meta.mtow_lbs ?? null,
+        tail: meta.tail || null,
+        aircraft_type: meta.aircraft_type || null,
+      },
+    })
+    bump()
+    schedulePersist(id)
+  })
   return row
 }
 
@@ -2137,11 +2166,18 @@ export async function createInvoiceForTrip(
     t.offers.find((o) => o.state === 'quoted')
   const { resolveAircraftMtowLbs } = await import('@/lib/resolveAircraftMtow')
   const mtow = resolveAircraftMtowLbs({
+    mtowLbs: t.quick?.mtow_lbs ?? null,
     selectedAircraftId: selected?.aircraft_id,
     tail: selected?.tail ?? t.quick?.tail,
     typeName: selected?.type_name ?? t.quick?.aircraft_type,
     candidates: t.candidates,
   })
+  const fetOverride =
+    t.quick?.fet_apply === true
+      ? ('charge' as const)
+      : t.quick?.fet_apply === false
+        ? ('exempt' as const)
+        : null
   const payloadKind =
     t.hard_quote?.payload_kind ??
     (t.quick ? (t.quick.cargo_only ? 'cargo' : 'pax') : payloadKindOf(t))
@@ -2174,6 +2210,7 @@ export async function createInvoiceForTrip(
     poNumber: po,
     payloadKind,
     mtowLbs: mtow,
+    fetOverride,
     rates: getTaxRates(),
   })
   const lines = built.lines

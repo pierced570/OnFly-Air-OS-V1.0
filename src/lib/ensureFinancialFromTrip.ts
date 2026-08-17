@@ -98,11 +98,18 @@ export function ensureFinancialFromBookedTrip(trip: TripStoreRow): FinancialReco
   if (Number(clientPrice) > 0) {
     try {
       const mtow = resolveAircraftMtowLbs({
+        mtowLbs: trip.quick?.mtow_lbs ?? null,
         selectedAircraftId: selected?.aircraft_id,
         tail,
         typeName: aircraftType,
         candidates: trip.candidates,
       })
+      const fetOverride =
+        trip.quick?.fet_apply === true
+          ? ('charge' as const)
+          : trip.quick?.fet_apply === false
+            ? ('exempt' as const)
+            : null
       const payloadKind =
         trip.hard_quote?.payload_kind ??
         (trip.quick
@@ -119,6 +126,7 @@ export function ensureFinancialFromBookedTrip(trip: TripStoreRow): FinancialReco
         tail,
         payloadKind,
         mtowLbs: mtow,
+        fetOverride,
         rates: getTaxRates(),
       })
       client_subtotal_pre_tax = built.airAmount

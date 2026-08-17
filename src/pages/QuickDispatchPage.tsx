@@ -54,7 +54,20 @@ import {
   subscribeReferrals,
 } from '@/lib/referralStore'
 import { computeReferralShareAmount } from '@/domain/referrals'
+import {
+  airSubtotalFromClientTotal,
+  computeTax,
+  fetAppliesAtMtow,
+  fetExemptMtowThreshold,
+  formatTaxLineDesk,
+} from '@/domain/tax'
 import { ensureDeskOperatorsLoaded } from '@/lib/deskOperatorSearch'
+import {
+  ensureDeskAircraftLoaded,
+  findDeskAircraftByTail,
+} from '@/lib/deskAircraftSearch'
+import { resolveAircraftMtowLbs } from '@/lib/resolveAircraftMtow'
+import { getTaxRates } from '@/lib/taxRatesStore'
 
 type Leg = {
   id: string
@@ -128,11 +141,14 @@ export default function QuickDispatchPage({
 
   useEffect(() => {
     void ensureDeskOperatorsLoaded()
+    void ensureDeskAircraftLoaded()
   }, [])
 
   const [vendorCost, setVendorCost] = useState('')
   const [clientPrice, setClientPrice] = useState('')
   const [payTerms, setPayTerms] = useState('Net 30')
+  /** null = follow §4281 auto from MTOW; boolean = desk override. */
+  const [fetApplyOverride, setFetApplyOverride] = useState<boolean | null>(null)
 
   const [sendInvoice, setSendInvoice] = useState(true)
   const [invoiceEmail, setInvoiceEmail] = useState('')
@@ -163,6 +179,81 @@ export default function QuickDispatchPage({
     if (!Number.isFinite(v) || !Number.isFinite(p)) return null
     return p - v
   }, [vendorCost, clientPrice])
+
+  const mtowLbs = useMemo(() => {
+    const hit = findDeskAircraftByTail(tail, {
+      operatorName: operator,
+      operatorId,
+    })
+    return resolveAircraftMtowLbs({
+      mtowLbs: hit?.mtow_lbs ?? null,
+      tail,
+      typeName: aircraftType || hit?.type_name,
+    })
+  }, [tail, aircraftType, operator, operatorId])
+
+  const taxPreview = useMemo(() => {
+    const rates = getTaxRates()
+    const threshold = fetExemptMtowThreshold(rates)
+    const auto = fetAppliesAtMtow(mtowLbs, rates)
+    const fetApply =
+      fetApplyOverride != null ? fetApplyOverride : auto.autoApplies
+    const fetOverride =
+      fetApplyOverride == null
+        ? null
+        : fetApplyOverride
+          ? ('charge' as const)
+          : ('exempt' as const)
+    const clientTotal = Number(clientPrice)
+    if (!(clientTotal > 0) || !Number.isFinite(clientTotal)) {
+      return {
+        threshold,
+        mtowLbs,
+        autoApplies: auto.autoApplies,
+        autoUnknown: auto.unknown,
+        autoExempt: auto.exempt,
+        fetApply,
+        fetOverride,
+        airAmount: null as number | null,
+        taxTotal: null as number | null,
+        lines: [] as ReturnType<typeof computeTax>['lines'],
+      }
+    }
+    const payloadKind = cargoOnly ? ('cargo' as const) : ('pax' as const)
+    const paxCount = cargoOnly
+      ? 0
+      : Math.max(
+          1,
+          legs.reduce((n, l) => n + (Number(l.pax) || 0), 0),
+        )
+    const segments = Math.max(1, legs.length)
+    const taxBase = {
+      payloadKind,
+      legs: [{ international: false, segments, paxCount }],
+      aircraftMtowLbs: mtowLbs,
+      rates,
+      fetOverride,
+    }
+    const airAmount = airSubtotalFromClientTotal(clientTotal, taxBase)
+    const tax = computeTax({ ...taxBase, airSubtotal: airAmount })
+    return {
+      threshold,
+      mtowLbs,
+      autoApplies: auto.autoApplies,
+      autoUnknown: auto.unknown,
+      autoExempt: auto.exempt,
+      fetApply,
+      fetOverride,
+      airAmount,
+      taxTotal: tax.total,
+      lines: tax.lines,
+    }
+  }, [clientPrice, cargoOnly, legs, mtowLbs, fetApplyOverride])
+
+  // When tail/type changes, drop a stale override so §4281 auto re-applies.
+  useEffect(() => {
+    setFetApplyOverride(null)
+  }, [tail, aircraftType])
 
   const selectedReferrer = referredById ? getReferral(referredById) : undefined
   const previewShare =
@@ -317,6 +408,8 @@ export default function QuickDispatchPage({
         vendor_cost: Number(vendorCost) || 0,
         client_price: Number(clientPrice) || 0,
         pay_terms: payTerms,
+        fet_apply: taxPreview.fetOverride == null ? null : taxPreview.fetApply,
+        mtow_lbs: mtowLbs,
         invoice_email: invoiceEmail.trim(),
         cc_emails: invoiceCcList,
         eta_emails: etaList,
@@ -842,6 +935,7 @@ export default function QuickDispatchPage({
                 setOperator(hit.operator_name)
                 setOperatorId(hit.operator_id)
               }
+              setFetApplyOverride(null)
             }}
           />
         </div>
@@ -894,6 +988,72 @@ export default function QuickDispatchPage({
             </div>
           </label>
         </div>
+
+        <div className="rounded-md border border-border/60 bg-surface-2/40 px-3 py-2.5 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-muted">
+              Taxes (FET)
+            </div>
+            <label className="flex items-center gap-2 text-sm text-cream">
+              <input
+                type="checkbox"
+                checked={taxPreview.fetApply}
+                onChange={(e) => {
+                  const next = e.target.checked
+                  // Clear override when back to §4281 auto so we don't flag a no-op.
+                  setFetApplyOverride(
+                    next === taxPreview.autoApplies ? null : next,
+                  )
+                }}
+              />
+              Charge FET
+            </label>
+          </div>
+          <p className="avionic text-[11px] text-cream/80">
+            {taxPreview.mtowLbs != null
+              ? `MTOW ${Math.round(taxPreview.mtowLbs).toLocaleString()} lbs`
+              : 'MTOW unknown'}
+            {' · '}
+            §4281 threshold {taxPreview.threshold.toLocaleString()} lbs
+            {taxPreview.fetOverride != null
+              ? ' · desk override'
+              : taxPreview.autoUnknown
+                ? ' · auto: no FET until MTOW known'
+                : taxPreview.autoExempt
+                  ? ' · auto: FET exempt'
+                  : ' · auto: FET applies'}
+          </p>
+          {taxPreview.airAmount != null ? (
+            <div className="space-y-0.5 font-mono text-[11px] text-cream/85">
+              <div>
+                Air (pre-tax) $
+                {taxPreview.airAmount.toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+              {taxPreview.lines.map((line) => (
+                <div key={`${line.code}-${line.note}`}>
+                  {formatTaxLineDesk(line)}
+                </div>
+              ))}
+              <div className="text-cream">
+                Tax total $
+                {(taxPreview.taxTotal ?? 0).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted">
+              Enter client price to preview the tax split logged on Financials.
+            </p>
+          )}
+          <p className="text-[10px] text-muted">
+            Client invoice stays all-in; FET is flagged on the ledger. Toggle if
+            the aircraft database MTOW is wrong.
+          </p>
+        </div>
+
         <label className={label}>
           Pay terms
           <input

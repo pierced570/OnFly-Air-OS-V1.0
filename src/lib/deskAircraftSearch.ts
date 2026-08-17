@@ -18,6 +18,8 @@ export type DeskAircraftHit = {
   tail: string
   type_name: string | null
   base_icao: string | null
+  /** Per-tail MTOW — drives §4281 FET exemption when known. */
+  mtow_lbs: number | null
   active: boolean
 }
 
@@ -90,6 +92,10 @@ function toHit(a: AircraftRow): DeskAircraftHit {
     tail: normalizeAircraftTail(a.tail || ''),
     type_name: a.type_name?.trim() || null,
     base_icao: a.base_icao,
+    mtow_lbs:
+      a.mtow_lbs != null && Number.isFinite(Number(a.mtow_lbs))
+        ? Number(a.mtow_lbs)
+        : null,
     active: a.active !== false,
   }
 }

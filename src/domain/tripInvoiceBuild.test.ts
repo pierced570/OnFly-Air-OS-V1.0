@@ -53,7 +53,7 @@ describe('tripInvoiceBuild', () => {
     ).toBe(900)
   })
 
-  it('Cessna 310 (MTOW ≤ 6000) never puts FET on the ledger', () => {
+  it('Cessna 310 (MTOW ≤ 6000) never puts FET dollars on the ledger', () => {
     const r = buildTripInvoiceLines({
       tripRef: 8,
       lane: 'KCAK→KSHV',
@@ -69,12 +69,13 @@ describe('tripInvoiceBuild', () => {
     })
     expect(r.fetExempt).toBe(true)
     expect(r.taxTotal).toBe(0)
-    expect(r.taxBreakdown).toHaveLength(0)
+    expect(r.taxBreakdown.some((l) => l.code === 'FET_PAX')).toBe(false)
+    expect(r.taxBreakdown.some((l) => l.code === 'FET_EXEMPT_MTOW')).toBe(true)
     expect(r.airAmount).toBe(900)
     expect(r.lines[0]!.amount).toBe(900)
   })
 
-  it('unknown MTOW never invents FET on the ledger', () => {
+  it('unknown MTOW never invents FET dollars — flags NEEDS-INFO on ledger', () => {
     const r = buildTripInvoiceLines({
       tripRef: 9,
       lane: 'KCAK→KSHV',
@@ -86,8 +87,27 @@ describe('tripInvoiceBuild', () => {
       rates: TEST_TAX_RATES_2026,
     })
     expect(r.taxTotal).toBe(0)
-    expect(r.taxBreakdown).toHaveLength(0)
+    expect(r.taxBreakdown.some((l) => l.code === 'FET_CARGO')).toBe(false)
+    expect(r.taxBreakdown.some((l) => l.code === 'FET_NEEDS_MTOW')).toBe(true)
     expect(r.airAmount).toBe(900)
+  })
+
+  it('desk FET override charge logs FET even when MTOW ≤ 6000', () => {
+    const r = buildTripInvoiceLines({
+      tripRef: 10,
+      lane: 'KCAK→KSHV',
+      flightDate: '2026-08-16',
+      clientTotal: 10625,
+      aircraftType: 'Cessna 310',
+      payloadKind: 'cargo',
+      mtowLbs: 5500,
+      fetOverride: 'charge',
+      rates: TEST_TAX_RATES_2026,
+    })
+    expect(r.fetExempt).toBe(false)
+    expect(r.taxTotal).toBe(625)
+    expect(r.taxBreakdown.some((l) => l.code === 'FET_CARGO')).toBe(true)
+    expect(r.taxBreakdown.some((l) => l.code === 'FET_OVERRIDE_ON')).toBe(true)
   })
 
   it('adds ground handling as its own line', () => {

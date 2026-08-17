@@ -158,4 +158,92 @@ describe('ensureFinancialFromBookedTrip', () => {
     expect(row.tax_total).toBe(625)
     expect(row.tax_breakdown.some((l) => l.code === 'FET_CARGO')).toBe(true)
   })
+
+  it('Quick Dispatch C310 (MTOW ≤ 6000) logs FET-exempt, no FET dollars', () => {
+    const trip = stubTrip({
+      id: 'trip-qd-c310',
+      quick: {
+        client_id: 'c1',
+        client_name: 'Acme Air',
+        po: 'PO #01000',
+        timing: 'asap',
+        roundtrip: false,
+        cargo_only: true,
+        operator_name: 'Light Twin Op',
+        aircraft_type: 'Cessna 310',
+        tail: 'N310XX',
+        vendor_cost: 4500,
+        client_price: 5000,
+        pay_terms: 'Net 30',
+        fet_apply: null,
+        mtow_lbs: 5500,
+        invoice_email: 'bill@acme.test',
+        cc_emails: [],
+        send_invoice: false,
+        referred_by: '',
+        notes: '',
+        legs: [
+          {
+            origin_icao: 'KCAK',
+            dest_icao: 'KMDW',
+            date: '2026-07-20',
+            pax: 0,
+            repo_time: '',
+            live_leg_time: '',
+          },
+        ],
+      },
+    })
+    const row = ensureFinancialFromBookedTrip(trip)
+    expect(row.tax_total).toBe(0)
+    expect(row.client_subtotal_pre_tax).toBe(5000)
+    expect(row.tax_breakdown.some((l) => l.code === 'FET_CARGO')).toBe(false)
+    expect(row.tax_breakdown.some((l) => l.code === 'FET_EXEMPT_MTOW')).toBe(
+      true,
+    )
+  })
+
+  it('Quick Dispatch desk FET override charges when MTOW would exempt', () => {
+    const trip = stubTrip({
+      id: 'trip-qd-fet-override',
+      quick: {
+        client_id: 'c1',
+        client_name: 'Acme Air',
+        po: 'PO #01001',
+        timing: 'asap',
+        roundtrip: false,
+        cargo_only: true,
+        operator_name: 'Light Twin Op',
+        aircraft_type: 'Cessna 310',
+        tail: 'N310XX',
+        vendor_cost: 9000,
+        client_price: 10625,
+        pay_terms: 'Net 30',
+        fet_apply: true,
+        mtow_lbs: 5500,
+        invoice_email: 'bill@acme.test',
+        cc_emails: [],
+        send_invoice: false,
+        referred_by: '',
+        notes: '',
+        legs: [
+          {
+            origin_icao: 'KCAK',
+            dest_icao: 'KMDW',
+            date: '2026-07-20',
+            pax: 0,
+            repo_time: '',
+            live_leg_time: '',
+          },
+        ],
+      },
+    })
+    const row = ensureFinancialFromBookedTrip(trip)
+    expect(row.tax_total).toBe(625)
+    expect(row.client_subtotal_pre_tax).toBe(10000)
+    expect(row.tax_breakdown.some((l) => l.code === 'FET_CARGO')).toBe(true)
+    expect(row.tax_breakdown.some((l) => l.code === 'FET_OVERRIDE_ON')).toBe(
+      true,
+    )
+  })
 })
