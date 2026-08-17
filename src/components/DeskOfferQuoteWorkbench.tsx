@@ -3,7 +3,7 @@
  * client margin/tax edit. Meant to stay inside Dispatch center.
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   AircraftTypeSelect,
   initialAircraftTypeSelectValue,
@@ -64,6 +64,8 @@ type Props = {
   onClose?: () => void
   /** Open the desk manual-quote form for this offer on mount. */
   initialManualOfferId?: string | null
+  /** Expand + select this quoted offer on mount (new quote deep link). */
+  initialExpandOfferId?: string | null
 }
 
 function feeBadgeLabel(feeScope: string | null | undefined): string | null {
@@ -76,6 +78,7 @@ export function DeskOfferQuoteWorkbench({
   tripId,
   onClose,
   initialManualOfferId = null,
+  initialExpandOfferId = null,
 }: Props) {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
@@ -104,12 +107,35 @@ export function DeskOfferQuoteWorkbench({
     {},
   )
   const [poDraft, setPoDraft] = useState('')
+  const didAutoExpand = useRef(false)
+
+  useEffect(() => {
+    didAutoExpand.current = false
+  }, [tripId])
 
   useEffect(() => {
     if (!initialManualOfferId) return
     setManualQuoteOfferId(initialManualOfferId)
     setExpanded((m) => ({ ...m, [initialManualOfferId]: true }))
   }, [initialManualOfferId])
+
+  // New quote / deep link: open the expanded pricing panel automatically.
+  useEffect(() => {
+    if (!trip || didAutoExpand.current) return
+    const quoteable = trip.offers.filter(
+      (o) =>
+        (o.state === 'quoted' || o.state === 'selected') &&
+        o.price_net != null,
+    )
+    const target =
+      (initialExpandOfferId &&
+        quoteable.find((o) => o.id === initialExpandOfferId)?.id) ||
+      (quoteable.length === 1 ? quoteable[0]!.id : null)
+    if (!target) return
+    didAutoExpand.current = true
+    setExpanded((m) => ({ ...m, [target]: true }))
+    setSelected((s) => ({ ...s, [target]: true }))
+  }, [trip, initialExpandOfferId])
 
   useEffect(() => {
     setEmailSel(defaultClientEmailSelection(trip?.client_id))
