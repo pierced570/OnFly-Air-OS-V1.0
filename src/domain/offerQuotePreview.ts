@@ -7,6 +7,7 @@ import { marginPctFromCostAndPrice, priceFromMargin } from '@/domain/quote'
 import {
   airSubtotalFromClientTotal,
   computeTax,
+  type FetOverride,
   type TaxLine,
   type TaxRateRow,
 } from '@/domain/tax'
@@ -30,6 +31,8 @@ export type OfferQuotePreviewInput = {
   margin_pct?: number | null
   /** Override client total (desk edit). */
   client_total_override?: number | null
+  /** Rare desk FET on/off override. Default auto. */
+  fet_override?: FetOverride | null
   segment_count?: number
   pax_count?: number
 }
@@ -59,6 +62,10 @@ export type OfferQuotePreview = {
   fet_exempt: boolean
   /** True when MTOW missing — FET not charged until known. */
   fet_mtow_unknown: boolean
+  /** Effective FET include flag after override (true when FET lines charged). */
+  fet_on: boolean
+  /** Desk override in effect (`auto` when none). */
+  fet_override: FetOverride
   payload_kind: 'cargo' | 'pax' | 'both'
   /** Final client total (override or computed). */
   client_total: number
@@ -77,11 +84,16 @@ export function buildOfferQuotePreview(
       : DEFAULT_OFFER_MARGIN_PCT
   const segments = Math.max(1, input.segment_count ?? 1)
   const paxCount = Math.max(1, input.pax_count ?? 1)
+  const fet_override: FetOverride =
+    input.fet_override === 'on' || input.fet_override === 'off'
+      ? input.fet_override
+      : 'auto'
   const taxInputBase = {
     payloadKind: input.payload_kind,
     legs: [{ international: false, segments, paxCount }],
     aircraftMtowLbs: input.mtow_lbs,
     rates,
+    fetOverride: fet_override,
   }
 
   const hasOverride =
@@ -142,6 +154,13 @@ export function buildOfferQuotePreview(
     fet_total,
     fet_exempt: tax.fetExempt,
     fet_mtow_unknown: tax.fetMtowUnknown,
+    fet_on:
+      fet_override === 'off'
+        ? false
+        : fet_override === 'on'
+          ? true
+          : fet_total > 0,
+    fet_override,
     payload_kind: input.payload_kind,
     client_total,
     fee_scope: input.fee_scope,
