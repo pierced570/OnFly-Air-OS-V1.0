@@ -38,7 +38,10 @@ export type AdsbAlertResult = {
 
 export interface AdsbAdapter {
   /** Live or last-known positions for the given tails. */
-  positions(tails: string[]): Promise<AdsbPosition[]>
+  positions(
+    tails: string[],
+    opts?: { liveLock?: boolean },
+  ): Promise<AdsbPosition[]>
   /** One-shot seed of last-known (cheap /flights/{ident} path when live). */
   seedLastKnown(tails: string[]): Promise<AdsbPosition[]>
   /** Register or remove movement alerts for a tail. */
@@ -76,8 +79,15 @@ export class MockAdsbAdapter implements AdsbAdapter {
  * Live via edge function. On provider failure, returns no_data (flag, don't exclude).
  */
 export class EdgeAdsbAdapter implements AdsbAdapter {
-  async positions(tails: string[]): Promise<AdsbPosition[]> {
-    return invokePositions({ action: 'positions', tails })
+  async positions(
+    tails: string[],
+    opts?: { liveLock?: boolean },
+  ): Promise<AdsbPosition[]> {
+    return invokePositions({
+      action: 'positions',
+      tails,
+      liveLock: opts?.liveLock === true,
+    })
   }
 
   async seedLastKnown(tails: string[]): Promise<AdsbPosition[]> {
@@ -129,6 +139,7 @@ export class EdgeAdsbAdapter implements AdsbAdapter {
 async function invokePositions(body: {
   action: 'positions' | 'seed'
   tails: string[]
+  liveLock?: boolean
 }): Promise<AdsbPosition[]> {
   const tails = body.tails.map((t) => t.toUpperCase())
   if (!tails.length) return []

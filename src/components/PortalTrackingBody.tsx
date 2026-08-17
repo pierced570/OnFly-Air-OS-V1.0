@@ -16,6 +16,7 @@ import {
   type OpsForecastRow,
   type PortalTrackingView,
 } from '@/domain/portalTracking'
+import { adsbIsLiveLock } from '@/domain/adsbFreshness'
 import {
   formatPortalStopAddress,
   formatPortalStopTitle,
@@ -89,8 +90,9 @@ export function PortalTrackingBody({
     window.alert('Tracking link copied')
   }
 
+  const liveLock = adsbIsLiveLock(a.seenAt)
   const seenAgo = (() => {
-    if (!a.seenAt) return null
+    if (a.source !== 'adsb' || !a.seenAt || !liveLock) return null
     const sec = Math.max(
       0,
       Math.round((Date.now() - Date.parse(a.seenAt)) / 1000),
@@ -192,11 +194,13 @@ export function PortalTrackingBody({
             ●{' '}
             {mapBlocked
               ? 'Track unavailable'
-              : a.source === 'adsb'
+              : a.source === 'adsb' && liveLock
                 ? `Live · ${tail}`
-                : a.source === 'eta'
-                  ? `Track · ${tail}`
-                  : 'Track'}
+                : a.source === 'adsb'
+                  ? `Last known · ${tail}`
+                  : a.source === 'eta'
+                    ? `Track · ${tail}`
+                    : 'Track'}
           </span>
           <span className="text-cream/55">
             {mapBlocked

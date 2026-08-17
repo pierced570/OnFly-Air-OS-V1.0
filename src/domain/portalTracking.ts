@@ -5,6 +5,7 @@
 
 import type { AdsbPosition } from '@/adapters/adsb'
 import { destDwellComplete, icaoMatch, proposeAdsbActuals } from '@/domain/adsbActuals'
+import { ADSB_USABLE_FIX_MAX_AGE_MIN, adsbFixIsFresh } from '@/domain/adsbFreshness'
 import { lookupAirport } from '@/domain/airports'
 import type { ChainLeg, Place, ServicePattern } from '@/domain/etaChain'
 import {
@@ -1404,7 +1405,12 @@ export function resolveAircraftPosition(
     adsb &&
     adsb.laddBlocked !== true &&
     adsb.phase !== 'no_data' &&
-    hasCoords(adsb.lat, adsb.lon)
+    hasCoords(adsb.lat, adsb.lon) &&
+    adsbFixIsFresh(
+      adsb.seenAt,
+      Date.parse(nowIso),
+      ADSB_USABLE_FIX_MAX_AGE_MIN,
+    )
       ? adsb
       : null
 

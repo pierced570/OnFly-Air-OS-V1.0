@@ -190,16 +190,20 @@ describe('portalTracking', () => {
 
   it('prefers ADS-B over ETA when live', () => {
     const trip = sampleD2d({ state: 'in_progress' })
-    const pos = resolveAircraftPosition(trip, {
-      tail: 'N123AB',
-      lat: 41.2,
-      lon: -84,
-      alt: 18000,
-      gs: 240,
-      seenAt: '2026-07-15T16:20:00.000Z',
-      laddBlocked: false,
-      phase: 'airborne',
-    })
+    const pos = resolveAircraftPosition(
+      trip,
+      {
+        tail: 'N123AB',
+        lat: 41.2,
+        lon: -84,
+        alt: 18000,
+        gs: 240,
+        seenAt: '2026-07-15T16:20:00.000Z',
+        laddBlocked: false,
+        phase: 'airborne',
+      },
+      '2026-07-15T16:25:00.000Z',
+    )
     expect(pos.source).toBe('adsb')
     expect(pos.summary).toMatch(/airborne/i)
     expect(pos.summary).toMatch(/N123AB/)
@@ -207,6 +211,28 @@ describe('portalTracking', () => {
     expect(pos.fromLat).not.toBeNull()
     expect(pos.toLat).not.toBeNull()
     expect(portalAircraftMapVisible(pos)).toBe(true)
+  })
+
+  it('does not pin a days-old last flight as the live map position', () => {
+    const trip = sampleD2d({ state: 'in_progress' })
+    const pos = resolveAircraftPosition(
+      trip,
+      {
+        tail: 'N6209X',
+        lat: 40.8,
+        lon: -85.5,
+        alt: 0,
+        gs: 0,
+        seenAt: '2026-08-12T10:42:00.000Z',
+        laddBlocked: false,
+        phase: 'on_ground',
+        originIcao: 'KMSN',
+        destinationIcao: 'KHHG',
+      },
+      '2026-08-17T13:30:00.000Z',
+    )
+    expect(pos.source).not.toBe('adsb')
+    expect(pos.lat).not.toBe(40.8)
   })
 
   it('shows map-ready coords while positioning before wheels-up', () => {

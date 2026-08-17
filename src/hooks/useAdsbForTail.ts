@@ -1,10 +1,15 @@
 /**
  * Poll FlightAware / ADS-B for one dispatched (live) trip tail.
  * Do not call for booked / list cards / fleet-wide — AeroAPI spend is per request.
+ * Portal track fetches a live lock immediately on access, then polls.
  */
 
 import { useEffect, useState } from 'react'
 import { createAdsbAdapter, type AdsbPosition } from '@/adapters/adsb'
+import {
+  ADSB_USABLE_FIX_MAX_AGE_MIN,
+  adsbFixIsFresh,
+} from '@/domain/adsbFreshness'
 
 const REFRESH_MS = 30_000
 
@@ -12,6 +17,35 @@ function normalizeTail(tail: string | null | undefined): string | null {
   const t = (tail ?? '').trim().toUpperCase()
   if (!t || t === 'TBD' || t === '—') return null
   return t
+}
+
+function hasFix(p: AdsbPosition | null | undefined): boolean {
+  if (!p || p.phase === 'no_data' || p.laddBlocked) return false
+  return !(p.lat === 0 && p.lon === 0)
+}
+
+function usableFix(p: AdsbPosition, nowMs: number): boolean {
+  return (
+    hasFix(p) &&
+    adsbFixIsFresh(p.seenAt, nowMs, ADSB_USABLE_FIX_MAX_AGE_MIN)
+  )
+}
+
+function stripStaleFix(p: AdsbPosition): AdsbPosition {
+  if (!hasFix(p)) return p
+  return { ...p, lat: 0, lon: 0, alt: 0, gs: 0, phase: 'no_data' }
+}
+
+function mergeActuals(base: AdsbPosition, other: AdsbPosition): AdsbPosition {
+  return {
+    ...base,
+    lastTakeoffAt: base.lastTakeoffAt ?? other.lastTakeoffAt,
+    lastLandingAt: base.lastLandingAt ?? other.lastLandingAt,
+    takeoffIsActual: Boolean(base.takeoffIsActual || other.takeoffIsActual),
+    landingIsActual: Boolean(base.landingIsActual || other.landingIsActual),
+    originIcao: base.originIcao ?? other.originIcao,
+    destinationIcao: base.destinationIcao ?? other.destinationIcao,
+  }
 }
 
 /** Trip states that justify live AeroAPI spend. */
@@ -31,7 +65,8 @@ export type UseAdsbForTailOpts = {
 
 /**
  * Live + last-known ADS-B for one registration on a live trip page.
- * Seeds once, then polls positions. Disabled = no provider calls.
+ * On mount: live positions first (portal open). Seed only if live has no fix.
+ * Then poll positions. Disabled = no provider calls.
  */
 export function useAdsbForTail(
   tail: string | null | undefined,
@@ -49,25 +84,25 @@ export function useAdsbForTail(
     let cancelled = false
     const adapter = createAdsbAdapter()
 
-    const apply = (rows: AdsbPosition[]) => {
+    const apply = (rows: AdsbPosition[], nowMs = Date.now()) => {
       if (cancelled) return
       const hit = rows[0] ?? null
       if (!hit) return
-      setPos((prev) => mergeAdsbPreferRicher(prev, hit))
+      setPos((prev) => mergeAdsbPreferRicher(prev, hit, nowMs))
     }
 
-    const tick = async (seedFirst: boolean) => {
+    const tick = async (onAccess: boolean) => {
       try {
-        if (seedFirst) {
-          // One historical seed, then live board — not both every interval.
-          const seeded = await adapter.seedLastKnown([key])
-          apply(seeded)
-          return
-        }
-        const live = await adapter.positions([key])
+        const live = await adapter.positions([key], { liveLock: onAccess })
+        if (cancelled) return
         apply(live)
+        if (onAccess && !hasFix(live[0])) {
+          const seeded = await adapter.seedLastKnown([key])
+          if (cancelled) return
+          apply(seeded)
+        }
       } catch {
-        if (!cancelled && !seedFirst) setPos(null)
+        if (!cancelled && !onAccess) setPos(null)
       }
     }
 
@@ -82,37 +117,19 @@ export function useAdsbForTail(
   return pos
 }
 
-/** Keep takeoff/landing actuals if a thinner poll drops them. */
+/** Keep takeoff/landing actuals if a thinner poll drops them. Drop stale seeds. */
 export function mergeAdsbPreferRicher(
   prev: AdsbPosition | null,
   next: AdsbPosition,
+  nowMs: number = Date.now(),
 ): AdsbPosition {
-  if (!prev || prev.tail.toUpperCase() !== next.tail.toUpperCase()) return next
-  const nextHasFix =
-    !next.laddBlocked &&
-    next.phase !== 'no_data' &&
-    (next.lat !== 0 || next.lon !== 0)
-  const prevHasFix =
-    !prev.laddBlocked &&
-    prev.phase !== 'no_data' &&
-    (prev.lat !== 0 || prev.lon !== 0)
-  return {
-    ...next,
-    lat: nextHasFix ? next.lat : prevHasFix ? prev.lat : next.lat,
-    lon: nextHasFix ? next.lon : prevHasFix ? prev.lon : next.lon,
-    alt: nextHasFix ? next.alt : prevHasFix ? prev.alt : next.alt,
-    gs: nextHasFix ? next.gs : prevHasFix ? prev.gs : next.gs,
-    phase: next.phase !== 'no_data' ? next.phase : prev.phase,
-    laddBlocked: Boolean(next.laddBlocked),
-    lastTakeoffAt: next.lastTakeoffAt ?? prev.lastTakeoffAt,
-    lastLandingAt: next.lastLandingAt ?? prev.lastLandingAt,
-    takeoffIsActual: next.takeoffIsActual || prev.takeoffIsActual,
-    landingIsActual: next.landingIsActual || prev.landingIsActual,
-    originIcao: next.originIcao ?? prev.originIcao,
-    destinationIcao: next.destinationIcao ?? prev.destinationIcao,
-    seenAt:
-      nextHasFix || Date.parse(next.seenAt) >= Date.parse(prev.seenAt)
-        ? next.seenAt
-        : prev.seenAt,
+  if (!prev || prev.tail.toUpperCase() !== next.tail.toUpperCase()) {
+    return usableFix(next, nowMs) ? next : stripStaleFix(next)
   }
+
+  const nextOk = usableFix(next, nowMs)
+  const prevOk = usableFix(prev, nowMs)
+  if (nextOk) return mergeActuals(next, prev)
+  if (prevOk) return mergeActuals(prev, next)
+  return stripStaleFix(next)
 }
