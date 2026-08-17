@@ -114,11 +114,5 @@ export function listAdapterDoorStatus(): AdapterDoorStatus[] {
           ? 'quickbooks-api · OAuth + branded Resend PDF'
           : 'Set VITE_QB_ADAPTER=real + QB_CLIENT_ID/SECRET on edge',
     },
-    {
-      id: 'notam',
-      label: 'NOTAMs',
-      state: 'blocked',
-      detail: 'FAA NOTAM API enrollment pending',
-    },
   ]
 }
