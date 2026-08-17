@@ -1,5 +1,5 @@
 /**
- * Next PO for a client = max(QuickBooks last, local last_po) + 1.
+ * Next PO for a client = max(QuickBooks last, local last_po, trips, financials) + 1.
  */
 
 import { createAccountingAdapter } from '@/adapters/accounting'
@@ -10,6 +10,7 @@ import {
   listClients,
   recordPoUsed,
 } from '@/lib/clientStore'
+import { resolveClientLastPo } from '@/lib/resolveClientLastPo'
 
 function initialsPrefix(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -31,6 +32,8 @@ export async function allocateNextPoForClient(opts: {
     listClients().find((c) => c.name.toLowerCase() === name.toLowerCase()) ??
     null
 
+  const resolved = client ? resolveClientLastPo(client.id, { sync: true }) : null
+
   const acct = createAccountingAdapter()
   let qbLast: number | null = null
   try {
@@ -38,7 +41,8 @@ export async function allocateNextPoForClient(opts: {
   } catch (e) {
     console.warn('[po] getLastPoNumeric failed — using local last_po', e)
   }
-  const localLast = extractPoNumeric(client?.last_po ?? null)
+  const localLast =
+    resolved?.numeric ?? extractPoNumeric(client?.last_po ?? null)
   const lastNumeric =
     qbLast == null && localLast == null
       ? null
@@ -46,7 +50,7 @@ export async function allocateNextPoForClient(opts: {
 
   const prefix =
     client?.po_prefix?.trim() ||
-    guessPoPrefix(client?.last_po) ||
+    guessPoPrefix(resolved?.lastPo ?? client?.last_po) ||
     initialsPrefix(name)
 
   const po = nextPoNumber({ lastNumeric, prefix })

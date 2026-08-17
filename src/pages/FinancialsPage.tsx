@@ -39,9 +39,9 @@ import {
   listClients,
   recordPoUsed,
   recordVendorNumber,
-  suggestNextPo,
   subscribeClients,
 } from '@/lib/clientStore'
+import { clientLastPoHint } from '@/lib/resolveClientLastPo'
 import {
   canUseStorage,
   uploadTripDocToStorage,
@@ -1101,12 +1101,14 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
                 (r.client_name ?? '').trim().toLowerCase(),
             )
             if (!c) return null
+            const hint = clientLastPoHint(c.id)
             return (
               <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-muted">
                 {formatInvoicePoHint({
-                  lastPo: c.last_po,
-                  lastPoTripRef: c.profile.last_po_trip_ref,
-                  suggestedPo: suggestNextPo(c.last_po),
+                  lastPo: hint.lastPo,
+                  lastPoTripRef:
+                    hint.lastPoTripRef ?? c.profile.last_po_trip_ref,
+                  suggestedPo: hint.suggestedPo,
                 })}
               </span>
             )
@@ -1691,8 +1693,11 @@ function ClientDrawer({
     if (!name) return undefined
     return listClients().find((c) => c.name.toLowerCase() === name)
   }, [r.client_name])
-  const lastPo = client?.last_po ?? null
-  const suggestedPo = useMemo(() => suggestNextPo(lastPo), [lastPo])
+  const lastPo = client ? clientLastPoHint(client.id).lastPo : null
+  const suggestedPo = useMemo(
+    () => (client ? clientLastPoHint(client.id).suggestedPo : '00001'),
+    [client?.id, client?.last_po],
+  )
   const [poDraft, setPoDraft] = useState(
     () => (r.operator_po || r.po_number || '').trim() || suggestedPo,
   )
@@ -1766,7 +1771,12 @@ function ClientDrawer({
         onPoCommit={() => commitPo(poDraft)}
         suggestedPo={suggestedPo}
         lastPo={lastPo}
-        lastPoTripRef={client?.profile.last_po_trip_ref}
+        lastPoTripRef={
+          client
+            ? clientLastPoHint(client.id).lastPoTripRef ??
+              client.profile.last_po_trip_ref
+            : null
+        }
         vendorValue={vendorDraft}
         onVendorChange={setVendorDraft}
         onVendorCommit={() => commitVendor(vendorDraft)}
