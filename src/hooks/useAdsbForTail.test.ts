@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { AdsbPosition } from '@/adapters/adsb'
-import { mergeAdsbPreferRicher } from './useAdsbForTail'
+import {
+  adsbPollEnabledForState,
+  mergeAdsbPreferRicher,
+} from './useAdsbForTail'
 
 function pos(over: Partial<AdsbPosition>): AdsbPosition {
   return {
@@ -15,6 +18,16 @@ function pos(over: Partial<AdsbPosition>): AdsbPosition {
     ...over,
   }
 }
+
+describe('adsbPollEnabledForState', () => {
+  it('only enables AeroAPI spend for in_progress (dispatched) trips', () => {
+    expect(adsbPollEnabledForState('in_progress')).toBe(true)
+    expect(adsbPollEnabledForState('booked')).toBe(false)
+    expect(adsbPollEnabledForState('quoted_hard')).toBe(false)
+    expect(adsbPollEnabledForState('delivered')).toBe(false)
+    expect(adsbPollEnabledForState(null)).toBe(false)
+  })
+})
 
 describe('mergeAdsbPreferRicher', () => {
   it('keeps prior fix when next poll is empty', () => {

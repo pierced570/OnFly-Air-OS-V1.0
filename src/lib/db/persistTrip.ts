@@ -4,6 +4,7 @@
  */
 
 import type { TripState } from '@/domain/stateMachine'
+import { parseLaneAirports } from '@/domain/offerMissionDisplay'
 import { toDbLegType } from '@/domain/tripLegs'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import { tripTransition } from '@/lib/supabase'
@@ -48,6 +49,66 @@ function partyRole(role: string): string {
   return allowed.has(role) ? role : 'other'
 }
 
+/** Portal + desk recover ICAOs when trip_legs / eta nodes lag. */
+function tripRouteEndpoints(trip: TripStoreRow): {
+  origin: string | null
+  destination: string | null
+} {
+  const fromLeg = trip.legs.find((l) => l.origin)?.origin?.trim().toUpperCase()
+  const toLeg = [...trip.legs]
+    .reverse()
+    .find((l) => l.dest)?.dest?.trim()
+    .toUpperCase()
+  const fromChain = trip.eta_chain
+    .find((l) => l.type === 'air_leg' && l.from.icao)
+    ?.from.icao?.trim()
+    .toUpperCase()
+  const toChain = trip.eta_chain
+    .find((l) => l.type === 'air_leg' && l.to.icao)
+    ?.to.icao?.trim()
+    .toUpperCase()
+  const parsed = parseLaneAirports(trip.lane)
+  return {
+    origin: fromLeg || fromChain || parsed?.origin || null,
+    destination: toLeg || toChain || parsed?.dest || null,
+  }
+}
+
+/** Portal-safe ETA snapshot for session_meta (no money / operator fields). */
+function portalSafeEtaChain(trip: TripStoreRow): unknown[] {
+  return (trip.eta_chain ?? []).map((l) => ({
+    seq: l.seq,
+    type: l.type,
+    branch: l.branch,
+    label: l.label,
+    event: l.event,
+    from: {
+      icao: l.from.icao ?? null,
+      tz: l.from.tz ?? null,
+      lat: l.from.lat,
+      lon: l.from.lon,
+      label: l.from.label ?? null,
+    },
+    to: {
+      icao: l.to.icao ?? null,
+      tz: l.to.tz ?? null,
+      lat: l.to.lat,
+      lon: l.to.lon,
+      label: l.to.label ?? null,
+    },
+    est_start: l.est_start,
+    est_end: l.est_end,
+    actual_start: l.actual_start ?? null,
+    actual_end: l.actual_end ?? null,
+    duration_min: l.duration_min,
+    duration_key: l.duration_key ?? null,
+    source: l.source,
+    distance_mi: l.distance_mi ?? null,
+    distance_nm: l.distance_nm ?? null,
+    slack_min: l.slack_min ?? null,
+  }))
+}
+
 /** Insert trip shell if missing. Does not overwrite state on conflict. */
 export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
   if (!canPersist()) return false
@@ -60,6 +121,7 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
   const payloadKind =
     [...trip.events].reverse().find((e) => e.kind === 'payload_kind')?.payload
       .payload_kind ?? 'cargo'
+  const route = tripRouteEndpoints(trip)
 
   const inserted = await safeQuery('trips.insert', () =>
     db().from('trips').insert({
@@ -68,6 +130,8 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
       client_id: clientUuid,
       payload_kind: payloadKind,
       lane_label: trip.lane,
+      origin: route.origin,
+      destination: route.destination,
       payload_summary: trip.payload_summary,
       ready_label: trip.ready_label,
       accept_token: trip.hard_quote?.accept_token ?? null,
@@ -83,6 +147,7 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
         request_id: trip.request_id ?? null,
         awb_needed: trip.awb_needed ?? false,
         awb_cleared_at: trip.awb_cleared_at ?? null,
+        eta_chain: portalSafeEtaChain(trip),
       },
     }),
   )
@@ -95,6 +160,7 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
   await ensureTripRow(trip)
 
   const clientUuid = await resolveClientUuid(trip.client_id)
+  const route = tripRouteEndpoints(trip)
   // Keep ETA/thread fields in session_meta too — prod may lag migrations
   // that add service_pattern / thread_number columns (0014 / 0016).
   await safeQuery('trips.shell', () =>
@@ -103,6 +169,8 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
       .update({
         client_id: clientUuid,
         lane_label: trip.lane,
+        origin: route.origin,
+        destination: route.destination,
         payload_summary: trip.payload_summary,
         ready_label: trip.ready_label,
         accept_token: trip.hard_quote?.accept_token ?? null,
@@ -132,6 +200,7 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
           request_id: trip.request_id ?? null,
           awb_needed: trip.awb_needed ?? false,
           awb_cleared_at: trip.awb_cleared_at ?? null,
+          eta_chain: portalSafeEtaChain(trip),
         },
       })
       .eq('id', trip.id),

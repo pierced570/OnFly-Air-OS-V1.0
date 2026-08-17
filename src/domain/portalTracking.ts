@@ -12,6 +12,7 @@ import {
   projectedDeliveryUtc,
 } from '@/domain/etaChain'
 import { haversineNm } from '@/domain/geo'
+import { parseLaneAirports } from '@/domain/offerMissionDisplay'
 import {
   formatPortalStopAddress,
   formatPortalStopTitle,
@@ -289,15 +290,17 @@ export type TrackingAircraftPosition = {
   progressPct: number | null
   nmRemaining: number | null
   /**
-   * True when FlightAware / ADS-B reports this registration as blocked (LADD).
-   * Portal covers the map; desk provides manual updates.
+   * True when FlightAware AeroAPI marks this registration/flight blocked (LADD).
+   * Missing position / no_data is NOT blocked — portal still shows ETA track.
    */
   laddBlocked: boolean
 }
 
-/** True when the portal should cover the map (LADD / blocked tail). */
+/** True when the portal should cover the map (legacy — live LADD no longer covers). */
 export function portalAircraftMapBlocked(a: TrackingAircraftPosition): boolean {
-  return a.laddBlocked === true
+  // Live ADS-B LADD skips the public fix; we still show ETA-inferred track.
+  // Keep helper for older payloads that set laddBlocked without ETA coords.
+  return a.laddBlocked === true && a.lat == null && a.lon == null
 }
 
 /** True when the portal can render a little live map for this trip stage. */
@@ -1080,50 +1083,55 @@ export function buildTrackingStops(
   if (!chain.length) {
     const first = trip.legs[0]
     const last = trip.legs[trip.legs.length - 1]
-    if (first?.origin) {
+    const lane = parseLaneAirports(trip.lane)
+    const origin =
+      first?.origin?.toUpperCase() || lane?.origin || null
+    const dest =
+      last?.dest?.toUpperCase() || lane?.dest || null
+    if (origin) {
       push({
         role: 'departure_fbo',
         title: 'Departure airport',
-        icao: first.origin.toUpperCase(),
-        placeLabel: first.origin.toUpperCase(),
+        icao: origin,
+        placeLabel: origin,
         addressHint: null,
-        etaDisplay: first.est_start
+        etaDisplay: first?.est_start
           ? formatClientLocal(first.est_start, 'UTC').display
           : null,
-        etaActualDisplay: first.actual_start
+        etaActualDisplay: first?.actual_start
           ? formatClientLocal(first.actual_start, 'UTC').display
           : null,
         status:
-          first.status === 'done'
+          first?.status === 'done'
             ? 'done'
-            : first.status === 'active'
+            : first?.status === 'active'
               ? 'active'
               : 'pending',
         tz: 'UTC',
-        event: first.label,
+        event: first?.label || 'Origin',
       })
     }
-    if (last?.dest) {
+    if (dest) {
       push({
         role: 'arrival_fbo',
         title: 'Arrival airport',
-        icao: last.dest.toUpperCase(),
-        placeLabel: last.dest.toUpperCase(),
+        icao: dest,
+        placeLabel: dest,
         addressHint: null,
-        etaDisplay: last.est_end
+        etaDisplay: last?.est_end
           ? formatClientLocal(last.est_end, 'UTC').display
           : null,
-        etaActualDisplay: last.actual_end
+        etaActualDisplay: last?.actual_end
           ? formatClientLocal(last.actual_end, 'UTC').display
           : null,
         status:
-          last.status === 'done'
+          last?.status === 'done'
             ? 'done'
-            : last.status === 'active'
+            : last?.status === 'active'
               ? 'active'
               : 'pending',
         tz: 'UTC',
-        event: last.label,
+        event: last?.label || 'Destination',
       })
     }
     return stops
@@ -1252,14 +1260,17 @@ export function buildFlightFacts(
         (l.actual_start ||
           trip.legs.find((x) => x.seq === l.seq)?.status === 'active'),
     ) ?? trip.eta_chain.find((l) => l.type === 'air_leg')
+  const lane = parseLaneAirports(trip.lane)
   const originIcao =
     air?.from.icao?.toUpperCase() ??
     trip.legs.find((l) => l.origin)?.origin?.toUpperCase() ??
+    lane?.origin ??
     null
   const destIcao =
     air?.to.icao?.toUpperCase() ??
     trip.legs.find((l) => l.type === 'air_leg' && l.dest)?.dest?.toUpperCase() ??
     [...trip.legs].reverse().find((l) => l.dest)?.dest?.toUpperCase() ??
+    lane?.dest ??
     null
 
   const wheelsUpDisplay = air
@@ -1311,7 +1322,9 @@ export function buildFlightFacts(
 
 /**
  * Prefer live ADS-B keyed to the trip tail; else infer progress along the air leg.
- * LADD / blocked tails set laddBlocked and omit live coords (portal covers the map).
+ * LADD / blocked: skip live coords (no public position feed) but still show the
+ * ETA-inferred track — same idea as FlightAware flight pages that keep the map
+ * when registration is restricted.
  */
 export function resolveAircraftPosition(
   trip: PortalTrackingTripInput,
@@ -1346,35 +1359,19 @@ export function resolveAircraftPosition(
     ...route,
   }
 
-  // Explicit LADD / blocked — no public track. Stages may still use actual_off/on.
-  if (adsb?.laddBlocked === true) {
-    return {
-      ...emptyBase,
-      phase: 'unknown',
-      lat: null,
-      lon: null,
-      altFt: null,
-      gsKts: null,
-      summary:
-        'This tail is blocked from public view — dispatch will provide updates',
-      source: 'none',
-      seenAt: adsb.seenAt && Date.parse(adsb.seenAt) > 0 ? adsb.seenAt : null,
-      progressPct: null,
-      nmRemaining: null,
-      laddBlocked: true,
-    }
-  }
-
-  if (
+  const liveAdsb =
     adsb &&
-    !adsb.laddBlocked &&
+    adsb.laddBlocked !== true &&
     adsb.phase !== 'no_data' &&
     hasCoords(adsb.lat, adsb.lon)
-  ) {
+      ? adsb
+      : null
+
+  if (liveAdsb) {
     const phase =
-      adsb.phase === 'airborne'
+      liveAdsb.phase === 'airborne'
         ? 'airborne'
-        : adsb.phase === 'on_ground'
+        : liveAdsb.phase === 'on_ground'
           ? 'on_ground'
           : 'unknown'
     let nmRemaining: number | null = null
@@ -1386,34 +1383,38 @@ export function resolveAircraftPosition(
         toResolved.lat,
         toResolved.lon,
       )
-      const rem = haversineNm(adsb.lat, adsb.lon, toResolved.lat, toResolved.lon)
-      nmRemaining = Math.round(rem)
+      const rem = haversineNm(
+        liveAdsb.lat,
+        liveAdsb.lon,
+        toResolved.lat,
+        toResolved.lon,
+      )
+      nmRemaining = rem
       progressPct =
-        total > 0
-          ? Math.round(Math.min(99, Math.max(1, ((total - rem) / total) * 100)))
-          : null
+        total > 0 ? Math.max(0, Math.min(100, ((total - rem) / total) * 100)) : null
     }
     return {
       ...emptyBase,
       phase,
-      lat: adsb.lat,
-      lon: adsb.lon,
-      altFt: Math.round(adsb.alt),
-      gsKts: Math.round(adsb.gs),
+      lat: liveAdsb.lat,
+      lon: liveAdsb.lon,
+      altFt: liveAdsb.alt,
+      gsKts: liveAdsb.gs,
       summary:
         phase === 'airborne'
-          ? `${tail} airborne${fromIcao && toIcao ? ` ${fromIcao}→${toIcao}` : ''} · ${Math.round(adsb.alt)} ft · ${Math.round(adsb.gs)} kts`
+          ? `${tail} airborne${fromIcao && toIcao ? ` ${fromIcao}→${toIcao}` : ''} · ${Math.round(liveAdsb.alt)} ft · ${Math.round(liveAdsb.gs)} kts`
           : phase === 'on_ground'
-            ? `${tail} on the ground${fromIcao ? ` near ${fromIcao}` : ''}`
-            : `${tail} · position received`,
+            ? `${tail} on the ground${fromIcao ? ` · ${fromIcao}` : ''}`
+            : `${tail} · last fix`,
       source: 'adsb',
-      seenAt: adsb.seenAt,
+      seenAt: liveAdsb.seenAt,
       progressPct,
       nmRemaining,
       laddBlocked: false,
     }
   }
 
+  // ETA-inferred (includes true LADD — no live feed, keep schedule track like FlightAware).
   // ETA-inferred: active or imminent air leg
   if (air && fromResolved && toResolved) {
     const start = Date.parse(air.actual_start ?? air.est_start)

@@ -119,13 +119,13 @@ export function applyAdsbActualsToTrip(
   return { applied: true, updates: updates.length }
 }
 
-/** Poll ADS-B for active trip tails and commit actuals. */
+/** Poll ADS-B for dispatched (in_progress) trip tails and commit actuals. */
 export async function refreshAdsbActualsForLiveTrips(
   trips: TripStoreRow[],
 ): Promise<number> {
   const live = trips.filter(
     (t) =>
-      (t.state === 'in_progress' || t.state === 'booked') &&
+      t.state === 'in_progress' &&
       (t.quick?.tail || t.offers.find((o) => o.state === 'selected')?.tail),
   )
   if (!live.length) return 0

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mapEtaNodeRows } from './mapEtaNodeRow'
 import {
+  coercePortalEtaChain,
   portalSafeQuickFromRow,
   stubTripFromPortalRow,
+  synthesizeLegsFromLane,
 } from './portalTripHydrate'
 import {
   buildPortalTrackingView,
@@ -130,5 +132,78 @@ describe('portal ETA + award hydrate', () => {
     expect(stub.quick?.tail).toBe('')
     const view = buildPortalTrackingView(tripToTrackingInput(stub))
     expect(view.tail).toBeFalsy()
+  })
+
+  it('recovers KCLT→KICT ICAOs from lane when legs + eta nodes are empty', () => {
+    const stub = stubTripFromPortalRow(
+      {
+        id: 't90',
+        ref: 90,
+        code: 'T-90',
+        state: 'booked',
+        lane_label: 'KCLT→KICT',
+        po_number: 'TEST',
+        payload_summary: 'cargo',
+        ready_label: 'ASAP',
+        service_pattern: 'A2A',
+      },
+      [],
+      [],
+    )
+    expect(synthesizeLegsFromLane({ id: 't90', lane_label: 'KCLT→KICT' })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ origin: 'KCLT', dest: 'KICT', type: 'air_leg' }),
+      ]),
+    )
+    expect(stub.legs[0]?.origin).toBe('KCLT')
+    expect(stub.legs[0]?.dest).toBe('KICT')
+
+    const view = buildPortalTrackingView(tripToTrackingInput(stub))
+    expect(view.flightFacts.originIcao).toBe('KCLT')
+    expect(view.flightFacts.destIcao).toBe('KICT')
+    expect(view.stops.some((s) => s.icao === 'KCLT')).toBe(true)
+    expect(view.stops.some((s) => s.icao === 'KICT')).toBe(true)
+  })
+
+  it('uses session_meta eta_chain jsonb when trip_eta_nodes are empty', () => {
+    const metaChain = [
+      {
+        seq: 1,
+        type: 'air_leg',
+        branch: 'air',
+        label: 'Live',
+        event: 'Wheels up',
+        from: { icao: 'KCLT', lat: 35.2, lon: -80.9, tz: 'America/New_York' },
+        to: { icao: 'KICT', lat: 37.6, lon: -97.4, tz: 'America/Chicago' },
+        est_start: '2026-08-17T14:00:00.000Z',
+        est_end: '2026-08-17T16:30:00.000Z',
+        actual_start: null,
+        actual_end: null,
+        duration_min: 150,
+        source: 'assumed',
+        duration_source: 'assumed',
+      },
+    ]
+    expect(coercePortalEtaChain(metaChain)).toHaveLength(1)
+    const stub = stubTripFromPortalRow(
+      {
+        id: 't90b',
+        ref: 90,
+        state: 'in_progress',
+        lane_label: 'KCLT→KICT',
+        payload_summary: 'cargo',
+        ready_label: 'ASAP',
+        tail: 'N123AB',
+        aircraft_type: 'C310',
+        eta_chain: metaChain,
+      },
+      [],
+      [],
+    )
+    expect(stub.eta_chain).toHaveLength(1)
+    const view = buildPortalTrackingView(tripToTrackingInput(stub))
+    expect(view.opsForecastRows.length).toBeGreaterThan(0)
+    expect(view.flightFacts.originIcao).toBe('KCLT')
+    expect(view.tail).toBe('N123AB')
   })
 })

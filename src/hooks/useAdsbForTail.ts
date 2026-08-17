@@ -1,5 +1,6 @@
 /**
- * Poll FlightAware / ADS-B for a trip tail — seed last-known, then live positions.
+ * Poll FlightAware / ADS-B for one dispatched (live) trip tail.
+ * Do not call for booked / list cards / fleet-wide — AeroAPI spend is per request.
  */
 
 import { useEffect, useState } from 'react'
@@ -13,18 +14,35 @@ function normalizeTail(tail: string | null | undefined): string | null {
   return t
 }
 
+/** Trip states that justify live AeroAPI spend. */
+export function adsbPollEnabledForState(
+  state: string | null | undefined,
+): boolean {
+  return state === 'in_progress'
+}
+
+export type UseAdsbForTailOpts = {
+  /**
+   * When false, no seed/positions calls (default true for backwards compat).
+   * Portal track should pass trip.state === 'in_progress' only.
+   */
+  enabled?: boolean
+}
+
 /**
- * Live + last-known ADS-B for one registration (portal / home cards).
- * Seeds first so takeoff/landing stamps appear before the next poll.
+ * Live + last-known ADS-B for one registration on a live trip page.
+ * Seeds once, then polls positions. Disabled = no provider calls.
  */
 export function useAdsbForTail(
   tail: string | null | undefined,
+  opts?: UseAdsbForTailOpts,
 ): AdsbPosition | null {
   const [pos, setPos] = useState<AdsbPosition | null>(null)
   const key = normalizeTail(tail)
+  const enabled = opts?.enabled !== false
 
   useEffect(() => {
-    if (!key) {
+    if (!key || !enabled) {
       setPos(null)
       return
     }
@@ -41,8 +59,10 @@ export function useAdsbForTail(
     const tick = async (seedFirst: boolean) => {
       try {
         if (seedFirst) {
+          // One historical seed, then live board — not both every interval.
           const seeded = await adapter.seedLastKnown([key])
           apply(seeded)
+          return
         }
         const live = await adapter.positions([key])
         apply(live)
@@ -57,7 +77,7 @@ export function useAdsbForTail(
       cancelled = true
       window.clearInterval(id)
     }
-  }, [key])
+  }, [key, enabled])
 
   return pos
 }

@@ -6,6 +6,7 @@ import {
   buildPortalTrackingView,
   classifyPortalShipmentPhase,
   interpolateGc,
+  portalAircraftMapBlocked,
   portalAircraftMapVisible,
   resolveAircraftPosition,
   summarizePortalShipments,
@@ -434,21 +435,49 @@ describe('portalTracking', () => {
     expect(rows[3]!.actualOrForecastLocal).toMatch(/on ground/i)
   })
 
-  it('covers map when tail is LADD-blocked', () => {
+  it('uses ETA track when tail is LADD-blocked (no live ADS-B cover)', () => {
     const trip = sampleD2d({ state: 'in_progress' })
-    const pos = resolveAircraftPosition(trip, {
-      tail: 'N123AB',
-      lat: 0,
-      lon: 0,
-      alt: 0,
-      gs: 0,
-      seenAt: new Date(0).toISOString(),
-      laddBlocked: true,
-      phase: 'no_data',
-    })
-    expect(pos.laddBlocked).toBe(true)
-    expect(pos.lat).toBeNull()
-    expect(portalAircraftMapVisible(pos)).toBe(false)
+    const pos = resolveAircraftPosition(
+      trip,
+      {
+        tail: 'N123AB',
+        lat: 0,
+        lon: 0,
+        alt: 0,
+        gs: 0,
+        seenAt: new Date(0).toISOString(),
+        laddBlocked: true,
+        phase: 'no_data',
+      },
+      '2026-07-15T16:40:00.000Z',
+    )
+    // Like FlightAware flight pages: keep the schedule track, don't blank the map.
+    expect(pos.laddBlocked).toBe(false)
+    expect(pos.source).toBe('eta')
+    expect(pos.lat).not.toBeNull()
+    expect(portalAircraftMapVisible(pos)).toBe(true)
+    expect(portalAircraftMapBlocked(pos)).toBe(false)
+  })
+
+  it('no_data ADS-B without LADD still uses ETA track (not blocked)', () => {
+    const trip = sampleD2d({ state: 'in_progress' })
+    const pos = resolveAircraftPosition(
+      trip,
+      {
+        tail: 'N6209X',
+        lat: 0,
+        lon: 0,
+        alt: 0,
+        gs: 0,
+        seenAt: new Date(0).toISOString(),
+        laddBlocked: false,
+        phase: 'no_data',
+      },
+      '2026-07-15T16:40:00.000Z',
+    )
+    expect(pos.laddBlocked).toBe(false)
+    expect(portalAircraftMapBlocked(pos)).toBe(false)
+    expect(pos.source).toBe('eta')
   })
 
   it('advances stages from FlightAware airborne toward destination', () => {

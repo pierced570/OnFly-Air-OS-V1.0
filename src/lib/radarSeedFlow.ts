@@ -50,7 +50,7 @@ function resolveSeedKnown(
   }
   const ap = baseIcao ? lookupAirport(baseIcao) : null
   // Mock only: park at home base so Radar has a map point before live ADS-B.
-  // Live FA with no hit stays laddBlocked (flag, don't invent).
+  // Live FA with no hit stays no_data (not LADD) — flag, don't invent a block.
   if (ap && !isRealAdsbEnabled()) {
     return {
       lat: ap.lat,

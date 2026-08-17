@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     const patch: Record<string, unknown> = {
       tail,
       updated_at: now,
-      ladd_blocked: lat == null || lon == null,
+      ladd_blocked: false,
       phase,
     }
     if (lat != null && lon != null) {
