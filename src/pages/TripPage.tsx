@@ -1,19 +1,15 @@
 import { Link, useParams } from 'react-router-dom'
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { clearAwbFlag, tripNeedsAwb } from '@/lib/awbFlagFlow'
 import {
   createInvoiceForTrip,
   getTrip,
   listTripsStable,
-  mutateTrip,
   safeTransitionTrip,
   subscribeTrips,
 } from '@/lib/tripStore'
 import { clientRuleChips } from '@/lib/clientStore'
 import { canTransition } from '@/domain/stateMachine'
-import { createWxAdapter, type WxBrief } from '@/adapters/wx'
-import { FlightCatBadge } from '@/components/FlightCatBadge'
-import { FLIGHT_CATEGORY_LABELS } from '@/domain/flightCategory'
 import { PipelineStrip } from '@/components/PipelineStrip'
 import { EtaSheetPanel } from '@/components/EtaSheetPanel'
 import { ParticipantsPanel } from '@/components/ParticipantsPanel'
@@ -38,7 +34,6 @@ export default function TripPage() {
   )
   const trip = id ? getTrip(id) : null
   const [invoiceBusy, setInvoiceBusy] = useState(false)
-  const [wxBriefs, setWxBriefs] = useState<WxBrief[]>([])
   const tripChecks = useMemo(
     () =>
       allChecks.filter(
@@ -53,46 +48,6 @@ export default function TripPage() {
     () => (trip?.client_id ? clientRuleChips(trip.client_id) : []),
     [trip?.client_id],
   )
-
-  const watchIcaos = useMemo(() => {
-    if (!trip) return [] as string[]
-    const s = new Set<string>()
-    for (const leg of trip.legs) {
-      if (leg.origin) s.add(leg.origin.toUpperCase())
-      if (leg.dest) s.add(leg.dest.toUpperCase())
-    }
-    for (const l of trip.quick?.legs ?? []) {
-      if (l.origin_icao) s.add(l.origin_icao.toUpperCase())
-      if (l.dest_icao) s.add(l.dest_icao.toUpperCase())
-    }
-    return [...s].slice(0, 4)
-  }, [trip])
-
-  useEffect(() => {
-    if (!watchIcaos.length) return
-    void (async () => {
-      const wx = createWxAdapter()
-      const rows = await Promise.all(watchIcaos.map((i) => wx.brief(i)))
-      setWxBriefs(rows)
-      if (trip) {
-        mutateTrip(trip.id, (t) => {
-          const already = t.events.some((e) => e.kind === 'wx_brief')
-          if (already) return
-          t.events.push({
-            at: new Date().toISOString(),
-            actor: 'system',
-            kind: 'wx_brief',
-            payload: {
-              icaos: watchIcaos,
-              summaries: rows.map((r) => r.summary),
-              hardFlags: rows.flatMap((r) => r.hardFlags),
-            },
-          })
-        })
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchIcaos.join(',')])
 
   if (!trip) {
     return (
@@ -394,63 +349,6 @@ export default function TripPage() {
               {margin == null ? '—' : `$${margin.toLocaleString()}`}
             </div>
           </div>
-        </section>
-      )}
-
-      {wxBriefs.length > 0 && (
-        <section className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-xs uppercase tracking-wider text-muted">
-            Weather brief
-          </h2>
-          <p className="mt-1 text-[11px] text-muted">
-            <span className="text-vfr">VFR</span>
-            {' · '}
-            <span className="text-mvfr">MVFR</span>
-            {' · '}
-            <span className="text-ifr">IFR</span>
-            {' · '}
-            <span className="text-lifr">LIFR</span>
-            {' · '}live METAR/TAF
-          </p>
-          <ul className="mt-3 space-y-3 text-sm">
-            {wxBriefs.map((b) => (
-              <li key={b.icao} className="rounded border border-border/50 bg-ink/40 px-3 py-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="avionic text-gold">{b.icao}</span>
-                  <FlightCatBadge
-                    cat={b.flightCat}
-                    title={
-                      b.flightCat
-                        ? `METAR · ${FLIGHT_CATEGORY_LABELS[b.flightCat]}`
-                        : undefined
-                    }
-                  />
-                  {b.tafWorstCat && (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-muted">
-                      TAF
-                      <FlightCatBadge cat={b.tafWorstCat} size="sm" />
-                    </span>
-                  )}
-                </div>
-                {b.metar && (
-                  <p className="avionic mt-1.5 text-xs text-cream/90">{b.metar}</p>
-                )}
-                {b.tafPeriods.length > 0 && (
-                  <ul className="mt-2 flex flex-wrap gap-1.5">
-                    {b.tafPeriods.slice(0, 6).map((p, i) => (
-                      <li
-                        key={`${b.icao}-${i}`}
-                        className="inline-flex items-center gap-1 text-[10px] text-muted"
-                      >
-                        <span className="avionic">{p.label}</span>
-                        <FlightCatBadge cat={p.flightCat} size="sm" />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
         </section>
       )}
 

@@ -96,8 +96,22 @@ export type TrackingEtaRow = {
  * Client trip stages — ADS-B / FlightAware + ETA chain.
  * Portal UI uses status only (complete / current / upcoming) — no clocks.
  */
+/** Ordered client-facing ops stages on the tracking portal. */
+export type PortalOpsStageKey =
+  | 'enroute_pickup'
+  | 'at_pickup'
+  | 'enroute_dest'
+  | 'landed_dest'
+
+export const PORTAL_OPS_STAGE_KEYS: readonly PortalOpsStageKey[] = [
+  'enroute_pickup',
+  'at_pickup',
+  'enroute_dest',
+  'landed_dest',
+] as const
+
 export type OpsForecastRow = {
-  key: 'enroute_pickup' | 'at_pickup' | 'enroute_dest' | 'landed_dest'
+  key: PortalOpsStageKey
   /** Internal label (ICAO when useful); clients see clientOpsStageLabel. */
   label: string
   estimatedLocal: string | null
@@ -111,7 +125,9 @@ export type OpsForecastRow = {
 }
 
 /** Client portal stage names — progress only, never clocks. */
-export function clientOpsStageLabel(row: OpsForecastRow): string {
+export function clientOpsStageLabel(
+  row: OpsForecastRow | { key: PortalOpsStageKey },
+): string {
   switch (row.key) {
     case 'enroute_pickup':
       return 'Enroute to pickup'
@@ -122,8 +138,32 @@ export function clientOpsStageLabel(row: OpsForecastRow): string {
     case 'landed_dest':
       return 'Landed at destination'
     default:
-      return row.label
+      return 'label' in row ? row.label : String(row.key)
   }
+}
+
+export function isPortalOpsStageKey(v: unknown): v is PortalOpsStageKey {
+  return (
+    typeof v === 'string' &&
+    (PORTAL_OPS_STAGE_KEYS as readonly string[]).includes(v)
+  )
+}
+
+/**
+ * Desk override: pin which stage is "active" on the client portal.
+ * Prior stages → done; selected → active; later → pending.
+ */
+export function applyPortalStageOverride(
+  rows: OpsForecastRow[],
+  override: PortalOpsStageKey | null | undefined,
+): OpsForecastRow[] {
+  if (!override || !rows.length) return rows
+  const idx = rows.findIndex((r) => r.key === override)
+  if (idx < 0) return rows
+  return rows.map((r, i) => ({
+    ...r,
+    status: i < idx ? 'done' : i === idx ? 'active' : 'pending',
+  }))
 }
 
 /** Portal-safe cargo / pax manifest (no operator cost). */
@@ -391,6 +431,8 @@ export type PortalTrackingTripInput = {
   dropoff_street?: string | null
   pickup_stop?: PortalStopLocation | null
   dropoff_stop?: PortalStopLocation | null
+  /** Desk-pinned portal stage (overrides ADS-B / ETA-derived active stage). */
+  portal_ops_stage?: PortalOpsStageKey | null
 }
 
 function eventAt(
@@ -950,7 +992,7 @@ export function buildOpsForecastRows(
     })
   }
 
-  return rows
+  return applyPortalStageOverride(rows, trip.portal_ops_stage)
 }
 
 
@@ -1726,6 +1768,7 @@ export function tripToTrackingInput(trip: {
   portal_dropoff_stop?: PortalStopLocation | null
   portal_pax_names?: string[] | null
   passengers?: Array<{ name?: string }> | null
+  portal_ops_stage?: PortalOpsStageKey | null
 }): PortalTrackingTripInput {
   const selected =
     trip.offers?.find((o) => o.state === 'selected') ??
@@ -1834,6 +1877,9 @@ export function tripToTrackingInput(trip: {
     dropoff_street: dropoffStreet,
     pickup_stop: pickupStop,
     dropoff_stop: dropoffStop,
+    portal_ops_stage: isPortalOpsStageKey(trip.portal_ops_stage)
+      ? trip.portal_ops_stage
+      : null,
   }
 }
 

@@ -374,7 +374,7 @@ export function BookedTripActionsPanel({ tripId }: Props) {
             3. Start live tracking
           </div>
           <p className="text-[11px] text-muted">
-            Moves this trip to Live tracking — portal link + Access chat for the
+            Moves this trip to Live tracking — portal link + trip contacts for the
             ops group.
           </p>
           <button

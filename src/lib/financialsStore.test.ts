@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  clearFinancialDeletions,
   clearFinancialOverrides,
+  deleteFinancialRecord,
+  deleteFinancialRecords,
   financialOverrideCount,
   getFinancial,
   listFinancials,
@@ -10,6 +13,7 @@ import {
 
 describe('financialsStore edits', () => {
   beforeEach(() => {
+    clearFinancialDeletions()
     clearFinancialOverrides()
   })
 
@@ -37,5 +41,22 @@ describe('financialsStore edits', () => {
     expect(next.is_legacy).toBe(false)
     expect(next.margin).toBe(2000)
     expect(next.jonnys_profits).toBe(80)
+  })
+
+  it('deletes selected rows and keeps them suppressed after reload', () => {
+    const before = listFinancials().length
+    const row = listFinancials()[0]!
+    expect(deleteFinancialRecord(row.id)).toBe(true)
+    expect(getFinancial(row.id)).toBeNull()
+    expect(listFinancials().length).toBe(before - 1)
+
+    // Simulate cold boot of fixture seed path
+    clearFinancialOverrides()
+    expect(getFinancial(row.id)).toBeNull()
+    expect(listFinancials().some((r) => r.id === row.id)).toBe(false)
+
+    const second = listFinancials()[0]!
+    expect(deleteFinancialRecords([second.id, 'missing-id'])).toBe(1)
+    expect(getFinancial(second.id)).toBeNull()
   })
 })

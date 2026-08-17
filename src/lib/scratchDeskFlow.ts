@@ -5,23 +5,17 @@
  */
 
 import { createLlmAdapter, type ExtractedRequest } from '@/adapters/llm'
-import { createMapsAdapter, resolveDoorLatLon } from '@/adapters/maps'
 import { parseDims } from '@/domain/dimsParser'
 import type { ServicePattern } from '@/domain/etaChain'
 import {
   buildMissionEndpoint,
   buildMissionOpsFlags,
   missionLaneLabel,
-  routingModeForPattern,
   type EndpointKind,
   type MissionOpsFlags,
 } from '@/domain/missionMode'
 import { resolvePlaceToAirport } from '@/domain/resolvePlace'
-import {
-  BUILTIN_RECOMMEND_MATRIX,
-  type RecommendMatrixConfig,
-} from '@/domain/recommendMatrix'
-import { generateCandidates, type Candidate } from '@/domain/routing'
+import type { Candidate } from '@/domain/routing'
 import {
   mentionsRoundTrip,
   operatorMissionSummary,
@@ -31,16 +25,9 @@ import {
 } from '@/domain/standardTooling'
 import {
   clientRuleChips,
-  clientRulesForRouting,
   getClient,
 } from '@/lib/clientStore'
-import { fleetStatusByTail } from '@/lib/fleetRadar'
-import { loadFleetForRouting } from '@/lib/fleetRouting'
-import { fboFeesForAirport } from '@/lib/fboStore'
-import {
-  loadPricingPriors,
-  priorRatePerNm,
-} from '@/lib/pricingPriorsStore'
+import { recommendCandidatesForDeparture } from '@/lib/recommendByDeparture'
 import { addNeedsInfoTask } from '@/lib/needsInfoStore'
 import {
   buildOffersFromCandidates,
@@ -462,28 +449,33 @@ export type DeskRecommendResult = {
   candidates: Candidate[]
   error?: string
   lane: string
-  /** True when a directory client’s rules were applied to filtering. */
+  /** True when a directory client was attached (rules chips still shown). */
   client_rules_applied: boolean
   rule_chips: string[]
+  /** How the Network → Recommend list was chosen. */
+  recommend_match?: 'exact' | 'closest' | 'none'
+  recommend_list_label?: string | null
+  recommend_base_icao?: string | null
+  recommend_distance_nm?: number | null
 }
 
+/**
+ * Recommend operators for the desk draft.
+ * Uses Network → Recommend contacts for the departing airport (exact base,
+ * else closest listed base). No price/time/radar scoring.
+ */
 export async function recommendForDeskDraft(
   draftIn: DeskDraft,
-  opts?: {
-    /**
-     * Pass the editable Network Recommend matrix for new-request search only.
-     * Default = builtins (Parse & shortlist / mid-trip add-operator).
-     */
-    matrix?: RecommendMatrixConfig
+  _opts?: {
+    /** Ignored — Recommend lists replace the old matrix shortlist. */
+    matrix?: unknown
   },
 ): Promise<DeskRecommendResult> {
   const draft = withAutofilledStandardCargo(draftIn)
   const client = draft.client_id ? getClient(draft.client_id) : undefined
-  const client_rules = clientRulesForRouting(client, draft.payload_kind)
   const rule_chips = draft.client_id ? clientRuleChips(draft.client_id) : []
   const client_rules_applied = Boolean(client)
   const leg0 = draft.legs[0]
-  const pattern = draft.service_pattern
   const lane = leg0
     ? missionLaneLabel(
         {
@@ -519,115 +511,41 @@ export async function recommendForDeskDraft(
           : `Could not resolve destination airport from “${leg0?.dest_icao || draft.destination_text || '—'}”`,
       client_rules_applied,
       rule_chips,
+      recommend_match: 'none',
     }
   }
 
-  // Cargo optional: use parsed pieces when present; otherwise pax-only empty
-  // or (cargo-only) standard tooling already filled by withAutofilledStandardCargo.
-  let pieces =
-    draft.payload_kind === 'pax'
-      ? []
-      : parseDims(toolingDimsForParse(draft.pieces_text || '')).pieces
-  if (!pieces.length && draft.payload_kind !== 'pax') {
-    pieces = parseDims(toolingDimsForParse(standardCargoPiecesText())).pieces
-  }
+  const rec = recommendCandidatesForDeparture({
+    departureIcao: origin.icao,
+    preferredClientName: draft.client_name || client?.name || null,
+  })
 
-  const fleet = await loadFleetForRouting()
-  if (!fleet.length) {
+  if (!rec.candidates.length) {
     return {
       candidates: [],
       lane,
-      error: 'No fleet loaded',
+      error:
+        rec.match === 'none'
+          ? `No Network → Recommend base near ${origin.icao}. Add a list under Network → Recommend.`
+          : `Recommend list for ${rec.baseIcao ?? origin.icao} has no operators yet.`,
       client_rules_applied,
       rule_chips,
+      recommend_match: rec.match,
+      recommend_list_label: rec.listLabel,
+      recommend_base_icao: rec.baseIcao,
+      recommend_distance_nm: rec.distanceNm,
     }
   }
 
-  const maps = createMapsAdapter()
-  const radar = await fleetStatusByTail(fleet.map((a) => a.tail))
-  const originFees = fboFeesForAirport(origin.icao)
-  const destFees = fboFeesForAirport(destination.icao)
-  const [priors] = await Promise.all([loadPricingPriors()])
-  const matrix = opts?.matrix ?? BUILTIN_RECOMMEND_MATRIX
-
-  const shipper =
-    leg0?.origin_kind === 'door' && leg0.origin_text.trim()
-      ? await resolveDoorLatLon(
-          maps,
-          leg0.origin_text,
-          origin.lat,
-          origin.lon,
-          origin.tz,
-        )
-      : undefined
-  const consignee =
-    leg0?.dest_kind === 'door' && leg0.dest_text.trim()
-      ? await resolveDoorLatLon(
-          maps,
-          leg0.dest_text,
-          destination.lat,
-          destination.lon,
-          destination.tz,
-        )
-      : undefined
-
-  try {
-    const candidates = await generateCandidates(
-      {
-        mode: routingModeForPattern(pattern),
-        payload_kind: draft.payload_kind,
-        pieces,
-        pax_count: draft.cargo_only ? 0 : draft.pax_count || 0,
-        hazmat: draft.hazmat,
-        ready_at: new Date().toISOString(),
-        client_rules,
-        origin: {
-          kind: 'airport',
-          text: origin.icao,
-          icao: origin.icao,
-          lat: origin.lat,
-          lon: origin.lon,
-          tz: origin.tz,
-        },
-        destination: {
-          kind: 'airport',
-          text: destination.icao,
-          icao: destination.icao,
-          lat: destination.lat,
-          lon: destination.lon,
-          tz: destination.tz,
-        },
-        shipper: shipper ?? undefined,
-        consignee: consignee ?? undefined,
-      },
-      fleet,
-      maps,
-      {
-        matrix,
-        fleetStatusByTail: radar,
-        fboFees: {
-          origin: originFees.fee,
-          dest: destFees.fee,
-          notes: [...originFees.reasoning, ...destFees.reasoning],
-        },
-        priorRatePerNm: (typeName, operatorId) =>
-          priorRatePerNm(typeName, operatorId, priors),
-      },
-    )
-    return {
-      candidates: candidates.slice(0, matrix.recommend_limit),
-      lane,
-      client_rules_applied,
-      rule_chips,
-    }
-  } catch (e) {
-    return {
-      candidates: [],
-      lane,
-      error: e instanceof Error ? e.message : String(e),
-      client_rules_applied,
-      rule_chips,
-    }
+  return {
+    candidates: rec.candidates,
+    lane,
+    client_rules_applied,
+    rule_chips,
+    recommend_match: rec.match,
+    recommend_list_label: rec.listLabel,
+    recommend_base_icao: rec.baseIcao,
+    recommend_distance_nm: rec.distanceNm,
   }
 }
 

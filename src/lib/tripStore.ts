@@ -46,6 +46,10 @@ import {
   portalStopToAddressLine,
   type PortalStopLocation,
 } from '@/domain/portalStopLocation'
+import {
+  isPortalOpsStageKey,
+  type PortalOpsStageKey,
+} from '@/domain/portalTracking'
 import { roleOnOpsThread } from '@/domain/tripThread'
 import {
   normalizeTripPassengers,
@@ -483,6 +487,11 @@ export type TripStoreRow = {
   /** Structured pickup/drop-off (hangar · FBO · TBD) — syncs address lines. */
   portal_pickup_stop?: PortalStopLocation | null
   portal_dropoff_stop?: PortalStopLocation | null
+  /**
+   * Desk-pinned stage on the client tracking portal.
+   * When set, overrides ADS-B / ETA-derived "active" stage.
+   */
+  portal_ops_stage?: PortalOpsStageKey | null
   /** Optional passenger names for portal cargo card. */
   portal_pax_names?: string[]
   /**
@@ -1865,6 +1874,32 @@ export function setPortalStopLocations(
         pickup_line: t.portal_pickup_address,
         dropoff_line: t.portal_dropoff_address,
       },
+    })
+  })
+}
+
+/**
+ * Desk — pin (or clear) the active stage on the client tracking portal.
+ * Null clears the override so ADS-B / ETA derive the stage again.
+ */
+export function setPortalOpsStage(
+  tripId: string,
+  stage: PortalOpsStageKey | null,
+  actor = 'dispatcher',
+): TripStoreRow {
+  if (!trips.has(tripId)) {
+    throw new Error('Trip not loaded in this session — refresh and try again')
+  }
+  if (stage != null && !isPortalOpsStageKey(stage)) {
+    throw new Error('Invalid portal stage')
+  }
+  return mutateTrip(tripId, (t) => {
+    t.portal_ops_stage = stage
+    t.events.push({
+      at: new Date().toISOString(),
+      actor,
+      kind: 'portal_ops_stage',
+      payload: { stage },
     })
   })
 }

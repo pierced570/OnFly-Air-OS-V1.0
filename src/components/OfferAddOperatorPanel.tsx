@@ -26,7 +26,6 @@ import {
 } from '@/lib/deskOperatorSearch'
 import { appendOfferToTrip } from '@/lib/offerFlow'
 import { updateSheetOperatorField } from '@/lib/networkSheetStore'
-import { BUILTIN_RECOMMEND_MATRIX } from '@/domain/recommendMatrix'
 import {
   deskDraftFromTrip,
   recommendForDeskDraft,
@@ -72,6 +71,7 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
     DEFAULT_QUOTE_LINK_CHANNEL,
   )
   const [recError, setRecError] = useState<string | null>(null)
+  const [recNote, setRecNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
   const [sending, setSending] = useState(false)
@@ -82,15 +82,9 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
     [opQuery, already, overrides],
   )
 
-  // Mid-trip add-operator uses builtin shortlist size — not Network Recommend.
-  const recommendLimit = BUILTIN_RECOMMEND_MATRIX.recommend_limit
-
   const recommended = useMemo(
-    () =>
-      candidates
-        .filter((c) => !already.has(c.operator_id))
-        .slice(0, recommendLimit),
-    [candidates, already, recommendLimit],
+    () => candidates.filter((c) => !already.has(c.operator_id)),
+    [candidates, already],
   )
 
   const allCandidates = useMemo(() => {
@@ -166,10 +160,24 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
         const draft = deskDraftFromTrip(t)
         const rec = await recommendForDeskDraft(draft)
         if (cancelled) return
-        setCandidates(
-          rec.candidates.slice(0, BUILTIN_RECOMMEND_MATRIX.recommend_limit),
-        )
+        setCandidates(rec.candidates)
         setRecError(rec.error ?? null)
+        if (rec.recommend_match === 'exact' && rec.recommend_list_label) {
+          setRecNote(`From Recommend · ${rec.recommend_list_label}`)
+        } else if (
+          rec.recommend_match === 'closest' &&
+          rec.recommend_list_label
+        ) {
+          setRecNote(
+            `Closest Recommend base · ${rec.recommend_list_label}${
+              rec.recommend_distance_nm != null
+                ? ` · ${rec.recommend_distance_nm} NM`
+                : ''
+            }`,
+          )
+        } else {
+          setRecNote(null)
+        }
       })
       .catch((e) => {
         if (!cancelled) {
@@ -330,7 +338,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
             Send to new operator
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            Top {recommendLimit} recommend, search, or add new. Quote-request
+            Recommend list for the departing airport, search, or add new.
+            Quote-request
             link goes out on the operator&apos;s channel (email and/or SMS).
           </p>
         </div>
@@ -567,7 +576,8 @@ export function OfferAddOperatorPanel({ tripId, onClose, onSent }: Props) {
           Recommended operators
         </h3>
         <p className="text-xs text-muted">
-          Top {recommendLimit} (cheapest / fastest / best). Already on this
+          Recommend list for departing airport
+          {recNote ? ` · ${recNote}` : ''}. Already on this
           request are hidden. Uses fixed defaults — not the editable
           new-request scoring knobs.
         </p>

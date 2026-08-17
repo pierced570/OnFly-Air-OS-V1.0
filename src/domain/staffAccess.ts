@@ -5,7 +5,7 @@
 
 export const STAFF_SECTIONS = [
   { id: 'board', label: 'Dispatch center', pathPrefix: '/dispatch' },
-  { id: 'chat', label: 'Chat', pathPrefix: '/chat' },
+  { id: 'chat', label: 'Trip contacts', pathPrefix: '/chat' },
   { id: 'quick_dispatch', label: 'Quick Dispatch', pathPrefix: '/quick-dispatch' },
   { id: 'financials', label: 'Financials', pathPrefix: '/financials' },
   { id: 'referrals', label: 'Referrals', pathPrefix: '/referrals' },
