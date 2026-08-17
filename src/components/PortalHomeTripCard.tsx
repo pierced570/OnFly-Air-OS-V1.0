@@ -1,10 +1,5 @@
-/**
- * Portal home shipment card — route, tail, stage (no projected-vs-actual).
- */
-
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useAdsbForTail } from '@/hooks/useAdsbForTail'
 import {
   buildPortalTrackingView,
   clientOpsStageLabel,
@@ -41,18 +36,21 @@ function patternLabel(pattern: string | null | undefined): string {
   return 'airport to airport'
 }
 
+/**
+ * Shipment list card — ETA/stage from trip spine only.
+ * No AeroAPI poll here (would fire once per card × 30s). Live track is on the
+ * trip detail page after dispatch (in_progress).
+ */
 export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
   const trip = getTrip(props.id)
   const nowIso = useMemo(() => new Date().toISOString(), [])
-  const input = trip ? tripToTrackingInput(trip) : null
-  const adsb = useAdsbForTail(input?.tail)
   const view = useMemo(() => {
     if (!trip) return null
     return buildPortalTrackingView(tripToTrackingInput(trip), {
-      adsb,
+      adsb: null,
       nowIso,
     })
-  }, [trip, adsb, nowIso])
+  }, [trip, nowIso])
 
   const phase: PortalShipmentPhase = view?.phase ?? 'other'
   const dark = phase === 'in_flight'

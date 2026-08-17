@@ -163,9 +163,10 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     flight = await fetchFaLastFlight(key, tail)
   }
   if (!flight) {
-    // No flight on the board ≠ LADD. Only mark blocked when AeroAPI says so.
-    const blocked = await fetchFaAircraftBlocked(key, tail)
-    return { ...noData(tail), laddBlocked: blocked === true }
+    // Empty board ≠ LADD. Do not call /aircraft/{ident}/blocked here — that
+    // doubles AeroAPI spend on every seed for parked / idle tails. Blocked is
+    // only set from flight.blocked when a flight object is returned.
+    return noData(tail)
   }
 
   const status = String(flight.status ?? '').toLowerCase()
@@ -256,24 +257,6 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     originIcao,
     destinationIcao,
     phase: airborne ? ('airborne' as const) : ('on_ground' as const),
-  }
-}
-
-/** GET /aircraft/{ident}/blocked — true only for LADD / owner-restricted regs. */
-async function fetchFaAircraftBlocked(
-  key: string,
-  tail: string,
-): Promise<boolean | null> {
-  try {
-    const res = await fetch(
-      `${FA_BASE}/aircraft/${encodeURIComponent(tail)}/blocked`,
-      { headers: { 'x-apikey': key, Accept: 'application/json' } },
-    )
-    if (!res.ok) return null
-    const data = (await res.json().catch(() => ({}))) as { blocked?: boolean }
-    return typeof data.blocked === 'boolean' ? data.blocked : null
-  } catch {
-    return null
   }
 }
 

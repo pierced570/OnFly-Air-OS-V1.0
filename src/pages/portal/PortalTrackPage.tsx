@@ -16,7 +16,7 @@ import {
 import { rememberPortalGuestTrack } from '@/lib/portalGuestTrack'
 import { getPortalAuthSession } from '@/lib/portalAuth'
 import { usePortalSession } from '@/hooks/usePortalSession'
-import { useAdsbForTail } from '@/hooks/useAdsbForTail'
+import { useAdsbForTail, adsbPollEnabledForState } from '@/hooks/useAdsbForTail'
 import {
   getPortalTrackRow,
   resolvePortalTrackTripId,
@@ -113,7 +113,9 @@ export default function PortalTrackPage() {
   }, [tripId, remoteTrip, nowIso, etaReadyTick])
 
   const input = trip ? tripToTrackingInput(trip) : null
-  const adsb = useAdsbForTail(input?.tail)
+  const adsb = useAdsbForTail(input?.tail, {
+    enabled: adsbPollEnabledForState(trip?.state),
+  })
 
   // Commit FlightAware actual_off / actual_on into the trip spine when present.
   useEffect(() => {
@@ -210,7 +212,9 @@ export function PortalTripTrackPage() {
   }, [id, remoteTrip, nowIso, etaReadyTick])
 
   const input = trip ? tripToTrackingInput(trip) : null
-  const adsb = useAdsbForTail(input?.tail)
+  const adsb = useAdsbForTail(input?.tail, {
+    enabled: adsbPollEnabledForState(trip?.state),
+  })
   const view = trip ? viewFromTrip(trip, adsb, nowIso) : null
 
   if (authLoading || (signedIn && loading)) return <PortalLoading />
