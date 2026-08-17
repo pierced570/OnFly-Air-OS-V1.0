@@ -13,6 +13,10 @@ import {
   listBaseGeneratedEmails,
   type ClientBaseRef,
 } from '@/domain/clientBaseEmails'
+import {
+  alwaysInvoiceEmails,
+  optionalInvoiceEmails,
+} from '@/domain/clientInvoiceRecipients'
 import { hardFiltersFromPolicy, normalizeMissionPolicy } from '@/domain/clientOnboard'
 import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import { withEnsuredPortalDomains } from '@/domain/portalDomains'
@@ -28,6 +32,11 @@ export type ContactNotifyPrefs = {
   request_alert: boolean
   /** Receive QuickBooks / invoice emails (AP flag) */
   invoice: boolean
+  /**
+   * When invoice is true: undefined/true = always on To (prefill);
+   * false = sometimes — clickable bubble into CC on send.
+   */
+  invoice_always?: boolean
   /** Always include on ETA / tracker when true */
   tracker: boolean
 }
@@ -379,7 +388,12 @@ function defaultPrefs(role: ContactRole): ContactNotifyPrefs {
     return { request_alert: true, invoice: false, tracker: true }
   }
   if (role === 'ap') {
-    return { request_alert: false, invoice: true, tracker: false }
+    return {
+      request_alert: false,
+      invoice: true,
+      invoice_always: true,
+      tracker: false,
+    }
   }
   return { request_alert: false, invoice: false, tracker: true }
 }
@@ -750,7 +764,13 @@ export function updateClientContact(
   if (patch.notify_prefs) {
     c.notify_prefs = { ...c.notify_prefs, ...patch.notify_prefs }
   }
-  if (c.notify_prefs.invoice && c.email) {
+  // Only auto-fill primary To from always-invoice contacts (never sometimes).
+  if (
+    c.notify_prefs.invoice &&
+    c.notify_prefs.invoice_always !== false &&
+    c.email &&
+    !row.invoice_email
+  ) {
     row.invoice_email = c.email
   }
   bump(clientId)
@@ -777,7 +797,7 @@ export function listRequestAlertEmails(clientId?: string): string[] {
   return out
 }
 
-/** Emails flagged to receive invoices. */
+/** Emails flagged to receive invoices (always + sometimes). */
 export function listInvoiceEmails(clientId: string): string[] {
   const cl = clients.get(clientId)
   if (!cl) return []
@@ -786,6 +806,20 @@ export function listInvoiceEmails(clientId: string): string[] {
     .map((c) => c.email.toLowerCase())
   if (fromContacts.length) return [...new Set(fromContacts)]
   return cl.invoice_email ? [cl.invoice_email.toLowerCase()] : []
+}
+
+/** Always-To invoice emails (prefill). */
+export function listAlwaysInvoiceEmails(clientId: string): string[] {
+  const cl = clients.get(clientId)
+  if (!cl) return []
+  return alwaysInvoiceEmails(cl)
+}
+
+/** Sometimes / optional CC invoice emails. */
+export function listOptionalInvoiceEmails(clientId: string): string[] {
+  const cl = clients.get(clientId)
+  if (!cl) return []
+  return optionalInvoiceEmails(cl)
 }
 
 /**

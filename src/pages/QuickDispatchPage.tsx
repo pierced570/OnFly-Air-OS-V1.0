@@ -24,16 +24,21 @@ import {
   addClient,
   addClientContact,
   getClient,
+  listAlwaysInvoiceEmails,
   listClients,
   listEtaTrackingContacts,
   listEtaTrackingEmails,
   listInvoiceEmails,
+  listOptionalInvoiceEmails,
   rememberEmailsOnClient,
   recordPoUsed,
   suggestNextPo,
   subscribeClients,
   type ClientProfile,
 } from '@/lib/clientStore'
+import {
+  invoiceSometimesBubbleContacts,
+} from '@/domain/clientInvoiceRecipients'
 import { formatInvoicePoHint, tripRefLabel } from '@/domain/invoicePoHint'
 import { unifyAircraftType } from '@/lib/aircraftTypeCatalog'
 import {
@@ -208,18 +213,14 @@ export default function QuickDispatchPage({
     if (!c) return
     setPo(suggestNextPo(c.last_po))
     setPayTerms(c.pay_terms || 'Net 30')
-    const invoiceTargets = listInvoiceEmails(id)
+    const invoiceTargets = listAlwaysInvoiceEmails(id)
     setInvoiceEmail(invoiceTargets[0] || c.invoice_email || c.email || '')
-    // Invoice CC stays AP-only — ETA goes in its own section.
-    const apCc = c.contacts
-      .filter(
-        (x) =>
-          x.email &&
-          x.notify_prefs.invoice &&
-          x.email.toLowerCase() !==
-            (invoiceTargets[0] || c.invoice_email || '').toLowerCase(),
-      )
-      .map((x) => x.email)
+    // Invoice CC = sometimes-only (not always-To).
+    const apCc = listOptionalInvoiceEmails(id).filter(
+      (e) =>
+        e !==
+        (invoiceTargets[0] || c.invoice_email || '').toLowerCase(),
+    )
     setInvoiceCc([...new Set(apCc)].join(', '))
     fillEtaFromClient(id, legIcaos)
   }
@@ -928,15 +929,19 @@ export default function QuickDispatchPage({
         </label>
 
         {client &&
-          client.contacts.some((c) => c.notify_prefs.invoice && c.email) && (
-            <div>
-              <div className="mb-2 text-xs text-muted">
-                AP contacts — click to CC invoice
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {client.contacts
-                  .filter((c) => c.notify_prefs.invoice && c.email)
-                  .map((c) => {
+          (() => {
+            const bubbles = invoiceSometimesBubbleContacts(
+              client.contacts,
+              listAlwaysInvoiceEmails(client.id),
+            )
+            if (!bubbles.length) return null
+            return (
+              <div>
+                <div className="mb-2 text-xs text-muted">
+                  Directory — click to drop into Invoice CC
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {bubbles.map((c) => {
                     const on = selectedInvoiceCc.has(c.email.toLowerCase())
                     return (
                       <button
@@ -952,13 +957,15 @@ export default function QuickDispatchPage({
                             : 'border-border bg-surface-2 text-muted hover:text-cream',
                         ].join(' ')}
                       >
+                        <span className="font-medium">{on ? 'CC' : '·'}</span>{' '}
                         {c.name} &lt;{c.email}&gt;
                       </button>
                     )
                   })}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
         <label className={label}>
           Invoice CC (comma-separated)

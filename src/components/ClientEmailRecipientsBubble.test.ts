@@ -103,4 +103,24 @@ describe('defaultInvoiceEmailSelection', () => {
     expect(sel.to).toEqual(['ap@client.com'])
     expect(sel.cc).not.toContain('ap@client.com')
   })
+
+  it('prefills sometimes contacts into CC only', () => {
+    const client = addClient({
+      name: 'Split Co',
+      email: 'ops@client.com',
+      invoice_email: 'ap@client.com',
+      contacts: [
+        { name: 'AP', email: 'ap@client.com', role: 'ap' },
+        {
+          name: 'Ops',
+          email: 'ops@client.com',
+          role: 'requester',
+          notify_prefs: { invoice: true, invoice_always: false },
+        },
+      ],
+    })
+    const sel = defaultInvoiceEmailSelection(client.id)
+    expect(sel.to).toEqual(['ap@client.com'])
+    expect(sel.cc).toEqual(['ops@client.com'])
+  })
 })

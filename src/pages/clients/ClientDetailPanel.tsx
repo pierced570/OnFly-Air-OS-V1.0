@@ -10,6 +10,13 @@ import {
   type ClientBaseRef,
 } from '@/domain/clientBaseEmails'
 import {
+  alwaysInvoiceEmails,
+  invoiceSometimesBubbleContacts,
+  isAlwaysInvoiceContact,
+  isOptionalInvoiceContact,
+  optionalInvoiceEmails,
+} from '@/domain/clientInvoiceRecipients'
+import {
   applyFreightPolicyToRules,
   summarizeClientRulesGuide,
 } from '@/domain/clientRulesGuide'
@@ -24,6 +31,7 @@ import {
   removeClientContact,
   updateClient,
   updateClientContact,
+  type ClientContact,
   type ClientProfile,
   type ContactKind,
   type ContactRole,
@@ -203,7 +211,7 @@ function InfoTab({
           />
         </label>
         <label className={label}>
-          Invoice email
+          Always invoice (To)
           <input
             className={`${input} avionic`}
             value={client.invoice_email}
@@ -392,13 +400,14 @@ function ContactsTab({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        People and distribution lists in one list. Flag{' '}
-        <span className="text-gold">AP / Invoice</span> for invoice autopopulate.
-        Set <span className="text-gold">ETA airports</span> so that email joins
-        the ETA sheet when those ICAOs are on the trip. Base supervisor/stores
-        DLs appear here automatically.
+        People and distribution lists in one list. Set Invoice to{' '}
+        <span className="text-gold">Always (To)</span> or{' '}
+        <span className="text-gold">Sometimes (CC)</span> — Billing shows the
+        bubbles. Set <span className="text-gold">ETA airports</span> so that
+        email joins the ETA sheet when those ICAOs are on the trip. Base
+        supervisor/stores DLs appear here automatically.
       </p>
-      <p className="text-xs text-muted">{apCount} flagged for invoices</p>
+      <p className="text-xs text-muted">{apCount} on invoice lists</p>
 
       {/* Mobile contact cards */}
       <ul className="space-y-2 sm:hidden">
@@ -495,25 +504,7 @@ function ContactsTab({
                       />
                       Quotes
                     </label>
-                    <label className="flex min-h-11 items-center gap-2 text-gold">
-                      <input
-                        type="checkbox"
-                        checked={c.notify_prefs.invoice}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            updateClientContact(client.id, c.id, {
-                              role: 'ap',
-                              notify_prefs: { invoice: true },
-                            })
-                          } else {
-                            updateClientContact(client.id, c.id, {
-                              notify_prefs: { invoice: false },
-                            })
-                          }
-                        }}
-                      />
-                      AP / Invoice
-                    </label>
+                    <InvoiceModeSelect clientId={client.id} contact={c} />
                     <label className="flex min-h-11 items-center gap-2">
                       <input
                         type="checkbox"
@@ -664,25 +655,7 @@ function ContactsTab({
                           />
                           Quotes
                         </label>
-                        <label className="flex items-center gap-1 text-gold">
-                          <input
-                            type="checkbox"
-                            checked={c.notify_prefs.invoice}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                updateClientContact(client.id, c.id, {
-                                  role: 'ap',
-                                  notify_prefs: { invoice: true },
-                                })
-                              } else {
-                                updateClientContact(client.id, c.id, {
-                                  notify_prefs: { invoice: false },
-                                })
-                              }
-                            }}
-                          />
-                          AP / Invoice
-                        </label>
+                        <InvoiceModeSelect clientId={client.id} contact={c} />
                         <label className="flex items-center gap-1 text-cream">
                           <input
                             type="checkbox"
@@ -986,6 +959,136 @@ function BasesTab({
   )
 }
 
+function parseEmailField(raw: string): string[] {
+  return [
+    ...new Set(
+      raw
+        .split(/[,;\s]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => s.includes('@')),
+    ),
+  ]
+}
+
+type InvoiceMode = 'off' | 'always' | 'sometimes'
+
+function invoiceModeOf(c: ClientContact): InvoiceMode {
+  if (!c.notify_prefs.invoice) return 'off'
+  return isOptionalInvoiceContact(c) ? 'sometimes' : 'always'
+}
+
+function setContactInvoiceMode(
+  clientId: string,
+  contact: ClientContact,
+  mode: InvoiceMode,
+) {
+  if (mode === 'off') {
+    updateClientContact(clientId, contact.id, {
+      notify_prefs: { invoice: false, invoice_always: undefined },
+    })
+    return
+  }
+  updateClientContact(clientId, contact.id, {
+    role: mode === 'always' ? 'ap' : contact.role,
+    notify_prefs: {
+      invoice: true,
+      invoice_always: mode === 'always',
+    },
+  })
+}
+
+/**
+ * Sync typed Always-To emails onto the client: invoice_email = first,
+ * matching contacts marked always; create AP rows for unknown addresses.
+ */
+function applyAlwaysInvoiceEmails(client: ClientProfile, emails: string[]) {
+  const uniq = parseEmailField(emails.join(','))
+  updateClient(client.id, { invoice_email: uniq[0] ?? '' })
+  const byEmail = new Map(
+    client.contacts.map((c) => [c.email.trim().toLowerCase(), c] as const),
+  )
+  for (const email of uniq) {
+    const hit = byEmail.get(email)
+    if (hit) {
+      setContactInvoiceMode(client.id, hit, 'always')
+    } else {
+      addClientContact(client.id, email.split('@')[0] || 'AP', email, 'ap', '', {
+        notify_prefs: { invoice: true, invoice_always: true },
+      })
+    }
+  }
+  // Demote former always contacts no longer in the list (keep as sometimes if still invoice)
+  for (const c of client.contacts) {
+    const e = c.email.trim().toLowerCase()
+    if (!isAlwaysInvoiceContact(c)) continue
+    if (uniq.includes(e)) continue
+    if (c.notify_prefs.invoice) {
+      setContactInvoiceMode(client.id, c, 'sometimes')
+    }
+  }
+}
+
+function applyOptionalInvoiceEmails(client: ClientProfile, emails: string[]) {
+  const uniq = parseEmailField(emails.join(','))
+  const always = new Set(alwaysInvoiceEmails(client))
+  const byEmail = new Map(
+    client.contacts.map((c) => [c.email.trim().toLowerCase(), c] as const),
+  )
+  for (const email of uniq) {
+    if (always.has(email)) continue
+    const hit = byEmail.get(email)
+    if (hit) {
+      setContactInvoiceMode(client.id, hit, 'sometimes')
+    } else {
+      addClientContact(
+        client.id,
+        email.split('@')[0] || 'Contact',
+        email,
+        'supply_chain',
+        '',
+        { notify_prefs: { invoice: true, invoice_always: false } },
+      )
+    }
+  }
+  for (const c of client.contacts) {
+    if (!isOptionalInvoiceContact(c)) continue
+    const e = c.email.trim().toLowerCase()
+    if (!uniq.includes(e)) {
+      setContactInvoiceMode(client.id, c, 'off')
+    }
+  }
+}
+
+function InvoiceModeSelect({
+  clientId,
+  contact,
+}: {
+  clientId: string
+  contact: ClientContact
+}) {
+  const mode = invoiceModeOf(contact)
+  return (
+    <label className="flex min-h-11 items-center gap-2 text-[11px] text-gold">
+      Invoice
+      <select
+        className="rounded border border-border bg-ink px-1.5 py-1 text-cream"
+        value={mode}
+        onChange={(e) =>
+          setContactInvoiceMode(
+            clientId,
+            contact,
+            e.target.value as InvoiceMode,
+          )
+        }
+      >
+        <option value="off">Off</option>
+        <option value="always">Always (To)</option>
+        <option value="sometimes">Sometimes (CC)</option>
+      </select>
+    </label>
+  )
+}
+
 function BillingTab({
   client,
   profile,
@@ -995,23 +1098,136 @@ function BillingTab({
   profile: NonNullable<ClientProfile['profile']>
   patchProfile: (p: Partial<NonNullable<ClientProfile['profile']>>) => void
 }) {
-  const ap = client.contacts.filter((c) => c.notify_prefs.invoice)
+  const always = alwaysInvoiceEmails(client)
+  const sometimes = optionalInvoiceEmails(client)
+  const bubbles = invoiceSometimesBubbleContacts(client.contacts, always)
+  const [alwaysDraft, setAlwaysDraft] = useState(always.join(', '))
+  const [sometimesDraft, setSometimesDraft] = useState(sometimes.join(', '))
   const termsValue = payTermsSelectValue(client.pay_terms)
   const known = ['Prepay', 'Net 15', 'Net 30', 'Net 60']
 
+  useEffect(() => {
+    setAlwaysDraft(always.join(', '))
+    setSometimesDraft(sometimes.join(', '))
+  }, [client.id, always.join('|'), sometimes.join('|')])
+
+  function dropBubbleIntoSometimes(email: string) {
+    const next = parseEmailField(`${sometimesDraft},${email}`)
+    setSometimesDraft(next.join(', '))
+    applyOptionalInvoiceEmails(client, next)
+  }
+
   return (
     <div className="grid max-w-2xl gap-4">
-      <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
+      <section className="space-y-3 rounded-lg border border-gold/35 bg-gold/5 p-4">
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-gold">
+            Invoice recipients
+          </h3>
+          <p className="mt-1 text-xs text-muted">
+            <span className="text-cream">Always</span> prefills To on every
+            invoice. Everyone else is a bubble — click to drop them into
+            Sometimes (CC).
+          </p>
+        </div>
+
         <label className={label}>
-          Default invoice email
+          Always send to (To)
           <input
-            className={input}
-            value={client.invoice_email}
-            onChange={(e) =>
-              updateClient(client.id, { invoice_email: e.target.value })
-            }
+            className={`${input} avionic`}
+            value={alwaysDraft}
+            onChange={(e) => setAlwaysDraft(e.target.value)}
+            onBlur={() => applyAlwaysInvoiceEmails(client, parseEmailField(alwaysDraft))}
+            placeholder="ap@client.com"
+            autoComplete="off"
           />
         </label>
+        {always.length > 0 ? (
+          <ul className="flex flex-wrap gap-1.5">
+            {always.map((email) => {
+              const c = client.contacts.find(
+                (x) => x.email.trim().toLowerCase() === email,
+              )
+              return (
+                <li
+                  key={email}
+                  className="rounded-full border border-gold/50 bg-gold/20 px-2.5 py-1 font-mono text-[11px] text-cream"
+                >
+                  To · {c?.name ? `${c.name} · ${email}` : email}
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted">
+            No always-To yet — type an AP address above.
+          </p>
+        )}
+
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wider text-muted">
+            Directory — click into Sometimes (CC)
+          </div>
+          {bubbles.length === 0 ? (
+            <p className="mt-2 text-xs text-muted">
+              No other contacts on file. Add people under Contacts.
+            </p>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {bubbles.map((c) => {
+                const on = isOptionalInvoiceContact(c)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    title={
+                      on
+                        ? 'Already in Sometimes — click to remove'
+                        : 'Add to Sometimes (CC)'
+                    }
+                    onClick={() => {
+                      if (on) {
+                        setContactInvoiceMode(client.id, c, 'off')
+                      } else {
+                        dropBubbleIntoSometimes(c.email)
+                      }
+                    }}
+                    className={[
+                      'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
+                      on
+                        ? 'border-gold bg-gold/25 text-cream'
+                        : 'border-border bg-ink/40 text-muted hover:border-gold/40 hover:text-cream',
+                    ].join(' ')}
+                  >
+                    <span className="font-medium">{on ? 'CC' : '·'}</span>{' '}
+                    {c.name?.trim() ? `${c.name} · ${c.email}` : c.email}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <label className={label}>
+          Sometimes (CC)
+          <input
+            className={`${input} avionic`}
+            value={sometimesDraft}
+            onChange={(e) => setSometimesDraft(e.target.value)}
+            onBlur={() =>
+              applyOptionalInvoiceEmails(client, parseEmailField(sometimesDraft))
+            }
+            placeholder="ops@client.com"
+            autoComplete="off"
+          />
+          <span className="mt-1 block text-[11px] normal-case tracking-normal text-muted">
+            Prefills CC when sending — not on every invoice unless you keep them
+            here.
+          </span>
+        </label>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
         <label className={label}>
           Pay terms
           <select
@@ -1132,28 +1348,6 @@ function BillingTab({
             />
           </label>
         </div>
-      </section>
-
-      <section className="rounded-lg border border-gold/30 bg-gold/10 p-4">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-gold">
-          Accounts payable (always on invoices)
-        </h3>
-        {ap.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">
-            No contacts flagged AP / Invoice yet — use the Contacts tab.
-          </p>
-        ) : (
-          <ul className="mt-2 space-y-1">
-            {ap.map((c) => (
-              <li key={c.id} className="font-mono text-sm text-cream">
-                {c.email}
-                {c.name ? (
-                  <span className="text-muted"> ({c.name})</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
     </div>
   )
