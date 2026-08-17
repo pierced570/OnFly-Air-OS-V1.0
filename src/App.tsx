@@ -27,6 +27,7 @@ const PortalTripTrackPage = lazy(() =>
   })),
 )
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
+const AllTimeInfoPage = lazy(() => import('@/pages/AllTimeInfoPage'))
 const ReferralsPage = lazy(() => import('@/pages/ReferralsPage'))
 const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 const LeadsPage = lazy(() => import('@/pages/LeadsPage'))
@@ -109,6 +110,7 @@ export function App() {
           element={<Navigate to="/dispatch?tool=quick" replace />}
         />
         <Route path="/financials" element={<FinancialsPage />} />
+        <Route path="/all-time" element={<AllTimeInfoPage />} />
         <Route path="/referrals" element={<ReferralsPage />} />
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/leads" element={<LeadsPage />} />

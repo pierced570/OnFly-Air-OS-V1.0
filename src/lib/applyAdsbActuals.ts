@@ -94,6 +94,28 @@ export function applyAdsbActualsToTrip(
     if (fresh) void m.persistTripSnapshot(fresh).catch(() => {})
   })
 
+  void import('@/lib/allTimeInfoStore')
+    .then((m) => {
+      const takeoff = proposal.takeoffAt
+      const landing = proposal.destLandingAt
+      m.logAllTimeEvent({
+        kind: 'adsb_actual',
+        trip_id: tripId,
+        trip_code: getTrip(tripId)?.code ?? null,
+        summary: `ADS-B actuals · ${adsb?.tail ?? 'tail?'} · up ${takeoff ?? '—'} · down ${landing ?? '—'}`,
+        payload: {
+          updates: updates.length,
+          takeoff,
+          landing,
+          air_time_min: proposal.airTimeMin,
+        },
+        at: opts?.nowIso,
+      })
+      const fresh = getTrip(tripId)
+      if (fresh) m.syncTripToAllTime(fresh)
+    })
+    .catch(() => {})
+
   return { applied: true, updates: updates.length }
 }
 

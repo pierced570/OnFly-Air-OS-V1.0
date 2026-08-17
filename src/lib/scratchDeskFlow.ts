@@ -455,7 +455,24 @@ export async function parseScratchToDeskDraft(): Promise<{
 }> {
   const body = getScratchPad().body
   const extract = await createLlmAdapter().extractTripRequest(body)
-  return { extract, draft: deskDraftFromExtract(extract, body) }
+  const draft = deskDraftFromExtract(extract, body)
+  void import('@/lib/allTimeInfoStore')
+    .then((m) =>
+      m.logRequestParsed({
+        summary: `Parsed request · ${draft.client_name || 'client?'} · ${
+          draft.origin_text || '?'
+        }→${draft.destination_text || '?'}`,
+        payload: {
+          client_name: draft.client_name,
+          payload_kind: draft.payload_kind,
+          origin: draft.origin_text,
+          dest: draft.destination_text,
+          asap: draft.asap,
+        },
+      }),
+    )
+    .catch(() => {})
+  return { extract, draft }
 }
 
 export type DeskRecommendResult = {
@@ -757,5 +774,21 @@ export async function sendDeskTripOffers(opts: {
 
   await openTripOffers(trip.id)
   await sendAvailabilityPings(trip.id)
-  return getTrip(trip.id)!
+  const fresh = getTrip(trip.id)!
+  void import('@/lib/allTimeInfoStore')
+    .then((m) => {
+      m.logAllTimeEvent({
+        kind: 'trip_created',
+        trip_id: fresh.id,
+        trip_code: fresh.code,
+        summary: `Desk trip · ${fresh.code} · ${lane} · ${opts.candidates.length} operators`,
+        payload: {
+          client_name: draft.client_name,
+          candidate_count: opts.candidates.length,
+        },
+      })
+      m.syncTripToAllTime(fresh)
+    })
+    .catch(() => {})
+  return fresh
 }

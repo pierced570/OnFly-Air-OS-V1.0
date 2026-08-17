@@ -201,6 +201,20 @@ export async function sendEstimatedQuote(
       },
     })
   })
+  void import('@/lib/allTimeInfoStore')
+    .then((m) => {
+      m.logAllTimeEvent({
+        kind: 'quote_sent',
+        trip_id: trip.id,
+        trip_code: trip.code,
+        summary: `${kind === 'hard' ? 'Hard' : 'Estimated'} quote · $${opts.total.toFixed(0)} · ${opts.originLabel}→${opts.destLabel}`,
+        payload: { total: opts.total, kind, to },
+        at,
+      })
+      const fresh = getTrip(trip.id)
+      if (fresh) m.syncTripToAllTime(fresh)
+    })
+    .catch(() => {})
   addTripDocument(trip.id, {
     kind: 'quote',
     title: `${kind === 'hard' ? 'Hard' : 'Estimated'} quote · $${opts.total.toFixed(0)}`,
