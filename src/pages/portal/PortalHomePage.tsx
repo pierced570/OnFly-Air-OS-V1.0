@@ -8,7 +8,7 @@ import {
   getPortalClient,
   setPortalClientId,
 } from '@/lib/clientOnboardStore'
-import { listClients, subscribeClients } from '@/lib/clientStore'
+import { listClients, sameClientId, subscribeClients } from '@/lib/clientStore'
 import { listRequests, subscribeRequests } from '@/lib/requestStore'
 import {
   endPortalSession,
@@ -119,7 +119,7 @@ export default function PortalHomePage() {
     return () => {
       cancelled = true
     }
-  }, [session?.clientId])
+  }, [session?.clientId, session?.email])
 
   // Remembered guest track: hydrate the trip they were tracking for "Your shipments".
   useEffect(() => {
@@ -215,7 +215,15 @@ export default function PortalHomePage() {
     }
 
     for (const t of localTrips) {
-      if (t.client_id !== clientKey) continue
+      const sameCompany = sameClientId(t.client_id, clientKey)
+      const onTrip =
+        Boolean(session?.email) &&
+        t.participants.some(
+          (p) =>
+            p.email?.trim().toLowerCase() === session!.email.toLowerCase() &&
+            ['client', 'client_ap', 'client_supply'].includes(p.role),
+        )
+      if (!sameCompany && !onTrip) continue
       if (['closed', 'lost', 'cancelled'].includes(t.state)) continue
       if (byId.has(t.id)) continue
       byId.set(
@@ -235,7 +243,7 @@ export default function PortalHomePage() {
     }
 
     return [...byId.values()].sort((a, b) => b.ref - a.ref)
-  }, [remoteTrips, localTrips, clientKey, signedIn])
+  }, [remoteTrips, localTrips, clientKey, signedIn, session?.email])
 
   const counts = useMemo(
     () => summarizePortalShipments(liveCards.map((c) => c.phase)),
@@ -383,7 +391,13 @@ export default function PortalHomePage() {
               <button
                 type="button"
                 className="text-muted hover:text-ink"
-                onClick={() => clearPortalClient()}
+                onClick={() => {
+                  void endPortalSession().then(() => {
+                    setSession(null)
+                    setRemoteTrips([])
+                    clearPortalClient()
+                  })
+                }}
               >
                 Switch company
               </button>

@@ -122,6 +122,27 @@ export function invoiceTripFacts(
       ? notes
       : null
 
+  // Always emit itinerary from QD legs even when ETA clocks are still TBD —
+  // never leave the QBO memo / email middle as blank (ENTER …) template copy.
+  const safeItinerary =
+    itineraryLines.length > 0
+      ? itineraryLines
+      : buildInvoiceItineraryLines({
+          lane,
+          originIcao: quickLeg?.origin_icao || null,
+          destIcao: quickLeg?.dest_icao || null,
+          pickupFbo: pickupAddress || shortIcao(quickLeg?.origin_icao) || null,
+          dropoffFbo: dropoffAddress || shortIcao(quickLeg?.dest_icao) || null,
+          liveLegMin:
+            quickLeg != null
+              ? parseLooseDurationMinutes(quickLeg.live_leg_time)
+              : null,
+          pickupEtaMin:
+            quickLeg != null
+              ? parseLooseDurationMinutes(quickLeg.repo_time)
+              : null,
+        })
+
   return {
     clientName: opts?.clientName?.trim() || trip.quick?.client_name || 'Client',
     lane,
@@ -135,7 +156,7 @@ export function invoiceTripFacts(
     aircraftType,
     tail,
     payTerms,
-    itineraryLines,
+    itineraryLines: safeItinerary,
     pickupAddress,
     dropoffAddress,
     extraNotes,

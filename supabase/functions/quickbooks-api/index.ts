@@ -420,25 +420,10 @@ async function createInvoice(cfg: QbConfig, body: Record<string, unknown>) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/Duplicate Document Number|Duplicate DocNumber/i.test(msg)) {
-      // Keep a PO-derived DocNumber — never drop to a bare auto number that
-      // breaks "PO #…" in payment-request subjects / PDF headers.
-      const retry = { ...payload }
-      retry.DocNumber = `${docNumber}-${Date.now().toString().slice(-4)}`
-      const created = (await qbFetch(cfg, '/invoice', {
-        method: 'POST',
-        body: JSON.stringify(retry),
-      })) as { Invoice?: { Id?: string; DocNumber?: string } }
-      const inv = created.Invoice
-      if (!inv?.Id) throw e
-      return {
-        invoice_id: inv.Id,
-        doc_number: inv.DocNumber ?? String(retry.DocNumber),
-        customer_id: customerId,
-        url: `${baseUrl(cfg)}/app/invoice?txnId=${inv.Id}`,
-        auto_doc_number: false,
-        doc_number_suffixed: true,
-        allow_online_ach: allowAch,
-      }
+      // Do not invent a new DocNumber — desk typed PO must stay exact.
+      throw new Error(
+        `PO #${docNumber} already exists in QuickBooks. Enter a different PO # — we will not auto-+1 or suffix it.`,
+      )
     }
     throw e
   }
@@ -487,6 +472,8 @@ async function prepareInvoice(cfg: QbConfig, body: Record<string, unknown>) {
     sparse: true,
     AllowOnlineACHPayment: true,
     AllowOnlineCreditCardPayment: body.allow_online_card === true,
+    // Never flip to EmailSent / auto-mail — branded Resend is the only send path.
+    EmailStatus: 'NotSet',
   }
   if (docNumber && !/^(INSERT\s*INVOICE|ENTER\s*(PO|INVOICE|TAIL|FBO|ETA)|TBD|TODO|N\/?A)$/i.test(
     docNumber.replace(/^[(\[{]+|[)\]}]+$/g, '').trim(),
@@ -497,11 +484,14 @@ async function prepareInvoice(cfg: QbConfig, body: Record<string, unknown>) {
     sparse.CustomerMemo = { value: memo.slice(0, 1000) }
     sparse.PrivateNote = memo.slice(0, 4000)
   }
-  if (sendTo.includes('@')) {
+  // Do NOT stamp BillEmail here. Some QBO company settings auto-email the
+  // blank company template (ENTER TAIL/FBO/ETA) when BillEmail is set — that
+  // reaches BCC/info while the intended To never gets the branded Resend mail.
+  if (body.stamp_bill_email === true && sendTo.includes('@')) {
     sparse.BillEmail = { Address: sendTo }
-  }
-  if (ccList.length) {
-    sparse.BillEmailCc = { Address: ccList.join(', ') }
+    if (ccList.length) {
+      sparse.BillEmailCc = { Address: ccList.join(', ') }
+    }
   }
 
   const updated = (await qbFetch(cfg, '/invoice', {

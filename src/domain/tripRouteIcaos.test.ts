@@ -21,4 +21,15 @@ describe('tripRouteIcaos', () => {
       }),
     ).toEqual(['CAK', 'MDW'])
   })
+
+  it('reads store legs that use origin/dest fields', () => {
+    expect(
+      tripRouteIcaos({
+        legs: [
+          { origin: 'KCVG', dest: 'KDAY' },
+          { origin: 'KDAY', dest: 'KCVG' },
+        ],
+      }),
+    ).toEqual(['KCVG', 'KDAY'])
+  })
 })

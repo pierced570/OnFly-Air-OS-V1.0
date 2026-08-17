@@ -254,9 +254,44 @@ rebuild()
 /** Replace in-memory directory with Supabase rows. */
 export function replaceClientsFromDb(rows: ClientProfile[]): void {
   if (!rows.length) return
+  // Preserve last_po when DB is null but this session already recorded one
+  // (persist race / incomplete row) — trips + financials still backfill via
+  // resolveClientLastPo, but keep directory continuity across hydrate.
+  const priorPo = new Map<
+    string,
+    { last_po: string | null; last_po_trip_ref?: string | null }
+  >()
+  for (const c of clients.values()) {
+    if (!c.last_po?.trim()) continue
+    priorPo.set(c.id, {
+      last_po: c.last_po,
+      last_po_trip_ref: c.profile?.last_po_trip_ref ?? null,
+    })
+    if (c.supabase_id) {
+      priorPo.set(c.supabase_id, {
+        last_po: c.last_po,
+        last_po_trip_ref: c.profile?.last_po_trip_ref ?? null,
+      })
+    }
+  }
+
   clients.clear()
   clientIdAliases.clear()
   for (const r of rows) {
+    const keep =
+      (!r.last_po?.trim() &&
+        (priorPo.get(r.id) ||
+          (r.supabase_id ? priorPo.get(r.supabase_id) : undefined))) ||
+      null
+    if (keep?.last_po) {
+      r.last_po = keep.last_po
+      if (keep.last_po_trip_ref && !r.profile?.last_po_trip_ref) {
+        r.profile = {
+          ...(r.profile ?? {}),
+          last_po_trip_ref: keep.last_po_trip_ref,
+        }
+      }
+    }
     clients.set(r.id, r)
     if (r.supabase_id && r.supabase_id !== r.id) {
       clientIdAliases.set(r.supabase_id, r.id)
@@ -433,6 +468,21 @@ function ensureNotifyPrefs(
     out.invoice_always = p.invoice_always
   }
   return out
+}
+
+/**
+ * True when two ids refer to the same directory client (legacy_key ↔ supabase UUID).
+ */
+export function sameClientId(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  if (!a || !b) return false
+  if (a === b) return true
+  const ca = getClient(a)
+  const cb = getClient(b)
+  if (!ca || !cb) return false
+  return ca.id === cb.id
 }
 
 export function addClient(opts: {

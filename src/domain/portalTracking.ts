@@ -1715,6 +1715,10 @@ export function tripToTrackingInput(trip: {
   hard_quote?: {
     disclosure_at?: string
     payload_kind?: 'cargo' | 'pax' | 'both'
+    options?: Array<{
+      type_name?: string | null
+      tail?: string | null
+    }>
   } | null
   portal_pickup_address?: string | null
   portal_dropoff_address?: string | null
@@ -1814,8 +1818,13 @@ export function tripToTrackingInput(trip: {
     legs: trip.legs,
     events: trip.events,
     documents: trip.documents,
-    tail: trip.quick?.tail || selected?.tail || null,
-    aircraft_type: trip.quick?.aircraft_type || selected?.type_name || null,
+    tail: resolveTrackingTail(trip, selected),
+    aircraft_type:
+      trip.quick?.aircraft_type ||
+      selected?.type_name ||
+      hqOptType(trip) ||
+      eventAircraftType(trip.events) ||
+      null,
     hard_quote: trip.hard_quote ?? null,
     pax_count: Math.max(quickPax, deskPaxCount, paxNames.length),
     pax_names: paxNames,
@@ -1826,4 +1835,53 @@ export function tripToTrackingInput(trip: {
     pickup_stop: pickupStop,
     dropoff_stop: dropoffStop,
   }
+}
+
+function hqOptType(trip: {
+  hard_quote?: {
+    options?: Array<{ type_name?: string | null; tail?: string | null }>
+  } | null
+}): string | null {
+  const t = trip.hard_quote?.options?.[0]?.type_name?.trim()
+  return t || null
+}
+
+function eventAircraftType(
+  events: PortalTrackingTripInput['events'],
+): string | null {
+  for (const e of [...events].reverse()) {
+    if (e.kind !== 'quick_dispatch') continue
+    const t = String(e.payload.aircraft_type ?? '').trim()
+    if (t) return t
+  }
+  return null
+}
+
+/** Prefer quick → selected offer → hard_quote option → quick_dispatch event. */
+function resolveTrackingTail(
+  trip: {
+    quick?: { tail?: string } | null
+    hard_quote?: {
+      options?: Array<{ tail?: string | null }>
+    } | null
+    events: PortalTrackingTripInput['events']
+  },
+  selected?: { tail?: string } | null,
+): string | null {
+  const candidates = [
+    trip.quick?.tail,
+    selected?.tail,
+    trip.hard_quote?.options?.[0]?.tail,
+    ...[...trip.events]
+      .reverse()
+      .filter((e) => e.kind === 'quick_dispatch')
+      .map((e) => e.payload.tail),
+  ]
+  for (const raw of candidates) {
+    const t = String(raw ?? '')
+      .trim()
+      .toUpperCase()
+    if (t && t !== 'TBD' && t.length >= 2) return t
+  }
+  return null
 }

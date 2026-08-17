@@ -6,6 +6,7 @@ import {
   inferPortalDomainsFromOnFile,
   normalizePortalDomain,
   parsePortalDomainList,
+  resolveAllClientIdsByPortalEmail,
   resolveClientIdByPortalEmail,
   suggestPortalDomainFromWebsite,
   withEnsuredPortalDomains,
@@ -64,6 +65,33 @@ describe('portalDomains', () => {
       'c-domain',
     )
     expect(resolveClientIdByPortalEmail('x@unknown.com', clients)).toBeNull()
+    expect(
+      resolveAllClientIdsByPortalEmail('sam@exact.com', clients),
+    ).toEqual(['c-exact'])
+  })
+
+  it('returns every exact-match company for a shared staff email', () => {
+    const clients = [
+      {
+        id: 'psa',
+        name: 'PSA Airlines',
+        contacts: [{ email: 'pierce@onflyair.com' }],
+        profile: { allowed_email_domains: ['psaairlines.com'] },
+      },
+      {
+        id: 'tester',
+        name: 'Tester',
+        contacts: [{ email: 'pierce@onflyair.com' }],
+        profile: {},
+      },
+    ]
+    expect(
+      resolveAllClientIdsByPortalEmail('pierce@onflyair.com', clients),
+    ).toEqual(['psa', 'tester'])
+    // First exact match remains the default single-id resolver
+    expect(resolveClientIdByPortalEmail('pierce@onflyair.com', clients)).toBe(
+      'psa',
+    )
   })
 
   it('suggests domain from website', () => {
