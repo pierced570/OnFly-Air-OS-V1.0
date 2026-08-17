@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   __resetClientsForTests,
   addClient,
@@ -56,5 +56,59 @@ describe('updateClientContact title', () => {
     expect(row.contacts.find((x) => x.id === contact.id)?.title).toBe('AP Desk')
     const mixed = listMixedDirectoryContacts(c.id)
     expect(mixed.find((x) => x.id === contact.id)?.title).toBe('AP Desk')
+  })
+})
+
+describe('updateClientContact flags', () => {
+  beforeEach(() => {
+    __resetClientsForTests()
+  })
+
+  it('toggles Quotes / Always ETA without wiping the other', () => {
+    const c = addClient({ name: 'Piedmont' })
+    const contact = addClientContact(
+      c.id,
+      'Adam',
+      'adam@piedmont.test',
+      'requester',
+    )!
+    expect(contact.notify_prefs.request_alert).toBe(true)
+    expect(contact.notify_prefs.tracker).toBe(true)
+
+    updateClientContact(c.id, contact.id, {
+      notify_prefs: { request_alert: false },
+    })
+    let row = getClient(c.id)!.contacts.find((x) => x.id === contact.id)!
+    expect(row.notify_prefs.request_alert).toBe(false)
+    expect(row.notify_prefs.tracker).toBe(true)
+
+    updateClientContact(c.id, contact.id, {
+      notify_prefs: { tracker: false },
+    })
+    row = getClient(c.id)!.contacts.find((x) => x.id === contact.id)!
+    expect(row.notify_prefs.request_alert).toBe(false)
+    expect(row.notify_prefs.tracker).toBe(false)
+  })
+
+  it('setting invoice Always keeps Quotes / Always ETA', () => {
+    const c = addClient({ name: 'Piedmont' })
+    const contact = addClientContact(
+      c.id,
+      'Adam',
+      'adam@piedmont.test',
+      'requester',
+    )!
+    updateClientContact(c.id, contact.id, {
+      role: 'ap',
+      notify_prefs: { invoice: true, invoice_always: true },
+    })
+    const row = getClient(c.id)!.contacts.find((x) => x.id === contact.id)!
+    expect(row.notify_prefs.invoice).toBe(true)
+    expect(row.notify_prefs.request_alert).toBe(true)
+    expect(row.notify_prefs.tracker).toBe(true)
+    expect(
+      listMixedDirectoryContacts(c.id).find((x) => x.id === contact.id)
+        ?.notify_prefs.invoice,
+    ).toBe(true)
   })
 })

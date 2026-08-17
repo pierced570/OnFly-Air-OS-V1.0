@@ -416,6 +416,25 @@ export function getClient(id: string): ClientProfile | undefined {
   return aliased ? clients.get(aliased) : undefined
 }
 
+/** Canonical directory row for mutations (legacy key or UUID alias). */
+function resolveClientRow(clientId: string): ClientProfile | undefined {
+  return getClient(clientId)
+}
+
+function ensureNotifyPrefs(
+  p?: Partial<ContactNotifyPrefs> | null,
+): ContactNotifyPrefs {
+  const out: ContactNotifyPrefs = {
+    request_alert: Boolean(p?.request_alert),
+    invoice: Boolean(p?.invoice),
+    tracker: Boolean(p?.tracker),
+  }
+  if (p?.invoice_always === true || p?.invoice_always === false) {
+    out.invoice_always = p.invoice_always
+  }
+  return out
+}
+
 export function addClient(opts: {
   name: string
   email?: string
@@ -676,7 +695,7 @@ export function addClientContact(
     notify_prefs?: Partial<ContactNotifyPrefs>
   },
 ): ClientContact | undefined {
-  const row = clients.get(clientId)
+  const row = resolveClientRow(clientId)
   if (!row) return undefined
   const contact: ClientContact = {
     id: crypto.randomUUID(),
@@ -689,10 +708,10 @@ export function addClientContact(
     eta_icaos: extra?.eta_icaos?.length
       ? [...extra.eta_icaos.map((x) => x.trim().toUpperCase()).filter(Boolean)]
       : undefined,
-    notify_prefs: {
+    notify_prefs: ensureNotifyPrefs({
       ...defaultPrefs(role),
       ...(extra?.notify_prefs ?? {}),
-    },
+    }),
   }
   const existing = row.contacts.find(
     (c) => c.email.toLowerCase() === contact.email.toLowerCase(),
@@ -710,11 +729,11 @@ export function addClientContact(
       ])
       existing.eta_icaos = [...set]
     }
-    existing.notify_prefs = {
+    existing.notify_prefs = ensureNotifyPrefs({
       ...existing.notify_prefs,
       ...defaultPrefs(role),
       ...(extra?.notify_prefs ?? {}),
-    }
+    })
   } else {
     row.contacts.push(contact)
   }
@@ -725,8 +744,12 @@ export function addClientContact(
   ) {
     row.invoice_email = contact.email
   }
-  bump(clientId)
-  return contact
+  row.contacts = row.contacts.map((x) => ({
+    ...x,
+    notify_prefs: ensureNotifyPrefs(x.notify_prefs),
+  }))
+  bump(row.id)
+  return existing ?? contact
 }
 
 export function updateClientContact(
@@ -741,7 +764,7 @@ export function updateClientContact(
     }
   >,
 ): void {
-  const row = clients.get(clientId)
+  const row = resolveClientRow(clientId)
   if (!row) return
   const c = row.contacts.find((x) => x.id === contactId)
   if (!c) return
@@ -761,11 +784,23 @@ export function updateClientContact(
   }
   if (patch.role != null) {
     c.role = patch.role
-    // Role change resets flags to that role's defaults.
-    c.notify_prefs = defaultPrefs(patch.role)
+    // Only reset flags to role defaults when the caller isn't also
+    // patching prefs (invoice Always used to wipe Quotes / Always ETA).
+    if (!patch.notify_prefs) {
+      c.notify_prefs = ensureNotifyPrefs(defaultPrefs(patch.role))
+    }
   }
   if (patch.notify_prefs) {
-    c.notify_prefs = { ...c.notify_prefs, ...patch.notify_prefs }
+    const merged: ContactNotifyPrefs = {
+      ...ensureNotifyPrefs(c.notify_prefs),
+      ...patch.notify_prefs,
+    }
+    if (patch.notify_prefs.invoice === false) {
+      delete merged.invoice_always
+    }
+    c.notify_prefs = ensureNotifyPrefs(merged)
+  } else if (!patch.role) {
+    c.notify_prefs = ensureNotifyPrefs(c.notify_prefs)
   }
   // Only auto-fill primary To from always-invoice contacts (never sometimes).
   if (
@@ -780,23 +815,23 @@ export function updateClientContact(
   // with fresh contact field values (in-place mutate alone left UI stuck).
   row.contacts = row.contacts.map((x) =>
     x.id === c.id
-      ? { ...c, notify_prefs: { ...c.notify_prefs } }
-      : x,
+      ? { ...c, notify_prefs: ensureNotifyPrefs(c.notify_prefs) }
+      : { ...x, notify_prefs: ensureNotifyPrefs(x.notify_prefs) },
   )
-  bump(clientId)
+  bump(row.id)
 }
 
 export function removeClientContact(clientId: string, contactId: string): void {
-  const row = clients.get(clientId)
+  const row = resolveClientRow(clientId)
   if (!row) return
   row.contacts = row.contacts.filter((c) => c.id !== contactId)
-  bump(clientId)
+  bump(row.id)
 }
 
 /** Emails that should ring dispatch when they send a request. */
 export function listRequestAlertEmails(clientId?: string): string[] {
   const list = clientId
-    ? [clients.get(clientId)].filter(Boolean)
+    ? [getClient(clientId)].filter(Boolean)
     : [...clients.values()]
   const out: string[] = []
   for (const cl of list) {
@@ -809,7 +844,7 @@ export function listRequestAlertEmails(clientId?: string): string[] {
 
 /** Emails flagged to receive invoices (always + sometimes). */
 export function listInvoiceEmails(clientId: string): string[] {
-  const cl = clients.get(clientId)
+  const cl = getClient(clientId)
   if (!cl) return []
   const fromContacts = cl.contacts
     .filter((c) => c.notify_prefs.invoice && c.email)
@@ -820,14 +855,14 @@ export function listInvoiceEmails(clientId: string): string[] {
 
 /** Always-To invoice emails (prefill). */
 export function listAlwaysInvoiceEmails(clientId: string): string[] {
-  const cl = clients.get(clientId)
+  const cl = getClient(clientId)
   if (!cl) return []
   return alwaysInvoiceEmails(cl)
 }
 
 /** Sometimes / optional CC invoice emails. */
 export function listOptionalInvoiceEmails(clientId: string): string[] {
-  const cl = clients.get(clientId)
+  const cl = getClient(clientId)
   if (!cl) return []
   return optionalInvoiceEmails(cl)
 }
@@ -837,7 +872,7 @@ export function listOptionalInvoiceEmails(clientId: string): string[] {
  * Never includes AP-only contacts unless they also have tracker on.
  */
 export function listTrackerEmails(clientId: string): string[] {
-  const cl = clients.get(clientId)
+  const cl = getClient(clientId)
   if (!cl) return []
   const out = cl.contacts
     .filter(

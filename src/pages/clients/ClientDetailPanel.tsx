@@ -3,7 +3,7 @@
  * Diagrams live under each base. Contacts mix people + DLs (incl. base DLs).
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import {
   syncBaseEmailFields,
@@ -27,8 +27,11 @@ import {
 } from '@/domain/clientOnboard'
 import {
   addClientContact,
+  getClient,
+  listClients,
   listMixedDirectoryContacts,
   removeClientContact,
+  subscribeClients,
   updateClient,
   updateClientContact,
   type ClientContact,
@@ -120,12 +123,15 @@ function ContactEtaAirportsInput({
 }
 
 export function ClientDetailPanel({
-  client,
+  client: clientProp,
   onBack,
 }: {
   client: ClientProfile
   onBack?: () => void
 }) {
+  // Always read the live directory row so flag toggles re-render immediately.
+  useSyncExternalStore(subscribeClients, listClients, listClients)
+  const client = getClient(clientProp.id) ?? clientProp
   const profile = client.profile ?? {}
   // Recompute every render — contacts mutate often; memoizing on the array
   // reference left Title / Name / etc. stuck on stale copies.
@@ -1023,12 +1029,13 @@ function setContactInvoiceMode(
 ) {
   if (mode === 'off') {
     updateClientContact(clientId, contact.id, {
-      notify_prefs: { invoice: false, invoice_always: undefined },
+      notify_prefs: { invoice: false },
     })
     return
   }
+  // Keep Quotes / Always ETA — do not reset prefs via role-only defaults.
   updateClientContact(clientId, contact.id, {
-    role: mode === 'always' ? 'ap' : contact.role,
+    ...(mode === 'always' ? { role: 'ap' as const } : {}),
     notify_prefs: {
       invoice: true,
       invoice_always: mode === 'always',
