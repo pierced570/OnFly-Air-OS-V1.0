@@ -638,6 +638,10 @@ async function applyOfferQuote(
             /\/$/,
             '',
           ) || ''
+        const { submittedQuoteDeepLink } = await import(
+          '@/domain/dispatchCenter'
+        )
+        const deep = submittedQuoteDeepLink(tripId, offerId)
         const { subject, text } = quoteSubmittedDeskEmail({
           operatorName: o?.operator_name || meta.actor,
           lane: fresh.lane,
@@ -645,7 +649,7 @@ async function applyOfferQuote(
           typeName: o?.type_name ?? input.type_name,
           tail: o?.tail ?? input.tail,
           priceNet: o?.price_net ?? input.price_net,
-          tripPath: app ? `${app}/trips/${tripId}` : `/trips/${tripId}`,
+          tripPath: app ? `${app}${deep}` : deep,
         })
         await createEmailAdapter().send({ to, subject, text })
         mutateTrip(tripId, (t) => {
@@ -658,6 +662,7 @@ async function applyOfferQuote(
               operator_name: o?.operator_name || meta.actor,
               to,
               subject,
+              deep_link: deep,
             },
           })
         })
@@ -1460,7 +1465,8 @@ export async function acceptHardQuote(
   try {
     const booked = getTrip(trip.id)!
     // Never invent a PO here (e.g. CLI0001). Desk enters PO on Approved /
-    // hard-quote composer; invoice draft waits until a real PO exists.
+    // invoice send — quotes do not require a PO. Invoice draft waits until
+    // a real PO exists.
     if (booked.po_number?.trim() || booked.quick?.po?.trim()) {
       const { createInvoiceForTrip } = await import('@/lib/tripStore')
       await createInvoiceForTrip(trip.id, { skipEmail: true })

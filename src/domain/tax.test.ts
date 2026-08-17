@@ -123,6 +123,58 @@ describe('computeTax', () => {
     expect(fet?.note).toMatch(/7\.5%/)
     expect(r.lines.find((l) => l.code === 'SEG_FEE_DOM')?.amount).toBe(10.6)
   })
+
+  it('fetOverride off waives FET even when MTOW would charge', () => {
+    const r = computeTax({
+      payloadKind: 'pax',
+      legs: [{ international: false, segments: 2, paxCount: 1 }],
+      aircraftMtowLbs: 12500,
+      airSubtotal: 8235,
+      rates: TEST_TAX_RATES_2026,
+      fetOverride: 'off',
+    })
+    expect(r.lines.find((l) => l.code === 'FET_PAX')).toBeUndefined()
+    expect(r.lines.find((l) => l.code === 'SEG_FEE_DOM')).toBeUndefined()
+    expect(r.lines.find((l) => l.code === 'FET_WAIVED')?.note).toMatch(
+      /desk override/i,
+    )
+    expect(r.total).toBe(0)
+    // MTOW truth preserved for desk messaging elsewhere.
+    expect(r.fetExempt).toBe(false)
+    expect(r.fetMtowUnknown).toBe(false)
+  })
+
+  it('fetOverride on charges FET even when MTOW unknown', () => {
+    const r = computeTax({
+      payloadKind: 'cargo',
+      legs: [{ international: false, segments: 1, paxCount: 0 }],
+      aircraftMtowLbs: null,
+      airSubtotal: 10000,
+      rates: TEST_TAX_RATES_2026,
+      fetOverride: 'on',
+    })
+    expect(r.fetMtowUnknown).toBe(true)
+    expect(r.lines.find((l) => l.code === 'FET_CARGO')?.amount).toBe(625)
+    expect(r.lines.find((l) => l.code === 'FET_FORCED')?.note).toMatch(
+      /desk override/i,
+    )
+    expect(r.lines.find((l) => l.code === 'FET_NEEDS_MTOW')).toBeUndefined()
+    expect(r.total).toBe(625)
+  })
+
+  it('fetOverride on charges FET on §4281-exempt light twin', () => {
+    const r = computeTax({
+      payloadKind: 'cargo',
+      legs: [{ international: false, segments: 1, paxCount: 0 }],
+      aircraftMtowLbs: 5500,
+      airSubtotal: 10000,
+      rates: TEST_TAX_RATES_2026,
+      fetOverride: 'on',
+    })
+    expect(r.fetExempt).toBe(true)
+    expect(r.lines.find((l) => l.code === 'FET_CARGO')?.amount).toBe(625)
+    expect(r.lines.find((l) => l.code === 'FET_EXEMPT_MTOW')).toBeUndefined()
+  })
 })
 
 describe('airSubtotalFromClientTotal', () => {
@@ -158,5 +210,21 @@ describe('airSubtotalFromClientTotal', () => {
     }
     const air = airSubtotalFromClientTotal(900, input)
     expect(air).toBe(900)
+  })
+
+  it('fetOverride on inverts with FET even when MTOW unknown', () => {
+    const input = {
+      payloadKind: 'cargo' as const,
+      legs: [{ international: false, segments: 1, paxCount: 0 }],
+      aircraftMtowLbs: null,
+      rates: TEST_TAX_RATES_2026,
+      fetOverride: 'on' as const,
+    }
+    const air = airSubtotalFromClientTotal(10625, input)
+    const tax = computeTax({ ...input, airSubtotal: air })
+    expect(Math.round(air + tax.total)).toBe(10625)
+    expect(tax.lines.find((l) => l.code === 'FET_CARGO')?.amount).toBeGreaterThan(
+      0,
+    )
   })
 })

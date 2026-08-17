@@ -9,6 +9,7 @@ import {
   Suspense,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react'
@@ -23,6 +24,9 @@ import { SubmittedQuotesHistory } from '@/components/SubmittedQuotesHistory'
 import {
   DISPATCH_DRAWERS,
   buildDispatchDrawers,
+  findNewlyQuotedOffers,
+  quotedOfferKeys,
+  submittedQuoteDeepLink,
   type DispatchCard,
   type DispatchDrawerId,
 } from '@/domain/dispatchCenter'
@@ -566,6 +570,7 @@ function OfferTripList({
     null,
   )
   const [updateError, setUpdateError] = useState<string | null>(null)
+  const expandOfferId = searchParams.get('expandOffer')
 
   useEffect(() => {
     if (!focusTripId) return
@@ -588,8 +593,20 @@ function OfferTripList({
       setQuotingTripId(focusTripId)
       setAddingTripId(null)
       setUpdatingTripId(null)
+    } else if ((isSubmitted || isQuotes) && expandOfferId) {
+      setQuotingTripId(focusTripId)
+      setAddingTripId(null)
+      setUpdatingTripId(null)
+      setManualQuoteOfferId(null)
     }
-  }, [focusTripId, searchParams, isQuotes, isSubmitted, isOffers])
+  }, [
+    focusTripId,
+    searchParams,
+    isQuotes,
+    isSubmitted,
+    isOffers,
+    expandOfferId,
+  ])
 
   // Clear inline panels when the trip disappears (delete / hydrate race).
   useEffect(() => {
@@ -822,9 +839,12 @@ function OfferTripList({
             ) : null}
             {quoting && c.trip_id ? (
               <DeskOfferQuoteWorkbench
-                key={`quote-${c.trip_id}-${manualQuoteOfferId ?? 'none'}`}
+                key={`quote-${c.trip_id}-${manualQuoteOfferId ?? expandOfferId ?? 'none'}`}
                 tripId={c.trip_id}
                 initialManualOfferId={manualQuoteOfferId}
+                initialExpandOfferId={
+                  focusTripId === c.trip_id ? expandOfferId : null
+                }
                 onClose={() => {
                   setQuotingTripId(null)
                   setManualQuoteOfferId(null)
@@ -1033,6 +1053,25 @@ export default function DispatchCenterPage() {
 
   // Pull operator Yes/No / quotes into this browser without a manual refresh.
   useEffect(() => startLiveTripRefresh(4000), [])
+
+  // When a new operator/desk quote lands, jump to Submitted quotes with that
+  // offer expanded so the desk can price immediately.
+  const seenQuotedKeys = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    const next = quotedOfferKeys(trips)
+    if (seenQuotedKeys.current == null) {
+      seenQuotedKeys.current = next
+      return
+    }
+    const fresh = findNewlyQuotedOffers(seenQuotedKeys.current, next)
+    seenQuotedKeys.current = next
+    const latest = fresh[fresh.length - 1]
+    if (!latest) return
+    const path = submittedQuoteDeepLink(latest.tripId, latest.offerId)
+    const here = `${window.location.pathname}${window.location.search}`
+    if (here === path || here.endsWith(path)) return
+    nav(path, { replace: false })
+  }, [trips, nav])
 
   // Scroll only on focus/drawer change — not on every live trip hydrate (jumpy deletes).
   useEffect(() => {

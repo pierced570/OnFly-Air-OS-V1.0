@@ -8,7 +8,7 @@ import {
   type OfferQuotePreview,
 } from '@/domain/offerQuotePreview'
 import { priceFromMargin } from '@/domain/quote'
-import { computeTax } from '@/domain/tax'
+import { computeTax, type FetOverride } from '@/domain/tax'
 import { resolveAircraftMtowLbs } from '@/lib/resolveAircraftMtow'
 import { getTaxRates } from '@/lib/taxRatesStore'
 import { payloadKindOf, type OfferRow, type TripStoreRow } from '@/lib/tripStore'
@@ -34,6 +34,7 @@ export function offerQuotePreviewFor(
   optionIndex: number,
   clientTotalOverride?: number | null,
   marginPctOverride?: number | null,
+  fetOverride?: FetOverride | null,
 ): OfferQuotePreview {
   const cand =
     trip.candidates.find((c) => c.aircraft_id === offer.aircraft_id) ??
@@ -71,6 +72,7 @@ export function offerQuotePreviewFor(
       payload_kind: kind,
       margin_pct,
       client_total_override: clientTotalOverride,
+      fet_override: fetOverride,
       segment_count,
       pax_count: Math.max(1, pax_count || 1),
     },
