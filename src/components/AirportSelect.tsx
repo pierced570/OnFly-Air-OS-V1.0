@@ -89,8 +89,15 @@ export function AirportSelect({
     if (/^[A-Z0-9]{3,4}$/.test(compact)) onChange(compact)
   }
 
+  const fieldClass = [
+    inputClassName.trim()
+      ? inputClassName
+      : 'mt-1 rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold',
+    'box-border w-full min-w-0 max-w-full overflow-hidden text-ellipsis',
+  ].join(' ')
+
   return (
-    <div ref={rootRef} className={`relative min-w-0 max-w-full ${className}`}>
+    <div ref={rootRef} className={`relative w-full min-w-0 max-w-full ${className}`}>
       {label && (
         <span className="block text-xs font-medium uppercase tracking-wider text-muted">
           {label}
@@ -103,8 +110,11 @@ export function AirportSelect({
         aria-controls={listId}
         aria-autocomplete="list"
         autoComplete="off"
+        // Default size=20 resists flex shrink; size=1 lets the field honor width:100%.
+        size={1}
         required={required && !optional}
         value={display}
+        title={!open && known ? formatAirportShort(known) : undefined}
         placeholder={placeholder}
         onFocus={() => setOpen(true)}
         onChange={(e) => onInput(e.target.value)}
@@ -116,11 +126,7 @@ export function AirportSelect({
             pick(results[0])
           }
         }}
-        className={
-          inputClassName.trim()
-            ? `${inputClassName} min-w-0 max-w-full`
-            : 'mt-1 w-full min-w-0 max-w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
-        }
+        className={fieldClass}
       />
       {value && !known && (
         <p className="mt-1 text-[11px] text-late">
@@ -131,7 +137,7 @@ export function AirportSelect({
       )}
       {value && known && !open && (
         <p
-          className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--text)]/70"
+          className="mt-1 block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--text)]/70"
           title={formatAirportLabel(known)}
         >
           {formatAirportLabel(known)}
@@ -141,7 +147,7 @@ export function AirportSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-56 w-full max-w-full overflow-auto rounded-md border border-border bg-[var(--surface-2)] shadow-lg"
+          className="absolute left-0 right-0 z-30 mt-1 max-h-56 w-full max-w-full overflow-auto rounded-md border border-border bg-[var(--surface-2)] shadow-lg"
         >
           {results.length === 0 ? (
             <li className="px-3 py-2 text-sm text-[var(--text)] opacity-70">

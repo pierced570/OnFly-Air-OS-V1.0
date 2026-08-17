@@ -781,15 +781,15 @@ function BasesTab({
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {bases.map((base, i) => (
           <div
             key={`${base.icao}-${i}`}
-            className="min-w-0 space-y-3 overflow-hidden rounded-lg border border-border bg-surface p-4"
+            className="min-w-0 max-w-full space-y-3 rounded-lg border border-border bg-surface p-4"
           >
-            <div className="flex items-start gap-2">
+            <div className="flex min-w-0 items-start gap-2">
               <AirportSelect
-                className="min-w-0 flex-1"
+                className="min-w-0 flex-1 basis-0"
                 value={base.icao}
                 onChange={(icao) => {
                   const next = [...bases]
@@ -811,10 +811,10 @@ function BasesTab({
                 Remove
               </button>
             </div>
-            <label className={label}>
+            <label className={`${label} min-w-0`}>
               Supervisor emails
               <input
-                className={input}
+                className={`${input} min-w-0 max-w-full overflow-hidden text-ellipsis`}
                 value={(base.supervisor_emails ?? []).join(', ')}
                 onChange={(e) => {
                   const next = [...bases]
@@ -829,10 +829,10 @@ function BasesTab({
                 }}
               />
             </label>
-            <label className={label}>
+            <label className={`${label} min-w-0`}>
               Stores emails
               <input
-                className={input}
+                className={`${input} min-w-0 max-w-full overflow-hidden text-ellipsis`}
                 value={(base.stores_emails ?? []).join(', ')}
                 onChange={(e) => {
                   const next = [...bases]
