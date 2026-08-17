@@ -23,6 +23,18 @@ describe('deskOperatorSearch', () => {
     expect(hits[0]?.quote_link_channel).toBe('both')
   })
 
+  it('lists operators alphabetically when query is empty', async () => {
+    await loadNetwork()
+    const hits = searchDeskOperators('', 10)
+    expect(hits.length).toBeGreaterThan(0)
+    expect(hits.length).toBeLessThanOrEqual(10)
+    const names = hits.map((h) => h.name)
+    const sorted = [...names].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' }),
+    )
+    expect(names).toEqual(sorted)
+  })
+
   it('adds a new operator and finds them', async () => {
     await loadNetwork()
     const hit = addDeskOperator({

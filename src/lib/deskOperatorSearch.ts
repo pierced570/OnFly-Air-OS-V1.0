@@ -119,21 +119,28 @@ export function searchDeskOperators(
   limit = 8,
 ): DeskOperatorHit[] {
   const q = query.trim().toLowerCase()
-  if (!q) return []
+  const all = listDeskOperators()
+    .slice()
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    )
+
   const hits: DeskOperatorHit[] = []
-  for (const op of listDeskOperators()) {
-    const hay = [
-      op.name,
-      op.base_icao,
-      op.contact_name,
-      op.contact_cell,
-      op.contact_email,
-      op.ops_email,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    if (!hay.includes(q)) continue
+  for (const op of all) {
+    if (q) {
+      const hay = [
+        op.name,
+        op.base_icao,
+        op.contact_name,
+        op.contact_cell,
+        op.contact_email,
+        op.ops_email,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      if (!hay.includes(q)) continue
+    }
     hits.push(toDeskOperatorHit(op))
     if (hits.length >= limit) break
   }
