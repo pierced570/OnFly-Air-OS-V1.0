@@ -165,7 +165,7 @@ describe('etaChain merge rule + patterns', () => {
     expect(ttp.duration_min).toBe(105)
     expect(ttp.source).toBe('quoted')
     const after = next.find((l) => l.type === 'air_leg')!.est_start
-    // 2:00 → 1:45 = −15m on position; turn still 60; wheels-up earlier by 15
+    // 2:00 → 1:45 = −15m on position; turn still default; wheels-up earlier by 15
     expect(
       DateTime.fromISO(before).diff(DateTime.fromISO(after), 'minutes').minutes,
     ).toBe(15)

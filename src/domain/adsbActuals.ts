@@ -76,7 +76,15 @@ export function proposeAdsbActuals(opts: {
     fromActuals: false,
   }
   const adsb = opts.adsb
-  if (!adsb || adsb.phase === 'no_data') return empty
+  if (!adsb) return empty
+  // Allow actual_off/on even when position is blocked / no_data (LADD).
+  if (
+    adsb.phase === 'no_data' &&
+    adsb.takeoffIsActual !== true &&
+    adsb.landingIsActual !== true
+  ) {
+    return empty
+  }
 
   const airFrom = opts.airFromIcao
   const airTo = opts.airToIcao

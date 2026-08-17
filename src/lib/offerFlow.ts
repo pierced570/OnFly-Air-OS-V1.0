@@ -562,7 +562,7 @@ async function applyOfferQuote(
   const quickTurn =
     input.quick_turn_min != null && Number.isFinite(input.quick_turn_min)
       ? Math.max(0, Math.floor(input.quick_turn_min))
-      : 40
+      : (await import('@/domain/offerQuoteTiming')).DEFAULT_QUICK_TURN_MIN
   const price = Math.max(0, Math.round(Number(input.price_net) || 0))
   if (!(price > 0)) throw new Error('price NET NET is required')
   const at = new Date().toISOString()
@@ -611,10 +611,13 @@ async function applyOfferQuote(
       },
     })
   })
-  const { applyOfferTtpToTrip, flushPersistTrip } = await import(
-    '@/lib/tripStore'
-  )
+  const { applyOfferTtpToTrip, applyOfferTurnToTrip, applyOfferLiveLegToTrip, flushPersistTrip } =
+    await import('@/lib/tripStore')
   applyOfferTtpToTrip(tripId, offerId, input.time_to_position_min)
+  applyOfferTurnToTrip(tripId, offerId, quickTurn)
+  if (input.live_leg_min > 0) {
+    applyOfferLiveLegToTrip(tripId, offerId, input.live_leg_min)
+  }
   await flushPersistTrip(tripId)
 
   // Operator-submitted quote (magic link) → email desk only (no SMS).
@@ -1291,8 +1294,14 @@ export async function acceptHardQuote(
   })
   safeTransitionTrip(trip.id, 'booked', actor, { accept_token: token })
   {
-    const { materializeTripLegsFromChain, getTrip: gt, applyOfferTtpToTrip } =
-      await import('@/lib/tripStore')
+    const {
+      materializeTripLegsFromChain,
+      getTrip: gt,
+      applyOfferTtpToTrip,
+      applyOfferTurnToTrip,
+      applyOfferLiveLegToTrip,
+      mutateTrip: mt,
+    } = await import('@/lib/tripStore')
     const booked = gt(trip.id)
     const selectedOffer = booked?.offers.find((o) => o.state === 'selected')
     const cand =
@@ -1303,6 +1312,48 @@ export async function acceptHardQuote(
       if (selectedOffer?.time_to_position_min != null) {
         applyOfferTtpToTrip(trip.id, selectedOffer.id, selectedOffer.time_to_position_min)
       }
+      if (selectedOffer?.quick_turn_min != null) {
+        applyOfferTurnToTrip(trip.id, selectedOffer.id, selectedOffer.quick_turn_min)
+      }
+      if (selectedOffer?.live_leg_min != null && selectedOffer.live_leg_min > 0) {
+        applyOfferLiveLegToTrip(trip.id, selectedOffer.id, selectedOffer.live_leg_min)
+      }
+    }
+    // Portal / ETA sheet read the same award fields QD writes into `quick`.
+    if (selectedOffer) {
+      mt(trip.id, (t) => {
+        const award = {
+          tail: selectedOffer.tail?.trim().toUpperCase() || t.quick?.tail || '',
+          aircraft_type:
+            selectedOffer.type_name?.trim() || t.quick?.aircraft_type || '',
+          operator_name:
+            selectedOffer.operator_name || t.quick?.operator_name || '',
+        }
+        if (t.quick) {
+          t.quick = { ...t.quick, ...award }
+          return
+        }
+        t.quick = {
+          client_id: t.client_id ?? '',
+          client_name: t.client_name ?? '',
+          po: t.po_number ?? '',
+          timing: 'asap',
+          roundtrip: false,
+          cargo_only: t.hard_quote?.payload_kind !== 'pax',
+          vendor_cost: selectedOffer.price_net ?? 0,
+          client_price: t.hard_quote?.total ?? selectedOffer.price_net ?? 0,
+          pay_terms: '',
+          invoice_email: '',
+          cc_emails: [],
+          send_invoice: false,
+          referred_by: '',
+          referral_id: null,
+          referral_share_amount: null,
+          notes: '',
+          legs: [],
+          ...award,
+        }
+      })
     }
   }
   const email = createEmailAdapter()

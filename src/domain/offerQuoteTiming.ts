@@ -1,12 +1,15 @@
 /**
  * Operator quote timing chain (pure):
  * now → +TTP = position ETA at origin → +quick turn = ETD → +live = dest ETA.
+ * Turn autofill matches trip spine `BUILTIN_ETA_DEFAULTS.acft_turn` (40).
  */
 
 import { DateTime } from 'luxon'
 import { lookupAirport } from '@/domain/airports'
+import { DEFAULT_ACFT_TURN_MIN } from '@/domain/etaChain'
 
-export const DEFAULT_QUICK_TURN_MIN = 40
+/** Same as spine acft_turn — one autofill for QD, waterfall quotes, and ETA chain. */
+export const DEFAULT_QUICK_TURN_MIN = DEFAULT_ACFT_TURN_MIN
 
 /** Grey reference placeholders on the operator quote form (not prefilled). */
 export const REFERENCE_TTP_MIN = 90

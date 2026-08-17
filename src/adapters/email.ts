@@ -17,10 +17,15 @@ export type EmailMessage = {
   /** Optional carbon copies (Resend / mock). */
   cc?: string[]
   bcc?: string[]
+  /**
+   * SMTP headers for threading (Resend).
+   * Use In-Reply-To + References with RFC Message-IDs from prior sends.
+   */
+  headers?: Record<string, string>
 }
 
 export interface EmailAdapter {
-  send(msg: EmailMessage): Promise<{ id: string }>
+  send(msg: EmailMessage): Promise<{ id: string; messageId?: string | null }>
 }
 
 const sent: EmailMessage[] = []
@@ -29,7 +34,11 @@ export class MockEmailAdapter implements EmailAdapter {
   async send(msg: EmailMessage) {
     sent.push(msg)
     console.info('[MockEmail]', msg.to, msg.subject)
-    return { id: `mock-email-${sent.length}` }
+    const n = sent.length
+    return {
+      id: `mock-email-${n}`,
+      messageId: `<mock-email-${n}@onfly.local>`,
+    }
   }
 }
 
@@ -71,11 +80,13 @@ export class ResendEmailAdapter implements EmailAdapter {
         reply_to: msg.reply_to,
         cc: cc.length ? cc : undefined,
         bcc: bcc.length ? bcc : undefined,
+        headers: msg.headers,
       },
     })
 
     const body = data as {
       id?: string
+      message_id?: string | null
       error?: string
       detail?: unknown
     } | null
@@ -102,8 +113,8 @@ export class ResendEmailAdapter implements EmailAdapter {
       )
     }
     sent.push(msg)
-    console.info('[ResendEmail]', to, msg.subject, id)
-    return { id }
+    console.info('[ResendEmail]', to, msg.subject, id, body?.message_id)
+    return { id, messageId: body?.message_id ?? null }
   }
 }
 

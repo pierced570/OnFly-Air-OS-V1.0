@@ -4,7 +4,7 @@
  */
 
 import type { AdsbPosition } from '@/adapters/adsb'
-import { proposeAdsbActuals } from '@/domain/adsbActuals'
+import { icaoMatch, proposeAdsbActuals } from '@/domain/adsbActuals'
 import { lookupAirport } from '@/domain/airports'
 import type { ChainLeg, Place, ServicePattern } from '@/domain/etaChain'
 import {
@@ -93,12 +93,12 @@ export type TrackingEtaRow = {
 }
 
 /**
- * Client Actual vs Forecast — ADS-B / chain arrival, takeoff, air time, on-ground.
+ * Client trip stages — ADS-B / FlightAware + ETA chain.
  * Portal UI uses status only (complete / current / upcoming) — no clocks.
  */
 export type OpsForecastRow = {
-  key: 'arrived_origin' | 'takeoff' | 'time_in_air' | 'on_ground_dest'
-  /** e.g. "Arrived KCAK", "Takeoff KCAK", "Time in air", "On ground at KMDW" */
+  key: 'enroute_pickup' | 'at_pickup' | 'enroute_dest' | 'landed_dest'
+  /** Internal label (ICAO when useful); clients see clientOpsStageLabel. */
   label: string
   estimatedLocal: string | null
   estimatedZulu: string | null
@@ -113,14 +113,14 @@ export type OpsForecastRow = {
 /** Client portal stage names — progress only, never clocks. */
 export function clientOpsStageLabel(row: OpsForecastRow): string {
   switch (row.key) {
-    case 'arrived_origin':
-      return 'At pickup'
-    case 'takeoff':
-      return 'Wheels up'
-    case 'time_in_air':
-      return 'En route'
-    case 'on_ground_dest':
-      return 'Delivered'
+    case 'enroute_pickup':
+      return 'Enroute to pickup'
+    case 'at_pickup':
+      return 'At Pickup airport'
+    case 'enroute_dest':
+      return 'Enroute to destination'
+    case 'landed_dest':
+      return 'Landed at destination'
     default:
       return row.label
   }
@@ -248,10 +248,21 @@ export type TrackingAircraftPosition = {
   toLon: number | null
   progressPct: number | null
   nmRemaining: number | null
+  /**
+   * True when FlightAware / ADS-B reports this registration as blocked (LADD).
+   * Portal covers the map; desk provides manual updates.
+   */
+  laddBlocked: boolean
+}
+
+/** True when the portal should cover the map (LADD / blocked tail). */
+export function portalAircraftMapBlocked(a: TrackingAircraftPosition): boolean {
+  return a.laddBlocked === true
 }
 
 /** True when the portal can render a little live map for this trip stage. */
 export function portalAircraftMapVisible(a: TrackingAircraftPosition): boolean {
+  if (portalAircraftMapBlocked(a)) return false
   if (a.lat != null && a.lon != null && !(a.lat === 0 && a.lon === 0)) {
     return true
   }
@@ -712,8 +723,8 @@ function isTurnStamp(s: OpsStamp): boolean {
 }
 
 /**
- * Arrived origin → takeoff → time in air → on ground at dest.
- * Prefers eta_chain actuals; overlays high-confidence ADS-B actual_off/on.
+ * Enroute to pickup → at Pickup → enroute to dest → landed.
+ * Prefers eta_chain actuals; overlays FlightAware / ADS-B actual_off/on + phase.
  */
 export function buildOpsForecastRows(
   trip: PortalTrackingTripInput,
@@ -742,9 +753,10 @@ export function buildOpsForecastRows(
     (air?.toIcao && air.toIcao !== '—' ? air.toIcao : null) || 'DEST'
   const tz = air?.tz || position?.tz || 'UTC'
   const nowIso = opts?.nowIso ?? new Date().toISOString()
+  const adsb = opts?.adsb ?? null
 
   const adsbProp = proposeAdsbActuals({
-    adsb: opts?.adsb,
+    adsb,
     airFromIcao: originIcao,
     airToIcao: destIcao,
     nowIso,
@@ -762,15 +774,47 @@ export function buildOpsForecastRows(
   const airActMin =
     minutesBetween(takeoffAct, landingAct) ?? adsbProp.airTimeMin
 
+  const faDest = adsb?.destinationIcao ?? null
+  const faOrigin = adsb?.originIcao ?? null
+  const adsbAirborne = adsb?.phase === 'airborne'
+  const adsbOnGround = adsb?.phase === 'on_ground'
+
+  /** Ferry / position flight into the pickup airport. */
+  const positioningTowardPickup =
+    !takeoffAct &&
+    !landingAct &&
+    adsbAirborne &&
+    (icaoMatch(faDest, originIcao) ||
+      (!icaoMatch(faOrigin, originIcao) && !icaoMatch(faDest, destIcao)))
+
+  const onGroundAtPickup =
+    !takeoffAct &&
+    !landingAct &&
+    (Boolean(arrivedActFinal) ||
+      (adsbOnGround &&
+        (icaoMatch(faDest, originIcao) ||
+          icaoMatch(faOrigin, originIcao) ||
+          !faDest)))
+
+  const liveToDest =
+    Boolean(takeoffAct && !landingAct) ||
+    (adsbAirborne &&
+      (icaoMatch(faOrigin, originIcao) || icaoMatch(faDest, destIcao)) &&
+      !icaoMatch(faDest, originIcao)) ||
+    air?.status === 'active'
+
   const rows: OpsForecastRow[] = []
 
   {
-    const status: OpsForecastRow['status'] = arrivedActFinal
-      ? 'done'
-      : takeoffAct
+    const status: OpsForecastRow['status'] =
+      arrivedActFinal || takeoffAct || landingAct
         ? 'done'
-        : position?.status === 'active' ||
-            (opts?.adsb?.phase === 'on_ground' && !takeoffAct)
+        : positioningTowardPickup ||
+            position?.status === 'active' ||
+            (position != null &&
+              !arrivedActFinal &&
+              !takeoffAct &&
+              position.status !== 'done')
           ? 'active'
           : 'pending'
     const estFmt = arrivedEst ? formatClientLocal(arrivedEst, tz) : null
@@ -785,13 +829,15 @@ export function buildOpsForecastRows(
           )
         : null
     rows.push({
-      key: 'arrived_origin',
-      label: `Arrived ${originIcao}`,
+      key: 'enroute_pickup',
+      label: `Enroute to ${originIcao}`,
       estimatedLocal: estFmt?.local ?? null,
       estimatedZulu: zulu?.zulu ?? null,
       actualOrForecastLocal:
         actFmt?.local ??
-        (status === 'active' ? 'ARRIVING · LIVE ADS-B' : estFmt?.local ?? null),
+        (status === 'active'
+          ? 'EN ROUTE TO PICKUP · LIVE'
+          : estFmt?.local ?? null),
       deltaMin: arrivedActFinal ? deltaMin : null,
       status,
       isForecast: !arrivedActFinal,
@@ -800,31 +846,30 @@ export function buildOpsForecastRows(
   }
 
   {
-    const status: OpsForecastRow['status'] = takeoffAct
-      ? 'done'
-      : opts?.adsb?.phase === 'airborne' || air?.status === 'active'
-        ? 'active'
-        : 'pending'
+    const status: OpsForecastRow['status'] =
+      takeoffAct || landingAct
+        ? 'done'
+        : onGroundAtPickup ||
+            (arrivedActFinal && !takeoffAct) ||
+            (adsbOnGround && !takeoffAct && !positioningTowardPickup)
+          ? 'active'
+          : 'pending'
     const estFmt = takeoffEst ? formatClientLocal(takeoffEst, tz) : null
     const zulu = takeoffEst ? formatZuluLocal(takeoffEst, tz) : null
-    const actFmt = takeoffAct ? formatClientLocal(takeoffAct, tz) : null
-    const deltaMin =
-      takeoffEst && takeoffAct
-        ? Math.round(
-            (Date.parse(takeoffAct) - Date.parse(takeoffEst)) / 60_000,
-          )
-        : null
+    const actFmt = arrivedActFinal
+      ? formatClientLocal(arrivedActFinal, tz)
+      : null
     rows.push({
-      key: 'takeoff',
-      label: `Takeoff ${originIcao}`,
+      key: 'at_pickup',
+      label: `At ${originIcao}`,
       estimatedLocal: estFmt?.local ?? null,
       estimatedZulu: zulu?.zulu ?? null,
       actualOrForecastLocal:
         actFmt?.local ??
-        (status === 'active' ? 'DEPARTING · LIVE ADS-B' : estFmt?.local ?? null),
-      deltaMin: takeoffAct ? deltaMin : null,
+        (status === 'active' ? `AT ${originIcao} · LIVE` : estFmt?.local ?? null),
+      deltaMin: null,
       status,
-      isForecast: !takeoffAct,
+      isForecast: !arrivedActFinal,
       kind: 'departure',
     })
   }
@@ -832,7 +877,7 @@ export function buildOpsForecastRows(
   {
     const status: OpsForecastRow['status'] = landingAct
       ? 'done'
-      : takeoffAct || opts?.adsb?.phase === 'airborne' || air?.status === 'active'
+      : liveToDest
         ? 'active'
         : 'pending'
     const liveAirMin =
@@ -840,8 +885,8 @@ export function buildOpsForecastRows(
         ? minutesBetween(takeoffAct, nowIso)
         : null
     rows.push({
-      key: 'time_in_air',
-      label: 'Time in air',
+      key: 'enroute_dest',
+      label: `Enroute to ${destIcao}`,
       estimatedLocal: formatDurationMin(airEstMin),
       estimatedZulu: null,
       actualOrForecastLocal:
@@ -850,7 +895,7 @@ export function buildOpsForecastRows(
           : liveAirMin != null
             ? `${formatDurationMin(liveAirMin)} · LIVE`
             : status === 'active'
-              ? 'IN FLIGHT · LIVE ADS-B'
+              ? 'EN ROUTE · LIVE ADS-B'
               : formatDurationMin(airEstMin),
       deltaMin:
         airEstMin != null && airActMin != null ? airActMin - airEstMin : null,
@@ -861,11 +906,6 @@ export function buildOpsForecastRows(
   }
 
   {
-    const status: OpsForecastRow['status'] = landingAct
-      ? 'done'
-      : takeoffAct || opts?.adsb?.phase === 'airborne'
-        ? 'active'
-        : 'pending'
     const estFmt = landingEst ? formatClientLocal(landingEst, tz) : null
     const zulu = landingEst ? formatZuluLocal(landingEst, tz) : null
     const actFmt = landingAct ? formatClientLocal(landingAct, tz) : null
@@ -879,9 +919,19 @@ export function buildOpsForecastRows(
             (Date.parse(landingAct) - Date.parse(landingEst)) / 60_000,
           )
         : null
+    const landedActive =
+      !landingAct &&
+      adsbOnGround &&
+      Boolean(takeoffAct) &&
+      icaoMatch(faDest, destIcao)
+    const status: OpsForecastRow['status'] = landingAct
+      ? 'done'
+      : landedActive
+        ? 'active'
+        : 'pending'
     rows.push({
-      key: 'on_ground_dest',
-      label: `On ground at ${destIcao}`,
+      key: 'landed_dest',
+      label: `Landed ${destIcao}`,
       estimatedLocal: estFmt?.local ?? null,
       estimatedZulu: zulu?.zulu ?? null,
       actualOrForecastLocal: landingAct
@@ -891,7 +941,7 @@ export function buildOpsForecastRows(
               : ''
           }`
         : status === 'active'
-          ? 'EN ROUTE · LIVE ADS-B'
+          ? `LANDING ${destIcao} · LIVE`
           : estFmt?.local ?? null,
       deltaMin: landingAct ? deltaMin : null,
       status,
@@ -1218,7 +1268,8 @@ export function buildFlightFacts(
 }
 
 /**
- * Prefer live ADS-B; else infer progress along the active air leg from the ETA chain.
+ * Prefer live ADS-B keyed to the trip tail; else infer progress along the air leg.
+ * LADD / blocked tails set laddBlocked and omit live coords (portal covers the map).
  */
 export function resolveAircraftPosition(
   trip: PortalTrackingTripInput,
@@ -1246,7 +1297,38 @@ export function resolveAircraftPosition(
     toLon: toResolved?.lon ?? null,
   }
 
-  if (adsb && !adsb.laddBlocked && adsb.phase !== 'no_data' && (adsb.lat || adsb.lon)) {
+  const emptyBase = {
+    tail,
+    fromIcao,
+    toIcao,
+    ...route,
+  }
+
+  // Explicit LADD / blocked — no public track. Stages may still use actual_off/on.
+  if (adsb?.laddBlocked === true) {
+    return {
+      ...emptyBase,
+      phase: 'unknown',
+      lat: null,
+      lon: null,
+      altFt: null,
+      gsKts: null,
+      summary:
+        'This tail is blocked from public view — dispatch will provide updates',
+      source: 'none',
+      seenAt: adsb.seenAt && Date.parse(adsb.seenAt) > 0 ? adsb.seenAt : null,
+      progressPct: null,
+      nmRemaining: null,
+      laddBlocked: true,
+    }
+  }
+
+  if (
+    adsb &&
+    !adsb.laddBlocked &&
+    adsb.phase !== 'no_data' &&
+    hasCoords(adsb.lat, adsb.lon)
+  ) {
     const phase =
       adsb.phase === 'airborne'
         ? 'airborne'
@@ -1255,11 +1337,7 @@ export function resolveAircraftPosition(
           : 'unknown'
     let nmRemaining: number | null = null
     let progressPct: number | null = null
-    if (
-      fromResolved &&
-      toResolved &&
-      phase === 'airborne'
-    ) {
+    if (fromResolved && toResolved && phase === 'airborne') {
       const total = haversineNm(
         fromResolved.lat,
         fromResolved.lon,
@@ -1269,10 +1347,12 @@ export function resolveAircraftPosition(
       const rem = haversineNm(adsb.lat, adsb.lon, toResolved.lat, toResolved.lon)
       nmRemaining = Math.round(rem)
       progressPct =
-        total > 0 ? Math.round(Math.min(99, Math.max(1, ((total - rem) / total) * 100))) : null
+        total > 0
+          ? Math.round(Math.min(99, Math.max(1, ((total - rem) / total) * 100)))
+          : null
     }
     return {
-      tail,
+      ...emptyBase,
       phase,
       lat: adsb.lat,
       lon: adsb.lon,
@@ -1280,17 +1360,15 @@ export function resolveAircraftPosition(
       gsKts: Math.round(adsb.gs),
       summary:
         phase === 'airborne'
-          ? `Airborne${fromIcao && toIcao ? ` ${fromIcao}→${toIcao}` : ''} · ${Math.round(adsb.alt)} ft · ${Math.round(adsb.gs)} kts`
+          ? `${tail} airborne${fromIcao && toIcao ? ` ${fromIcao}→${toIcao}` : ''} · ${Math.round(adsb.alt)} ft · ${Math.round(adsb.gs)} kts`
           : phase === 'on_ground'
-            ? `On the ground${fromIcao ? ` near ${fromIcao}` : ''}`
-            : 'Position received',
+            ? `${tail} on the ground${fromIcao ? ` near ${fromIcao}` : ''}`
+            : `${tail} · position received`,
       source: 'adsb',
       seenAt: adsb.seenAt,
-      fromIcao,
-      toIcao,
-      ...route,
       progressPct,
       nmRemaining,
+      laddBlocked: false,
     }
   }
 
@@ -1304,20 +1382,18 @@ export function resolveAircraftPosition(
 
     if (hasLanded) {
       return {
-        tail,
+        ...emptyBase,
         phase: 'on_ground',
         lat: toResolved.lat,
         lon: toResolved.lon,
         altFt: null,
         gsKts: 0,
-        summary: `Arrived ${toIcao ?? 'destination'} (from schedule)`,
+        summary: `${tail} arrived ${toIcao ?? 'destination'} (from schedule)`,
         source: 'eta',
         seenAt: air.actual_end ?? air.est_end,
-        fromIcao,
-        toIcao,
-        ...route,
         progressPct: 100,
         nmRemaining: 0,
+        laddBlocked: false,
       }
     }
 
@@ -1330,40 +1406,65 @@ export function resolveAircraftPosition(
       )
       const rem = haversineNm(pos.lat, pos.lon, toResolved.lat, toResolved.lon)
       return {
-        tail,
+        ...emptyBase,
         phase: 'airborne',
         lat: pos.lat,
         lon: pos.lon,
         altFt: null,
         gsKts: null,
-        summary: `En route ${fromIcao ?? ''}→${toIcao ?? ''} · ~${Math.round(rem)} NM remaining (ETA estimate)`,
+        summary: `${tail} en route ${fromIcao ?? ''}→${toIcao ?? ''} · ~${Math.round(rem)} NM remaining (ETA estimate)`,
         source: 'eta',
         seenAt: nowIso,
-        fromIcao,
-        toIcao,
-        ...route,
         progressPct: Math.round(frac * 100),
         nmRemaining: Math.round(rem),
+        laddBlocked: false,
       }
     }
 
     // Positioning / not yet wheels-up — still show route on the map
     const posLeg = trip.eta_chain.find((l) => l.type === 'position')
-    const posAt =
-      resolvePlaceCoords(posLeg?.to) ?? fromResolved
+    const posAt = resolvePlaceCoords(posLeg?.to) ?? fromResolved
+    // Prefer live position along the positioning leg when mid-ferry by schedule
+    let lat = posAt.lat
+    let lon = posAt.lon
+    let phase: TrackingAircraftPosition['phase'] = 'positioning'
+    if (posLeg && resolvePlaceCoords(posLeg.from) && resolvePlaceCoords(posLeg.to)) {
+      const pFrom = resolvePlaceCoords(posLeg.from)!
+      const pTo = resolvePlaceCoords(posLeg.to)!
+      const pStart = Date.parse(posLeg.actual_start ?? posLeg.est_start)
+      const pEnd = Date.parse(posLeg.actual_end ?? posLeg.est_end)
+      if (
+        !posLeg.actual_end &&
+        Number.isFinite(pStart) &&
+        Number.isFinite(pEnd) &&
+        pEnd > pStart &&
+        now >= pStart &&
+        now < pEnd
+      ) {
+        const frac = Math.min(0.99, Math.max(0.01, (now - pStart) / (pEnd - pStart)))
+        const mid = interpolateGc(
+          { lat: pFrom.lat, lon: pFrom.lon },
+          { lat: pTo.lat, lon: pTo.lon },
+          frac,
+        )
+        lat = mid.lat
+        lon = mid.lon
+        phase = 'airborne'
+      }
+    }
     return {
-      tail,
-      phase: 'positioning',
-      lat: posAt.lat,
-      lon: posAt.lon,
+      ...emptyBase,
+      phase,
+      lat,
+      lon,
       altFt: null,
       gsKts: null,
-      summary: `Aircraft positioning to ${fromIcao ?? 'origin'} · wheels-up est ${formatClientLocal(air.est_start, air.from.tz || 'UTC').local}`,
+      summary:
+        phase === 'airborne'
+          ? `${tail} enroute to pickup ${fromIcao ?? ''}`
+          : `${tail} positioning to ${fromIcao ?? 'origin'} · wheels-up est ${formatClientLocal(air.est_start, air.from.tz || 'UTC').local}`,
       source: 'eta',
       seenAt: nowIso,
-      fromIcao,
-      toIcao,
-      ...route,
       progressPct: null,
       nmRemaining: Math.round(
         haversineNm(
@@ -1373,11 +1474,12 @@ export function resolveAircraftPosition(
           toResolved.lon,
         ),
       ),
+      laddBlocked: false,
     }
   }
 
   return {
-    tail,
+    ...emptyBase,
     phase: 'unknown',
     lat: null,
     lon: null,
@@ -1396,6 +1498,7 @@ export function resolveAircraftPosition(
     toLon: null,
     progressPct: null,
     nmRemaining: null,
+    laddBlocked: false,
   }
 }
 
