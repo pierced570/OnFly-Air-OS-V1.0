@@ -184,6 +184,48 @@ export function mergePortalDomainAllowlist(client: PortalDomainClient): string[]
 }
 
 /**
+ * All clients a portal login email may open (exact contact/email first,
+ * then domain allowlist). Pure — mirrors SQL link_portal_user order
+ * without portal_access_grants (those stay DB-only).
+ */
+export function resolveAllClientIdsByPortalEmail(
+  email: string,
+  clients: PortalDomainClient[],
+): string[] {
+  const needle = email.trim().toLowerCase()
+  if (!needle.includes('@')) return []
+
+  const exact: string[] = []
+  const seen = new Set<string>()
+  const push = (id: string | null | undefined) => {
+    if (!id || seen.has(id)) return
+    seen.add(id)
+    exact.push(id)
+  }
+
+  for (const c of clients) {
+    if ((c.email ?? '').trim().toLowerCase() === needle) push(c.id)
+    else if ((c.invoice_email ?? '').trim().toLowerCase() === needle) push(c.id)
+    else {
+      for (const contact of c.contacts ?? []) {
+        if ((contact.email ?? '').trim().toLowerCase() === needle) {
+          push(c.id)
+          break
+        }
+      }
+    }
+  }
+  if (exact.length) return exact
+
+  for (const c of clients) {
+    if (emailMatchesPortalDomains(needle, effectivePortalDomains(c))) {
+      push(c.id)
+    }
+  }
+  return exact
+}
+
+/**
  * Resolve which client a portal login email belongs to (exact contact first,
  * then domain allowlist). Pure — mirrors SQL link_portal_user order
  * without portal_access_grants (those stay DB-only).
@@ -192,24 +234,7 @@ export function resolveClientIdByPortalEmail(
   email: string,
   clients: PortalDomainClient[],
 ): string | null {
-  const needle = email.trim().toLowerCase()
-  if (!needle.includes('@')) return null
-
-  for (const c of clients) {
-    if ((c.email ?? '').trim().toLowerCase() === needle) return c.id ?? null
-    if ((c.invoice_email ?? '').trim().toLowerCase() === needle) return c.id ?? null
-    for (const contact of c.contacts ?? []) {
-      if ((contact.email ?? '').trim().toLowerCase() === needle) return c.id ?? null
-    }
-  }
-
-  for (const c of clients) {
-    if (emailMatchesPortalDomains(needle, effectivePortalDomains(c))) {
-      return c.id ?? null
-    }
-  }
-
-  return null
+  return resolveAllClientIdsByPortalEmail(email, clients)[0] ?? null
 }
 
 /** Suggest a domain from website when the allowlist is empty. */
