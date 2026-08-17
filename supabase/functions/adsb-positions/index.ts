@@ -33,16 +33,24 @@ type FaAirportRef = {
   code?: string | null
   code_icao?: string | null
   timezone?: string | null
+  city?: string | null
+  name?: string | null
 }
 
 type FaFlight = {
   ident?: string
   registration?: string
   fa_flight_id?: string
+  aircraft_type?: string | null
+  progress_percent?: number | null
   actual_off?: string | null
   actual_on?: string | null
   estimated_off?: string | null
   estimated_on?: string | null
+  scheduled_off?: string | null
+  scheduled_on?: string | null
+  scheduled_out?: string | null
+  scheduled_in?: string | null
   last_position?: {
     latitude?: number
     longitude?: number
@@ -147,6 +155,46 @@ function isUsRegistration(tail: string): boolean {
   return /^N[0-9A-Z]+$/i.test(tail)
 }
 
+function mapFaFlightSnapshot(f: FaFlight) {
+  const originIcao = airportCode(f.origin)
+  const destIcao = airportCode(f.destination)
+  return {
+    id: String(f.fa_flight_id || `${f.ident ?? ''}-${f.scheduled_off ?? f.actual_off ?? ''}`),
+    status: f.status ?? null,
+    originIcao,
+    destIcao,
+    originCity: f.origin?.city ?? f.origin?.name ?? null,
+    destCity: f.destination?.city ?? f.destination?.name ?? null,
+    originTz: f.origin?.timezone ?? null,
+    destTz: f.destination?.timezone ?? null,
+    actualOff: f.actual_off ?? null,
+    actualOn: f.actual_on ?? null,
+    estimatedOff: f.estimated_off ?? null,
+    estimatedOn: f.estimated_on ?? null,
+    scheduledOff: f.scheduled_off ?? f.scheduled_out ?? null,
+    scheduledOn: f.scheduled_on ?? f.scheduled_in ?? null,
+    progressPct:
+      typeof f.progress_percent === 'number' ? f.progress_percent : null,
+    aircraftType: f.aircraft_type ?? null,
+  }
+}
+
+async function fetchFaFlightList(key: string, tail: string): Promise<FaFlight[]> {
+  const q = isUsRegistration(tail)
+    ? '?max_pages=1&ident_type=registration'
+    : '?max_pages=1'
+  const url = `${FA_BASE}/flights/${encodeURIComponent(tail)}${q}`
+  const res = await fetch(url, {
+    headers: { 'x-apikey': key, Accept: 'application/json' },
+  })
+  if (res.status === 401 || res.status === 403) {
+    throw new Error('FlightAware auth failed — check AeroAPI key / tier')
+  }
+  if (!res.ok) return []
+  const data = (await res.json().catch(() => ({}))) as { flights?: FaFlight[] }
+  return data.flights ?? []
+}
+
 /** Keep in sync with src/domain/adsbFreshness.ts pickFaFlightForTrack. */
 function faFlightLooksAirborne(f: FaFlight): boolean {
   const s = String(f.status ?? '').toLowerCase()
@@ -216,40 +264,45 @@ async function fetchFaTail(
   liveLock = false,
 ) {
   const nowMs = Date.now()
-  // Portal open: currently airborne first (not a 14-day flights[0]).
-  let flight: FaFlight | null | undefined =
-    !seed && liveLock ? await fetchFaAirborneSearch(key, tail) : null
+  let list: FaFlight[] = []
+  try {
+    list = await fetchFaFlightList(key, tail)
+  } catch (e) {
+    return {
+      ...noData(tail),
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
 
-  if (!flight) {
-    const q = isUsRegistration(tail)
-      ? '?max_pages=1&ident_type=registration'
-      : '?max_pages=1'
-    const url = `${FA_BASE}/flights/${encodeURIComponent(tail)}${q}`
-    const res = await fetch(url, {
-      headers: { 'x-apikey': key, Accept: 'application/json' },
-    })
-    if (res.status === 401 || res.status === 403) {
-      return {
-        ...noData(tail),
-        error: 'FlightAware auth failed — check AeroAPI key / tier',
+  let flight: FaFlight | null | undefined = pickFaFlight(list, seed, nowMs)
+
+  // Portal open: currently airborne first (not a 14-day flights[0]).
+  if (!flight && !seed && liveLock) {
+    const air = await fetchFaAirborneSearch(key, tail)
+    if (air) {
+      flight = air
+      if (
+        !list.some(
+          (f) => f.fa_flight_id && f.fa_flight_id === air.fa_flight_id,
+        )
+      ) {
+        list = [air, ...list]
       }
     }
-    if (!res.ok) return noData(tail)
-    const data = (await res.json().catch(() => ({}))) as {
-      flights?: FaFlight[]
-    }
-    flight = pickFaFlight(data.flights ?? [], seed, nowMs)
   }
+
+  const flights = list.slice(0, 16).map(mapFaFlightSnapshot)
 
   // Seed fallback: last known historical flight when no recent board entry.
   if (!flight && seed && isUsRegistration(tail)) {
     flight = await fetchFaLastFlight(key, tail)
+    if (flight) flights.unshift(mapFaFlightSnapshot(flight))
   }
   if (!flight) {
     // Empty board ≠ LADD. Do not call /aircraft/{ident}/blocked here — that
     // doubles AeroAPI spend on every seed for parked / idle tails. Blocked is
     // only set from flight.blocked when a flight object is returned.
-    return noData(tail)
+    return { ...noData(tail), flights }
   }
 
   const airborneHint = faFlightLooksAirborne(flight)
@@ -330,6 +383,7 @@ async function fetchFaTail(
       originIcao,
       destinationIcao,
       laddBlocked: flightBlocked,
+      flights,
     }
   }
 
@@ -351,6 +405,7 @@ async function fetchFaTail(
     originIcao,
     destinationIcao,
     phase: airborne ? ('airborne' as const) : ('on_ground' as const),
+    flights,
   }
 }
 

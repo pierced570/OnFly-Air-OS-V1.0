@@ -6,6 +6,10 @@
 
 import { adapterMode } from '@/adapters/types'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import {
+  mockTailFlightSnapshots,
+  type TailFlightSnapshot,
+} from '@/domain/tailFlightActivity'
 
 export type AdsbPosition = {
   tail: string
@@ -26,6 +30,8 @@ export type AdsbPosition = {
   originIcao?: string | null
   destinationIcao?: string | null
   phase?: 'airborne' | 'on_ground' | 'no_data'
+  /** Recent / upcoming hops for this tail (FlightAware activity). */
+  flights?: TailFlightSnapshot[]
 }
 
 export type AdsbAlertResult = {
@@ -40,7 +46,11 @@ export interface AdsbAdapter {
   /** Live or last-known positions for the given tails. */
   positions(
     tails: string[],
-    opts?: { liveLock?: boolean },
+    opts?: {
+      liveLock?: boolean
+      originIcao?: string | null
+      destIcao?: string | null
+    },
   ): Promise<AdsbPosition[]>
   /** One-shot seed of last-known (cheap /flights/{ident} path when live). */
   seedLastKnown(tails: string[]): Promise<AdsbPosition[]>
@@ -54,8 +64,22 @@ export interface AdsbAdapter {
  * Alert toggles succeed locally with a mock alert id.
  */
 export class MockAdsbAdapter implements AdsbAdapter {
-  async positions(tails: string[]): Promise<AdsbPosition[]> {
-    return tails.map((tail) => noData(tail))
+  async positions(
+    tails: string[],
+    opts?: {
+      liveLock?: boolean
+      originIcao?: string | null
+      destIcao?: string | null
+    },
+  ): Promise<AdsbPosition[]> {
+    return tails.map((tail) => ({
+      ...noData(tail),
+      flights: mockTailFlightSnapshots({
+        tail,
+        originIcao: opts?.originIcao,
+        destIcao: opts?.destIcao,
+      }),
+    }))
   }
 
   async seedLastKnown(tails: string[]): Promise<AdsbPosition[]> {

@@ -8,7 +8,7 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 import { PortalShell } from '@/components/PortalShell'
-import { PortalTripManifestForm } from '@/components/PortalTripManifestForm'
+import { TailFlightActivity } from '@/components/TailFlightActivity'
 import {
   portalAircraftMapBlocked,
   portalAircraftMapVisible,
@@ -274,6 +274,12 @@ export function PortalTrackingBody({
           </div>
         </div>
       </section>
+
+      <TailFlightActivity
+        groups={view.flightActivity}
+        variant="portal"
+        aircraftType={view.aircraftType}
+      />
 
       <section className="mt-6">
         <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">

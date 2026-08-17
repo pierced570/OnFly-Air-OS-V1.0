@@ -45,6 +45,10 @@ function mergeActuals(base: AdsbPosition, other: AdsbPosition): AdsbPosition {
     landingIsActual: Boolean(base.landingIsActual || other.landingIsActual),
     originIcao: base.originIcao ?? other.originIcao,
     destinationIcao: base.destinationIcao ?? other.destinationIcao,
+    flights:
+      (base.flights && base.flights.length > 0
+        ? base.flights
+        : other.flights) ?? base.flights,
   }
 }
 
@@ -61,6 +65,9 @@ export type UseAdsbForTailOpts = {
    * Portal track should pass trip.state === 'in_progress' only.
    */
   enabled?: boolean
+  /** Mock activity chain uses these ICAOs; live AeroAPI ignores them. */
+  originIcao?: string | null
+  destIcao?: string | null
 }
 
 /**
@@ -75,6 +82,8 @@ export function useAdsbForTail(
   const [pos, setPos] = useState<AdsbPosition | null>(null)
   const key = normalizeTail(tail)
   const enabled = opts?.enabled !== false
+  const originIcao = opts?.originIcao ?? null
+  const destIcao = opts?.destIcao ?? null
 
   useEffect(() => {
     if (!key || !enabled) {
@@ -93,7 +102,11 @@ export function useAdsbForTail(
 
     const tick = async (onAccess: boolean) => {
       try {
-        const live = await adapter.positions([key], { liveLock: onAccess })
+        const live = await adapter.positions([key], {
+          liveLock: onAccess,
+          originIcao,
+          destIcao,
+        })
         if (cancelled) return
         apply(live)
         if (onAccess && !hasFix(live[0])) {
@@ -112,7 +125,7 @@ export function useAdsbForTail(
       cancelled = true
       window.clearInterval(id)
     }
-  }, [key, enabled])
+  }, [key, enabled, originIcao, destIcao])
 
   return pos
 }

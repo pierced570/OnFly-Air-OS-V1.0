@@ -5,6 +5,12 @@
 
 import type { AdsbPosition } from '@/adapters/adsb'
 import { destDwellComplete, icaoMatch, proposeAdsbActuals } from '@/domain/adsbActuals'
+import {
+  filterPortalTailActivity,
+  groupTailFlightActivity,
+  legsFromSnapshots,
+  type TailFlightActivityGroups,
+} from '@/domain/tailFlightActivity'
 import { ADSB_USABLE_FIX_MAX_AGE_MIN, adsbFixIsFresh } from '@/domain/adsbFreshness'
 import { lookupAirport } from '@/domain/airports'
 import type { ChainLeg, Place, ServicePattern } from '@/domain/etaChain'
@@ -347,6 +353,8 @@ export type PortalTrackingView = {
   etaRows: TrackingEtaRow[]
   /** Pickup / loading / live-leg Actual vs Forecast. */
   opsForecastRows: OpsForecastRow[]
+  /** FlightAware-style hops for this tail, filtered to this trip. */
+  flightActivity: TailFlightActivityGroups
   aircraft: TrackingAircraftPosition
   timeline: Array<{ at: string; label: string; detail: string }>
   documents: Array<{ id: string; kind: string; title: string; at: string; url: string }>
@@ -1691,6 +1699,13 @@ export function buildPortalTrackingView(
         legs: trip.legs,
       })
   const eteMin = eteMinutesRemaining(aircraft.nmRemaining, aircraft.gsKts)
+  const flightFacts = buildFlightFacts(trip)
+  const flightActivity = groupTailFlightActivity(
+    filterPortalTailActivity(legsFromSnapshots(opts?.adsb?.flights), {
+      originIcao: flightFacts.originIcao,
+      destIcao: flightFacts.destIcao,
+    }),
+  )
 
   return {
     ref: trip.ref,
@@ -1718,6 +1733,7 @@ export function buildPortalTrackingView(
     milestones,
     etaRows,
     opsForecastRows,
+    flightActivity,
     aircraft,
     timeline: clientTimeline(trip),
     documents: clientDocs.map((d) => ({
@@ -1728,7 +1744,7 @@ export function buildPortalTrackingView(
       url: d.url,
     })),
     stops: buildTrackingStops(trip),
-    flightFacts: buildFlightFacts(trip),
+    flightFacts,
     cargo,
     pickupStreet: trip.pickup_street?.trim() || null,
     dropoffStreet: trip.dropoff_street?.trim() || null,

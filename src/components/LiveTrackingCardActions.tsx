@@ -28,6 +28,12 @@ import {
   setPortalOpsStage,
   subscribeTrips,
 } from '@/lib/tripStore'
+import { TailFlightActivity } from '@/components/TailFlightActivity'
+import {
+  groupTailFlightActivity,
+  legsFromSnapshots,
+} from '@/domain/tailFlightActivity'
+import { useAdsbForTail, adsbPollEnabledForState } from '@/hooks/useAdsbForTail'
 
 type Props = {
   tripId: string
@@ -77,6 +83,16 @@ function ContactSection({
 export function LiveTrackingCardActions({ tripId }: Props) {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
+  const trackInput = trip ? tripToTrackingInput(trip) : null
+  const air = trackInput?.eta_chain.find((l) => l.type === 'air_leg')
+  const adsb = useAdsbForTail(trackInput?.tail, {
+    enabled: adsbPollEnabledForState(trip?.state),
+    originIcao: air?.from.icao,
+    destIcao: air?.to.icao,
+  })
+  const flightActivity = groupTailFlightActivity(
+    legsFromSnapshots(adsb?.flights),
+  )
   const [contactsOpen, setContactsOpen] = useState(false)
   const [updateOpen, setUpdateOpen] = useState(false)
   const [updateMode, setUpdateMode] = useState<UpdateMode>('stage')
@@ -203,6 +219,11 @@ export function LiveTrackingCardActions({ tripId }: Props) {
 
   return (
     <div className="mt-3 space-y-3 border-t border-gold/30 pt-3">
+      <TailFlightActivity
+        groups={flightActivity}
+        variant="desk"
+        aircraftType={trackInput?.aircraft_type ?? trip.quick?.aircraft_type ?? null}
+      />
       <div className="flex flex-wrap gap-2">
         <a
           href={trackUrl}

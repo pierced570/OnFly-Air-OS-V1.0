@@ -340,6 +340,59 @@ describe('portalTracking', () => {
     expect(view.etaRows[0]!.scheduledZulu).toMatch(/Z/)
   })
 
+  it('builds FlightAware-style activity for inbound + live hop', () => {
+    const view = buildPortalTrackingView(sampleD2d({ state: 'in_progress' }), {
+      nowIso: '2026-08-17T14:00:00.000Z',
+      adsb: {
+        tail: 'N4258C',
+        lat: 41,
+        lon: -81,
+        alt: 8000,
+        gs: 160,
+        seenAt: '2026-08-17T13:55:00.000Z',
+        phase: 'airborne',
+        laddBlocked: false,
+        flights: [
+          {
+            id: 'sched',
+            status: 'Scheduled',
+            originIcao: 'KCAK',
+            destIcao: 'KMDW',
+            scheduledOff: '2026-08-17T15:00:00.000Z',
+            scheduledOn: '2026-08-17T16:30:00.000Z',
+          },
+          {
+            id: 'enr',
+            status: 'En Route',
+            originIcao: 'KPLD',
+            destIcao: 'KCAK',
+            actualOff: '2026-08-17T13:09:00.000Z',
+            estimatedOn: '2026-08-17T14:01:00.000Z',
+            progressPct: 35,
+          },
+          {
+            id: 'arr',
+            status: 'Arrived',
+            originIcao: 'KMCI',
+            destIcao: 'KPLD',
+            actualOff: '2026-08-15T11:51:00.000Z',
+            actualOn: '2026-08-15T14:30:00.000Z',
+          },
+          {
+            id: 'other',
+            status: 'Scheduled',
+            originIcao: 'KMDW',
+            destIcao: 'KORD',
+            scheduledOff: '2026-08-17T18:00:00.000Z',
+          },
+        ],
+      },
+    })
+    expect(view.flightActivity.scheduled.map((l) => l.id)).toEqual(['sched'])
+    expect(view.flightActivity.enRoute.map((l) => l.id)).toEqual(['enr'])
+    expect(view.flightActivity.arrived.map((l) => l.id)).toEqual(['arr'])
+  })
+
   it('builds enroute-pickup / at-pickup / enroute-dest / landed stages', () => {
     const rows = buildOpsForecastRows(sampleD2d())
     expect(rows.map((r) => r.key)).toEqual([
