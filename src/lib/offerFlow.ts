@@ -638,6 +638,10 @@ async function applyOfferQuote(
             /\/$/,
             '',
           ) || ''
+        const { submittedQuoteDeepLink } = await import(
+          '@/domain/dispatchCenter'
+        )
+        const deep = submittedQuoteDeepLink(tripId, offerId)
         const { subject, text } = quoteSubmittedDeskEmail({
           operatorName: o?.operator_name || meta.actor,
           lane: fresh.lane,
@@ -645,7 +649,7 @@ async function applyOfferQuote(
           typeName: o?.type_name ?? input.type_name,
           tail: o?.tail ?? input.tail,
           priceNet: o?.price_net ?? input.price_net,
-          tripPath: app ? `${app}/trips/${tripId}` : `/trips/${tripId}`,
+          tripPath: app ? `${app}${deep}` : deep,
         })
         await createEmailAdapter().send({ to, subject, text })
         mutateTrip(tripId, (t) => {
@@ -658,6 +662,7 @@ async function applyOfferQuote(
               operator_name: o?.operator_name || meta.actor,
               to,
               subject,
+              deep_link: deep,
             },
           })
         })

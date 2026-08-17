@@ -3,6 +3,9 @@ import {
   buildDispatchDrawers,
   drawerForTripState,
   exclusiveDrawerForTrip,
+  findNewlyQuotedOffers,
+  quotedOfferKeys,
+  submittedQuoteDeepLink,
 } from './dispatchCenter'
 
 describe('dispatchCenter', () => {
@@ -27,6 +30,41 @@ describe('dispatchCenter', () => {
     ).toBe('offers')
     expect(exclusiveDrawerForTrip({ state: 'quoted_hard' })).toBe('quotes')
     expect(exclusiveDrawerForTrip({ state: 'booked' })).toBe('approved')
+  })
+
+  it('builds submitted-quote deep links with expandOffer', () => {
+    expect(submittedQuoteDeepLink('trip-1')).toBe(
+      '/dispatch?drawer=submitted_quotes&focus=trip-1',
+    )
+    expect(submittedQuoteDeepLink('trip-1', 'offer-9')).toBe(
+      '/dispatch?drawer=submitted_quotes&focus=trip-1&expandOffer=offer-9',
+    )
+  })
+
+  it('detects newly quoted offers after seed', () => {
+    const trips = [
+      {
+        id: 't1',
+        offers: [
+          { id: 'o1', state: 'quoted', price_net: 7000 },
+          { id: 'o2', state: 'pinged', price_net: null },
+        ],
+      },
+    ]
+    const seeded = quotedOfferKeys(trips)
+    expect([...seeded]).toEqual(['t1:o1'])
+    const next = quotedOfferKeys([
+      {
+        id: 't1',
+        offers: [
+          { id: 'o1', state: 'quoted', price_net: 7000 },
+          { id: 'o3', state: 'quoted', price_net: 8000 },
+        ],
+      },
+    ])
+    expect(findNewlyQuotedOffers(seeded, next)).toEqual([
+      { tripId: 't1', offerId: 'o3' },
+    ])
   })
 
   it('never places the same trip in two drawers', () => {
