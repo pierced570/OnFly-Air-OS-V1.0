@@ -129,10 +129,6 @@ export default function AdminPage() {
             FBOs
           </Link>
           {' · '}
-          <Link to="/admin/tasks" className="text-gold hover:text-gold-lt">
-            NEEDS-INFO tasks
-          </Link>
-          {' · '}
           <Link to="/admin/staff" className="text-gold hover:text-gold-lt">
             Staff access
           </Link>
@@ -481,11 +477,6 @@ function OperatorWizard() {
       }}
       isLast={step === OP_STEPS.length - 1}
       nextLabel={savedId ? 'Saved' : 'Save operator'}
-      aside={
-        <Link to="/admin/tasks" className="mt-4 block text-xs text-gold">
-          Open NEEDS-INFO tasks →
-        </Link>
-      }
     >
       {step === 0 && (
         <div className="grid gap-3 sm:grid-cols-2">

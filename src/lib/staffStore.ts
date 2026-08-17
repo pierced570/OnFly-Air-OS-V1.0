@@ -100,10 +100,16 @@ function seedStaff(): StaffMember[] {
  * Demotes anyone else who was seeded as admin (e.g. Paige).
  */
 function migrateStaff(list: StaffMember[]): StaffMember[] {
+  const known = new Set<string>(ALL_SECTION_IDS)
   const next = list.map((s) => {
     let row = s
     if (s.id === OWNER_STAFF_ID) {
       row = { ...s, phone: PIERCE_PHONE }
+    }
+    // Drop retired section ids (e.g. tasks, briefing) from cached/DB grants
+    const cleaned = row.sections.filter((id) => known.has(id))
+    if (cleaned.length !== row.sections.length) {
+      row = { ...row, sections: cleaned }
     }
     // Grant Chat alongside Trips for existing dispatch seats
     if (row.sections.includes('trips') && !row.sections.includes('chat')) {
