@@ -1,8 +1,9 @@
 /**
- * Post-accept automations (minus QuickBooks).
- * Confirm operator + stand-down already happen in offerFlow;
- * this fans out ETA sheet + portal links to ops / supply-chain trackers,
- * and schedules checkpoint check-in timers for the dispatched trip.
+ * Post-accept automations (minus QuickBooks email).
+ * Confirm operator + stand-down already happen in offerFlow.
+ * Invoice + ETA sheet emails NEVER auto-send — desk reviews recipients
+ * on Approved and sends explicitly. This only attaches the manifest,
+ * flags AWB, upserts the financial ledger, and schedules checkpoints.
  */
 
 import { buildManifestModel, renderManifestHtml } from '@/domain/manifest'
@@ -20,7 +21,12 @@ import {
 export async function runOnBookedAutomations(
   tripId: string,
   opts?: {
-    /** Desk sends ETA from Approved actions panel — skip auto blast. */
+    /**
+     * Opt-in only. Default false — ETA sheet requires dispatcher approval
+     * (Approved → Send ETA sheet). Do not pass true from accept / QD submit.
+     */
+    sendEtaEmail?: boolean
+    /** @deprecated Use sendEtaEmail. Ignored when sendEtaEmail is set. */
     skipEtaEmail?: boolean
   },
 ): Promise<{
@@ -51,7 +57,24 @@ export async function runOnBookedAutomations(
   // Timers for T-minus check-ins with pilot / ground / on-shift
   const scheduled = scheduleCheckpointsForTrip(tripId)
 
-  if (opts?.skipEtaEmail) {
+  const sendEta =
+    opts?.sendEtaEmail === true ||
+    (opts?.sendEtaEmail === undefined &&
+      opts?.skipEtaEmail === false)
+
+  if (!sendEta) {
+    mutateTrip(tripId, (t) => {
+      t.events.push({
+        at: new Date().toISOString(),
+        actor: 'system',
+        kind: 'eta_sheet_awaiting_desk',
+        payload: {
+          reason: 'dispatcher_approval_required',
+          client_id: t.client_id ?? null,
+          suggested_recipients: resolveTrackerRecipients(t),
+        },
+      })
+    })
     return { etaSentTo: [], checkpoints: scheduled.length }
   }
 

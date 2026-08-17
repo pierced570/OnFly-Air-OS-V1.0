@@ -1137,7 +1137,7 @@ export default function DispatchCenterPage() {
     if (!tripId || !card.approvable) return
     if (
       !window.confirm(
-        `Approve trip?\n\n${card.title}\n\nBooks the trip with the selected / quoted operator, notifies win/stand-down on their offer channel, and moves it to Approved. Invoice + tracking emails stay on Approved for you to confirm recipients.`,
+        `Approve trip?\n\n${card.title}\n\nBooks the trip with the selected / quoted operator, notifies win/stand-down on their offer channel, and moves it to Approved. Invoice + ETA sheet stay there for you to review recipients and send.`,
       )
     ) {
       return
@@ -1334,11 +1334,9 @@ export default function DispatchCenterPage() {
             <>
               <div className="font-semibold text-gold">Dispatch complete</div>
               <p className="mt-1 text-cream/85">
-                Trip is live in Tracking
-                {deskFlash.po ? ` · PO #${deskFlash.po}` : ''}.
-                {deskFlash.invoicePending
-                  ? ' Invoice is still sending in the background…'
-                  : ''}
+                Trip is on Approved
+                {deskFlash.po ? ` · PO #${deskFlash.po}` : ''}. Review invoice +
+                ETA recipients, then send — nothing emails until you confirm.
               </p>
             </>
           ) : null}

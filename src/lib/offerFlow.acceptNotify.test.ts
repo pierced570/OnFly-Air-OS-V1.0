@@ -142,6 +142,7 @@ describe('acceptHardQuoteOption notifications', () => {
       { notifyClient: false },
     )
     const token = getTrip(trip.id)!.hard_quote!.accept_token
+    const before = getMockSentEmails().length
     await acceptHardQuoteOption(token, offerId)
     const booked = getTrip(trip.id)!
     expect(booked.state).toBe('booked')
@@ -149,5 +150,17 @@ describe('acceptHardQuoteOption notifications', () => {
     if (booked.invoice) {
       expect(booked.invoice.status).not.toBe('sent')
     }
+    expect(
+      booked.events.some((e) => e.kind === 'desk_outbound_pending'),
+    ).toBe(true)
+    expect(
+      booked.events.some((e) => e.kind === 'eta_sheet_awaiting_desk'),
+    ).toBe(true)
+    expect(booked.events.some((e) => e.kind === 'eta_sheet_sent')).toBe(false)
+    const sent = getMockSentEmails().slice(before)
+    expect(
+      sent.some((m) => /invoice|payment request|eta sheet/i.test(m.subject ?? '')),
+    ).toBe(false)
+    expect(sent.some((m) => String(m.to).includes('client@'))).toBe(false)
   })
 })
