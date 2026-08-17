@@ -40,7 +40,12 @@ import {
   offerQuoteFacts,
   offerRecipientStatus,
 } from '@/domain/offerRecipients'
-import { formatTaxLineDesk, fetExemptMtowThreshold } from '@/domain/tax'
+import {
+  fetAppliesAtMtow,
+  fetExemptMtowThreshold,
+  formatTaxLineDesk,
+  type FetOverride,
+} from '@/domain/tax'
 import { rememberEmailsOnClient } from '@/lib/clientStore'
 import {
   selectOffersAndHardQuote,
@@ -72,6 +77,14 @@ function feeBadgeLabel(feeScope: string | null | undefined): string | null {
   return null
 }
 
+/** `undefined` edit → auto; otherwise force on/off. */
+function fetOverrideFromEdit(
+  edit: boolean | undefined,
+): FetOverride | null {
+  if (edit === undefined) return null
+  return edit ? 'on' : 'off'
+}
+
 export function DeskOfferQuoteWorkbench({
   tripId,
   onClose,
@@ -84,6 +97,8 @@ export function DeskOfferQuoteWorkbench({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [clientEdits, setClientEdits] = useState<Record<string, number>>({})
   const [marginEdits, setMarginEdits] = useState<Record<string, number>>({})
+  /** Rare per-offer FET include override (`undefined` = auto from MTOW). */
+  const [fetEdits, setFetEdits] = useState<Record<string, boolean>>({})
   /** Which field the desk last edited — drives forward vs reverse tax math. */
   const [pricingLock, setPricingLock] = useState<
     Record<string, 'total' | 'margin'>
@@ -247,6 +262,7 @@ export function DeskOfferQuoteWorkbench({
         0,
         lock === 'total' ? draftTotal : null,
         draftMargin,
+        fetOverrideFromEdit(fetEdits[oid]),
       )
       totals[oid] = p.client_total
       typeNamesByOffer[oid] = confirmedTypes[oid]!.trim()
@@ -289,6 +305,7 @@ export function DeskOfferQuoteWorkbench({
               0,
               lock === 'total' ? draftTotal : null,
               draftMargin,
+              fetOverrideFromEdit(fetEdits[oid]),
             )
             const typeName = confirmedTypes[oid]!.trim()
             return buildLogisticsQuoteOption({
@@ -328,6 +345,7 @@ export function DeskOfferQuoteWorkbench({
           0,
           lock === 'total' ? draftTotal : null,
           draftMargin,
+          fetOverrideFromEdit(fetEdits[oid]),
         )
         return buildLogisticsQuoteOption({
           offer_id: oid,
@@ -386,6 +404,7 @@ export function DeskOfferQuoteWorkbench({
     const lock = pricingLock[o.id] ?? (hqOpt != null ? 'total' : 'margin')
     const draftMargin = marginEdits[o.id] ?? marginPct
     const draftTotal = clientEdits[o.id] ?? hqOpt?.client_total ?? null
+    const fetOverride = fetOverrideFromEdit(fetEdits[o.id])
     const preview =
       o.price_net != null
         ? offerQuotePreviewFor(
@@ -394,6 +413,7 @@ export function DeskOfferQuoteWorkbench({
             0,
             lock === 'total' ? draftTotal : null,
             draftMargin,
+            fetOverride,
           )
         : null
     const cand =
@@ -406,7 +426,11 @@ export function DeskOfferQuoteWorkbench({
       selectedAircraftId: o.aircraft_id,
       candidates: liveTrip.candidates,
     })
-    const exemptThresh = fetExemptMtowThreshold(getTaxRates())
+    const rates = getTaxRates()
+    const exemptThresh = fetExemptMtowThreshold(rates)
+    const autoFetOn = fetAppliesAtMtow(mtowLbs, rates).applies
+    const fetOn = fetEdits[o.id] ?? autoFetOn
+    const fetIsOverride = fetEdits[o.id] !== undefined
     const canManual = status !== 'no' && hardQuoteStatus !== 'accepted'
     const inHardQuote = Boolean(hqOpt)
     const included = Boolean(selected[o.id])
@@ -577,14 +601,15 @@ export function DeskOfferQuoteWorkbench({
                     Live {formatMinutes(o.live_leg_min)}
                   </span>
                 </div>
-                {preview?.fet_exempt ? (
+                {preview?.fet_exempt && preview.fet_override === 'auto' ? (
                   <div className="text-xs text-onplan">
                     FET-exempt — MTOW
                     {mtowLbs != null ? ` ${Math.round(mtowLbs)} lbs` : ''} ≤{' '}
                     {Math.round(exemptThresh).toLocaleString()} lbs (IRC §4281)
                   </div>
                 ) : null}
-                {preview?.fet_mtow_unknown ? (
+                {preview?.fet_mtow_unknown &&
+                preview.fet_override === 'auto' ? (
                   <div className="text-xs text-gold">
                     MTOW unknown — FET not charged until confirmed over{' '}
                     {Math.round(exemptThresh).toLocaleString()} lbs (§4281)
@@ -594,8 +619,44 @@ export function DeskOfferQuoteWorkbench({
 
               {preview && hardQuoteStatus !== 'accepted' ? (
                 <div className="space-y-2 rounded-md border border-gold/30 bg-gold/5 px-3 py-2.5">
-                  <div className="text-[11px] uppercase tracking-wider text-gold">
-                    Client · retail
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[11px] uppercase tracking-wider text-gold">
+                      Client · retail
+                    </div>
+                    <label
+                      className="inline-flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wider text-muted"
+                      title={
+                        fetIsOverride
+                          ? 'Desk override — normally driven by aircraft MTOW'
+                          : 'Auto from aircraft MTOW (§4281). Toggle only to override.'
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3 accent-[#C9A227]"
+                        checked={fetOn}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                          setFetEdits((m) => ({ ...m, [o.id]: next }))
+                          // FET toggle always recomputes client total from margin.
+                          setPricingLock((m) => ({
+                            ...m,
+                            [o.id]: 'margin',
+                          }))
+                          setClientEdits((m) => {
+                            const cleared = { ...m }
+                            delete cleared[o.id]
+                            return cleared
+                          })
+                        }}
+                      />
+                      FET
+                      {fetIsOverride ? (
+                        <span className="normal-case tracking-normal text-gold/80">
+                          override
+                        </span>
+                      ) : null}
+                    </label>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <label className="block text-xs text-muted">

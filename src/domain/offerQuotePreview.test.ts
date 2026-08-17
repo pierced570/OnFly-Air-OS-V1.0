@@ -139,5 +139,57 @@ describe('offerQuotePreview', () => {
     expect(p.fet_total).toBe(0)
     expect(p.tax_total).toBe(0)
     expect(p.client_total).toBe(p.client_air)
+    expect(p.fet_on).toBe(false)
+    expect(p.fet_override).toBe('auto')
+  })
+
+  it('fet_override off drops FET from client total', () => {
+    const base = buildOfferQuotePreview(
+      {
+        offer_id: 'o1',
+        operator_name: 'Pax Co',
+        tail: 'N6209X',
+        price_net: 7000,
+        time_to_position_min: 150,
+        quick_turn_min: 40,
+        live_leg_min: 90,
+        fee_scope: 'aircraft_and_fees',
+        mtow_lbs: 10495,
+        payload_kind: 'pax',
+        margin_pct: 15,
+        segment_count: 2,
+        pax_count: 1,
+      },
+      TEST_TAX_RATES_2026,
+      0,
+    )
+    expect(base.fet_total).toBeGreaterThan(0)
+    expect(base.fet_on).toBe(true)
+
+    const waived = buildOfferQuotePreview(
+      {
+        offer_id: 'o1',
+        operator_name: 'Pax Co',
+        tail: 'N6209X',
+        price_net: 7000,
+        time_to_position_min: 150,
+        quick_turn_min: 40,
+        live_leg_min: 90,
+        fee_scope: 'aircraft_and_fees',
+        mtow_lbs: 10495,
+        payload_kind: 'pax',
+        margin_pct: 15,
+        segment_count: 2,
+        pax_count: 1,
+        fet_override: 'off',
+      },
+      TEST_TAX_RATES_2026,
+      0,
+    )
+    expect(waived.fet_override).toBe('off')
+    expect(waived.fet_on).toBe(false)
+    expect(waived.fet_total).toBe(0)
+    expect(waived.client_total).toBe(waived.client_air)
+    expect(waived.client_total).toBeLessThan(base.client_total)
   })
 })

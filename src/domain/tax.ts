@@ -20,6 +20,9 @@ export type TaxLegInput = {
   paxCount: number
 }
 
+/** Desk override for rare FET edge cases. Default `auto` uses MTOW §4281. */
+export type FetOverride = 'auto' | 'on' | 'off'
+
 export type TaxInput = {
   payloadKind: 'cargo' | 'pax' | 'both'
   legs: TaxLegInput[]
@@ -27,6 +30,11 @@ export type TaxInput = {
   /** Air portion charged to the client (markup included). Ground billed separately. */
   airSubtotal: number
   rates: TaxRateRow[]
+  /**
+   * Rare desk override. `on`/`off` force domestic FET (+ segment fees when pax);
+   * `auto` (default) follows MTOW §4281.
+   */
+  fetOverride?: FetOverride
 }
 
 export type TaxLine = {
@@ -78,18 +86,50 @@ export function fetAppliesAtMtow(
 }
 
 /**
+ * Resolve whether domestic FET applies, honoring a rare desk override.
+ */
+export function resolveFetApplies(
+  aircraftMtowLbs: number | null | undefined,
+  rates: TaxRateRow[],
+  fetOverride: FetOverride = 'auto',
+): {
+  applies: boolean
+  exempt: boolean
+  unknown: boolean
+  threshold: number
+  override: FetOverride
+} {
+  const fetGate = fetAppliesAtMtow(aircraftMtowLbs, rates)
+  if (fetOverride === 'on') {
+    return { ...fetGate, applies: true, override: 'on' }
+  }
+  if (fetOverride === 'off') {
+    return { ...fetGate, applies: false, override: 'off' }
+  }
+  return { ...fetGate, override: 'auto' }
+}
+
+/**
  * Compute tax lines for a quote.
  * - Cargo-only domestic: FET_CARGO % of airSubtotal (~6.25%)
  * - Pax on board (pax or both): FET_PAX % (~7.5%) + SEG_FEE_DOM × pax × segments
  * - Any international leg → INTL_HEAD per pax on that leg; no domestic FET stacking on that leg
  * - §4281: MTOW ≤ FET_EXEMPT_MTOW → zero FET
  * - Missing MTOW → zero FET (NEEDS-INFO); never default to charging
+ * - `fetOverride` on/off: rare desk override of the MTOW gate
  */
 export function computeTax(input: TaxInput): TaxResult {
-  const { payloadKind, legs, aircraftMtowLbs, airSubtotal, rates } = input
+  const {
+    payloadKind,
+    legs,
+    aircraftMtowLbs,
+    airSubtotal,
+    rates,
+    fetOverride = 'auto',
+  } = input
   const lines: TaxLine[] = []
 
-  const fetGate = fetAppliesAtMtow(aircraftMtowLbs, rates)
+  const fetGate = resolveFetApplies(aircraftMtowLbs, rates, fetOverride)
   const fetExempt = fetGate.exempt
   const fetMtowUnknown = fetGate.unknown
 
@@ -102,7 +142,7 @@ export function computeTax(input: TaxInput): TaxResult {
   /** Pax on board → higher FET + segment fees; cargo-only → lower cargo FET. */
   const paxOnBoard = payloadKind === 'pax' || payloadKind === 'both'
 
-  // Domestic FET / segment — only when MTOW is known and over threshold.
+  // Domestic FET / segment — MTOW gate, unless desk overrides.
   const applyDomestic = domesticLegs.length > 0 || !hasIntl
 
   if (applyDomestic && fetGate.applies) {
@@ -145,7 +185,8 @@ export function computeTax(input: TaxInput): TaxResult {
     }
   }
 
-  if (fetExempt && applyDomestic && (isCargo || isPax)) {
+  // MTOW status notes only when auto — overrides replace them with desk notes.
+  if (fetOverride === 'auto' && fetExempt && applyDomestic && (isCargo || isPax)) {
     lines.push({
       code: 'FET_EXEMPT_MTOW',
       base: aircraftMtowLbs ?? 0,
@@ -154,12 +195,40 @@ export function computeTax(input: TaxInput): TaxResult {
     })
   }
 
-  if (fetMtowUnknown && applyDomestic && (isCargo || isPax)) {
+  if (
+    fetOverride === 'auto' &&
+    fetMtowUnknown &&
+    applyDomestic &&
+    (isCargo || isPax)
+  ) {
     lines.push({
       code: 'FET_NEEDS_MTOW',
       base: 0,
       amount: 0,
       note: `MTOW unknown — FET not charged until MTOW confirms > ${fetGate.threshold} lbs (§4281).`,
+    })
+  }
+
+  if (fetOverride === 'off' && applyDomestic && (isCargo || isPax)) {
+    lines.push({
+      code: 'FET_WAIVED',
+      base: 0,
+      amount: 0,
+      note: 'FET waived (desk override).',
+    })
+  }
+
+  if (
+    fetOverride === 'on' &&
+    applyDomestic &&
+    (isCargo || isPax) &&
+    (fetExempt || fetMtowUnknown)
+  ) {
+    lines.push({
+      code: 'FET_FORCED',
+      base: 0,
+      amount: 0,
+      note: 'FET applied (desk override).',
     })
   }
 
@@ -190,9 +259,15 @@ export function airSubtotalFromClientTotal(
   input: Omit<TaxInput, 'airSubtotal'>,
 ): number {
   const target = Math.max(0, clientTotal)
-  const { payloadKind, legs, aircraftMtowLbs, rates } = input
+  const {
+    payloadKind,
+    legs,
+    aircraftMtowLbs,
+    rates,
+    fetOverride = 'auto',
+  } = input
 
-  const fetGate = fetAppliesAtMtow(aircraftMtowLbs, rates)
+  const fetGate = resolveFetApplies(aircraftMtowLbs, rates, fetOverride)
 
   const hasIntl = legs.some((l) => l.international)
   const domesticLegs = legs.filter((l) => !l.international)
@@ -252,7 +327,12 @@ export function formatTaxLineDesk(line: TaxLine): string {
   if (line.code === 'SEG_FEE_DOM' || line.code === 'INTL_HEAD') {
     return `${line.note}: ${amt}`
   }
-  if (line.code === 'FET_EXEMPT_MTOW' || line.code === 'FET_NEEDS_MTOW') {
+  if (
+    line.code === 'FET_EXEMPT_MTOW' ||
+    line.code === 'FET_NEEDS_MTOW' ||
+    line.code === 'FET_WAIVED' ||
+    line.code === 'FET_FORCED'
+  ) {
     return line.note
   }
   return line.note ? `${line.note}: ${amt}` : `${line.code}: ${amt}`
