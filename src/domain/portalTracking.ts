@@ -1715,6 +1715,10 @@ export function tripToTrackingInput(trip: {
   hard_quote?: {
     disclosure_at?: string
     payload_kind?: 'cargo' | 'pax' | 'both'
+    options?: Array<{
+      type_name?: string | null
+      tail?: string | null
+    }>
   } | null
   portal_pickup_address?: string | null
   portal_dropoff_address?: string | null
@@ -1874,7 +1878,9 @@ function resolveTrackingTail(
       .map((e) => e.payload.tail),
   ]
   for (const raw of candidates) {
-    const t = String(raw ?? '').trim().toUpperCase()
+    const t = String(raw ?? '')
+      .trim()
+      .toUpperCase()
     if (t && t !== 'TBD' && t.length >= 2) return t
   }
   return null
