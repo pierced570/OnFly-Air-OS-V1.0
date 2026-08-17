@@ -70,7 +70,7 @@ const TOOLS: {
   { id: 'scratchpad', label: 'Scratchpad', hint: 'Same full-page notes as pre-login' },
   { id: 'parse', label: 'Parse & shortlist', hint: 'Same desk flow as login → parse' },
   { id: 'newtrip', label: 'Start new request', hint: 'Full trip request form' },
-  { id: 'chat', label: 'Chat', hint: "Who's on trips going out" },
+  { id: 'chat', label: 'Trip contacts', hint: 'Click-to-call on trips going out' },
 ]
 
 function StageStrip({
@@ -302,7 +302,7 @@ function CardList({
   onDeleteCard: (card: DispatchCard) => void
   /** Approved drawer — invoice + ETA sheet actions. */
   showBookedActions?: boolean
-  /** Live tracking — portal, Access chat, Log as complete. */
+  /** Live tracking — portal, trip contacts, Log as complete. */
   showTrackingActions?: boolean
 }) {
   if (!cards.length) {

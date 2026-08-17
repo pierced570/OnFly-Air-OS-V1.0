@@ -1,12 +1,11 @@
 /**
- * Live tracking card actions — portal, client update, Access chat,
+ * Live tracking card actions — portal, client update, trip contacts,
  * Log as complete, Delete.
  * Client update = progress portal stage OR email on the ETA sheet thread.
+ * Trip contacts = click-to-call client + charter operator (no group thread).
  */
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { TripThreadPanel } from '@/components/TripThreadPanel'
-import { formatChatMemberLine } from '@/domain/chatRoster'
 import {
   clientOpsStageLabel,
   PORTAL_OPS_STAGE_KEYS,
@@ -14,14 +13,15 @@ import {
   tripToTrackingInput,
   buildPortalTrackingView,
 } from '@/domain/portalTracking'
+import type { TripContactLine } from '@/domain/tripContacts'
 import {
   getEtaSheetThreadMeta,
   portalTrackingUrlForTrip,
   sendClientTrackingUpdate,
 } from '@/lib/etaSheetSender'
+import { listTripContactsForDesk } from '@/lib/tripContacts'
 import {
   deleteTrip,
-  ensureTripThread,
   getTrip,
   listTripsStable,
   safeTransitionTrip,
@@ -35,13 +35,51 @@ type Props = {
 
 type UpdateMode = 'stage' | 'email'
 
+function ContactSection({
+  title,
+  lines,
+}: {
+  title: string
+  lines: TripContactLine[]
+}) {
+  if (!lines.length) return null
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-muted">
+        {title}
+      </div>
+      <ul className="mt-1.5 space-y-1.5">
+        {lines.map((line) => (
+          <li
+            key={line.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-ink/40 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-cream">{line.label}</div>
+              <div className="text-[11px] text-muted">
+                {line.company}
+                {line.roleLabel ? ` · ${line.roleLabel}` : ''}
+              </div>
+            </div>
+            <a
+              href={line.telHref}
+              className="avionic shrink-0 rounded-md border border-gold/40 px-3 py-2 text-sm font-semibold text-gold hover:bg-gold/10"
+            >
+              {line.phoneDisplay}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function LiveTrackingCardActions({ tripId }: Props) {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
-  const [chatOpen, setChatOpen] = useState(false)
+  const [contactsOpen, setContactsOpen] = useState(false)
   const [updateOpen, setUpdateOpen] = useState(false)
   const [updateMode, setUpdateMode] = useState<UpdateMode>('stage')
-  const [ensuring, setEnsuring] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [sending, setSending] = useState(false)
@@ -50,15 +88,6 @@ export function LiveTrackingCardActions({ tripId }: Props) {
   const [note, setNote] = useState<string | null>(null)
   const [body, setBody] = useState('')
   const [draftStage, setDraftStage] = useState<PortalOpsStageKey | null>(null)
-
-  useEffect(() => {
-    if (!chatOpen || !trip) return
-    if (trip.thread_number && !trip.thread_disbanded_at) return
-    setEnsuring(true)
-    void ensureTripThread(trip.id)
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-      .finally(() => setEnsuring(false))
-  }, [chatOpen, trip])
 
   useEffect(() => {
     if (!trip || !updateOpen) return
@@ -70,11 +99,13 @@ export function LiveTrackingCardActions({ tripId }: Props) {
     return buildPortalTrackingView(tripToTrackingInput(trip))
   }, [trip])
 
+  const contacts = useMemo(
+    () => (trip ? listTripContactsForDesk(trip) : null),
+    [trip],
+  )
+
   if (!trip) return null
 
-  const members = trip.participants.filter(
-    (p) => p.in_thread && !p.released_at,
-  )
   const trackUrl = portalTrackingUrlForTrip(trip.id)
   const canComplete = trip.state === 'in_progress'
   const thread = getEtaSheetThreadMeta(trip)
@@ -193,7 +224,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
             setErr(null)
             setNote(null)
             setUpdateOpen((o) => !o)
-            if (!updateOpen) setChatOpen(false)
+            if (!updateOpen) setContactsOpen(false)
           }}
         >
           {updateOpen ? 'Close client update' : 'Client update'}
@@ -202,17 +233,17 @@ export function LiveTrackingCardActions({ tripId }: Props) {
           type="button"
           className={[
             'min-h-11 rounded-md px-3 py-2 text-xs font-semibold',
-            chatOpen
+            contactsOpen
               ? 'border border-gold/50 bg-gold/10 text-gold'
               : 'bg-gold text-ink hover:bg-gold-lt',
           ].join(' ')}
           onClick={() => {
             setErr(null)
-            setChatOpen((o) => !o)
-            if (!chatOpen) setUpdateOpen(false)
+            setContactsOpen((o) => !o)
+            if (!contactsOpen) setUpdateOpen(false)
           }}
         >
-          {chatOpen ? 'Close chat' : 'Access chat'}
+          {contactsOpen ? 'Close trip contacts' : 'Trip contacts'}
         </button>
         {canComplete ? (
           <button
@@ -361,37 +392,32 @@ export function LiveTrackingCardActions({ tripId }: Props) {
         </div>
       ) : null}
 
-      {chatOpen ? (
-        <div className="space-y-3">
-          <div className="rounded-md border border-border/50 bg-ink/40 px-3 py-2.5">
-            <div className="text-[11px] uppercase tracking-wider text-muted">
-              Group chat members
+      {contactsOpen ? (
+        <div className="space-y-4 rounded-md border border-gold/30 bg-ink/50 p-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-gold">
+              Trip contacts
             </div>
-            {ensuring ? (
-              <p className="mt-1 text-xs text-muted">Opening trip thread…</p>
-            ) : null}
-            <ul className="mt-1.5 space-y-1 text-sm text-cream">
-              {members.length === 0 ? (
-                <li className="text-muted">
-                  No ops members on the thread yet — add them from Chat or the
-                  trip participants panel.
-                </li>
-              ) : (
-                members.map((p) => (
-                  <li key={p.id}>{formatChatMemberLine(p)}</li>
-                ))
-              )}
-            </ul>
-            <p className="mt-2 text-[11px] text-muted">
-              Ops group thread — dispatch, crew, ground, FBO. Clients use the
-              tracking portal (not this chat).
+            <p className="mt-1 text-[11px] text-muted">
+              Tap a number to call — client inbound / contacts and the charter
+              operator on this trip.
             </p>
           </div>
-          <TripThreadPanel
-            trip={trip}
-            tall
-            title="Trip group chat"
-          />
+          {!contacts || contacts.lines.length === 0 ? (
+            <p className="text-xs text-muted">
+              No phone numbers on file yet. Add them on the client profile or
+              operator offer contact cell.
+            </p>
+          ) : (
+            <>
+              <ContactSection title="Client" lines={contacts.client} />
+              <ContactSection
+                title="Charter operator"
+                lines={contacts.operator}
+              />
+              <ContactSection title="Crew / ground" lines={contacts.crew} />
+            </>
+          )}
         </div>
       ) : null}
     </div>
