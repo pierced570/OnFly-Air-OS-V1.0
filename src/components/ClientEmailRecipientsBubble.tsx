@@ -9,6 +9,7 @@ import {
   getClient,
   listAlwaysInvoiceEmails,
   listClients,
+  listEtaTrackingEmails,
   listOptionalInvoiceEmails,
   listRequestAlertEmails,
   listTrackerEmails,
@@ -95,16 +96,19 @@ export function defaultInvoiceEmailSelection(
   return { to, cc, bcc: [ONFLY_INFO_BCC] }
 }
 
-/** ETA / tracking sheet — To from tracker / supply-chain flags. */
+/** ETA / tracking sheet — To from trackers + matching base / airport emails. */
 export function defaultTrackerEmailSelection(
   clientId?: string | null,
+  opts?: { legIcaos?: string[] },
 ): ClientEmailSelection {
   if (!clientId) return emptyClientEmailSelection()
-  return {
-    to: uniq(listTrackerEmails(clientId)),
-    cc: [],
-    bcc: [],
-  }
+  const legs = opts?.legIcaos ?? []
+  const to = uniq(
+    legs.length
+      ? listEtaTrackingEmails(clientId, { legIcaos: legs })
+      : listTrackerEmails(clientId),
+  )
+  return { to, cc: [], bcc: [] }
 }
 
 function bucketOf(email: string, sel: ClientEmailSelection): EmailBucket {

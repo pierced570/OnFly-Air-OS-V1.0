@@ -202,10 +202,17 @@ export default function QuickDispatchPage({
     )
   }, [client, legIcaos])
 
-  function fillEtaFromClient(id: string, icaos: string[]) {
-    const emails = listEtaTrackingEmails(id, { legIcaos: icaos })
-    setEtaEmails(emails.join(', '))
-  }
+  // When client or trip airports change, autofill ETA To from trackers +
+  // matching base / airport-flagged emails.
+  useEffect(() => {
+    if (!clientId) {
+      setEtaEmails('')
+      return
+    }
+    setEtaEmails(
+      listEtaTrackingEmails(clientId, { legIcaos }).join(', '),
+    )
+  }, [clientId, legIcaos])
 
   function selectClient(id: string) {
     setClientId(id)
@@ -222,7 +229,7 @@ export default function QuickDispatchPage({
         (invoiceTargets[0] || c.invoice_email || '').toLowerCase(),
     )
     setInvoiceCc([...new Set(apCc)].join(', '))
-    fillEtaFromClient(id, legIcaos)
+    // ETA To filled by effect when clientId / legIcaos update
   }
 
   function toggleEmailList(
@@ -426,7 +433,9 @@ export default function QuickDispatchPage({
     parseCc(invoiceCc).map((e) => e.toLowerCase()),
   )
   const selectedEta = new Set(parseCc(etaEmails).map((e) => e.toLowerCase()))
-  const etaContacts = clientId ? listEtaTrackingContacts(clientId) : []
+  const etaContacts = clientId
+    ? listEtaTrackingContacts(clientId, { legIcaos })
+    : []
 
   return (
     <div

@@ -56,6 +56,9 @@ describe('clientBaseEmails', () => {
         (e) => e.email,
       ),
     ).toEqual(['cak@acme.com'])
+    expect(
+      listBaseGeneratedEmails(source, { legIcaos: ['KHPN'] }).map((e) => e.email),
+    ).toEqual([])
   })
 
   it('uses stored base emails over auto', () => {

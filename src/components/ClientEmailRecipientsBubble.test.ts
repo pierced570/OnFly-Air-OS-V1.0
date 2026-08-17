@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   defaultClientEmailSelection,
   defaultInvoiceEmailSelection,
+  defaultTrackerEmailSelection,
   parseEmailList,
 } from '@/components/ClientEmailRecipientsBubble'
 import {
@@ -122,5 +123,51 @@ describe('defaultInvoiceEmailSelection', () => {
     const sel = defaultInvoiceEmailSelection(client.id)
     expect(sel.to).toEqual(['ap@client.com'])
     expect(sel.cc).toEqual(['ops@client.com'])
+  })
+})
+
+describe('defaultTrackerEmailSelection', () => {
+  beforeEach(() => {
+    __resetClientsForTests()
+  })
+
+  it('autofills matching base emails into To when leg ICAOs provided', () => {
+    const client = addClient({
+      name: 'PSA',
+      email: 'ops@psa.test',
+      contacts: [
+        {
+          name: 'Always',
+          email: 'always@psa.test',
+          role: 'supply_chain',
+          notify_prefs: { tracker: true },
+        },
+      ],
+      profile: {
+        bases: [
+          {
+            icao: 'CLT',
+            supervisor_emails: ['clt.sup@psa.test'],
+            stores_emails: ['clt.stores@psa.test'],
+          },
+          {
+            icao: 'CAK',
+            supervisor_emails: ['cak.sup@psa.test'],
+            stores_emails: [],
+          },
+        ],
+      },
+    })
+    const sel = defaultTrackerEmailSelection(client.id, {
+      legIcaos: ['KCLT', 'KMDW'],
+    })
+    expect(sel.to).toEqual(
+      expect.arrayContaining([
+        'always@psa.test',
+        'clt.sup@psa.test',
+        'clt.stores@psa.test',
+      ]),
+    )
+    expect(sel.to).not.toContain('cak.sup@psa.test')
   })
 })

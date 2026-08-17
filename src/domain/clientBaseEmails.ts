@@ -194,7 +194,8 @@ export type BaseGeneratedEmail = {
 
 /**
  * Emails for company bases. Prefer trip-matched bases when legIcaos provided,
- * otherwise all bases.
+ * otherwise all bases. When leg ICAOs are given and none match, returns []
+ * (does not fall back to every base).
  */
 export function listBaseGeneratedEmails(
   source: ClientBaseEmailSource,
@@ -207,7 +208,7 @@ export function listBaseGeneratedEmails(
   const legSet = new Set(
     (opts?.legIcaos ?? []).map(normalizeBaseIcao).filter(Boolean),
   )
-  const matched = legSet.size
+  const useBases = legSet.size
     ? bases.filter((b) => {
         const code = b.icao
         const short =
@@ -221,8 +222,7 @@ export function listBaseGeneratedEmails(
           })
         )
       })
-    : []
-  const useBases = matched.length ? matched : bases
+    : bases
 
   const out: BaseGeneratedEmail[] = []
   const seen = new Set<string>()
