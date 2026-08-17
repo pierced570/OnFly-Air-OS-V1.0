@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import {
   addFinancialVendorLine,
+  clearFinancialOverrides,
+  deleteFinancialRecords,
+  financialOverrideCount,
   listFinancials,
   removeFinancialVendorLine,
   subscribeFinancials,
   updateFinancialField,
   updateFinancialRecord,
   updateFinancialVendorLine,
-  financialOverrideCount,
-  clearFinancialOverrides,
 } from '@/lib/financialsStore'
 import {
   dueDateFor,
@@ -199,6 +200,27 @@ export default function FinancialsPage() {
     }
   }
 
+  function deleteSelectedRows() {
+    if (!selected.size) return
+    const n = selected.size
+    if (
+      !window.confirm(
+        `Delete ${n} financial row${n === 1 ? '' : 's'}?\n\nRemoves ${
+          n === 1 ? 'it' : 'them'
+        } from this ledger (and from the database when synced). This cannot be undone from the sheet.`,
+      )
+    ) {
+      return
+    }
+    const removed = deleteFinancialRecords([...selected])
+    setSelected(new Set())
+    if (removed) {
+      setInvoiceMsg(
+        `Deleted ${removed} financial row${removed === 1 ? '' : 's'}.`,
+      )
+    }
+  }
+
   function drawerFor(id: string): Drawer {
     if (openAll) return openAll
     return openDrawer[id] ?? null
@@ -246,7 +268,8 @@ export default function FinancialsPage() {
         <h1 className="mt-1 text-2xl font-semibold text-cream">Financials</h1>
         <p className="mt-1 text-sm text-muted">
           {rows.length} records · open <span className="text-gold">Edit</span> on
-          any row to fix wrong trip / money data
+          any row to fix wrong trip / money data · select rows to delete or mark
+          paid
           {editedCount > 0
             ? ` · ${editedCount} correction(s) saved to this workspace`
             : ''}
@@ -418,6 +441,13 @@ export default function FinancialsPage() {
               className="min-h-10 rounded-md bg-gold px-3 py-2 font-medium text-ink"
             >
               Mark as paid
+            </button>
+            <button
+              type="button"
+              onClick={deleteSelectedRows}
+              className="min-h-10 rounded-md border border-late/50 bg-late/10 px-3 py-2 font-medium text-late hover:bg-late/20"
+            >
+              Delete selected
             </button>
           </div>
         )}
@@ -1408,6 +1438,25 @@ function EditDrawer({ r }: { r: ComputedFinancial }) {
         {' · '}
         Edits sync to the ledger (and this browser) after you leave a field.
       </p>
+      <div className="mt-4 border-t border-border/60 pt-3">
+        <button
+          type="button"
+          className="rounded-md border border-late/50 bg-late/10 px-3 py-2 text-xs font-semibold text-late hover:bg-late/20"
+          onClick={() => {
+            const label = r.operator_po || r.client_name || r.id
+            if (
+              !window.confirm(
+                `Delete financial row ${label}?\n\nRemoves it from this ledger (and the database when synced). Cannot be undone from the sheet.`,
+              )
+            ) {
+              return
+            }
+            deleteFinancialRecords([r.id])
+          }}
+        >
+          Delete this row
+        </button>
+      </div>
     </div>
   )
 }
