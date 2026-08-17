@@ -27,6 +27,11 @@ export type TripInvoiceBuildInput = {
   paxCount?: number
   /** Optional ground / handling add-on (separate line). */
   groundHandlingUsd?: number | null
+  /**
+   * Desk FET override when AC MTOW is wrong/missing.
+   * null/undefined → auto from MTOW (§4281).
+   */
+  fetOverride?: 'charge' | 'exempt' | null
   rates: TaxRateRow[]
 }
 
@@ -67,12 +72,20 @@ export function buildTripInvoiceLines(
     legs: [{ international: false, segments, paxCount }],
     aircraftMtowLbs: input.mtowLbs ?? null,
     rates: input.rates,
+    fetOverride: input.fetOverride ?? null,
   }
 
   const airAmount = airSubtotalFromClientTotal(taxableTotal, taxBase)
   const tax = computeTax({ ...taxBase, airSubtotal: airAmount })
+  // Keep dollar tax lines and §4281 / override flag lines so Financials + trip log show FET status.
   const taxBreakdown: TripInvoiceTaxBreakdownLine[] = tax.lines
-    .filter((l) => l.amount > 0)
+    .filter(
+      (l) =>
+        l.amount > 0 ||
+        l.code === 'FET_EXEMPT_MTOW' ||
+        l.code === 'FET_NEEDS_MTOW' ||
+        l.code === 'FET_OVERRIDE_ON',
+    )
     .map((l) => ({
       code: l.code,
       amount: l.amount,

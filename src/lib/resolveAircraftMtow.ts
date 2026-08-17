@@ -1,8 +1,9 @@
 /**
  * Resolve aircraft MTOW for FET (§4281) — never invent tax without a known MTOW.
- * Prefers per-tail / candidate MTOW, then type_specs typical for the type name.
+ * Prefers per-tail / candidate MTOW, then network aircraft by tail, then type_specs.
  */
 
+import { normalizeAircraftTail } from '@/domain/aircraftTail'
 import { normalizeAircraftType } from '@/domain/typeAlias'
 import { getCachedNetwork } from '@/lib/networkData'
 
@@ -20,6 +21,23 @@ export function mtowFromTypeSpecs(
     if (name !== want && !name.includes(want) && !want.includes(name)) continue
     const mtow = s.mtow_lbs
     if (mtow != null && Number.isFinite(Number(mtow))) return Number(mtow)
+  }
+  return null
+}
+
+/** Per-tail MTOW from the network AC database (Quick Dispatch has empty candidates). */
+export function mtowFromNetworkTail(
+  tail: string | null | undefined,
+): number | null {
+  const needle = normalizeAircraftTail(String(tail ?? ''))
+  if (!needle) return null
+  const net = getCachedNetwork()
+  if (!net?.aircraft?.length) return null
+  for (const a of net.aircraft) {
+    if (normalizeAircraftTail(a.tail || '') !== needle) continue
+    if (a.mtow_lbs != null && Number.isFinite(Number(a.mtow_lbs))) {
+      return Number(a.mtow_lbs)
+    }
   }
   return null
 }
@@ -55,6 +73,8 @@ export function resolveAircraftMtowLbs(opts: {
     if (byTail?.mtow_lbs != null && Number.isFinite(Number(byTail.mtow_lbs))) {
       return Number(byTail.mtow_lbs)
     }
+    const fromNetwork = mtowFromNetworkTail(tail)
+    if (fromNetwork != null) return fromNetwork
   }
   const typeName =
     opts.typeName?.trim() ||
