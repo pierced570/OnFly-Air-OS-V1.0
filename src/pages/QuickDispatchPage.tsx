@@ -31,8 +31,6 @@ import {
   listAlwaysInvoiceEmails,
   listClients,
   listEtaTrackingContacts,
-  listEtaTrackingEmails,
-  listOptionalInvoiceEmails,
   rememberEmailsOnClient,
   recordPoUsed,
   subscribeClients,
@@ -213,17 +211,15 @@ export default function QuickDispatchPage({
     )
   }, [client, legIcaos])
 
-  // When client or trip airports change, autofill ETA To from trackers +
-  // matching base / airport-flagged emails.
+  // When client changes, clear ETA To — do not auto-select every tracker /
+  // base mailbox. Desk taps chips to add who should get the sheet.
   useEffect(() => {
     if (!clientId) {
       setEtaEmails('')
       return
     }
-    setEtaEmails(
-      listEtaTrackingEmails(clientId, { legIcaos }).join(', '),
-    )
-  }, [clientId, legIcaos])
+    setEtaEmails('')
+  }, [clientId])
 
   function selectClient(id: string) {
     setClientId(id)
@@ -234,16 +230,12 @@ export default function QuickDispatchPage({
     clientLastPoHint(id, { sync: true })
     setPo('')
     setPayTerms(c.pay_terms || 'Net 30')
+    // Single primary invoice To hint only — never dump every AP / sometimes
+    // contact into CC. Desk adds CC from directory chips.
     const invoiceTargets = listAlwaysInvoiceEmails(id)
     setInvoiceEmail(invoiceTargets[0] || c.invoice_email || c.email || '')
-    // Invoice CC = sometimes-only (not always-To).
-    const apCc = listOptionalInvoiceEmails(id).filter(
-      (e) =>
-        e !==
-        (invoiceTargets[0] || c.invoice_email || '').toLowerCase(),
-    )
-    setInvoiceCc([...new Set(apCc)].join(', '))
-    // ETA To filled by effect when clientId / legIcaos update
+    setInvoiceCc('')
+    // ETA To cleared by effect when clientId updates
   }
 
   function toggleEmailList(
@@ -992,7 +984,8 @@ export default function QuickDispatchPage({
           />
           {client && (
             <span className="mt-1 block text-[11px] text-muted">
-              Auto-filled from AP / invoice contacts. Edits save on dispatch.
+              Primary invoice To only — tap directory chips to add CC. Edits
+              save on dispatch.
             </span>
           )}
         </label>
