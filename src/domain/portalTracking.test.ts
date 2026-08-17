@@ -199,7 +199,8 @@ describe('portalTracking', () => {
       phase: 'airborne',
     })
     expect(pos.source).toBe('adsb')
-    expect(pos.summary).toMatch(/Airborne/)
+    expect(pos.summary).toMatch(/airborne/i)
+    expect(pos.summary).toMatch(/N123AB/)
     expect(pos.altFt).toBe(18000)
     expect(pos.fromLat).not.toBeNull()
     expect(pos.toLat).not.toBeNull()
@@ -213,9 +214,30 @@ describe('portalTracking', () => {
       null,
       '2026-07-15T14:00:00.000Z',
     )
-    expect(pos.phase).toBe('positioning')
+    // Mid-position leg → enroute to pickup (airborne along ferry)
+    expect(pos.phase).toBe('airborne')
+    expect(pos.summary).toMatch(/enroute to pickup/i)
     expect(pos.lat).not.toBeNull()
     expect(pos.fromIcao).toBeTruthy()
+    expect(portalAircraftMapVisible(pos)).toBe(true)
+  })
+
+  it('parks at origin when position leg is complete but wheels-up not yet', () => {
+    const trip = sampleD2d({
+      state: 'booked',
+      eta_chain: sampleD2d().eta_chain.map((l) =>
+        l.type === 'position'
+          ? { ...l, actual_end: '2026-07-15T15:00:00.000Z' }
+          : l,
+      ),
+    })
+    const pos = resolveAircraftPosition(
+      trip,
+      null,
+      '2026-07-15T15:30:00.000Z',
+    )
+    expect(pos.phase).toBe('positioning')
+    expect(pos.lat).not.toBeNull()
     expect(portalAircraftMapVisible(pos)).toBe(true)
   })
 
@@ -290,19 +312,19 @@ describe('portalTracking', () => {
     expect(view.etaRows[0]!.scheduledZulu).toMatch(/Z/)
   })
 
-  it('builds arrived / takeoff / air time / on-ground Actual vs Forecast rows', () => {
+  it('builds enroute-pickup / at-pickup / enroute-dest / landed stages', () => {
     const rows = buildOpsForecastRows(sampleD2d())
     expect(rows.map((r) => r.key)).toEqual([
-      'arrived_origin',
-      'takeoff',
-      'time_in_air',
-      'on_ground_dest',
+      'enroute_pickup',
+      'at_pickup',
+      'enroute_dest',
+      'landed_dest',
     ])
-    expect(rows[0]!.label).toMatch(/Arrived KCAK/)
-    expect(rows[1]!.label).toMatch(/Takeoff KCAK/)
-    expect(rows[2]!.label).toBe('Time in air')
+    expect(rows[0]!.label).toMatch(/Enroute to KCAK/)
+    expect(rows[1]!.label).toMatch(/At KCAK/)
+    expect(rows[2]!.label).toMatch(/Enroute to KMDW/)
     expect(rows[2]!.kind).toBe('duration')
-    expect(rows[3]!.label).toMatch(/On ground at KMDW/)
+    expect(rows[3]!.label).toMatch(/Landed KMDW/)
   })
 
   it('builds ops forecast from trip.legs when eta_chain is empty', () => {
@@ -350,8 +372,9 @@ describe('portalTracking', () => {
       ],
     })
     expect(rows).toHaveLength(4)
-    expect(rows[0]!.label).toBe('Arrived KCAK')
-    expect(rows[3]!.label).toBe('On ground at KMDW')
+    expect(rows[0]!.label).toBe('Enroute to KCAK')
+    expect(rows[0]!.status).toBe('active')
+    expect(rows[3]!.label).toBe('Landed KMDW')
   })
 
   it('builds cargo manifest with pax names and cargo lines', () => {
@@ -381,7 +404,7 @@ describe('portalTracking', () => {
     expect(view.opsForecastRows).toHaveLength(4)
   })
 
-  it('overlays ADS-B actual takeoff / landing on Actual vs Forecast', () => {
+  it('overlays ADS-B actual takeoff / landing on trip stages', () => {
     const rows = buildOpsForecastRows(sampleD2d(), {
       nowIso: '2026-07-15T18:00:00.000Z',
       adsb: {
@@ -401,10 +424,54 @@ describe('portalTracking', () => {
         landingIsActual: true,
       },
     })
-    expect(rows[1]!.isForecast).toBe(false)
-    expect(rows[1]!.actualOrForecastLocal).toBeTruthy()
+    expect(rows[0]!.status).toBe('done')
+    expect(rows[1]!.status).toBe('done')
+    expect(rows[2]!.status).toBe('done')
     expect(rows[2]!.isForecast).toBe(false)
+    expect(rows[3]!.status).toBe('done')
     expect(rows[3]!.isForecast).toBe(false)
     expect(rows[3]!.actualOrForecastLocal).toMatch(/on ground/i)
+  })
+
+  it('covers map when tail is LADD-blocked', () => {
+    const trip = sampleD2d({ state: 'in_progress' })
+    const pos = resolveAircraftPosition(trip, {
+      tail: 'N123AB',
+      lat: 0,
+      lon: 0,
+      alt: 0,
+      gs: 0,
+      seenAt: new Date(0).toISOString(),
+      laddBlocked: true,
+      phase: 'no_data',
+    })
+    expect(pos.laddBlocked).toBe(true)
+    expect(pos.lat).toBeNull()
+    expect(portalAircraftMapVisible(pos)).toBe(false)
+  })
+
+  it('advances stages from FlightAware airborne toward destination', () => {
+    const rows = buildOpsForecastRows(sampleD2d({ state: 'in_progress' }), {
+      nowIso: '2026-07-15T16:40:00.000Z',
+      adsb: {
+        tail: 'N123AB',
+        lat: 41.3,
+        lon: -84,
+        alt: 12000,
+        gs: 220,
+        seenAt: '2026-07-15T16:40:00.000Z',
+        phase: 'airborne',
+        laddBlocked: false,
+        originIcao: 'KCAK',
+        destinationIcao: 'KMDW',
+        lastTakeoffAt: '2026-07-15T16:05:00.000Z',
+        takeoffIsActual: true,
+        landingIsActual: false,
+      },
+    })
+    expect(rows[0]!.status).toBe('done')
+    expect(rows[1]!.status).toBe('done')
+    expect(rows[2]!.status).toBe('active')
+    expect(rows[3]!.status).toBe('pending')
   })
 })

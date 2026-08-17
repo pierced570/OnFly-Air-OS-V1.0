@@ -19,10 +19,14 @@ function row(key: OpsForecastRow['key']): OpsForecastRow {
 }
 
 describe('clientOpsStageLabel', () => {
-  it('maps ops keys to progress-only stage names (no clocks)', () => {
-    expect(clientOpsStageLabel(row('arrived_origin'))).toBe('At pickup')
-    expect(clientOpsStageLabel(row('takeoff'))).toBe('Wheels up')
-    expect(clientOpsStageLabel(row('time_in_air'))).toBe('En route')
-    expect(clientOpsStageLabel(row('on_ground_dest'))).toBe('Delivered')
+  it('maps ops keys to FlightAware-style trip stages (no clocks)', () => {
+    expect(clientOpsStageLabel(row('enroute_pickup'))).toBe('Enroute to pickup')
+    expect(clientOpsStageLabel(row('at_pickup'))).toBe('At Pickup airport')
+    expect(clientOpsStageLabel(row('enroute_dest'))).toBe(
+      'Enroute to destination',
+    )
+    expect(clientOpsStageLabel(row('landed_dest'))).toBe(
+      'Landed at destination',
+    )
   })
 })

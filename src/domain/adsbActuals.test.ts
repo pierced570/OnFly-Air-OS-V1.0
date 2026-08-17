@@ -128,4 +128,25 @@ describe('adsbActuals', () => {
       actual_end: '2026-07-28T16:25:00.000Z',
     })
   })
+
+  it('still maps actuals when phase is no_data (LADD / blocked track)', () => {
+    const p = proposeAdsbActuals({
+      adsb: adsb({
+        phase: 'no_data',
+        laddBlocked: true,
+        lat: 0,
+        lon: 0,
+        lastTakeoffAt: '2026-07-28T17:05:00.000Z',
+        lastLandingAt: '2026-07-28T18:20:00.000Z',
+        takeoffIsActual: true,
+        landingIsActual: true,
+      }),
+      airFromIcao: 'KCAK',
+      airToIcao: 'KMDW',
+      nowIso: '2026-07-28T18:40:00.000Z',
+    })
+    expect(p.fromActuals).toBe(true)
+    expect(p.takeoffAt).toBe('2026-07-28T17:05:00.000Z')
+    expect(p.destLandingAt).toBe('2026-07-28T18:20:00.000Z')
+  })
 })

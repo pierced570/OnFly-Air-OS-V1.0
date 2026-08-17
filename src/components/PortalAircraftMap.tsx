@@ -1,5 +1,6 @@
 /**
- * Client-portal aircraft map — cream theme, ICAO + position only (no operator).
+ * Client-portal aircraft map — cream/dark track view keyed to trip tail.
+ * Origin → dest route, live (or ETA-inferred) aircraft, ICAO labels.
  */
 
 import { useEffect, useRef } from 'react'
@@ -28,7 +29,7 @@ function airportEl(label: string, kind: 'from' | 'to'): HTMLDivElement {
     'width:8px',
     'height:8px',
     'border-radius:999px',
-    'border:1px solid #0C0C0E',
+    'border:1px solid #F7F2E3',
     kind === 'from' ? 'background:#8a8680' : 'background:#2E7D32',
   ].join(';')
   const tag = document.createElement('div')
@@ -37,9 +38,9 @@ function airportEl(label: string, kind: 'from' | 'to'): HTMLDivElement {
     'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
     'font-size:10px',
     'letter-spacing:0.04em',
-    'color:#0C0C0E',
-    'background:rgba(247,242,227,0.92)',
-    'border:1px solid #ddd6c4',
+    'color:#F7F2E3',
+    'background:rgba(12,12,14,0.88)',
+    'border:1px solid rgba(201,162,39,0.45)',
     'border-radius:3px',
     'padding:1px 4px',
   ].join(';')
@@ -48,22 +49,58 @@ function airportEl(label: string, kind: 'from' | 'to'): HTMLDivElement {
   return el
 }
 
-function aircraftEl(a: TrackingAircraftPosition): HTMLButtonElement {
-  const el = document.createElement('button')
-  el.type = 'button'
+function aircraftEl(a: TrackingAircraftPosition): HTMLDivElement {
+  const wrap = document.createElement('div')
+  wrap.style.cssText = [
+    'display:flex',
+    'flex-direction:column',
+    'align-items:center',
+    'gap:3px',
+    'pointer-events:none',
+  ].join(';')
   const typeHint = a.phase.replace('_', ' ')
-  el.title = `${a.tail} · ${typeHint}`
-  el.style.cssText = [
+  wrap.title = `${a.tail} · ${typeHint}`
+  const dot = document.createElement('div')
+  dot.style.cssText = [
     'width:14px',
     'height:14px',
     'border-radius:999px',
-    'border:2px solid #0C0C0E',
+    'border:2px solid #F7F2E3',
     `background:${PHASE_COLOR[a.phase]}`,
-    'box-shadow:0 0 0 2px rgba(201,162,39,0.45)',
-    'cursor:default',
-    'padding:0',
+    'box-shadow:0 0 0 2px rgba(201,162,39,0.55)',
   ].join(';')
-  return el
+  const tag = document.createElement('div')
+  tag.textContent = a.tail && a.tail !== '—' ? a.tail : 'ACFT'
+  tag.style.cssText = [
+    'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
+    'font-size:10px',
+    'font-weight:700',
+    'letter-spacing:0.06em',
+    'color:#0C0C0E',
+    'background:#C9A227',
+    'border-radius:3px',
+    'padding:1px 5px',
+    'white-space:nowrap',
+  ].join(';')
+  wrap.appendChild(dot)
+  wrap.appendChild(tag)
+  return wrap
+}
+
+function trackKey(a: TrackingAircraftPosition): string {
+  return [
+    a.tail,
+    a.phase,
+    a.lat,
+    a.lon,
+    a.fromLat,
+    a.fromLon,
+    a.toLat,
+    a.toLon,
+    a.fromIcao,
+    a.toIcao,
+    a.source,
+  ].join('|')
 }
 
 export function PortalAircraftMap({
@@ -75,6 +112,8 @@ export function PortalAircraftMap({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const markersRef = useRef<maplibregl.Marker[]>([])
+  const paintedKeyRef = useRef<string>('')
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -83,14 +122,16 @@ export function PortalAircraftMap({
       style: {
         version: 8,
         sources: {
-          osm: {
+          basemap: {
             type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tiles: [
+              'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+            ],
             tileSize: 256,
-            attribution: '© OpenStreetMap',
+            attribution: '© OpenStreetMap © CARTO',
           },
         },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+        layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
       },
       center: [-81.5, 41.1],
       zoom: 5,
@@ -103,8 +144,11 @@ export function PortalAircraftMap({
     )
     mapRef.current = map
     return () => {
+      for (const m of markersRef.current) m.remove()
+      markersRef.current = []
       map.remove()
       mapRef.current = null
+      paintedKeyRef.current = ''
     }
   }, [])
 
@@ -112,15 +156,19 @@ export function PortalAircraftMap({
     const map = mapRef.current
     if (!map) return
 
-    const markers: maplibregl.Marker[] = []
+    const key = trackKey(aircraft)
+    if (key === paintedKeyRef.current && markersRef.current.length) return
+
     const cleanupLayer = () => {
       if (map.getLayer('portal-route')) map.removeLayer('portal-route')
       if (map.getSource('portal-route')) map.removeSource('portal-route')
+      if (map.getLayer('portal-track')) map.removeLayer('portal-track')
+      if (map.getSource('portal-track')) map.removeSource('portal-track')
     }
 
     const paint = () => {
-      for (const m of markers) m.remove()
-      markers.length = 0
+      for (const m of markersRef.current) m.remove()
+      markersRef.current = []
       cleanupLayer()
 
       const points: [number, number][] = []
@@ -157,14 +205,43 @@ export function PortalAircraftMap({
           paint: {
             'line-color': '#C9A227',
             'line-width': 2.5,
-            'line-opacity': 0.85,
+            'line-opacity': 0.75,
+            'line-dasharray': [1.5, 1.2],
           },
         })
         points.push(...line)
       }
 
+      // Flown track: origin → current when airborne
+      if (fromOk && acOk && aircraft.phase === 'airborne') {
+        map.addSource('portal-track', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [aircraft.fromLon!, aircraft.fromLat!],
+                [aircraft.lon!, aircraft.lat!],
+              ],
+            },
+          },
+        })
+        map.addLayer({
+          id: 'portal-track',
+          type: 'line',
+          source: 'portal-track',
+          paint: {
+            'line-color': '#E3B341',
+            'line-width': 3,
+            'line-opacity': 0.95,
+          },
+        })
+      }
+
       if (fromOk) {
-        markers.push(
+        markersRef.current.push(
           new maplibregl.Marker({
             element: airportEl(aircraft.fromIcao || 'ORIG', 'from'),
             anchor: 'bottom',
@@ -175,7 +252,7 @@ export function PortalAircraftMap({
         points.push([aircraft.fromLon!, aircraft.fromLat!])
       }
       if (toOk) {
-        markers.push(
+        markersRef.current.push(
           new maplibregl.Marker({
             element: airportEl(aircraft.toIcao || 'DEST', 'to'),
             anchor: 'bottom',
@@ -186,8 +263,11 @@ export function PortalAircraftMap({
         points.push([aircraft.toLon!, aircraft.toLat!])
       }
       if (acOk) {
-        markers.push(
-          new maplibregl.Marker({ element: aircraftEl(aircraft) })
+        markersRef.current.push(
+          new maplibregl.Marker({
+            element: aircraftEl(aircraft),
+            anchor: 'bottom',
+          })
             .setLngLat([aircraft.lon!, aircraft.lat!])
             .addTo(map),
         )
@@ -195,19 +275,23 @@ export function PortalAircraftMap({
       }
 
       if (points.length === 1) {
-        map.easeTo({ center: points[0], zoom: 7, duration: 400 })
+        map.easeTo({ center: points[0], zoom: 7, duration: 500 })
       } else if (points.length > 1) {
         const bounds = new maplibregl.LngLatBounds(points[0], points[0])
         for (const p of points) bounds.extend(p)
-        map.fitBounds(bounds, { padding: 48, maxZoom: 8, duration: 400 })
+        map.fitBounds(bounds, {
+          padding: { top: 56, bottom: 56, left: 48, right: 48 },
+          maxZoom: 9,
+          duration: 500,
+        })
       }
+      paintedKeyRef.current = key
     }
 
     if (map.loaded()) paint()
     else map.once('load', paint)
 
     return () => {
-      for (const m of markers) m.remove()
       try {
         cleanupLayer()
       } catch {
@@ -221,7 +305,7 @@ export function PortalAircraftMap({
       ref={containerRef}
       className={
         className ??
-        'h-48 w-full overflow-hidden rounded-md border border-[#ddd6c4] bg-[#F7F2E3] sm:h-56'
+        'h-48 w-full overflow-hidden rounded-md border border-[#ddd6c4] bg-[#141414] sm:h-56'
       }
     />
   )

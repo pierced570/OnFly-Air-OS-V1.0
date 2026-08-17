@@ -2,9 +2,9 @@
  * Portal home shipment card — route, tail, stage (no projected-vs-actual).
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { createAdsbAdapter, type AdsbPosition } from '@/adapters/adsb'
+import { useAdsbForTail } from '@/hooks/useAdsbForTail'
 import {
   buildPortalTrackingView,
   clientOpsStageLabel,
@@ -12,36 +12,6 @@ import {
   type PortalShipmentPhase,
 } from '@/domain/portalTracking'
 import { getTrip } from '@/lib/tripStore'
-
-const REFRESH_MS = 30_000
-
-function useAdsbForTail(tail: string | null | undefined): AdsbPosition | null {
-  const [pos, setPos] = useState<AdsbPosition | null>(null)
-  useEffect(() => {
-    if (!tail) {
-      setPos(null)
-      return
-    }
-    let cancelled = false
-    const tick = () => {
-      void createAdsbAdapter()
-        .positions([tail])
-        .then((rows) => {
-          if (!cancelled) setPos(rows[0] ?? null)
-        })
-        .catch(() => {
-          if (!cancelled) setPos(null)
-        })
-    }
-    tick()
-    const id = window.setInterval(tick, REFRESH_MS)
-    return () => {
-      cancelled = true
-      window.clearInterval(id)
-    }
-  }, [tail])
-  return pos
-}
 
 export type PortalHomeTripCardProps = {
   id: string

@@ -166,7 +166,8 @@ function noData(tail: string): AdsbPosition {
     alt: 0,
     gs: 0,
     seenAt: new Date(0).toISOString(),
-    laddBlocked: true,
+    // Mock: no fix yet — not a LADD block (portal still uses ETA-inferred track).
+    laddBlocked: false,
     lastTakeoffAt: null,
     lastLandingAt: null,
     takeoffIsActual: false,

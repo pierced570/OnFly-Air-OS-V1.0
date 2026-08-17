@@ -1,34 +1,26 @@
 /**
  * Client live-tracking body — route, aircraft position, tail, stage progress.
  * No projected-vs-actual comparison (late teams must not look bad on the portal).
- * OnFly desk (?desk=1 or staff session) can edit pickup / drop-off locations.
+ * Stop / ETA edits live on the OnFly dispatcher Live tracking card — not here.
  */
 
-import { useMemo, useState, useSyncExternalStore } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useMemo, useSyncExternalStore } from 'react'
+import { Link } from 'react-router-dom'
 import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 import { PortalShell } from '@/components/PortalShell'
-import { PortalStopPicker } from '@/components/PortalStopPicker'
 import {
+  portalAircraftMapBlocked,
   portalAircraftMapVisible,
   clientOpsStageLabel,
   type OpsForecastRow,
   type PortalTrackingView,
 } from '@/domain/portalTracking'
 import {
-  emptyPortalStop,
   formatPortalStopAddress,
   formatPortalStopTitle,
-  type PortalStopLocation,
 } from '@/domain/portalStopLocation'
 import { listFbos, subscribeFbos } from '@/lib/fboStore'
 import { enrichTrackingStops } from '@/lib/portalTrackingEnrich'
-import { getSession, subscribeStaff } from '@/lib/staffStore'
-import {
-  ensureTripInSession,
-  getTrip,
-  setPortalStopLocations,
-} from '@/lib/tripStore'
 
 function stageStatusLabel(status: OpsForecastRow['status']): string {
   if (status === 'done') return 'Complete'
@@ -38,18 +30,19 @@ function stageStatusLabel(status: OpsForecastRow['status']): string {
 
 function aircraftWhereLabel(view: PortalTrackingView): string {
   const a = view.aircraft
+  if (a.laddBlocked) return 'Blocked from view'
   if (a.source === 'adsb' && a.phase === 'airborne') {
-    return 'In the air · live ADS-B'
+    return 'In the air · live track'
   }
   if (a.phase === 'airborne') return 'In the air'
   if (a.phase === 'on_ground') {
     const icao = a.toIcao || a.fromIcao || view.flightFacts.originIcao
     return icao ? `On the ground · ${icao}` : 'On the ground'
   }
-  if (a.phase === 'positioning') return 'Positioning to pickup'
+  if (a.phase === 'positioning') return 'Enroute to pickup'
   const active = view.opsForecastRows.find((r) => r.status === 'active')
   if (active) return clientOpsStageLabel(active)
-  if (view.state === 'delivered') return 'Delivered'
+  if (view.state === 'delivered') return 'Landed at destination'
   if (view.state === 'booked') return 'Booked · standing by'
   return 'Standing by'
 }
@@ -57,30 +50,20 @@ function aircraftWhereLabel(view: PortalTrackingView): string {
 export function PortalTrackingBody({
   view,
   backHref = '/portal',
-  tripId = null,
 }: {
   view: PortalTrackingView
   backHref?: string
-  /** When set, OnFly desk can edit pickup / drop-off (staff session or ?desk=1). */
+  /** @deprecated Desk edits moved to OnFly Live tracking — ignored. */
   tripId?: string | null
 }) {
-  const [searchParams] = useSearchParams()
-  const staff = useSyncExternalStore(
-    subscribeStaff,
-    getSession,
-    () => null,
-  )
-  const deskEdit =
-    Boolean(tripId) &&
-    (Boolean(staff) || searchParams.get('desk') === '1')
-
   const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
   const enrichedStops = useMemo(
     () => enrichTrackingStops(view.stops),
     [view.stops, fbos],
   )
   const a = view.aircraft
-  const showMap = portalAircraftMapVisible(a)
+  const mapBlocked = portalAircraftMapBlocked(a)
+  const showMap = !mapBlocked && portalAircraftMapVisible(a)
   const po =
     view.poNumber?.replace(/^PO\s*#?\s*/i, '') || `T-${view.ref}`
   const title = view.code
@@ -100,59 +83,12 @@ export function PortalTrackingBody({
   const depFbo = enrichedStops.find((s) => s.role === 'departure_fbo')
   const arrFbo = enrichedStops.find((s) => s.role === 'arrival_fbo')
 
-  const pickupIcao =
-    view.pickupStop?.icao ||
-    view.flightFacts.originIcao ||
-    depFbo?.icao ||
-    pickup?.icao ||
-    ''
-  const dropoffIcao =
-    view.dropoffStop?.icao ||
-    view.flightFacts.destIcao ||
-    arrFbo?.icao ||
-    drop?.icao ||
-    ''
-
-  const [editingStops, setEditingStops] = useState(false)
-  const [draftPickup, setDraftPickup] = useState<PortalStopLocation>(
-    () => view.pickupStop ?? emptyPortalStop(pickupIcao),
-  )
-  const [draftDropoff, setDraftDropoff] = useState<PortalStopLocation>(
-    () => view.dropoffStop ?? emptyPortalStop(dropoffIcao),
-  )
-  const [saveNote, setSaveNote] = useState<string | null>(null)
-
   const shareUrl =
     typeof window !== 'undefined' ? window.location.href : backHref
 
   function shareTracking() {
     void navigator.clipboard?.writeText(shareUrl).catch(() => undefined)
     window.alert('Tracking link copied')
-  }
-
-  function openStopEditor() {
-    setDraftPickup(view.pickupStop ?? emptyPortalStop(pickupIcao))
-    setDraftDropoff(view.dropoffStop ?? emptyPortalStop(dropoffIcao))
-    setEditingStops(true)
-    setSaveNote(null)
-  }
-
-  function saveStops() {
-    if (!tripId) return
-    const trip = getTrip(tripId)
-    if (!trip) {
-      // Magic-link session may only have a stub — ensure editable.
-      setSaveNote('Trip not in session — open from Dispatch Live tracking.')
-      return
-    }
-    ensureTripInSession(trip)
-    setPortalStopLocations(
-      tripId,
-      { pickup: draftPickup, dropoff: draftDropoff },
-      'dispatcher',
-    )
-    setEditingStops(false)
-    setSaveNote('Pickup & drop-off saved.')
   }
 
   const seenAgo = (() => {
@@ -239,15 +175,6 @@ export function PortalTrackingBody({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {deskEdit ? (
-            <button
-              type="button"
-              onClick={() => (editingStops ? setEditingStops(false) : openStopEditor())}
-              className="rounded-md border border-ink/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink hover:bg-ink/5"
-            >
-              {editingStops ? 'Close editor' : 'Edit stops'}
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={shareTracking}
@@ -262,22 +189,46 @@ export function PortalTrackingBody({
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em]">
           <span className="text-gold">
             ●{' '}
-            {a.source === 'adsb'
-              ? 'Live ADS-B'
-              : a.source === 'eta'
-                ? 'Live track'
-                : 'Track'}
+            {mapBlocked
+              ? 'Track unavailable'
+              : a.source === 'adsb'
+                ? `Live · ${tail}`
+                : a.source === 'eta'
+                  ? `Track · ${tail}`
+                  : 'Track'}
           </span>
           <span className="text-cream/55">
-            {seenAgo ||
-              (view.state === 'in_progress'
-                ? a.phase === 'positioning'
-                  ? 'AT PICKUP'
-                  : 'LIVE'
-                : 'STANDING BY')}
+            {mapBlocked
+              ? 'BLOCKED'
+              : seenAgo ||
+                (view.state === 'in_progress'
+                  ? a.phase === 'positioning' || a.phase === 'airborne'
+                    ? 'LIVE'
+                    : 'AT PICKUP'
+                  : 'STANDING BY')}
           </span>
         </div>
-        {showMap ? (
+        {mapBlocked ? (
+          <div className="relative flex h-56 items-center justify-center bg-[#141414] px-6 text-center sm:h-72">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-40"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 30% 40%, #2a2a2e 0%, transparent 55%), radial-gradient(circle at 70% 60%, #1a1a1c 0%, transparent 50%)',
+              }}
+            />
+            <div className="relative max-w-md space-y-2">
+              <p className="avionic text-sm font-semibold tracking-wide text-gold">
+                {tail !== 'Pending' ? tail : 'Aircraft'}
+              </p>
+              <p className="text-sm leading-relaxed text-cream/85">
+                Unfortunately this tail number is blocked from view. Dispatch
+                will manually provide updates.
+              </p>
+            </div>
+          </div>
+        ) : showMap ? (
           <PortalAircraftMap
             aircraft={a}
             className="h-56 w-full border-y border-cream/10 bg-[#141414] sm:h-72"
@@ -286,8 +237,8 @@ export function PortalTrackingBody({
           <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-cream/50">
             {view.state === 'in_progress'
               ? tail === 'Pending'
-                ? 'Trip is live — assign a real tail on dispatch for ADS-B position.'
-                : 'Waiting for wheels-up or ADS-B lock on this tail.'
+                ? 'Trip is live — assign a real tail on dispatch for live track.'
+                : 'Waiting for wheels-up or a live lock on this tail.'
               : view.state === 'booked'
                 ? 'Aircraft position appears when the trip goes live.'
                 : 'Route map appears once the trip is live.'}
@@ -365,12 +316,7 @@ export function PortalTrackingBody({
         )}
       </section>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-2">
-        <InfoCard
-          title="Route"
-          body={`${originLabel} → ${destLabel}`}
-          sub={view.lane}
-        />
+      <section className="mt-6 grid gap-3 sm:grid-cols-3">
         <InfoCard
           title="Aircraft"
           body={`${tail}${view.aircraftType ? ` · ${view.aircraftType}` : ''}`}
@@ -379,56 +325,6 @@ export function PortalTrackingBody({
         <InfoCard title="Pickup" body={pickupTitle} sub={pickupSub} />
         <InfoCard title="Drop-off" body={dropoffTitle} sub={dropoffSub} />
       </section>
-
-      {deskEdit && editingStops ? (
-        <section className="mt-6 space-y-4 rounded-md border border-gold/40 bg-white p-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gold">
-            OnFly desk · pickup & drop-off
-          </div>
-          <p className="text-xs text-muted">
-            Client hangar, field FBO from the directory, or TBD (blank until
-            filled). Name and street address show on the client tracker.
-          </p>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <PortalStopPicker
-              label="Pickup"
-              icao={pickupIcao}
-              value={draftPickup}
-              onChange={setDraftPickup}
-              tone="cream"
-            />
-            <PortalStopPicker
-              label="Drop-off"
-              icao={dropoffIcao}
-              value={draftDropoff}
-              onChange={setDraftDropoff}
-              tone="cream"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
-              onClick={saveStops}
-            >
-              Save stops
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-border px-4 py-2 text-sm text-muted"
-              onClick={() => setEditingStops(false)}
-            >
-              Cancel
-            </button>
-          </div>
-          {saveNote ? (
-            <p className="text-xs text-muted">{saveNote}</p>
-          ) : null}
-        </section>
-      ) : null}
-      {deskEdit && !editingStops && saveNote ? (
-        <p className="mt-3 text-xs text-muted">{saveNote}</p>
-      ) : null}
     </PortalShell>
   )
 }
