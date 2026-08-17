@@ -17,7 +17,6 @@ export const STAFF_SECTIONS = [
   { id: 'network', label: 'Network', pathPrefix: '/network' },
   { id: 'radar', label: 'Radar (Network hub)', pathPrefix: '/network' },
   { id: 'admin', label: 'Admin wizards', pathPrefix: '/admin' },
-  { id: 'tasks', label: 'Tasks', pathPrefix: '/admin/tasks' },
   { id: 'vault_keys', label: 'Logins & keys', pathPrefix: '/admin/keys' },
   { id: 'staff_access', label: 'Staff access', pathPrefix: '/admin/staff' },
 ] as const
@@ -149,7 +148,6 @@ export function sectionForPath(pathname: string): StaffSectionId | null {
   if (pathname.startsWith('/admin/keys')) return 'vault_keys'
   if (pathname.startsWith('/admin/staff')) return 'staff_access'
   if (pathname.startsWith('/admin/portal-access')) return 'clients'
-  if (pathname.startsWith('/admin/tasks')) return 'tasks'
   if (pathname.startsWith('/admin')) return 'admin'
   if (pathname.startsWith('/quick-dispatch')) return 'quick_dispatch'
   if (pathname.startsWith('/financials')) return 'financials'
@@ -190,5 +188,4 @@ export const DISPATCH_DEFAULT_SECTIONS: StaffSectionId[] = [
   'quotes',
   'network',
   'radar',
-  'tasks',
 ]

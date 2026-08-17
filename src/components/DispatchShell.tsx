@@ -27,7 +27,6 @@ const nav: {
   // FBOs + Radar + recommend-by-ICAO + couriers live under Network hub tabs.
   { to: '/network', label: 'Network', section: 'network' },
   { to: '/admin', label: 'Admin', section: 'admin' },
-  { to: '/admin/tasks', label: 'Tasks', section: 'tasks' },
   { to: '/admin/portal-access', label: 'Portal access', section: 'clients' },
   { to: '/admin/staff', label: 'Staff access', section: 'staff_access' },
   { to: '/admin/keys', label: 'Logins & keys', section: 'vault_keys' },

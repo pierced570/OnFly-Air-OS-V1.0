@@ -7,7 +7,6 @@ const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NetworkHubPage = lazy(() => import('@/pages/NetworkHubPage'))
 const TripPage = lazy(() => import('@/pages/TripPage'))
 const AdminPage = lazy(() => import('@/pages/AdminPage'))
-const AdminTasksPage = lazy(() => import('@/pages/AdminTasksPage'))
 const StaffAccessPage = lazy(() => import('@/pages/StaffAccessPage'))
 const PortalAccessPage = lazy(() => import('@/pages/PortalAccessPage'))
 const VaultKeysPage = lazy(() => import('@/pages/VaultKeysPage'))
@@ -132,7 +131,7 @@ export function App() {
           element={<Navigate to="/dispatch" replace />}
         />
         <Route path="/admin" element={<AdminPage />} />
-        <Route path="/admin/tasks" element={<AdminTasksPage />} />
+        <Route path="/admin/tasks" element={<Navigate to="/admin" replace />} />
         <Route path="/admin/staff" element={<StaffAccessPage />} />
         <Route path="/admin/portal-access" element={<PortalAccessPage />} />
         <Route path="/admin/keys" element={<VaultKeysPage />} />

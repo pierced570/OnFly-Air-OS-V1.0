@@ -34,7 +34,6 @@ import {
   subscribePresence,
 } from '@/lib/presenceStore'
 import { getSession, subscribeStaff } from '@/lib/staffStore'
-import { listOpenNeedsInfo, subscribeNeedsInfo } from '@/lib/needsInfoStore'
 import { shortlistLabel } from '@/domain/shortlistBands'
 import { approveShortlistAndSpoolOffers } from '@/lib/ladderFlow'
 
@@ -63,11 +62,6 @@ export default function BoardPage() {
     listLoggedIn,
   )
   const session = useSyncExternalStore(subscribeStaff, getSession, getSession)
-  const openTasks = useSyncExternalStore(
-    subscribeNeedsInfo,
-    listOpenNeedsInfo,
-    listOpenNeedsInfo,
-  )
 
   const [shiftName, setShiftName] = useState('')
   const [shiftPhone, setShiftPhone] = useState('')
@@ -328,12 +322,6 @@ export default function BoardPage() {
             Queues
           </div>
           <ul className="mt-2 space-y-1 text-xs">
-            <li>
-              <Link to="/admin/tasks" className="text-gold">
-                NEEDS-INFO
-              </Link>
-              <span className="ml-2 avionic text-muted">{openTasks.length}</span>
-            </li>
             <li>
               <span className="text-muted">Pipeline active</span>
               <span className="ml-2 avionic text-cream">{activeCount}</span>
