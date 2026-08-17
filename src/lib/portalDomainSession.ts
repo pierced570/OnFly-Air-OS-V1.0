@@ -4,13 +4,14 @@
  */
 
 import {
-  resolveClientIdByPortalEmail,
+  resolveAllClientIdsByPortalEmail,
   type PortalDomainClient,
 } from '@/domain/portalDomains'
 import type { PortalSession } from '@/domain/portalAuth'
 import { setPortalClientId, clearPortalClient } from '@/lib/clientOnboardStore'
-import { listClients } from '@/lib/clientStore'
+import { listClients, sameClientId } from '@/lib/clientStore'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import { listTripsStable } from '@/lib/tripStore'
 
 const DOMAIN_SESSION_KEY = 'onfly.portal.domain_session'
 
@@ -141,6 +142,48 @@ async function clientsForPortalResolve(): Promise<PortalDomainClient[]> {
 }
 
 /**
+ * When one email is on multiple companies (exact contacts), prefer the company
+ * that already has open shipments so staff testers land on the right desk.
+ */
+async function pickPortalClientId(
+  email: string,
+  candidateIds: string[],
+): Promise<string> {
+  if (candidateIds.length === 1) return candidateIds[0]!
+
+  const openLocal = listTripsStable().filter(
+    (t) => !['closed', 'lost', 'cancelled'].includes(t.state),
+  )
+  for (const id of candidateIds) {
+    if (openLocal.some((t) => sameClientId(t.client_id, id))) return id
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.rpc('portal_trips_for_work_email', {
+        p_email: email,
+      })
+      if (!error && Array.isArray(data) && data.length) {
+        for (const id of candidateIds) {
+          const hit = data.find((row) => {
+            const cid =
+              row && typeof row === 'object' && 'client_id' in row
+                ? String((row as { client_id?: string }).client_id ?? '')
+                : ''
+            return sameClientId(cid, id) || cid === id
+          })
+          if (hit) return id
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  return candidateIds[0]!
+}
+
+/**
  * Sign in with a work email — no magic link.
  * Routes to the matching client when the address (or its domain) is verified.
  */
@@ -153,13 +196,14 @@ export async function signInPortalByWorkEmail(
   }
 
   const clients = await clientsForPortalResolve()
-  const clientId = resolveClientIdByPortalEmail(addr, clients)
-  if (!clientId) {
+  const candidateIds = resolveAllClientIdsByPortalEmail(addr, clients)
+  if (!candidateIds.length) {
     throw new Error(
       'This email is not verified for portal access. Contact OnFly if you need access.',
     )
   }
 
+  const clientId = await pickPortalClientId(addr, candidateIds)
   const stored: PortalDomainSessionStored = { email: addr, clientId }
   writeStored(stored)
   setPortalClientId(clientId)

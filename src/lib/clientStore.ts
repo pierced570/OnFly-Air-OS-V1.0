@@ -437,6 +437,21 @@ export function getClient(id: string): ClientProfile | undefined {
   return aliased ? clients.get(aliased) : undefined
 }
 
+/**
+ * True when two ids refer to the same directory client (legacy_key ↔ supabase UUID).
+ */
+export function sameClientId(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  if (!a || !b) return false
+  if (a === b) return true
+  const ca = getClient(a)
+  const cb = getClient(b)
+  if (!ca || !cb) return false
+  return ca.id === cb.id
+}
+
 export function addClient(opts: {
   name: string
   email?: string

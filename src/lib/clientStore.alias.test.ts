@@ -3,6 +3,7 @@ import {
   __resetClientsForTests,
   getClient,
   replaceClientsFromDb,
+  sameClientId,
   type ClientProfile,
 } from '@/lib/clientStore'
 
@@ -51,6 +52,19 @@ describe('getClient id alias', () => {
     ])
     expect(getClient('client-tester')?.name).toBe('Tester')
     expect(getClient(uuid)?.name).toBe('Tester')
+  })
+
+  it('sameClientId matches legacy_key and supabase UUID', () => {
+    const uuid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+    replaceClientsFromDb([
+      blankClient({
+        id: 'client-tester',
+        supabase_id: uuid,
+        name: 'Tester',
+      }),
+    ])
+    expect(sameClientId('client-tester', uuid)).toBe(true)
+    expect(sameClientId('client-tester', 'other')).toBe(false)
   })
 
   it('preserves session last_po when DB hydrate has null', () => {

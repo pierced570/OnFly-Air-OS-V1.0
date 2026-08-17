@@ -95,9 +95,20 @@ export async function ensurePortalUserLinked(): Promise<{
 export async function listPortalTripsForSession(): Promise<PortalTripCard[]> {
   if (!isSupabaseConfigured || !supabase) return []
   const domain = readPortalDomainSession()
-  if (domain?.clientId) {
-    // Domain sign-in has no auth.uid — company trips come from local store.
-    return []
+  if (domain?.email) {
+    // Domain sign-in has no auth.uid — RLS cannot scope portal_trips.
+    // SECURITY DEFINER RPC verifies the work email, then returns safe cards
+    // for authorized companies and client-facing participant matches.
+    const { data, error } = await supabase.rpc('portal_trips_for_work_email', {
+      p_email: domain.email,
+    })
+    if (error) {
+      console.warn('[portal] portal_trips_for_work_email', error.message)
+      return []
+    }
+    return ((data ?? []) as Record<string, unknown>[]).map((r) =>
+      mapPortalTripRow(r),
+    )
   }
   await ensurePortalUserLinked()
   const { data, error } = await supabase
