@@ -2,17 +2,16 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   __resetClientsForTests,
   addClient,
-  listAirportEtaEmails,
   listEtaTrackingEmails,
   listMixedDirectoryContacts,
 } from './clientStore'
 
-describe('client ETA airport flags + mixed contacts', () => {
+describe('client ETA from bases (not per-contact ICAO flags)', () => {
   beforeEach(() => {
     __resetClientsForTests()
   })
 
-  it('autopopulates ETA from eta_icaos when legs match', () => {
+  it('autofills ETA from matching base emails + Always ETA contacts', () => {
     const c = addClient({
       name: 'PSA Test',
       contacts: [
@@ -23,12 +22,10 @@ describe('client ETA airport flags + mixed contacts', () => {
           notify_prefs: { tracker: true },
         },
         {
-          name: 'CAK only',
-          email: 'cak.only@psa.test',
-          role: 'supply_chain',
-          kind: 'dl',
-          eta_icaos: ['CAK'],
-          notify_prefs: { tracker: false },
+          name: 'No flag',
+          email: 'nofill@psa.test',
+          role: 'requester',
+          notify_prefs: { tracker: false, request_alert: false },
         },
       ],
       profile: {
@@ -41,12 +38,14 @@ describe('client ETA airport flags + mixed contacts', () => {
         ],
       },
     })
-    expect(listAirportEtaEmails(c.id, ['KCAK'])).toEqual(['cak.only@psa.test'])
-    expect(listEtaTrackingEmails(c.id, { legIcaos: ['CAK'] })).toEqual(
-      expect.arrayContaining(['always@psa.test', 'cak.only@psa.test']),
-    )
+    expect(listEtaTrackingEmails(c.id, { legIcaos: ['CAK'] })).toEqual([
+      'always@psa.test',
+    ])
     expect(listEtaTrackingEmails(c.id, { legIcaos: ['CLT'] })).toEqual(
       expect.arrayContaining(['always@psa.test', 'clt.sup@psa.test']),
+    )
+    expect(listEtaTrackingEmails(c.id, { legIcaos: ['CLT'] })).not.toContain(
+      'nofill@psa.test',
     )
     const mixed = listMixedDirectoryContacts(c.id)
     expect(mixed.some((x) => x.email === 'clt.sup@psa.test' && x.kind === 'dl')).toBe(

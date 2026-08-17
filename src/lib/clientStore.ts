@@ -884,41 +884,9 @@ export function listTrackerEmails(clientId: string): string[] {
   return [...new Set(out)]
 }
 
-function icaoCodesMatch(a: string, b: string): boolean {
-  const x = a.trim().toUpperCase()
-  const y = b.trim().toUpperCase()
-  if (!x || !y) return false
-  if (x === y) return true
-  const sx = x.length === 4 && x.startsWith('K') ? x.slice(1) : x
-  const sy = y.length === 4 && y.startsWith('K') ? y.slice(1) : y
-  return sx === sy
-}
-
 /**
- * Contacts flagged for ETA when the trip uses specific airports
- * (`eta_icaos`), regardless of the global tracker toggle.
- */
-export function listAirportEtaEmails(
-  clientId: string,
-  legIcaos: string[],
-): string[] {
-  const cl = getClient(clientId)
-  if (!cl || !legIcaos.length) return []
-  const out: string[] = []
-  for (const c of cl.contacts) {
-    if (!c.email || !c.eta_icaos?.length) continue
-    const hit = c.eta_icaos.some((code) =>
-      legIcaos.some((leg) => icaoCodesMatch(code, leg)),
-    )
-    if (hit) out.push(c.email.toLowerCase())
-  }
-  return [...new Set(out)]
-}
-
-/**
- * ETA / tracking recipients: tracker contacts + airport-flagged contacts +
- * base mailboxes (stored or auto-generated).
- * When legIcaos are provided, prefer bases / eta_icaos that match the trip.
+ * ETA / tracking recipients: tracker contacts + matching base mailboxes.
+ * When legIcaos are provided, only bases on the trip are included.
  */
 export function listEtaTrackingEmails(
   clientId: string,
@@ -928,7 +896,6 @@ export function listEtaTrackingEmails(
   if (!cl) return []
   const legs = opts?.legIcaos ?? []
   const fromContacts = listTrackerEmails(clientId)
-  const fromAirportFlags = listAirportEtaEmails(clientId, legs)
   const fromBases = listBaseGeneratedEmails(
     {
       email: cl.email,
@@ -940,29 +907,19 @@ export function listEtaTrackingEmails(
     },
     { legIcaos: legs },
   ).map((b) => b.email.toLowerCase())
-  return [...new Set([...fromContacts, ...fromAirportFlags, ...fromBases])]
+  return [...new Set([...fromContacts, ...fromBases])]
 }
 
-/** Saved contacts that are ETA/tracker (not AP-only), plus airport-flagged. */
+/** Saved contacts that are ETA/tracker (not AP-only). */
 export function listEtaTrackingContacts(
   clientId: string,
-  opts?: { legIcaos?: string[] },
+  _opts?: { legIcaos?: string[] },
 ): ClientContact[] {
   const cl = getClient(clientId)
   if (!cl) return []
-  const legs = opts?.legIcaos ?? []
   return cl.contacts.filter((c) => {
     if (!c.email) return false
-    if (c.notify_prefs.tracker || c.role === 'supply_chain') return true
-    if (
-      legs.length &&
-      c.eta_icaos?.some((code) =>
-        legs.some((leg) => icaoCodesMatch(code, leg)),
-      )
-    ) {
-      return true
-    }
-    return false
+    return c.notify_prefs.tracker || c.role === 'supply_chain'
   })
 }
 

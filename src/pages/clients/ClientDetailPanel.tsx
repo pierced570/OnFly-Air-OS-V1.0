@@ -71,57 +71,6 @@ function primaryLine(client: ClientProfile): string {
   return ops || client.email || client.invoice_email || 'No ops email'
 }
 
-/** ETA airports — draft while typing so commas/spaces aren't eaten on each key. */
-function ContactEtaAirportsInput({
-  clientId,
-  contactId,
-  icaos,
-  className,
-  placeholder = 'CAK, CLT',
-}: {
-  clientId: string
-  contactId: string
-  icaos: string[] | undefined
-  className: string
-  placeholder?: string
-}) {
-  const committed = (icaos ?? []).join(', ')
-  const [draft, setDraft] = useState(committed)
-  const [focused, setFocused] = useState(false)
-  useEffect(() => {
-    if (!focused) setDraft(committed)
-  }, [committed, focused])
-
-  function commit(raw: string) {
-    const eta_icaos = raw
-      .split(/[,;\s]+/)
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean)
-    updateClientContact(clientId, contactId, { eta_icaos })
-  }
-
-  return (
-    <input
-      className={className}
-      value={draft}
-      placeholder={placeholder}
-      title="Comma-separated ICAOs for ETA autopopulate"
-      onFocus={() => setFocused(true)}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        setFocused(false)
-        commit(draft)
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          ;(e.target as HTMLInputElement).blur()
-        }
-      }}
-    />
-  )
-}
-
 export function ClientDetailPanel({
   client: clientProp,
   onBack,
@@ -459,9 +408,8 @@ function ContactsTab({
         People and distribution lists in one list. Set Invoice to{' '}
         <span className="text-gold">Always (To)</span> or{' '}
         <span className="text-gold">Sometimes (CC)</span> — Billing shows the
-        bubbles. Set <span className="text-gold">ETA airports</span> so that
-        email joins the ETA sheet when those ICAOs are on the trip. Base
-        supervisor/stores DLs appear here automatically.
+        bubbles. Flag <span className="text-gold">Always ETA</span> for sheet
+        recipients. Base supervisor/stores DLs appear here from the Bases tab.
       </p>
       <p className="text-xs text-muted">{apCount} on invoice lists</p>
 
@@ -574,19 +522,10 @@ function ContactsTab({
                       Always ETA
                     </label>
                   </div>
-                  <ContactEtaAirportsInput
-                    clientId={client.id}
-                    contactId={c.id}
-                    icaos={c.eta_icaos}
-                    className="w-full rounded-md border border-border bg-ink px-3 py-2.5 font-mono text-xs text-cream outline-none focus:border-gold"
-                    placeholder="ETA airports (CAK, CLT)"
-                  />
                 </>
               )}
               {synthetic && (
-                <p className="text-[11px] text-muted">
-                  ETA @ {(c.eta_icaos ?? []).join(', ') || '—'}
-                </p>
+                <p className="text-[11px] text-muted">From Bases tab</p>
               )}
             </li>
           )
@@ -603,7 +542,6 @@ function ContactsTab({
               <th className="px-3 py-2">Title</th>
               <th className="px-3 py-2">Phone</th>
               <th className="px-3 py-2">Flags</th>
-              <th className="px-3 py-2">ETA airports</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -687,9 +625,7 @@ function ContactsTab({
                   </td>
                   <td className="px-3 py-2">
                     {synthetic ? (
-                      <span className="text-[11px] text-muted">
-                        ETA @ {(c.eta_icaos ?? []).join(', ')}
-                      </span>
+                      <span className="text-[11px] text-muted">Base DL</span>
                     ) : (
                       <div className="flex flex-col gap-1 text-[11px]">
                         <label className="flex items-center gap-1 text-cream">
@@ -720,21 +656,6 @@ function ContactsTab({
                           Always ETA
                         </label>
                       </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {synthetic ? (
-                      <span className="font-mono text-xs text-muted">
-                        {(c.eta_icaos ?? []).join(', ')}
-                      </span>
-                    ) : (
-                      <ContactEtaAirportsInput
-                        clientId={client.id}
-                        contactId={c.id}
-                        icaos={c.eta_icaos}
-                        className="w-28 rounded border border-border bg-ink px-2 py-1 font-mono text-xs text-cream outline-none focus:border-gold"
-                        placeholder="CAK, CLT"
-                      />
                     )}
                   </td>
                   <td className="px-3 py-2">
@@ -845,8 +766,9 @@ function BasesTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted">
-          Operational bases. Supervisor / stores DLs also show on Contacts with
-          ETA airport flags. Diagrams sit on each base — download anytime.
+          Operational bases. Supervisor / stores emails autofill the ETA sheet
+          when that ICAO is on the trip. Diagrams sit on each base — download
+          anytime.
         </p>
         <button
           type="button"
