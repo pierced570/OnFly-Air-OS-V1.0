@@ -1,18 +1,19 @@
 /**
- * Live tracking card actions — portal, client email update, Access chat,
+ * Live tracking card actions — portal, client update, Access chat,
  * Log as complete, Delete.
- * Client ETA / stop / info updates are drafted here and emailed in the ETA sheet thread.
+ * Client update = progress portal stage OR email on the ETA sheet thread.
  */
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import { PortalStopPicker } from '@/components/PortalStopPicker'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { TripThreadPanel } from '@/components/TripThreadPanel'
 import { formatChatMemberLine } from '@/domain/chatRoster'
 import {
-  emptyPortalStop,
-  formatPortalStopTitle,
-  type PortalStopLocation,
-} from '@/domain/portalStopLocation'
+  clientOpsStageLabel,
+  PORTAL_OPS_STAGE_KEYS,
+  type PortalOpsStageKey,
+  tripToTrackingInput,
+  buildPortalTrackingView,
+} from '@/domain/portalTracking'
 import {
   getEtaSheetThreadMeta,
   portalTrackingUrlForTrip,
@@ -24,7 +25,7 @@ import {
   getTrip,
   listTripsStable,
   safeTransitionTrip,
-  setPortalStopLocations,
+  setPortalOpsStage,
   subscribeTrips,
 } from '@/lib/tripStore'
 
@@ -32,38 +33,23 @@ type Props = {
   tripId: string
 }
 
+type UpdateMode = 'stage' | 'email'
+
 export function LiveTrackingCardActions({ tripId }: Props) {
   const trips = useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const trip = trips.find((t) => t.id === tripId) ?? getTrip(tripId)
   const [chatOpen, setChatOpen] = useState(false)
   const [updateOpen, setUpdateOpen] = useState(false)
+  const [updateMode, setUpdateMode] = useState<UpdateMode>('stage')
   const [ensuring, setEnsuring] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [sending, setSending] = useState(false)
+  const [savingStage, setSavingStage] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
-
-  const [headline, setHeadline] = useState('ETA update')
-  const [etaLine, setEtaLine] = useState('')
   const [body, setBody] = useState('')
-  const [extraEmails, setExtraEmails] = useState('')
-
-  const originIcao =
-    trip?.eta_chain?.find((l) => l.type === 'air_leg')?.from.icao ||
-    trip?.lane?.split(/→|->/)[0]?.trim() ||
-    ''
-  const destIcao =
-    trip?.eta_chain?.find((l) => l.type === 'air_leg')?.to.icao ||
-    trip?.lane?.split(/→|->/).at(-1)?.trim() ||
-    ''
-
-  const [draftPickup, setDraftPickup] = useState<PortalStopLocation>(() =>
-    emptyPortalStop(originIcao),
-  )
-  const [draftDropoff, setDraftDropoff] = useState<PortalStopLocation>(() =>
-    emptyPortalStop(destIcao),
-  )
+  const [draftStage, setDraftStage] = useState<PortalOpsStageKey | null>(null)
 
   useEffect(() => {
     if (!chatOpen || !trip) return
@@ -76,9 +62,13 @@ export function LiveTrackingCardActions({ tripId }: Props) {
 
   useEffect(() => {
     if (!trip || !updateOpen) return
-    setDraftPickup(trip.portal_pickup_stop ?? emptyPortalStop(originIcao))
-    setDraftDropoff(trip.portal_dropoff_stop ?? emptyPortalStop(destIcao))
-  }, [trip, updateOpen, originIcao, destIcao])
+    setDraftStage(trip.portal_ops_stage ?? null)
+  }, [trip, updateOpen])
+
+  const stageView = useMemo(() => {
+    if (!trip) return null
+    return buildPortalTrackingView(tripToTrackingInput(trip))
+  }, [trip])
 
   if (!trip) return null
 
@@ -89,6 +79,9 @@ export function LiveTrackingCardActions({ tripId }: Props) {
   const canComplete = trip.state === 'in_progress'
   const thread = getEtaSheetThreadMeta(trip)
   const threadRecipients = thread?.recipients ?? []
+  const liveStage =
+    stageView?.opsForecastRows.find((r) => r.status === 'active') ?? null
+  const pinnedStage = trip.portal_ops_stage ?? null
 
   function logAsComplete() {
     const row = getTrip(tripId)
@@ -135,52 +128,41 @@ export function LiveTrackingCardActions({ tripId }: Props) {
     }
   }
 
-  function saveStopsOnly() {
+  function applyStage(stage: PortalOpsStageKey | null) {
+    if (savingStage) return
+    setSavingStage(true)
     setErr(null)
     setNote(null)
     try {
-      setPortalStopLocations(
-        tripId,
-        { pickup: draftPickup, dropoff: draftDropoff },
-        'dispatcher',
-      )
+      setPortalOpsStage(tripId, stage)
+      setDraftStage(stage)
       setNote(
-        `Stops saved · pickup ${formatPortalStopTitle(draftPickup)} · drop-off ${formatPortalStopTitle(draftDropoff)}`,
+        stage
+          ? `Portal stage set to ${clientOpsStageLabel({ key: stage })}`
+          : 'Portal stage follows live ADS-B / ETA again',
       )
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSavingStage(false)
     }
   }
 
-  async function sendUpdate() {
+  async function sendEmailUpdate() {
     if (sending) return
     setSending(true)
     setErr(null)
     setNote(null)
     try {
-      setPortalStopLocations(
-        tripId,
-        { pickup: draftPickup, dropoff: draftDropoff },
-        'dispatcher',
-      )
-      const extras = extraEmails
-        .split(/[,;\s]+/)
-        .map((e) => e.trim())
-        .filter((e) => e.includes('@'))
       const result = await sendClientTrackingUpdate({
         tripId,
         body,
-        headline,
-        etaLine: etaLine.trim() || undefined,
-        recipients: extras.length
-          ? [...threadRecipients, ...extras]
-          : undefined,
+        headline: 'Trip update',
       })
       setNote(
         `Update emailed to ${result.sentTo.join(', ')} · ${result.subject}`,
       )
       setBody('')
-      setEtaLine('')
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -214,7 +196,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
             if (!updateOpen) setChatOpen(false)
           }}
         >
-          {updateOpen ? 'Close client update' : 'Client ETA / info update'}
+          {updateOpen ? 'Close client update' : 'Client update'}
         </button>
         <button
           type="button"
@@ -259,102 +241,123 @@ export function LiveTrackingCardActions({ tripId }: Props) {
         <div className="space-y-3 rounded-md border border-gold/30 bg-ink/50 p-3">
           <div>
             <div className="text-[11px] uppercase tracking-wider text-gold">
-              Client update · ETA sheet thread
+              Client update
             </div>
             <p className="mt-1 text-[11px] text-muted">
-              Edits stops on the tracker and emails trackers in the same thread
-              as the ETA sheet (Re: + Message-ID).
+              Progress what the client sees on live tracking, or email them in
+              the same thread as the ETA sheet.
             </p>
-            {threadRecipients.length ? (
-              <p className="mt-1 font-mono text-[11px] text-cream/70">
-                Thread: {threadRecipients.join(', ')}
-              </p>
-            ) : (
-              <p className="mt-1 text-[11px] text-late">
-                No ETA sheet recipients yet — enter emails below or send the ETA
-                sheet first.
-              </p>
-            )}
           </div>
-
-          <div className="grid gap-3 lg:grid-cols-2">
-            <PortalStopPicker
-              label="Pickup"
-              icao={originIcao}
-              value={draftPickup}
-              onChange={setDraftPickup}
-              tone="dark"
-            />
-            <PortalStopPicker
-              label="Drop-off"
-              icao={destIcao}
-              value={draftDropoff}
-              onChange={setDraftDropoff}
-              tone="dark"
-            />
-          </div>
-
-          <label className="block text-xs text-muted">
-            Headline
-            <select
-              className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream"
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value)}
-            >
-              <option value="ETA update">ETA update</option>
-              <option value="Stop change">Stop change</option>
-              <option value="Trip update">Trip update</option>
-              <option value="Ops note">Ops note</option>
-            </select>
-          </label>
-
-          <label className="block text-xs text-muted">
-            Revised timing (optional)
-            <input
-              className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 font-mono text-sm text-cream"
-              placeholder="e.g. Landing ~18:40 local · +20 min"
-              value={etaLine}
-              onChange={(e) => setEtaLine(e.target.value)}
-            />
-          </label>
-
-          <label className="block text-xs text-muted">
-            Message to client
-            <textarea
-              className="mt-1 min-h-[96px] w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream"
-              placeholder="What changed and what they should expect…"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-            />
-          </label>
-
-          <label className="block text-xs text-muted">
-            Extra recipients (optional)
-            <input
-              className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream"
-              placeholder="email@client.com"
-              value={extraEmails}
-              onChange={(e) => setExtraEmails(e.target.value)}
-            />
-          </label>
 
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-cream hover:border-gold/40"
-              onClick={saveStopsOnly}
+              className={[
+                'min-h-10 rounded-md px-3 py-2 text-xs font-semibold',
+                updateMode === 'stage'
+                  ? 'bg-gold text-ink'
+                  : 'border border-border text-cream hover:border-gold/40',
+              ].join(' ')}
+              onClick={() => {
+                setUpdateMode('stage')
+                setErr(null)
+                setNote(null)
+              }}
             >
-              Save stops only
+              Progress portal stage
             </button>
             <button
               type="button"
-              disabled={sending || !body.trim()}
-              className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
-              onClick={() => void sendUpdate()}
+              className={[
+                'min-h-10 rounded-md px-3 py-2 text-xs font-semibold',
+                updateMode === 'email'
+                  ? 'bg-gold text-ink'
+                  : 'border border-border text-cream hover:border-gold/40',
+              ].join(' ')}
+              onClick={() => {
+                setUpdateMode('email')
+                setErr(null)
+                setNote(null)
+              }}
             >
-              {sending ? 'Sending…' : 'Save stops + email update'}
+              Email on ETA thread
             </button>
           </div>
+
+          {updateMode === 'stage' ? (
+            <div className="space-y-3">
+              <p className="text-[11px] text-muted">
+                {pinnedStage
+                  ? `Pinned on portal: ${clientOpsStageLabel({ key: pinnedStage })}`
+                  : liveStage
+                    ? `Live (ADS-B / ETA): ${clientOpsStageLabel(liveStage)}`
+                    : 'No portal stages yet — set one below once the trip is tracking.'}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PORTAL_OPS_STAGE_KEYS.map((key) => {
+                  const selected = (draftStage ?? pinnedStage) === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={savingStage}
+                      className={[
+                        'min-h-11 rounded-md border px-3 py-2 text-left text-xs font-semibold disabled:opacity-40',
+                        selected
+                          ? 'border-gold bg-gold/15 text-gold'
+                          : 'border-border text-cream hover:border-gold/40',
+                      ].join(' ')}
+                      onClick={() => applyStage(key)}
+                    >
+                      {clientOpsStageLabel({ key })}
+                    </button>
+                  )
+                })}
+              </div>
+              {pinnedStage ? (
+                <button
+                  type="button"
+                  disabled={savingStage}
+                  className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-cream hover:border-gold/40 disabled:opacity-40"
+                  onClick={() => applyStage(null)}
+                >
+                  Clear pin · follow live ADS-B / ETA
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {threadRecipients.length ? (
+                <p className="font-mono text-[11px] text-cream/70">
+                  Thread: {threadRecipients.join(', ')}
+                </p>
+              ) : (
+                <p className="text-[11px] text-late">
+                  No ETA sheet recipients yet — send the ETA sheet first so this
+                  reply stays on that thread.
+                </p>
+              )}
+              <label className="block text-xs text-muted">
+                Message to client
+                <textarea
+                  className="mt-1 min-h-[96px] w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream"
+                  placeholder="What changed and what they should expect…"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={
+                  sending || !body.trim() || threadRecipients.length === 0
+                }
+                className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt disabled:opacity-40"
+                onClick={() => void sendEmailUpdate()}
+              >
+                {sending ? 'Sending…' : 'Send email update'}
+              </button>
+            </div>
+          )}
         </div>
       ) : null}
 
