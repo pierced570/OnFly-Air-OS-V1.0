@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { clearAwbFlag, tripNeedsAwb } from '@/lib/awbFlagFlow'
 import {
   createInvoiceForTrip,
