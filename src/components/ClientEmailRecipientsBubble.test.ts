@@ -171,3 +171,44 @@ describe('defaultTrackerEmailSelection', () => {
     expect(sel.to).not.toContain('cak.sup@psa.test')
   })
 })
+
+describe('contactVisibleInEmailBubble', () => {
+  it('hides base DLs on the quote step but keeps other contacts', async () => {
+    const { contactVisibleInEmailBubble } = await import(
+      '@/components/ClientEmailRecipientsBubble'
+    )
+    const baseEmails = new Set(['clt.sup@psa.test'])
+    const selection = { to: [], cc: [], bcc: [] }
+    expect(
+      contactVisibleInEmailBubble(
+        {
+          id: 'base:CLT:clt.sup@psa.test',
+          email: 'clt.sup@psa.test',
+          role: 'supply_chain',
+        },
+        { omitBaseEmails: true, baseEmails, selection },
+      ),
+    ).toBe(false)
+    expect(
+      contactVisibleInEmailBubble(
+        {
+          id: 'c1',
+          email: 'clt.sup@psa.test',
+          role: 'supply_chain',
+        },
+        { omitBaseEmails: true, baseEmails, selection },
+      ),
+    ).toBe(false)
+    expect(
+      contactVisibleInEmailBubble(
+        {
+          id: 'c2',
+          email: 'req@psa.test',
+          role: 'requester',
+          notify_prefs: { request_alert: true },
+        },
+        { omitBaseEmails: true, baseEmails, selection },
+      ),
+    ).toBe(true)
+  })
+})

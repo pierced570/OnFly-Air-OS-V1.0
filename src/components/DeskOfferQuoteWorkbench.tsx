@@ -54,7 +54,6 @@ import { getTaxRates } from '@/lib/taxRatesStore'
 import {
   getTrip,
   listTripsStable,
-  mutateTrip,
   payloadKindOf,
   subscribeTrips,
 } from '@/lib/tripStore'
@@ -103,7 +102,6 @@ export function DeskOfferQuoteWorkbench({
   const [confirmedTypes, setConfirmedTypes] = useState<Record<string, string>>(
     {},
   )
-  const [poDraft, setPoDraft] = useState('')
 
   useEffect(() => {
     if (!initialManualOfferId) return
@@ -114,12 +112,6 @@ export function DeskOfferQuoteWorkbench({
   useEffect(() => {
     setEmailSel(defaultClientEmailSelection(trip?.client_id))
   }, [trip?.client_id])
-
-  useEffect(() => {
-    setPoDraft(
-      trip?.po_number?.trim() || trip?.quick?.po?.trim() || '',
-    )
-  }, [trip?.id, trip?.po_number, trip?.quick?.po])
 
   useEffect(() => {
     if (!trip) return
@@ -208,27 +200,13 @@ export function DeskOfferQuoteWorkbench({
   const canPreviewClientQuote =
     picked.length > 0 &&
     emailSel.to.length > 0 &&
-    picked.every((oid) => (confirmedTypes[oid] ?? '').trim()) &&
-    Boolean(poDraft.trim())
+    picked.every((oid) => (confirmedTypes[oid] ?? '').trim())
 
   const needsTypeConfirm = picked.some(
     (oid) => !(confirmedTypes[oid] ?? '').trim(),
   )
 
-  function persistPoDraft() {
-    const cleaned = poDraft.trim()
-    mutateTrip(liveTrip.id, (t) => {
-      t.po_number = cleaned || null
-      if (t.quick) t.quick.po = cleaned
-    })
-  }
-
   function sendHardQuoteNow() {
-    if (!poDraft.trim()) {
-      setError('Enter PO # before sending the hard quote')
-      return
-    }
-    persistPoDraft()
     const totals: Record<string, number> = {}
     const typeNamesByOffer: Record<string, string> = {}
     let sendMargin = marginPct
@@ -827,22 +805,8 @@ export function DeskOfferQuoteWorkbench({
             }}
             layout="compact"
             embedded
+            omitBaseEmails
           />
-          <label className="block text-xs text-muted">
-            PO #{' '}
-            <span className="text-late">(required — goes on invoice / booking)</span>
-            <input
-              type="text"
-              className="mt-1 w-full rounded border border-border bg-ink px-2 py-1.5 font-mono text-sm text-cream"
-              value={poDraft}
-              placeholder="Client PO / DocNumber"
-              onChange={(e) => {
-                setPoDraft(e.target.value)
-                setClientQuotePreview(false)
-              }}
-              onBlur={persistPoDraft}
-            />
-          </label>
           {needsTypeConfirm ? (
             <div className="space-y-2">
               <div className="text-xs text-muted">
