@@ -53,7 +53,7 @@ CVG – HPN
     expect(draft.roundtrip).toBe(false)
   })
 
-  it('resolves CVG/HPN and scores without hard-failing on techs mission', async () => {
+  it('resolves CVG/HPN and recommends from Network → Recommend for KCVG', async () => {
     const draft = deskDraftFromExtract(
       extractFromScratchNotes(`PSA
 CVG – HPN
@@ -63,6 +63,9 @@ Ready ASAP`),
     const rec = await recommendForDeskDraft(draft)
     expect(rec.error).toBeUndefined()
     expect(rec.lane).toBe('KCVG→KHPN')
+    expect(rec.recommend_match).toBe('exact')
+    expect(rec.recommend_base_icao).toBe('KCVG')
+    expect(rec.candidates.length).toBeGreaterThan(0)
   })
 
   it('mergeScratchExtract fills gaps from heuristics', () => {

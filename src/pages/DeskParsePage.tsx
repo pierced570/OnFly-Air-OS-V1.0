@@ -95,6 +95,7 @@ export default function DeskParsePage() {
   const [busy, setBusy] = useState(true)
   const [sending, setSending] = useState(false)
   const [recError, setRecError] = useState<string | null>(null)
+  const [recNote, setRecNote] = useState<string | null>(null)
   const [showNewClient, setShowNewClient] = useState(false)
   const [newName, setNewName] = useState('')
   const [newInvoice, setNewInvoice] = useState('')
@@ -150,6 +151,19 @@ export default function DeskParsePage() {
     setCandidates(rec.candidates)
     setRecError(rec.error ?? null)
     setRuleChips(rec.rule_chips)
+    if (rec.recommend_match === 'exact' && rec.recommend_list_label) {
+      setRecNote(`From Recommend · ${rec.recommend_list_label}`)
+    } else if (rec.recommend_match === 'closest' && rec.recommend_list_label) {
+      setRecNote(
+        `Closest Recommend base · ${rec.recommend_list_label}${
+          rec.recommend_distance_nm != null
+            ? ` · ${rec.recommend_distance_nm} NM`
+            : ''
+        }`,
+      )
+    } else {
+      setRecNote(null)
+    }
     // Never auto-select recommended operators — dispatcher chooses.
     return rec
   }
@@ -1354,11 +1368,10 @@ export default function DeskParsePage() {
               </h2>
             </div>
             <p className="text-xs text-muted">
-              One row per operator (best-fit tail from their fleet).
-              {matchedClient
-                ? ` Shortlist respects ${matchedClient.name}'s aircraft rules.`
-                : ''}{' '}
-              No operator pricing here — they quote on the link.
+              From Network → Recommend for the departing airport
+              {recNote ? ` (${recNote})` : ''}
+              {matchedClient ? ` · client ${matchedClient.name}` : ''}. No
+              operator pricing here — they quote on the link.
             </p>
             {recError && <p className="text-sm text-late">{recError}</p>}
             {!candidates.length && !recError && (
