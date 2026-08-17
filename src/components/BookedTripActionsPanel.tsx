@@ -18,7 +18,6 @@ import {
 } from '@/components/ClientEmailRecipientsBubble'
 import { InvoicePoVendorFields } from '@/components/InvoicePoVendorFields'
 import { computeEtaSheetFromBookedTrip } from '@/lib/etaSheet'
-import { TripPassengersPanel } from '@/components/TripPassengersPanel'
 import {
   buildEtaSheetPreviewHtml,
   portalTrackingUrlForTrip,
@@ -162,8 +161,6 @@ export function BookedTripActionsPanel({ tripId }: Props) {
 
   return (
     <div className="mt-3 space-y-3 border-t border-gold/30 pt-3">
-      <TripPassengersPanel trip={trip} compact />
-
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="text-[11px] uppercase tracking-wider text-gold">

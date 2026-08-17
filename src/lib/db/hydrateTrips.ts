@@ -5,7 +5,7 @@
 import type { TripState } from '@/domain/stateMachine'
 import type { ChainLeg, EtaDefaults, ServicePattern } from '@/domain/etaChain'
 import { isPortalOpsStageKey } from '@/domain/portalTracking'
-import { normalizeTripPassengers } from '@/domain/tripPassengers'
+import { normalizeTripPassengers, normalizeTripPortalCargoDetails } from '@/domain/tripPassengers'
 import { getClient } from '@/lib/clientStore'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import { mapEtaNodeRow } from '@/lib/mapEtaNodeRow'
@@ -205,6 +205,7 @@ function mapTripShellRow(
     passengers: Array.isArray(meta.passengers)
       ? normalizeTripPassengers(meta.passengers)
       : undefined,
+    portal_cargo: normalizeTripPortalCargoDetails(meta.portal_cargo),
     awb_needed: Boolean(meta.awb_needed),
     awb_cleared_at:
       typeof meta.awb_cleared_at === 'string' ? meta.awb_cleared_at : null,

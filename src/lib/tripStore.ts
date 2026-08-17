@@ -53,8 +53,10 @@ import {
 import { roleOnOpsThread } from '@/domain/tripThread'
 import {
   normalizeTripPassengers,
+  normalizeTripPortalCargoDetails,
   tripPassengerNames,
   type TripPassenger,
+  type TripPortalCargoDetails,
 } from '@/domain/tripPassengers'
 import { appPublicUrl } from '@/lib/appUrl'
 import { getCachedNetwork } from '@/lib/networkData'
@@ -495,10 +497,12 @@ export type TripStoreRow = {
   /** Optional passenger names for portal cargo card. */
   portal_pax_names?: string[]
   /**
-   * Structured passengers (name / weight / DOB) — often filled post booking
-   * on the waterfall / trip page when details arrive late.
+   * Structured passengers (first / last / weight / DOB) — client portal
+   * capture after booking when details arrive late.
    */
   passengers?: TripPassenger[]
+  /** Client portal cargo dims + total weight. */
+  portal_cargo?: TripPortalCargoDetails | null
   /** Referral partner attached at book (profit share → financials). */
   referral?: {
     id: string | null
@@ -1911,19 +1915,26 @@ export function setPortalOpsStage(
 }
 
 /**
- * Dispatcher — set structured passenger info (often post booking).
+ * Set structured passenger info (portal client or desk).
  * Keeps portal_pax_names in sync for the client tracker cargo card.
  */
 export function setTripPassengers(
   tripId: string,
   passengers: TripPassenger[],
-  actor = 'dispatcher',
+  actor = 'client',
 ): TripStoreRow {
   if (!trips.has(tripId)) {
     throw new Error('Trip not loaded in this session — refresh and try again')
   }
-  const normalized = normalizeTripPassengers(passengers).filter((p) =>
-    Boolean(p.name.trim() || p.dob || p.weight_lbs !== ''),
+  const normalized = normalizeTripPassengers(passengers).filter(
+    (p) =>
+      Boolean(
+        p.name.trim() ||
+          p.first_name.trim() ||
+          p.last_name.trim() ||
+          p.dob ||
+          p.weight_lbs !== '',
+      ),
   )
   return mutateTrip(tripId, (t) => {
     t.passengers = normalized
@@ -1936,6 +1947,33 @@ export function setTripPassengers(
         count: normalized.length,
         pax_names: t.portal_pax_names,
         passengers: normalized,
+      },
+    })
+  })
+}
+
+/** Client portal — cargo dims + total weight. */
+export function setTripPortalCargo(
+  tripId: string,
+  cargo: TripPortalCargoDetails | null,
+  actor = 'client',
+): TripStoreRow {
+  if (!trips.has(tripId)) {
+    throw new Error('Trip not loaded in this session — refresh and try again')
+  }
+  const normalized = cargo ? normalizeTripPortalCargoDetails(cargo) : null
+  return mutateTrip(tripId, (t) => {
+    t.portal_cargo = normalized
+    t.events.push({
+      at: new Date().toISOString(),
+      actor,
+      kind: 'portal_cargo_updated',
+      payload: {
+        dims: normalized?.dims ?? null,
+        total_weight_lbs:
+          normalized?.total_weight_lbs === ''
+            ? null
+            : (normalized?.total_weight_lbs ?? null),
       },
     })
   })

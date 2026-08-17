@@ -13,7 +13,6 @@ import { canTransition } from '@/domain/stateMachine'
 import { PipelineStrip } from '@/components/PipelineStrip'
 import { EtaSheetPanel } from '@/components/EtaSheetPanel'
 import { ParticipantsPanel } from '@/components/ParticipantsPanel'
-import { TripPassengersPanel } from '@/components/TripPassengersPanel'
 import { TripThreadPanel } from '@/components/TripThreadPanel'
 import { SubmittedQuotesHistory } from '@/components/SubmittedQuotesHistory'
 import { listSubmittedQuotes } from '@/domain/offerRecipients'
@@ -269,19 +268,6 @@ export default function TripPage() {
           </ul>
         )}
       </section>
-
-      {(
-        ['booked', 'in_progress', 'delivered', 'invoiced', 'closed'] as const
-      ).includes(
-        trip.state as
-          | 'booked'
-          | 'in_progress'
-          | 'delivered'
-          | 'invoiced'
-          | 'closed',
-      ) ? (
-        <TripPassengersPanel trip={trip} />
-      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ParticipantsPanel trip={trip} />
