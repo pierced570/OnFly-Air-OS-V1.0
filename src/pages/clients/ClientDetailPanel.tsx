@@ -68,6 +68,57 @@ function primaryLine(client: ClientProfile): string {
   return ops || client.email || client.invoice_email || 'No ops email'
 }
 
+/** ETA airports — draft while typing so commas/spaces aren't eaten on each key. */
+function ContactEtaAirportsInput({
+  clientId,
+  contactId,
+  icaos,
+  className,
+  placeholder = 'CAK, CLT',
+}: {
+  clientId: string
+  contactId: string
+  icaos: string[] | undefined
+  className: string
+  placeholder?: string
+}) {
+  const committed = (icaos ?? []).join(', ')
+  const [draft, setDraft] = useState(committed)
+  const [focused, setFocused] = useState(false)
+  useEffect(() => {
+    if (!focused) setDraft(committed)
+  }, [committed, focused])
+
+  function commit(raw: string) {
+    const eta_icaos = raw
+      .split(/[,;\s]+/)
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean)
+    updateClientContact(clientId, contactId, { eta_icaos })
+  }
+
+  return (
+    <input
+      className={className}
+      value={draft}
+      placeholder={placeholder}
+      title="Comma-separated ICAOs for ETA autopopulate"
+      onFocus={() => setFocused(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        setFocused(false)
+        commit(draft)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          ;(e.target as HTMLInputElement).blur()
+        }
+      }}
+    />
+  )
+}
+
 export function ClientDetailPanel({
   client,
   onBack,
@@ -76,10 +127,9 @@ export function ClientDetailPanel({
   onBack?: () => void
 }) {
   const profile = client.profile ?? {}
-  const mixed = useMemo(
-    () => listMixedDirectoryContacts(client.id),
-    [client.id, client.contacts, client.profile.bases],
-  )
+  // Recompute every render — contacts mutate often; memoizing on the array
+  // reference left Title / Name / etc. stuck on stale copies.
+  const mixed = listMixedDirectoryContacts(client.id)
   const [tab, setTab] = useState<TabId>('info')
   useEffect(() => {
     setTab(mixed.length > 0 ? 'contacts' : 'info')
@@ -518,17 +568,12 @@ function ContactsTab({
                       Always ETA
                     </label>
                   </div>
-                  <input
+                  <ContactEtaAirportsInput
+                    clientId={client.id}
+                    contactId={c.id}
+                    icaos={c.eta_icaos}
                     className="w-full rounded-md border border-border bg-ink px-3 py-2.5 font-mono text-xs text-cream outline-none focus:border-gold"
-                    value={(c.eta_icaos ?? []).join(', ')}
                     placeholder="ETA airports (CAK, CLT)"
-                    onChange={(e) => {
-                      const eta_icaos = e.target.value
-                        .split(/[,;\s]+/)
-                        .map((s) => s.trim().toUpperCase())
-                        .filter(Boolean)
-                      updateClientContact(client.id, c.id, { eta_icaos })
-                    }}
                   />
                 </>
               )}
@@ -677,18 +722,12 @@ function ContactsTab({
                         {(c.eta_icaos ?? []).join(', ')}
                       </span>
                     ) : (
-                      <input
+                      <ContactEtaAirportsInput
+                        clientId={client.id}
+                        contactId={c.id}
+                        icaos={c.eta_icaos}
                         className="w-28 rounded border border-border bg-ink px-2 py-1 font-mono text-xs text-cream outline-none focus:border-gold"
-                        value={(c.eta_icaos ?? []).join(', ')}
                         placeholder="CAK, CLT"
-                        title="Comma-separated ICAOs for ETA autopopulate"
-                        onChange={(e) => {
-                          const eta_icaos = e.target.value
-                            .split(/[,;\s]+/)
-                            .map((s) => s.trim().toUpperCase())
-                            .filter(Boolean)
-                          updateClientContact(client.id, c.id, { eta_icaos })
-                        }}
                       />
                     )}
                   </td>

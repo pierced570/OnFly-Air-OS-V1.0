@@ -746,10 +746,13 @@ export function updateClientContact(
   const c = row.contacts.find((x) => x.id === contactId)
   if (!c) return
   if (patch.name != null) c.name = patch.name
-  if (patch.email != null) c.email = patch.email.trim()
+  if (patch.email != null) c.email = patch.email
   if (patch.cell != null) c.cell = patch.cell
   if (patch.kind != null) c.kind = patch.kind
-  if (patch.title != null) c.title = patch.title.trim() || undefined
+  if (patch.title != null) {
+    // Keep spaces while typing; empty clears the title.
+    c.title = patch.title.length ? patch.title : undefined
+  }
   if (patch.eta_icaos != null) {
     c.eta_icaos = patch.eta_icaos
       .map((x) => x.trim().toUpperCase())
@@ -771,8 +774,15 @@ export function updateClientContact(
     c.email &&
     !row.invoice_email
   ) {
-    row.invoice_email = c.email
+    row.invoice_email = c.email.trim()
   }
+  // New array identity so React memos / useSyncExternalStore consumers re-render
+  // with fresh contact field values (in-place mutate alone left UI stuck).
+  row.contacts = row.contacts.map((x) =>
+    x.id === c.id
+      ? { ...c, notify_prefs: { ...c.notify_prefs } }
+      : x,
+  )
   bump(clientId)
 }
 
