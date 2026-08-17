@@ -43,6 +43,11 @@ describe('createQuickDispatchTrip ETA spine', () => {
     expect(row.state).toBe('booked')
     expect(row.po_number).toBe('1001')
     expect(row.quick?.po).toBe('1001')
+    expect(row.quick?.tail).toBe('NTEST')
+    expect(row.offers).toHaveLength(1)
+    expect(row.offers[0]!.state).toBe('selected')
+    expect(row.offers[0]!.tail).toBe('NTEST')
+    expect(row.hard_quote?.options?.[0]?.tail).toBe('NTEST')
     // After desk transition, exclusive drawer is tracking
     expect(
       exclusiveDrawerForTrip({ state: 'in_progress', offers: [] }),

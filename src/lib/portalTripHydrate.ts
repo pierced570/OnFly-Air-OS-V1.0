@@ -44,9 +44,11 @@ export function portalSafeQuickFromRow(
   tripRow: Record<string, unknown>,
   award?: { tail?: string | null; aircraft_type?: string | null } | null,
 ): TripStoreRow['quick'] {
+  const fromRow = String(tripRow.tail ?? '').trim()
+  const fromAward = String(award?.tail ?? '').trim()
   const tail =
-    String(tripRow.tail ?? '').trim() ||
-    String(award?.tail ?? '').trim() ||
+    (fromRow && fromRow.toUpperCase() !== 'TBD' ? fromRow : '') ||
+    (fromAward && fromAward.toUpperCase() !== 'TBD' ? fromAward : '') ||
     ''
   const aircraftType =
     String(tripRow.aircraft_type ?? '').trim() ||
@@ -92,6 +94,46 @@ export function stubTripFromPortalRow(
 ): TripStoreRow {
   const quick = portalSafeQuickFromRow(tripRow, award)
   const paxNames = asStringList(tripRow.portal_pax_names)
+  const awardTail = (quick?.tail || String(award?.tail ?? '').trim()).trim()
+  const awardType =
+    (quick?.aircraft_type || String(award?.aircraft_type ?? '').trim()).trim() ||
+    null
+  const offers: TripStoreRow['offers'] =
+    awardTail && awardTail.toUpperCase() !== 'TBD'
+      ? [
+          {
+            id: `portal-award-${String(tripRow.id)}`,
+            trip_id: String(tripRow.id),
+            operator_id: '',
+            operator_name: '',
+            aircraft_id: '',
+            tail: awardTail.toUpperCase(),
+            type_name: awardType,
+            state: 'selected',
+            ping_sent_at: null,
+            notified_at: null,
+            declined_acked_at: null,
+            replied_at: null,
+            time_to_position_min: null,
+            quick_turn_min: null,
+            live_leg_min: null,
+            wait_ok: null,
+            max_wait_hrs: null,
+            price_net: null,
+            fee_scope: null,
+            notes: null,
+            duty_available_min: null,
+            duty_included_min: null,
+            magic_token: '',
+            bookingGated: false,
+            needsInfo: [],
+            contact_cell: '',
+            contact_cell_is_mock: true,
+            contact_email: '',
+            quote_link_channel: 'email',
+          },
+        ]
+      : []
   return {
     id: String(tripRow.id),
     ref: Number(tripRow.ref ?? 0),
@@ -101,7 +143,7 @@ export function stubTripFromPortalRow(
     payload_summary: String(tripRow.payload_summary || ''),
     ready_label: String(tripRow.ready_label || ''),
     candidates: [],
-    offers: [],
+    offers,
     events: [],
     eta_chain: etaChain,
     service_pattern:
