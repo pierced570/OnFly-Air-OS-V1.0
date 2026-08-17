@@ -111,6 +111,10 @@ export function DeskOfferQuoteWorkbench({
   const [composeAnotherQuote, setComposeAnotherQuote] = useState(false)
   const [clientQuotePreview, setClientQuotePreview] = useState(false)
   const [sendBusy, setSendBusy] = useState(false)
+  const [hardQuoteSentToast, setHardQuoteSentToast] = useState(false)
+  const hardQuoteSentToastTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
   const [manualQuoteOfferId, setManualQuoteOfferId] = useState<string | null>(
     initialManualOfferId,
   )
@@ -125,6 +129,14 @@ export function DeskOfferQuoteWorkbench({
   useEffect(() => {
     didAutoExpand.current = false
   }, [tripId])
+
+  useEffect(() => {
+    return () => {
+      if (hardQuoteSentToastTimer.current) {
+        clearTimeout(hardQuoteSentToastTimer.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!initialManualOfferId) return
@@ -286,6 +298,14 @@ export function DeskOfferQuoteWorkbench({
         setComposeAnotherQuote(false)
         setClientQuotePreview(false)
         setError(null)
+        setHardQuoteSentToast(true)
+        if (hardQuoteSentToastTimer.current) {
+          clearTimeout(hardQuoteSentToastTimer.current)
+        }
+        hardQuoteSentToastTimer.current = setTimeout(() => {
+          setHardQuoteSentToast(false)
+          hardQuoteSentToastTimer.current = null
+        }, 2800)
       })
       .catch((e) => setError(String(e)))
       .finally(() => setSendBusy(false))
@@ -817,6 +837,19 @@ export function DeskOfferQuoteWorkbench({
 
   return (
     <div className="mt-3 space-y-4 rounded-xl border border-gold/50 bg-ink/50 px-3.5 py-3.5">
+      {hardQuoteSentToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed left-1/2 top-5 z-[60] -translate-x-1/2 animate-[hardQuoteSentIn_0.25s_ease-out]"
+        >
+          <div className="rounded-md border border-gold/60 bg-ink/95 px-4 py-2.5 shadow-lg shadow-black/40 backdrop-blur">
+            <div className="text-sm font-semibold tracking-wide text-gold">
+              Hard Quote Sent
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
