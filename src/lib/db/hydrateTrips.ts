@@ -5,6 +5,11 @@
 import type { TripState } from '@/domain/stateMachine'
 import type { ChainLeg, EtaDefaults, ServicePattern } from '@/domain/etaChain'
 import { isPortalOpsStageKey } from '@/domain/portalTracking'
+import {
+  mergePortalChatMessages,
+  normalizePortalChat,
+  portalChatFromEvents,
+} from '@/domain/portalChat'
 import { normalizeTripPassengers, normalizeTripPortalCargoDetails } from '@/domain/tripPassengers'
 import { getClient } from '@/lib/clientStore'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
@@ -206,6 +211,10 @@ function mapTripShellRow(
       ? normalizeTripPassengers(meta.passengers)
       : undefined,
     portal_cargo: normalizeTripPortalCargoDetails(meta.portal_cargo),
+    portal_chat: mergePortalChatMessages(
+      normalizePortalChat(meta.portal_chat),
+      portalChatFromEvents(extras?.events ?? []),
+    ),
     awb_needed: Boolean(meta.awb_needed),
     awb_cleared_at:
       typeof meta.awb_cleared_at === 'string' ? meta.awb_cleared_at : null,

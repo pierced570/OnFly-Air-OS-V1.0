@@ -7,6 +7,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { TripContactLine } from '@/domain/tripContacts'
 import { listTripContactsForDesk } from '@/lib/tripContacts'
+import { PortalTripChat } from '@/components/PortalTripChat'
 import {
   listChatTrips,
   listTripsStable,
@@ -96,6 +97,12 @@ function TripContactsCard({
               </li>
             ))
           )}
+          {trip.portal_chat?.length ? (
+            <li className="text-[11px] text-gold">
+              Portal chat · {trip.portal_chat.length} message
+              {trip.portal_chat.length === 1 ? '' : 's'}
+            </li>
+          ) : null}
         </ul>
       ) : (
         <div className="mt-3 space-y-4">
@@ -135,6 +142,7 @@ function TripContactsCard({
               ) : null}
             </>
           )}
+          <PortalTripChat tripId={trip.id} variant="desk" />
         </div>
       )}
     </section>
@@ -177,7 +185,8 @@ export default function ChatPage() {
         <h1 className="text-2xl font-semibold text-cream">Trip contacts</h1>
         <p className="text-sm text-muted">
           Click-to-call phones for booked and live trips — client inbound and
-          charter operator. Also on each live trip under{' '}
+          charter operator. Open a trip to reply on the client portal chat.
+          Also on each live trip under{' '}
           <Link
             className="text-gold hover:text-gold-lt"
             to="/dispatch?drawer=tracking"

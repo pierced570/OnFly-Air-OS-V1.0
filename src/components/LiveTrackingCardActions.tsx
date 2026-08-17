@@ -20,6 +20,7 @@ import {
   sendClientTrackingUpdate,
 } from '@/lib/etaSheetSender'
 import { listTripContactsForDesk } from '@/lib/tripContacts'
+import { PortalTripChat } from '@/components/PortalTripChat'
 import {
   deleteTrip,
   getTrip,
@@ -264,6 +265,8 @@ export function LiveTrackingCardActions({ tripId }: Props) {
           {deleting ? 'Deleting…' : 'Delete trip'}
         </button>
       </div>
+
+      <PortalTripChat tripId={trip.id} variant="desk" />
 
       {err ? <p className="text-xs text-late">{err}</p> : null}
       {note ? <p className="text-xs text-onplan">{note}</p> : null}

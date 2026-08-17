@@ -5,6 +5,10 @@
 
 import type { ChainLeg } from '@/domain/etaChain'
 import { parseLaneAirports } from '@/domain/offerMissionDisplay'
+import {
+  mergePortalChatMessages,
+  normalizePortalChat,
+} from '@/domain/portalChat'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import { mapEtaNodeRows } from '@/lib/mapEtaNodeRow'
 import {
@@ -263,13 +267,15 @@ export function stubTripFromPortalRow(
         ? (tripRow.portal_dropoff_stop as TripStoreRow['portal_dropoff_stop'])
         : null,
     portal_pax_names: paxNames,
+    portal_chat: normalizePortalChat(tripRow.portal_chat),
   }
 }
 
 const PORTAL_TRIP_COLS_BASE =
   'id,ref,code,state,lane_label,payload_summary,ready_label,promised_delivery,service_pattern,po_number,origin,destination,tail,aircraft_type,portal_pickup_address,portal_dropoff_address,portal_pickup_stop,portal_dropoff_stop,portal_pax_names,cargo_notes,cargo_only'
 
-const PORTAL_TRIP_COLS = `${PORTAL_TRIP_COLS_BASE},eta_chain`
+const PORTAL_TRIP_COLS_WITH_ETA = `${PORTAL_TRIP_COLS_BASE},eta_chain`
+const PORTAL_TRIP_COLS = `${PORTAL_TRIP_COLS_WITH_ETA},portal_chat`
 
 function hasRouteIcaos(trip: TripStoreRow): boolean {
   if (trip.legs.some((l) => l.origin || l.dest)) return true
@@ -350,6 +356,7 @@ export function mergePortalTripIntoSession(
     if (!t.promised_delivery && remote.promised_delivery) {
       t.promised_delivery = remote.promised_delivery
     }
+    t.portal_chat = mergePortalChatMessages(t.portal_chat, remote.portal_chat)
   })
 }
 
@@ -427,8 +434,19 @@ export async function fetchPortalTripById(
         .order('seq'),
     ),
   ])
-  // eta_chain column arrives with migration 0039 — fall back if prod lags.
+  // portal_chat arrives with 0040; eta_chain with 0039 — fall back if prod lags.
   let tripRows = tripRowsRaw
+  if (!tripRows) {
+    tripRows = await safeQuery<Record<string, unknown>[]>(
+      'portal_trips.by_id_eta',
+      () =>
+        db()
+          .from('portal_trips')
+          .select(PORTAL_TRIP_COLS_WITH_ETA)
+          .eq('id', tripId)
+          .limit(1),
+    )
+  }
   if (!tripRows) {
     tripRows = await safeQuery<Record<string, unknown>[]>(
       'portal_trips.by_id_base',

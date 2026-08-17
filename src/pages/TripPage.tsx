@@ -14,6 +14,7 @@ import { PipelineStrip } from '@/components/PipelineStrip'
 import { EtaSheetPanel } from '@/components/EtaSheetPanel'
 import { ParticipantsPanel } from '@/components/ParticipantsPanel'
 import { TripThreadPanel } from '@/components/TripThreadPanel'
+import { PortalTripChat } from '@/components/PortalTripChat'
 import { SubmittedQuotesHistory } from '@/components/SubmittedQuotesHistory'
 import { listSubmittedQuotes } from '@/domain/offerRecipients'
 import {
@@ -337,6 +338,8 @@ export default function TripPage() {
           </div>
         </section>
       )}
+
+      <PortalTripChat tripId={trip.id} variant="desk" />
 
       <TripThreadPanel trip={trip} />
 

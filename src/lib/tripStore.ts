@@ -52,6 +52,12 @@ import {
 } from '@/domain/portalTracking'
 import { roleOnOpsThread } from '@/domain/tripThread'
 import {
+  mergePortalChatMessages,
+  portalChatFromEvents,
+  appendPortalChatMessage,
+  type PortalChatMessage,
+} from '@/domain/portalChat'
+import {
   normalizeTripPassengers,
   normalizeTripPortalCargoDetails,
   tripPassengerNames,
@@ -503,6 +509,10 @@ export type TripStoreRow = {
   passengers?: TripPassenger[]
   /** Client portal cargo dims + total weight. */
   portal_cargo?: TripPortalCargoDetails | null
+  /**
+   * Client ↔ OnFly chat on the tracking portal (not the ops SMS thread).
+   */
+  portal_chat?: PortalChatMessage[]
   /** Referral partner attached at book (profit share → financials). */
   referral?: {
     id: string | null
@@ -671,6 +681,10 @@ function loadLocal(): void {
         }))
       if (row.shortlist === undefined) row.shortlist = null
       if (row.request_id === undefined) row.request_id = undefined
+      row.portal_chat = mergePortalChatMessages(
+        row.portal_chat,
+        portalChatFromEvents(row.events),
+      )
       trips.set(row.id, row)
       if (typeof row.ref === 'number' && row.ref >= refSeq) refSeq = row.ref + 1
     }
@@ -1422,6 +1436,10 @@ export function replaceTripsFromDb(
       if (!r.client_name?.trim() && existing.client_name?.trim()) {
         r.client_name = existing.client_name
       }
+      r.portal_chat = mergePortalChatMessages(
+        r.portal_chat,
+        existing.portal_chat,
+      )
       if (!r.client_id && existing.client_id) {
         r.client_id = existing.client_id
       } else if (
@@ -1950,6 +1968,61 @@ export function setTripPassengers(
       },
     })
   })
+}
+
+/** Merge remote portal chat into session without persisting the whole trip. */
+export function mergePortalChatIntoSession(
+  tripId: string,
+  messages: PortalChatMessage[],
+): void {
+  const t = trips.get(tripId)
+  if (!t) return
+  const next = mergePortalChatMessages(t.portal_chat, messages)
+  const prev = t.portal_chat ?? []
+  if (
+    next.length === prev.length &&
+    next.every((m, i) => m.id === prev[i]?.id && m.body === prev[i]?.body)
+  ) {
+    return
+  }
+  t.portal_chat = next
+  trips.set(tripId, t)
+  bump()
+}
+
+/**
+ * Client ↔ OnFly portal chat (not ops SMS). Persists via session_meta + RPC.
+ */
+export function postPortalChatMessage(
+  tripId: string,
+  opts: { role: PortalChatMessage['role']; body: string; fromLabel?: string },
+): PortalChatMessage {
+  if (!trips.has(tripId)) {
+    throw new Error('Trip not loaded in this session — refresh and try again')
+  }
+  let added: PortalChatMessage | null = null
+  mutateTrip(tripId, (t) => {
+    const next = appendPortalChatMessage(t.portal_chat ?? [], {
+      role: opts.role,
+      body: opts.body,
+      from_label: opts.fromLabel,
+    })
+    added = next.added
+    t.portal_chat = next.messages
+    t.events.push({
+      at: next.added.at,
+      actor: next.added.from_label,
+      kind: 'portal_chat_message',
+      payload: {
+        id: next.added.id,
+        role: next.added.role,
+        from_label: next.added.from_label,
+        body: next.added.body,
+      },
+    })
+  })
+  if (!added) throw new Error('Could not post portal chat')
+  return added
 }
 
 /** Client portal — cargo dims + total weight. */

@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalTripManifestForm } from '@/components/PortalTripManifestForm'
+import { PortalTripChat } from '@/components/PortalTripChat'
 import {
   portalAircraftMapBlocked,
   portalAircraftMapVisible,
@@ -52,11 +53,14 @@ export function PortalTrackingBody({
   view,
   backHref = '/portal',
   tripId = null,
+  trackToken = null,
 }: {
   view: PortalTrackingView
   backHref?: string
   /** Enables client passenger / cargo details form on this trip. */
   tripId?: string | null
+  /** Magic-link token so guests can persist portal chat. */
+  trackToken?: string | null
 }) {
   const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
   const enrichedStops = useMemo(
@@ -331,6 +335,9 @@ export function PortalTrackingBody({
       </section>
 
       {tripId ? <PortalTripManifestForm tripId={tripId} /> : null}
+      {tripId ? (
+        <PortalTripChat tripId={tripId} variant="portal" token={trackToken} />
+      ) : null}
     </PortalShell>
   )
 }
