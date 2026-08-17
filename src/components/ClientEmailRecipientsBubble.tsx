@@ -8,12 +8,8 @@ import { listBaseGeneratedEmails } from '@/domain/clientBaseEmails'
 import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import {
   getClient,
-  listAlwaysInvoiceEmails,
   listClients,
-  listEtaTrackingEmails,
-  listOptionalInvoiceEmails,
   listRequestAlertEmails,
-  listTrackerEmails,
   subscribeClients,
   type ClientContact,
 } from '@/lib/clientStore'
@@ -84,37 +80,24 @@ export function defaultClientEmailSelection(
 }
 
 /**
- * Invoice send defaults:
- * - To: always-invoice emails (invoice_email + always AP flags)
- * - CC: sometimes-invoice contacts only
- * - BCC: info@onflyair.com
+ * Invoice send defaults — do NOT pre-select client contacts.
+ * Desk picks To/CC from pills; always BCC info@.
  */
 export function defaultInvoiceEmailSelection(
-  clientId?: string | null,
+  _clientId?: string | null,
 ): ClientEmailSelection {
-  if (!clientId) {
-    return { to: [], cc: [], bcc: [ONFLY_INFO_BCC] }
-  }
-  const to = uniq(listAlwaysInvoiceEmails(clientId))
-  const cc = uniq(listOptionalInvoiceEmails(clientId)).filter(
-    (e) => !to.includes(e),
-  )
-  return { to, cc, bcc: [ONFLY_INFO_BCC] }
+  return { to: [], cc: [], bcc: [ONFLY_INFO_BCC] }
 }
 
-/** ETA / tracking sheet — To from trackers + matching base / airport emails. */
+/**
+ * ETA / tracking sheet defaults — do NOT pre-select trackers or base emails.
+ * Desk taps contacts / bases to add recipients.
+ */
 export function defaultTrackerEmailSelection(
-  clientId?: string | null,
-  opts?: { legIcaos?: string[] },
+  _clientId?: string | null,
+  _opts?: { legIcaos?: string[] },
 ): ClientEmailSelection {
-  if (!clientId) return emptyClientEmailSelection()
-  const legs = opts?.legIcaos ?? []
-  const to = uniq(
-    legs.length
-      ? listEtaTrackingEmails(clientId, { legIcaos: legs })
-      : listTrackerEmails(clientId),
-  )
-  return { to, cc: [], bcc: [] }
+  return emptyClientEmailSelection()
 }
 
 function bucketOf(email: string, sel: ClientEmailSelection): EmailBucket {

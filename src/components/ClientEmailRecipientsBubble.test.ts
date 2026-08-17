@@ -93,21 +93,9 @@ describe('defaultInvoiceEmailSelection', () => {
     __resetClientsForTests()
   })
 
-  it('keeps invoice To out of CC', () => {
+  it('does not pre-select invoice contacts — desk picks To/CC', () => {
     const client = addClient({
       name: 'AP Co',
-      email: 'ops@client.com',
-      invoice_email: 'ap@client.com',
-      contacts: [{ name: 'AP', email: 'ap@client.com', role: 'ap' }],
-    })
-    const sel = defaultInvoiceEmailSelection(client.id)
-    expect(sel.to).toEqual(['ap@client.com'])
-    expect(sel.cc).not.toContain('ap@client.com')
-  })
-
-  it('prefills sometimes contacts into CC only', () => {
-    const client = addClient({
-      name: 'Split Co',
       email: 'ops@client.com',
       invoice_email: 'ap@client.com',
       contacts: [
@@ -121,8 +109,9 @@ describe('defaultInvoiceEmailSelection', () => {
       ],
     })
     const sel = defaultInvoiceEmailSelection(client.id)
-    expect(sel.to).toEqual(['ap@client.com'])
-    expect(sel.cc).toEqual(['ops@client.com'])
+    expect(sel.to).toEqual([])
+    expect(sel.cc).toEqual([])
+    expect(sel.bcc).toEqual(['info@onflyair.com'])
   })
 })
 
@@ -131,7 +120,7 @@ describe('defaultTrackerEmailSelection', () => {
     __resetClientsForTests()
   })
 
-  it('autofills matching base emails into To when leg ICAOs provided', () => {
+  it('does not pre-select trackers or base emails', () => {
     const client = addClient({
       name: 'PSA',
       email: 'ops@psa.test',
@@ -150,25 +139,15 @@ describe('defaultTrackerEmailSelection', () => {
             supervisor_emails: ['clt.sup@psa.test'],
             stores_emails: ['clt.stores@psa.test'],
           },
-          {
-            icao: 'CAK',
-            supervisor_emails: ['cak.sup@psa.test'],
-            stores_emails: [],
-          },
         ],
       },
     })
     const sel = defaultTrackerEmailSelection(client.id, {
       legIcaos: ['KCLT', 'KMDW'],
     })
-    expect(sel.to).toEqual(
-      expect.arrayContaining([
-        'always@psa.test',
-        'clt.sup@psa.test',
-        'clt.stores@psa.test',
-      ]),
-    )
-    expect(sel.to).not.toContain('cak.sup@psa.test')
+    expect(sel.to).toEqual([])
+    expect(sel.cc).toEqual([])
+    expect(sel.bcc).toEqual([])
   })
 })
 

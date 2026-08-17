@@ -766,7 +766,8 @@ function BasesTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted">
-          Operational bases. Supervisor / stores emails autofill the ETA sheet
+          Operational bases. Supervisor / stores emails appear as ETA sheet
+          chips for the desk to tap — they are not auto-selected.
           when that ICAO is on the trip. Diagrams sit on each base — download
           anytime.
         </p>
