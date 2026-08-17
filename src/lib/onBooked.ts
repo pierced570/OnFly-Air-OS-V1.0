@@ -6,7 +6,8 @@
  */
 
 import { buildManifestModel, renderManifestHtml } from '@/domain/manifest'
-import { listTrackerEmails } from '@/lib/clientStore'
+import { tripRouteIcaos } from '@/domain/tripRouteIcaos'
+import { listEtaTrackingEmails } from '@/lib/clientStore'
 import { scheduleCheckpointsForTrip } from '@/lib/checkpointStore'
 import { sendBookedEtaSheetToTrackers } from '@/lib/etaSheetSender'
 import {
@@ -62,7 +63,7 @@ export async function runOnBookedAutomations(
         actor: 'system',
         kind: 'eta_sheet_skipped',
         payload: {
-          reason: 'no tracker/supply_chain emails on client',
+          reason: 'no tracker/base/supply_chain emails on client',
           client_id: t.client_id ?? null,
         },
       })
@@ -78,7 +79,10 @@ export async function runOnBookedAutomations(
 }
 
 function resolveTrackerRecipients(trip: TripStoreRow): string[] {
-  const fromClient = trip.client_id ? listTrackerEmails(trip.client_id) : []
+  const legs = tripRouteIcaos(trip)
+  const fromClient = trip.client_id
+    ? listEtaTrackingEmails(trip.client_id, { legIcaos: legs })
+    : []
   // Quick Dispatch ETA section (bases + supply chain) — not invoice CC
   const fromQuickEta = trip.quick?.eta_emails ?? []
   return [

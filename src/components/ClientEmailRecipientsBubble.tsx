@@ -7,8 +7,10 @@ import { useMemo, useState, useSyncExternalStore } from 'react'
 import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import {
   getClient,
+  listAlwaysInvoiceEmails,
   listClients,
-  listInvoiceEmails,
+  listEtaTrackingEmails,
+  listOptionalInvoiceEmails,
   listRequestAlertEmails,
   listTrackerEmails,
   subscribeClients,
@@ -77,8 +79,8 @@ export function defaultClientEmailSelection(
 
 /**
  * Invoice send defaults:
- * - To: AP invoice_email (or invoice DL)
- * - CC: remaining invoice-flagged contacts (DL)
+ * - To: always-invoice emails (invoice_email + always AP flags)
+ * - CC: sometimes-invoice contacts only
  * - BCC: info@onflyair.com
  */
 export function defaultInvoiceEmailSelection(
@@ -87,26 +89,26 @@ export function defaultInvoiceEmailSelection(
   if (!clientId) {
     return { to: [], cc: [], bcc: [ONFLY_INFO_BCC] }
   }
-  const client = getClient(clientId)
-  const ap = normalize(client?.invoice_email ?? '')
-  const invoiceDl = uniq(listInvoiceEmails(clientId))
-  const to = ap.includes('@')
-    ? [ap]
-    : invoiceDl.slice(0, 1)
-  const cc = invoiceDl.filter((e) => !to.includes(e))
+  const to = uniq(listAlwaysInvoiceEmails(clientId))
+  const cc = uniq(listOptionalInvoiceEmails(clientId)).filter(
+    (e) => !to.includes(e),
+  )
   return { to, cc, bcc: [ONFLY_INFO_BCC] }
 }
 
-/** ETA / tracking sheet — To from tracker / supply-chain flags. */
+/** ETA / tracking sheet — To from trackers + matching base / airport emails. */
 export function defaultTrackerEmailSelection(
   clientId?: string | null,
+  opts?: { legIcaos?: string[] },
 ): ClientEmailSelection {
   if (!clientId) return emptyClientEmailSelection()
-  return {
-    to: uniq(listTrackerEmails(clientId)),
-    cc: [],
-    bcc: [],
-  }
+  const legs = opts?.legIcaos ?? []
+  const to = uniq(
+    legs.length
+      ? listEtaTrackingEmails(clientId, { legIcaos: legs })
+      : listTrackerEmails(clientId),
+  )
+  return { to, cc: [], bcc: [] }
 }
 
 function bucketOf(email: string, sel: ClientEmailSelection): EmailBucket {

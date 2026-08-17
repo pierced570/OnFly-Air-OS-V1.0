@@ -77,12 +77,13 @@ export async function hydrateOperatingData(): Promise<{
         email: '',
         invoice_email: String(r.invoice_email ?? ''),
         contacts: contactsRaw.map((c) => {
-          const p = (c.notify_prefs as Record<string, boolean>) ?? {}
+          const p = (c.notify_prefs as Record<string, unknown>) ?? {}
           const etaRaw = c.eta_icaos
           const eta_icaos = Array.isArray(etaRaw)
             ? etaRaw.map((x) => String(x).trim().toUpperCase()).filter(Boolean)
             : undefined
           const kindRaw = String(c.kind ?? 'person').toLowerCase()
+          const invoiceAlways = p.invoice_always
           return {
             id: String(c.id),
             name: String(c.name ?? ''),
@@ -96,6 +97,9 @@ export async function hydrateOperatingData(): Promise<{
               request_alert: Boolean(p.request_alert),
               invoice: Boolean(p.invoice),
               tracker: Boolean(p.tracker),
+              ...(invoiceAlways === true || invoiceAlways === false
+                ? { invoice_always: Boolean(invoiceAlways) }
+                : {}),
             },
           }
         }),

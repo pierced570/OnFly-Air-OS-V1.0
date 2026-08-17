@@ -3,12 +3,19 @@
  * Diagrams live under each base. Contacts mix people + DLs (incl. base DLs).
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import {
   syncBaseEmailFields,
   type ClientBaseRef,
 } from '@/domain/clientBaseEmails'
+import {
+  alwaysInvoiceEmails,
+  invoiceSometimesBubbleContacts,
+  isAlwaysInvoiceContact,
+  isOptionalInvoiceContact,
+  optionalInvoiceEmails,
+} from '@/domain/clientInvoiceRecipients'
 import {
   applyFreightPolicyToRules,
   summarizeClientRulesGuide,
@@ -20,10 +27,14 @@ import {
 } from '@/domain/clientOnboard'
 import {
   addClientContact,
+  getClient,
+  listClients,
   listMixedDirectoryContacts,
   removeClientContact,
+  subscribeClients,
   updateClient,
   updateClientContact,
+  type ClientContact,
   type ClientProfile,
   type ContactKind,
   type ContactRole,
@@ -61,17 +72,19 @@ function primaryLine(client: ClientProfile): string {
 }
 
 export function ClientDetailPanel({
-  client,
+  client: clientProp,
   onBack,
 }: {
   client: ClientProfile
   onBack?: () => void
 }) {
+  // Always read the live directory row so flag toggles re-render immediately.
+  useSyncExternalStore(subscribeClients, listClients, listClients)
+  const client = getClient(clientProp.id) ?? clientProp
   const profile = client.profile ?? {}
-  const mixed = useMemo(
-    () => listMixedDirectoryContacts(client.id),
-    [client.id, client.contacts, client.profile.bases],
-  )
+  // Recompute every render — contacts mutate often; memoizing on the array
+  // reference left Title / Name / etc. stuck on stale copies.
+  const mixed = listMixedDirectoryContacts(client.id)
   const [tab, setTab] = useState<TabId>('info')
   useEffect(() => {
     setTab(mixed.length > 0 ? 'contacts' : 'info')
@@ -203,7 +216,7 @@ function InfoTab({
           />
         </label>
         <label className={label}>
-          Invoice email
+          Always invoice (To)
           <input
             className={`${input} avionic`}
             value={client.invoice_email}
@@ -392,13 +405,13 @@ function ContactsTab({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        People and distribution lists in one list. Flag{' '}
-        <span className="text-gold">AP / Invoice</span> for invoice autopopulate.
-        Set <span className="text-gold">ETA airports</span> so that email joins
-        the ETA sheet when those ICAOs are on the trip. Base supervisor/stores
-        DLs appear here automatically.
+        People and distribution lists in one list. Set Invoice to{' '}
+        <span className="text-gold">Always (To)</span> or{' '}
+        <span className="text-gold">Sometimes (CC)</span> — Billing shows the
+        bubbles. Flag <span className="text-gold">Always ETA</span> for sheet
+        recipients. Base supervisor/stores DLs appear here from the Bases tab.
       </p>
-      <p className="text-xs text-muted">{apCount} flagged for invoices</p>
+      <p className="text-xs text-muted">{apCount} on invoice lists</p>
 
       {/* Mobile contact cards */}
       <ul className="space-y-2 sm:hidden">
@@ -495,25 +508,7 @@ function ContactsTab({
                       />
                       Quotes
                     </label>
-                    <label className="flex min-h-11 items-center gap-2 text-gold">
-                      <input
-                        type="checkbox"
-                        checked={c.notify_prefs.invoice}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            updateClientContact(client.id, c.id, {
-                              role: 'ap',
-                              notify_prefs: { invoice: true },
-                            })
-                          } else {
-                            updateClientContact(client.id, c.id, {
-                              notify_prefs: { invoice: false },
-                            })
-                          }
-                        }}
-                      />
-                      AP / Invoice
-                    </label>
+                    <InvoiceModeSelect clientId={client.id} contact={c} />
                     <label className="flex min-h-11 items-center gap-2">
                       <input
                         type="checkbox"
@@ -527,24 +522,10 @@ function ContactsTab({
                       Always ETA
                     </label>
                   </div>
-                  <input
-                    className="w-full rounded-md border border-border bg-ink px-3 py-2.5 font-mono text-xs text-cream outline-none focus:border-gold"
-                    value={(c.eta_icaos ?? []).join(', ')}
-                    placeholder="ETA airports (CAK, CLT)"
-                    onChange={(e) => {
-                      const eta_icaos = e.target.value
-                        .split(/[,;\s]+/)
-                        .map((s) => s.trim().toUpperCase())
-                        .filter(Boolean)
-                      updateClientContact(client.id, c.id, { eta_icaos })
-                    }}
-                  />
                 </>
               )}
               {synthetic && (
-                <p className="text-[11px] text-muted">
-                  ETA @ {(c.eta_icaos ?? []).join(', ') || '—'}
-                </p>
+                <p className="text-[11px] text-muted">From Bases tab</p>
               )}
             </li>
           )
@@ -561,7 +542,6 @@ function ContactsTab({
               <th className="px-3 py-2">Title</th>
               <th className="px-3 py-2">Phone</th>
               <th className="px-3 py-2">Flags</th>
-              <th className="px-3 py-2">ETA airports</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -645,9 +625,7 @@ function ContactsTab({
                   </td>
                   <td className="px-3 py-2">
                     {synthetic ? (
-                      <span className="text-[11px] text-muted">
-                        ETA @ {(c.eta_icaos ?? []).join(', ')}
-                      </span>
+                      <span className="text-[11px] text-muted">Base DL</span>
                     ) : (
                       <div className="flex flex-col gap-1 text-[11px]">
                         <label className="flex items-center gap-1 text-cream">
@@ -664,25 +642,7 @@ function ContactsTab({
                           />
                           Quotes
                         </label>
-                        <label className="flex items-center gap-1 text-gold">
-                          <input
-                            type="checkbox"
-                            checked={c.notify_prefs.invoice}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                updateClientContact(client.id, c.id, {
-                                  role: 'ap',
-                                  notify_prefs: { invoice: true },
-                                })
-                              } else {
-                                updateClientContact(client.id, c.id, {
-                                  notify_prefs: { invoice: false },
-                                })
-                              }
-                            }}
-                          />
-                          AP / Invoice
-                        </label>
+                        <InvoiceModeSelect clientId={client.id} contact={c} />
                         <label className="flex items-center gap-1 text-cream">
                           <input
                             type="checkbox"
@@ -696,27 +656,6 @@ function ContactsTab({
                           Always ETA
                         </label>
                       </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {synthetic ? (
-                      <span className="font-mono text-xs text-muted">
-                        {(c.eta_icaos ?? []).join(', ')}
-                      </span>
-                    ) : (
-                      <input
-                        className="w-28 rounded border border-border bg-ink px-2 py-1 font-mono text-xs text-cream outline-none focus:border-gold"
-                        value={(c.eta_icaos ?? []).join(', ')}
-                        placeholder="CAK, CLT"
-                        title="Comma-separated ICAOs for ETA autopopulate"
-                        onChange={(e) => {
-                          const eta_icaos = e.target.value
-                            .split(/[,;\s]+/)
-                            .map((s) => s.trim().toUpperCase())
-                            .filter(Boolean)
-                          updateClientContact(client.id, c.id, { eta_icaos })
-                        }}
-                      />
                     )}
                   </td>
                   <td className="px-3 py-2">
@@ -827,8 +766,9 @@ function BasesTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted">
-          Operational bases. Supervisor / stores DLs also show on Contacts with
-          ETA airport flags. Diagrams sit on each base — download anytime.
+          Operational bases. Supervisor / stores emails autofill the ETA sheet
+          when that ICAO is on the trip. Diagrams sit on each base — download
+          anytime.
         </p>
         <button
           type="button"
@@ -841,14 +781,15 @@ function BasesTab({
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {bases.map((base, i) => (
           <div
             key={`${base.icao}-${i}`}
-            className="space-y-3 rounded-lg border border-border bg-surface p-4"
+            className="min-w-0 max-w-full space-y-3 rounded-lg border border-border bg-surface p-4"
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-start gap-2">
               <AirportSelect
+                className="min-w-0 flex-1 basis-0"
                 value={base.icao}
                 onChange={(icao) => {
                   const next = [...bases]
@@ -860,7 +801,7 @@ function BasesTab({
               />
               <button
                 type="button"
-                className="mt-6 text-xs text-muted hover:text-late"
+                className="mt-6 shrink-0 text-xs text-muted hover:text-late"
                 onClick={() => {
                   const next = [...bases]
                   next.splice(i, 1)
@@ -870,10 +811,10 @@ function BasesTab({
                 Remove
               </button>
             </div>
-            <label className={label}>
+            <label className={`${label} min-w-0`}>
               Supervisor emails
               <input
-                className={input}
+                className={`${input} min-w-0 max-w-full overflow-hidden text-ellipsis`}
                 value={(base.supervisor_emails ?? []).join(', ')}
                 onChange={(e) => {
                   const next = [...bases]
@@ -888,10 +829,10 @@ function BasesTab({
                 }}
               />
             </label>
-            <label className={label}>
+            <label className={`${label} min-w-0`}>
               Stores emails
               <input
-                className={input}
+                className={`${input} min-w-0 max-w-full overflow-hidden text-ellipsis`}
                 value={(base.stores_emails ?? []).join(', ')}
                 onChange={(e) => {
                   const next = [...bases]
@@ -926,9 +867,6 @@ function BasesTab({
                     />
                   </a>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-xs text-muted">
-                      {base.diagram_caption || 'Hangar diagram'}
-                    </span>
                     <a
                       href={base.diagram_url}
                       download={base.diagram_caption || `${base.icao}-diagram`}
@@ -938,42 +876,26 @@ function BasesTab({
                     >
                       Download
                     </a>
+                    <button
+                      type="button"
+                      className="text-xs text-muted hover:text-late"
+                      onClick={() => {
+                        const next = [...bases]
+                        next[i] = {
+                          ...base,
+                          diagram_url: undefined,
+                          diagram_caption: undefined,
+                        }
+                        setBases(next)
+                      }}
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
               ) : (
                 <p className="mt-2 text-xs text-muted">No diagram on file.</p>
               )}
-              <label className={`${label} mt-2`}>
-                Diagram URL
-                <input
-                  className={input}
-                  value={base.diagram_url ?? ''}
-                  onChange={(e) => {
-                    const next = [...bases]
-                    next[i] = {
-                      ...base,
-                      diagram_url: e.target.value.trim() || undefined,
-                    }
-                    setBases(next)
-                  }}
-                  placeholder="https://…/hangar.jpg"
-                />
-              </label>
-              <label className={label}>
-                Caption / filename
-                <input
-                  className={input}
-                  value={base.diagram_caption ?? ''}
-                  onChange={(e) => {
-                    const next = [...bases]
-                    next[i] = {
-                      ...base,
-                      diagram_caption: e.target.value.trim() || undefined,
-                    }
-                    setBases(next)
-                  }}
-                />
-              </label>
             </div>
           </div>
         ))}
@@ -986,6 +908,137 @@ function BasesTab({
   )
 }
 
+function parseEmailField(raw: string): string[] {
+  return [
+    ...new Set(
+      raw
+        .split(/[,;\s]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => s.includes('@')),
+    ),
+  ]
+}
+
+type InvoiceMode = 'off' | 'always' | 'sometimes'
+
+function invoiceModeOf(c: ClientContact): InvoiceMode {
+  if (!c.notify_prefs.invoice) return 'off'
+  return isOptionalInvoiceContact(c) ? 'sometimes' : 'always'
+}
+
+function setContactInvoiceMode(
+  clientId: string,
+  contact: ClientContact,
+  mode: InvoiceMode,
+) {
+  if (mode === 'off') {
+    updateClientContact(clientId, contact.id, {
+      notify_prefs: { invoice: false },
+    })
+    return
+  }
+  // Keep Quotes / Always ETA — do not reset prefs via role-only defaults.
+  updateClientContact(clientId, contact.id, {
+    ...(mode === 'always' ? { role: 'ap' as const } : {}),
+    notify_prefs: {
+      invoice: true,
+      invoice_always: mode === 'always',
+    },
+  })
+}
+
+/**
+ * Sync typed Always-To emails onto the client: invoice_email = first,
+ * matching contacts marked always; create AP rows for unknown addresses.
+ */
+function applyAlwaysInvoiceEmails(client: ClientProfile, emails: string[]) {
+  const uniq = parseEmailField(emails.join(','))
+  updateClient(client.id, { invoice_email: uniq[0] ?? '' })
+  const byEmail = new Map(
+    client.contacts.map((c) => [c.email.trim().toLowerCase(), c] as const),
+  )
+  for (const email of uniq) {
+    const hit = byEmail.get(email)
+    if (hit) {
+      setContactInvoiceMode(client.id, hit, 'always')
+    } else {
+      addClientContact(client.id, email.split('@')[0] || 'AP', email, 'ap', '', {
+        notify_prefs: { invoice: true, invoice_always: true },
+      })
+    }
+  }
+  // Demote former always contacts no longer in the list (keep as sometimes if still invoice)
+  for (const c of client.contacts) {
+    const e = c.email.trim().toLowerCase()
+    if (!isAlwaysInvoiceContact(c)) continue
+    if (uniq.includes(e)) continue
+    if (c.notify_prefs.invoice) {
+      setContactInvoiceMode(client.id, c, 'sometimes')
+    }
+  }
+}
+
+function applyOptionalInvoiceEmails(client: ClientProfile, emails: string[]) {
+  const uniq = parseEmailField(emails.join(','))
+  const always = new Set(alwaysInvoiceEmails(client))
+  const byEmail = new Map(
+    client.contacts.map((c) => [c.email.trim().toLowerCase(), c] as const),
+  )
+  for (const email of uniq) {
+    if (always.has(email)) continue
+    const hit = byEmail.get(email)
+    if (hit) {
+      setContactInvoiceMode(client.id, hit, 'sometimes')
+    } else {
+      addClientContact(
+        client.id,
+        email.split('@')[0] || 'Contact',
+        email,
+        'supply_chain',
+        '',
+        { notify_prefs: { invoice: true, invoice_always: false } },
+      )
+    }
+  }
+  for (const c of client.contacts) {
+    if (!isOptionalInvoiceContact(c)) continue
+    const e = c.email.trim().toLowerCase()
+    if (!uniq.includes(e)) {
+      setContactInvoiceMode(client.id, c, 'off')
+    }
+  }
+}
+
+function InvoiceModeSelect({
+  clientId,
+  contact,
+}: {
+  clientId: string
+  contact: ClientContact
+}) {
+  const mode = invoiceModeOf(contact)
+  return (
+    <label className="flex min-h-11 items-center gap-2 text-[11px] text-gold">
+      Invoice
+      <select
+        className="rounded border border-border bg-ink px-1.5 py-1 text-cream"
+        value={mode}
+        onChange={(e) =>
+          setContactInvoiceMode(
+            clientId,
+            contact,
+            e.target.value as InvoiceMode,
+          )
+        }
+      >
+        <option value="off">Off</option>
+        <option value="always">Always (To)</option>
+        <option value="sometimes">Sometimes (CC)</option>
+      </select>
+    </label>
+  )
+}
+
 function BillingTab({
   client,
   profile,
@@ -995,23 +1048,136 @@ function BillingTab({
   profile: NonNullable<ClientProfile['profile']>
   patchProfile: (p: Partial<NonNullable<ClientProfile['profile']>>) => void
 }) {
-  const ap = client.contacts.filter((c) => c.notify_prefs.invoice)
+  const always = alwaysInvoiceEmails(client)
+  const sometimes = optionalInvoiceEmails(client)
+  const bubbles = invoiceSometimesBubbleContacts(client.contacts, always)
+  const [alwaysDraft, setAlwaysDraft] = useState(always.join(', '))
+  const [sometimesDraft, setSometimesDraft] = useState(sometimes.join(', '))
   const termsValue = payTermsSelectValue(client.pay_terms)
   const known = ['Prepay', 'Net 15', 'Net 30', 'Net 60']
 
+  useEffect(() => {
+    setAlwaysDraft(always.join(', '))
+    setSometimesDraft(sometimes.join(', '))
+  }, [client.id, always.join('|'), sometimes.join('|')])
+
+  function dropBubbleIntoSometimes(email: string) {
+    const next = parseEmailField(`${sometimesDraft},${email}`)
+    setSometimesDraft(next.join(', '))
+    applyOptionalInvoiceEmails(client, next)
+  }
+
   return (
     <div className="grid max-w-2xl gap-4">
-      <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
+      <section className="space-y-3 rounded-lg border border-gold/35 bg-gold/5 p-4">
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-gold">
+            Invoice recipients
+          </h3>
+          <p className="mt-1 text-xs text-muted">
+            <span className="text-cream">Always</span> prefills To on every
+            invoice. Everyone else is a bubble — click to drop them into
+            Sometimes (CC).
+          </p>
+        </div>
+
         <label className={label}>
-          Default invoice email
+          Always send to (To)
           <input
-            className={input}
-            value={client.invoice_email}
-            onChange={(e) =>
-              updateClient(client.id, { invoice_email: e.target.value })
-            }
+            className={`${input} avionic`}
+            value={alwaysDraft}
+            onChange={(e) => setAlwaysDraft(e.target.value)}
+            onBlur={() => applyAlwaysInvoiceEmails(client, parseEmailField(alwaysDraft))}
+            placeholder="ap@client.com"
+            autoComplete="off"
           />
         </label>
+        {always.length > 0 ? (
+          <ul className="flex flex-wrap gap-1.5">
+            {always.map((email) => {
+              const c = client.contacts.find(
+                (x) => x.email.trim().toLowerCase() === email,
+              )
+              return (
+                <li
+                  key={email}
+                  className="rounded-full border border-gold/50 bg-gold/20 px-2.5 py-1 font-mono text-[11px] text-cream"
+                >
+                  To · {c?.name ? `${c.name} · ${email}` : email}
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted">
+            No always-To yet — type an AP address above.
+          </p>
+        )}
+
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wider text-muted">
+            Directory — click into Sometimes (CC)
+          </div>
+          {bubbles.length === 0 ? (
+            <p className="mt-2 text-xs text-muted">
+              No other contacts on file. Add people under Contacts.
+            </p>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {bubbles.map((c) => {
+                const on = isOptionalInvoiceContact(c)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    title={
+                      on
+                        ? 'Already in Sometimes — click to remove'
+                        : 'Add to Sometimes (CC)'
+                    }
+                    onClick={() => {
+                      if (on) {
+                        setContactInvoiceMode(client.id, c, 'off')
+                      } else {
+                        dropBubbleIntoSometimes(c.email)
+                      }
+                    }}
+                    className={[
+                      'rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors',
+                      on
+                        ? 'border-gold bg-gold/25 text-cream'
+                        : 'border-border bg-ink/40 text-muted hover:border-gold/40 hover:text-cream',
+                    ].join(' ')}
+                  >
+                    <span className="font-medium">{on ? 'CC' : '·'}</span>{' '}
+                    {c.name?.trim() ? `${c.name} · ${c.email}` : c.email}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <label className={label}>
+          Sometimes (CC)
+          <input
+            className={`${input} avionic`}
+            value={sometimesDraft}
+            onChange={(e) => setSometimesDraft(e.target.value)}
+            onBlur={() =>
+              applyOptionalInvoiceEmails(client, parseEmailField(sometimesDraft))
+            }
+            placeholder="ops@client.com"
+            autoComplete="off"
+          />
+          <span className="mt-1 block text-[11px] normal-case tracking-normal text-muted">
+            Prefills CC when sending — not on every invoice unless you keep them
+            here.
+          </span>
+        </label>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
         <label className={label}>
           Pay terms
           <select
@@ -1132,28 +1298,6 @@ function BillingTab({
             />
           </label>
         </div>
-      </section>
-
-      <section className="rounded-lg border border-gold/30 bg-gold/10 p-4">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-gold">
-          Accounts payable (always on invoices)
-        </h3>
-        {ap.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">
-            No contacts flagged AP / Invoice yet — use the Contacts tab.
-          </p>
-        ) : (
-          <ul className="mt-2 space-y-1">
-            {ap.map((c) => (
-              <li key={c.id} className="font-mono text-sm text-cream">
-                {c.email}
-                {c.name ? (
-                  <span className="text-muted"> ({c.name})</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
     </div>
   )
@@ -1299,97 +1443,6 @@ function RulesGuideTab({
           )}
         </section>
       </div>
-
-      <section className="grid gap-4 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2">
-        <div className="space-y-3">
-          <h4 className="text-xs font-medium uppercase tracking-wider text-muted">
-            Hazmat & value
-          </h4>
-          <label className={check}>
-            <input
-              type="checkbox"
-              checked={client.rules.hazmat_allowed}
-              onChange={(e) =>
-                updateClient(client.id, {
-                  rules: { hazmat_allowed: e.target.checked },
-                })
-              }
-            />
-            Hazmat allowed
-          </label>
-          <label className={label}>
-            Hazmat notes
-            <input
-              className={input}
-              value={client.rules.hazmat_notes}
-              onChange={(e) =>
-                updateClient(client.id, {
-                  rules: { hazmat_notes: e.target.value },
-                })
-              }
-            />
-          </label>
-          <label className={label}>
-            Declared value norm
-            <input
-              className={input}
-              value={client.rules.declared_value_norm}
-              onChange={(e) =>
-                updateClient(client.id, {
-                  rules: { declared_value_norm: e.target.value },
-                })
-              }
-              placeholder="e.g. under $1M"
-            />
-          </label>
-        </div>
-        <div className="space-y-3">
-          <h4 className="text-xs font-medium uppercase tracking-wider text-muted">
-            Shipping flags
-          </h4>
-          {(
-            [
-              ['hazmat_sometimes', 'Hazmat sometimes'],
-              ['temp_control', 'Temp control'],
-              ['oversized', 'Oversized'],
-              ['high_declared_value', 'High declared value'],
-            ] as const
-          ).map(([key, text]) => (
-            <label key={key} className={check}>
-              <input
-                type="checkbox"
-                checked={Boolean(profile.shipping_flags?.[key])}
-                onChange={(e) =>
-                  patchProfile({
-                    shipping_flags: {
-                      ...profile.shipping_flags,
-                      [key]: e.target.checked,
-                    },
-                  })
-                }
-              />
-              {text}
-            </label>
-          ))}
-          <label className={check}>
-            <input
-              type="checkbox"
-              checked={client.rules.exceptions_with_permission}
-              onChange={(e) => {
-                const exceptions_with_permission = e.target.checked
-                updateClient(client.id, {
-                  rules: applyFreightPolicyToRules(
-                    { ...client.rules, exceptions_with_permission },
-                    freight,
-                    exceptions_with_permission,
-                  ),
-                })
-              }}
-            />
-            Exceptions OK with client confirmation (soft block)
-          </label>
-        </div>
-      </section>
 
       <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
         <h4 className="text-xs font-medium uppercase tracking-wider text-muted">

@@ -35,6 +35,7 @@ import {
 } from '@/lib/tripStore'
 import { tripRefLabel } from '@/domain/invoicePoHint'
 import { resolveTripPoNumber } from '@/domain/tripPo'
+import { tripRouteIcaos } from '@/domain/tripRouteIcaos'
 import {
   getClient,
   recordPoUsed,
@@ -76,10 +77,19 @@ export function BookedTripActionsPanel({ tripId }: Props) {
     () => trip?.vendor_number?.trim() || '',
   )
 
+  const routeIcaos = useMemo(
+    () => (trip ? tripRouteIcaos(trip) : []),
+    [trip],
+  )
+
   useEffect(() => {
     setInvoiceSel(defaultInvoiceEmailSelection(trip?.client_id))
-    setEtaSel(defaultTrackerEmailSelection(trip?.client_id))
-  }, [trip?.client_id, tripId])
+    setEtaSel(
+      defaultTrackerEmailSelection(trip?.client_id, {
+        legIcaos: routeIcaos,
+      }),
+    )
+  }, [trip?.client_id, tripId, routeIcaos.join('|')])
 
   useEffect(() => {
     setConfirmedType((prev) => prev || initialAircraftTypeSelectValue(draftType))

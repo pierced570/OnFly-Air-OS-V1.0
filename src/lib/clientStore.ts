@@ -13,6 +13,10 @@ import {
   listBaseGeneratedEmails,
   type ClientBaseRef,
 } from '@/domain/clientBaseEmails'
+import {
+  alwaysInvoiceEmails,
+  optionalInvoiceEmails,
+} from '@/domain/clientInvoiceRecipients'
 import { hardFiltersFromPolicy, normalizeMissionPolicy } from '@/domain/clientOnboard'
 import { ONFLY_INFO_BCC } from '@/domain/onflyEmails'
 import { withEnsuredPortalDomains } from '@/domain/portalDomains'
@@ -28,6 +32,11 @@ export type ContactNotifyPrefs = {
   request_alert: boolean
   /** Receive QuickBooks / invoice emails (AP flag) */
   invoice: boolean
+  /**
+   * When invoice is true: undefined/true = always on To (prefill);
+   * false = sometimes — clickable bubble into CC on send.
+   */
+  invoice_always?: boolean
   /** Always include on ETA / tracker when true */
   tracker: boolean
 }
@@ -414,7 +423,12 @@ function defaultPrefs(role: ContactRole): ContactNotifyPrefs {
     return { request_alert: true, invoice: false, tracker: true }
   }
   if (role === 'ap') {
-    return { request_alert: false, invoice: true, tracker: false }
+    return {
+      request_alert: false,
+      invoice: true,
+      invoice_always: true,
+      tracker: false,
+    }
   }
   return { request_alert: false, invoice: false, tracker: true }
 }
@@ -435,6 +449,25 @@ export function getClient(id: string): ClientProfile | undefined {
   if (direct) return direct
   const aliased = clientIdAliases.get(id)
   return aliased ? clients.get(aliased) : undefined
+}
+
+/** Canonical directory row for mutations (legacy key or UUID alias). */
+function resolveClientRow(clientId: string): ClientProfile | undefined {
+  return getClient(clientId)
+}
+
+function ensureNotifyPrefs(
+  p?: Partial<ContactNotifyPrefs> | null,
+): ContactNotifyPrefs {
+  const out: ContactNotifyPrefs = {
+    request_alert: Boolean(p?.request_alert),
+    invoice: Boolean(p?.invoice),
+    tracker: Boolean(p?.tracker),
+  }
+  if (p?.invoice_always === true || p?.invoice_always === false) {
+    out.invoice_always = p.invoice_always
+  }
+  return out
 }
 
 /**
@@ -712,7 +745,7 @@ export function addClientContact(
     notify_prefs?: Partial<ContactNotifyPrefs>
   },
 ): ClientContact | undefined {
-  const row = clients.get(clientId)
+  const row = resolveClientRow(clientId)
   if (!row) return undefined
   const contact: ClientContact = {
     id: crypto.randomUUID(),
@@ -725,10 +758,10 @@ export function addClientContact(
     eta_icaos: extra?.eta_icaos?.length
       ? [...extra.eta_icaos.map((x) => x.trim().toUpperCase()).filter(Boolean)]
       : undefined,
-    notify_prefs: {
+    notify_prefs: ensureNotifyPrefs({
       ...defaultPrefs(role),
       ...(extra?.notify_prefs ?? {}),
-    },
+    }),
   }
   const existing = row.contacts.find(
     (c) => c.email.toLowerCase() === contact.email.toLowerCase(),
@@ -746,11 +779,11 @@ export function addClientContact(
       ])
       existing.eta_icaos = [...set]
     }
-    existing.notify_prefs = {
+    existing.notify_prefs = ensureNotifyPrefs({
       ...existing.notify_prefs,
       ...defaultPrefs(role),
       ...(extra?.notify_prefs ?? {}),
-    }
+    })
   } else {
     row.contacts.push(contact)
   }
@@ -761,8 +794,12 @@ export function addClientContact(
   ) {
     row.invoice_email = contact.email
   }
-  bump(clientId)
-  return contact
+  row.contacts = row.contacts.map((x) => ({
+    ...x,
+    notify_prefs: ensureNotifyPrefs(x.notify_prefs),
+  }))
+  bump(row.id)
+  return existing ?? contact
 }
 
 export function updateClientContact(
@@ -777,15 +814,18 @@ export function updateClientContact(
     }
   >,
 ): void {
-  const row = clients.get(clientId)
+  const row = resolveClientRow(clientId)
   if (!row) return
   const c = row.contacts.find((x) => x.id === contactId)
   if (!c) return
   if (patch.name != null) c.name = patch.name
-  if (patch.email != null) c.email = patch.email.trim()
+  if (patch.email != null) c.email = patch.email
   if (patch.cell != null) c.cell = patch.cell
   if (patch.kind != null) c.kind = patch.kind
-  if (patch.title != null) c.title = patch.title.trim() || undefined
+  if (patch.title != null) {
+    // Keep spaces while typing; empty clears the title.
+    c.title = patch.title.length ? patch.title : undefined
+  }
   if (patch.eta_icaos != null) {
     c.eta_icaos = patch.eta_icaos
       .map((x) => x.trim().toUpperCase())
@@ -794,29 +834,54 @@ export function updateClientContact(
   }
   if (patch.role != null) {
     c.role = patch.role
-    // Role change resets flags to that role's defaults.
-    c.notify_prefs = defaultPrefs(patch.role)
+    // Only reset flags to role defaults when the caller isn't also
+    // patching prefs (invoice Always used to wipe Quotes / Always ETA).
+    if (!patch.notify_prefs) {
+      c.notify_prefs = ensureNotifyPrefs(defaultPrefs(patch.role))
+    }
   }
   if (patch.notify_prefs) {
-    c.notify_prefs = { ...c.notify_prefs, ...patch.notify_prefs }
+    const merged: ContactNotifyPrefs = {
+      ...ensureNotifyPrefs(c.notify_prefs),
+      ...patch.notify_prefs,
+    }
+    if (patch.notify_prefs.invoice === false) {
+      delete merged.invoice_always
+    }
+    c.notify_prefs = ensureNotifyPrefs(merged)
+  } else if (!patch.role) {
+    c.notify_prefs = ensureNotifyPrefs(c.notify_prefs)
   }
-  if (c.notify_prefs.invoice && c.email) {
-    row.invoice_email = c.email
+  // Only auto-fill primary To from always-invoice contacts (never sometimes).
+  if (
+    c.notify_prefs.invoice &&
+    c.notify_prefs.invoice_always !== false &&
+    c.email &&
+    !row.invoice_email
+  ) {
+    row.invoice_email = c.email.trim()
   }
-  bump(clientId)
+  // New array identity so React memos / useSyncExternalStore consumers re-render
+  // with fresh contact field values (in-place mutate alone left UI stuck).
+  row.contacts = row.contacts.map((x) =>
+    x.id === c.id
+      ? { ...c, notify_prefs: ensureNotifyPrefs(c.notify_prefs) }
+      : { ...x, notify_prefs: ensureNotifyPrefs(x.notify_prefs) },
+  )
+  bump(row.id)
 }
 
 export function removeClientContact(clientId: string, contactId: string): void {
-  const row = clients.get(clientId)
+  const row = resolveClientRow(clientId)
   if (!row) return
   row.contacts = row.contacts.filter((c) => c.id !== contactId)
-  bump(clientId)
+  bump(row.id)
 }
 
 /** Emails that should ring dispatch when they send a request. */
 export function listRequestAlertEmails(clientId?: string): string[] {
   const list = clientId
-    ? [clients.get(clientId)].filter(Boolean)
+    ? [getClient(clientId)].filter(Boolean)
     : [...clients.values()]
   const out: string[] = []
   for (const cl of list) {
@@ -827,9 +892,9 @@ export function listRequestAlertEmails(clientId?: string): string[] {
   return out
 }
 
-/** Emails flagged to receive invoices. */
+/** Emails flagged to receive invoices (always + sometimes). */
 export function listInvoiceEmails(clientId: string): string[] {
-  const cl = clients.get(clientId)
+  const cl = getClient(clientId)
   if (!cl) return []
   const fromContacts = cl.contacts
     .filter((c) => c.notify_prefs.invoice && c.email)
@@ -838,12 +903,26 @@ export function listInvoiceEmails(clientId: string): string[] {
   return cl.invoice_email ? [cl.invoice_email.toLowerCase()] : []
 }
 
+/** Always-To invoice emails (prefill). */
+export function listAlwaysInvoiceEmails(clientId: string): string[] {
+  const cl = getClient(clientId)
+  if (!cl) return []
+  return alwaysInvoiceEmails(cl)
+}
+
+/** Sometimes / optional CC invoice emails. */
+export function listOptionalInvoiceEmails(clientId: string): string[] {
+  const cl = getClient(clientId)
+  if (!cl) return []
+  return optionalInvoiceEmails(cl)
+}
+
 /**
  * Emails that get ETA sheets + portal trackers (supply chain / tracker flag).
  * Never includes AP-only contacts unless they also have tracker on.
  */
 export function listTrackerEmails(clientId: string): string[] {
-  const cl = clients.get(clientId)
+  const cl = getClient(clientId)
   if (!cl) return []
   const out = cl.contacts
     .filter(
@@ -855,41 +934,9 @@ export function listTrackerEmails(clientId: string): string[] {
   return [...new Set(out)]
 }
 
-function icaoCodesMatch(a: string, b: string): boolean {
-  const x = a.trim().toUpperCase()
-  const y = b.trim().toUpperCase()
-  if (!x || !y) return false
-  if (x === y) return true
-  const sx = x.length === 4 && x.startsWith('K') ? x.slice(1) : x
-  const sy = y.length === 4 && y.startsWith('K') ? y.slice(1) : y
-  return sx === sy
-}
-
 /**
- * Contacts flagged for ETA when the trip uses specific airports
- * (`eta_icaos`), regardless of the global tracker toggle.
- */
-export function listAirportEtaEmails(
-  clientId: string,
-  legIcaos: string[],
-): string[] {
-  const cl = getClient(clientId)
-  if (!cl || !legIcaos.length) return []
-  const out: string[] = []
-  for (const c of cl.contacts) {
-    if (!c.email || !c.eta_icaos?.length) continue
-    const hit = c.eta_icaos.some((code) =>
-      legIcaos.some((leg) => icaoCodesMatch(code, leg)),
-    )
-    if (hit) out.push(c.email.toLowerCase())
-  }
-  return [...new Set(out)]
-}
-
-/**
- * ETA / tracking recipients: tracker contacts + airport-flagged contacts +
- * base mailboxes (stored or auto-generated).
- * When legIcaos are provided, prefer bases / eta_icaos that match the trip.
+ * ETA / tracking recipients: tracker contacts + matching base mailboxes.
+ * When legIcaos are provided, only bases on the trip are included.
  */
 export function listEtaTrackingEmails(
   clientId: string,
@@ -899,7 +946,6 @@ export function listEtaTrackingEmails(
   if (!cl) return []
   const legs = opts?.legIcaos ?? []
   const fromContacts = listTrackerEmails(clientId)
-  const fromAirportFlags = listAirportEtaEmails(clientId, legs)
   const fromBases = listBaseGeneratedEmails(
     {
       email: cl.email,
@@ -911,29 +957,19 @@ export function listEtaTrackingEmails(
     },
     { legIcaos: legs },
   ).map((b) => b.email.toLowerCase())
-  return [...new Set([...fromContacts, ...fromAirportFlags, ...fromBases])]
+  return [...new Set([...fromContacts, ...fromBases])]
 }
 
-/** Saved contacts that are ETA/tracker (not AP-only), plus airport-flagged. */
+/** Saved contacts that are ETA/tracker (not AP-only). */
 export function listEtaTrackingContacts(
   clientId: string,
-  opts?: { legIcaos?: string[] },
+  _opts?: { legIcaos?: string[] },
 ): ClientContact[] {
   const cl = getClient(clientId)
   if (!cl) return []
-  const legs = opts?.legIcaos ?? []
   return cl.contacts.filter((c) => {
     if (!c.email) return false
-    if (c.notify_prefs.tracker || c.role === 'supply_chain') return true
-    if (
-      legs.length &&
-      c.eta_icaos?.some((code) =>
-        legs.some((leg) => icaoCodesMatch(code, leg)),
-      )
-    ) {
-      return true
-    }
-    return false
+    return c.notify_prefs.tracker || c.role === 'supply_chain'
   })
 }
 
