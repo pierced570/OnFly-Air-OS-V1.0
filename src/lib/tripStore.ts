@@ -2251,7 +2251,7 @@ export async function createInvoiceForTrip(
     try {
       const mail = await buildTripInvoiceMailPayload({
         trip: trips.get(tripId) ?? t,
-        poNumber: created.qbInvoiceNumber || po,
+        poNumber: po,
         clientName: facts.clientName,
         amountUsd: facts.amountUsd,
         payUrl: created.url || null,
@@ -2263,7 +2263,7 @@ export async function createInvoiceForTrip(
         to: uniqueTo,
         cc: uniqueCc,
         bcc: uniqueBcc,
-        poNumber: created.qbInvoiceNumber || po,
+        poNumber: po,
         qbInvoiceId: created.qbInvoiceId,
         ...mail,
       })
@@ -2284,11 +2284,18 @@ export async function createInvoiceForTrip(
   const wasDelivered = t.state === 'delivered'
   mutateTrip(tripId, (row) => {
     row.invoice = inv
-    row.po_number = created.qbInvoiceNumber || po
+    // Desk-entered PO is the spine — never replace with a QBO-assigned /
+    // suffixed DocNumber (that looked like "typed 00002 → sent 00003").
+    row.po_number = po
+    if (row.quick) row.quick.po = po
     row.documents.push({
       id: crypto.randomUUID(),
       kind: 'other',
-      title: `Invoice ${created.qbInvoiceNumber || inv.qb_invoice_id}`,
+      title: `Invoice ${po}${
+        created.qbInvoiceNumber && created.qbInvoiceNumber !== po
+          ? ` (QB ${created.qbInvoiceNumber})`
+          : ''
+      }`,
       at: inv.created_at,
       url: inv.url,
     })
@@ -2299,6 +2306,7 @@ export async function createInvoiceForTrip(
       payload: {
         qb_invoice_id: inv.qb_invoice_id,
         doc_number: created.qbInvoiceNumber,
+        requested_po: po,
         total,
         auto: wasDelivered,
         emailed: shouldEmail,
@@ -2332,10 +2340,10 @@ export async function createInvoiceForTrip(
         })),
         client_invoiced_amount: total,
         qb_invoice_id: inv.qb_invoice_id,
-        qb_invoice_number: created.qbInvoiceNumber || po,
+        qb_invoice_number: po,
         invoice_date: txnDate,
-        po_number: created.qbInvoiceNumber || po,
-        operator_po: created.qbInvoiceNumber || po,
+        po_number: po,
+        operator_po: po,
         bill_logged_in_qb: true,
       })
     }

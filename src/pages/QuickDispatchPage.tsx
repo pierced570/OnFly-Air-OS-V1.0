@@ -206,7 +206,9 @@ export default function QuickDispatchPage({
     setClientId(id)
     const c = getClient(id)
     if (!c) return
-    setPo(suggestNextPo(c.last_po))
+    // Do not auto-fill next PO into the input — that +1's past what the desk
+    // typed. Placeholder shows the suggestion; typed value always wins on send.
+    setPo('')
     setPayTerms(c.pay_terms || 'Net 30')
     const invoiceTargets = listInvoiceEmails(id)
     setInvoiceEmail(invoiceTargets[0] || c.invoice_email || c.email || '')
@@ -267,7 +269,8 @@ export default function QuickDispatchPage({
         return
       }
 
-      const poFinal = po.trim() || suggestedPo
+      const poTyped = po.trim()
+      const poFinal = poTyped || suggestedPo
       const invoiceCcList = parseCc(invoiceCc)
       const etaList = parseCc(etaEmails)
 
@@ -276,8 +279,10 @@ export default function QuickDispatchPage({
           setError('Client price required to send the invoice')
           return
         }
-        if (!poFinal.trim()) {
-          setError('PO # required to send the invoice')
+        if (!poTyped) {
+          setError(
+            `Enter the PO # exactly as it should appear on the invoice (suggestion ${suggestedPo} is only a placeholder).`,
+          )
           return
         }
         const { listInvoiceEmails } = await import('@/lib/clientStore')
@@ -345,35 +350,34 @@ export default function QuickDispatchPage({
 
       recordPoUsed(client.id, poFinal, { tripRef: tripRefLabel(trip) })
 
-      // QuickBooks invoice PDF + branded OnFly email (PO + trip itinerary).
-      let invoiceError: string | null = null
-      if (sendInvoice && Number(clientPrice) > 0) {
-        const { listInvoiceEmails } = await import('@/lib/clientStore')
-        const toList = invoiceEmail.trim()
-          ? [invoiceEmail.trim()]
-          : listInvoiceEmails(client.id)
-        try {
-          await sendTripInvoiceEmail(trip.id, {
-            to: toList,
-            cc: invoiceCcList,
-          })
-        } catch (e) {
-          invoiceError =
-            e instanceof Error ? e.message : 'Invoice send failed'
-          console.warn('[quick-dispatch] invoice failed', e)
-          // Still create a draft so desk can resend from Financials.
-          try {
-            await createInvoiceForTrip(trip.id, {
-              skipEmail: true,
-              to: toList,
+      const { listInvoiceEmails } = await import('@/lib/clientStore')
+      const invoiceToList = invoiceEmail.trim()
+        ? [invoiceEmail.trim()]
+        : listInvoiceEmails(client.id)
+
+      // Start invoice in parallel — never block "Dispatch complete" / waterfall.
+      const invoicePromise =
+        sendInvoice && Number(clientPrice) > 0
+          ? sendTripInvoiceEmail(trip.id, {
+              to: invoiceToList,
               cc: invoiceCcList,
-              poNumber: poFinal,
+            }).catch(async (e) => {
+              const msg =
+                e instanceof Error ? e.message : 'Invoice send failed'
+              console.warn('[quick-dispatch] invoice failed', e)
+              try {
+                await createInvoiceForTrip(trip.id, {
+                  skipEmail: true,
+                  to: invoiceToList,
+                  cc: invoiceCcList,
+                  poNumber: poFinal,
+                })
+              } catch (e2) {
+                console.warn('[quick-dispatch] invoice create failed', e2)
+              }
+              return { error: msg as string }
             })
-          } catch (e2) {
-            console.warn('[quick-dispatch] invoice create failed', e2)
-          }
-        }
-      }
+          : null
 
       // Manifest + checkpoints; ETA blast uses trip.quick.eta_emails via onBooked
       const { runOnBookedAutomations } = await import('@/lib/onBooked')
@@ -405,17 +409,42 @@ export default function QuickDispatchPage({
             ? `Trip saved but not live yet: ${e.message}`
             : 'Trip saved but live tracking failed — open trip and push live.',
         )
-      }
-
-      if (invoiceError) {
-        setError(
-          `Trip is live and ETA went out, but the invoice did not send: ${invoiceError}. Open Financials or the trip to resend (PO #${poFinal}).`,
-        )
-        setBusy(false)
         return
       }
 
-      nav(`/dispatch?drawer=tracking&focus=${encodeURIComponent(trip.id)}`)
+      const { setDeskFlash } = await import('@/lib/deskFlash')
+      setDeskFlash({
+        kind: 'dispatch_complete',
+        tripId: trip.id,
+        po: poFinal,
+        invoicePending: Boolean(invoicePromise),
+      })
+
+      // Drop into Live tracking waterfall immediately.
+      nav(
+        `/dispatch?drawer=tracking&focus=${encodeURIComponent(trip.id)}&notice=dispatch_complete`,
+      )
+
+      // Finish invoice after navigation (do not keep the Dispatching… spinner).
+      if (invoicePromise) {
+        void invoicePromise.then((result) => {
+          if (result && 'error' in result && result.error) {
+            setDeskFlash({
+              kind: 'invoice_failed',
+              tripId: trip.id,
+              po: poFinal,
+              message: result.error,
+            })
+            return
+          }
+          setDeskFlash({
+            kind: 'invoice_sent',
+            tripId: trip.id,
+            po: poFinal,
+            to: invoiceToList,
+          })
+        })
+      }
     } finally {
       setBusy(false)
     }
@@ -566,6 +595,14 @@ export default function QuickDispatchPage({
               placeholder={suggestedPo}
               className="min-w-0 flex-1 bg-ink px-3 py-2.5 text-sm text-cream outline-none focus:border-gold"
             />
+            <button
+              type="button"
+              className="shrink-0 border-l border-border bg-surface-2 px-2.5 text-[11px] text-gold hover:bg-ink"
+              onClick={() => setPo(suggestedPo)}
+              title={`Fill suggested ${suggestedPo}`}
+            >
+              Use {suggestedPo}
+            </button>
           </div>
           {client && (
             <span className="mt-1 block text-[11px] text-muted">
@@ -573,7 +610,8 @@ export default function QuickDispatchPage({
                 lastPo: lastPoHint,
                 lastPoTripRef: client.profile.last_po_trip_ref,
                 suggestedPo,
-              })}
+              })}{' '}
+              What you type is what goes on the invoice — never auto-+1.
             </span>
           )}
         </label>
