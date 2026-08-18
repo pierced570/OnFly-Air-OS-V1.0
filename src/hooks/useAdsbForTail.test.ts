@@ -5,6 +5,8 @@ import {
   mergeAdsbPreferRicher,
 } from './useAdsbForTail'
 
+const NOW = Date.parse('2026-07-15T16:05:00.000Z')
+
 function pos(over: Partial<AdsbPosition>): AdsbPosition {
   return {
     tail: 'N123AB',
@@ -41,7 +43,7 @@ describe('mergeAdsbPreferRicher', () => {
       takeoffIsActual: true,
     })
     const next = pos({ phase: 'no_data', seenAt: '2026-07-15T16:01:00.000Z' })
-    const m = mergeAdsbPreferRicher(prev, next)
+    const m = mergeAdsbPreferRicher(prev, next, NOW)
     expect(m.lat).toBe(41.2)
     expect(m.phase).toBe('airborne')
     expect(m.takeoffIsActual).toBe(true)
@@ -58,6 +60,22 @@ describe('mergeAdsbPreferRicher', () => {
       phase: 'airborne',
       seenAt: '2026-07-15T16:10:00.000Z',
     })
-    expect(mergeAdsbPreferRicher(prev, next).lat).toBe(41)
+    expect(mergeAdsbPreferRicher(prev, next, NOW).lat).toBe(41)
+  })
+
+  it('drops a days-old last-flight seed so the map is not pinned in the wrong state', () => {
+    const stale = pos({
+      lat: 40.8,
+      lon: -85.5,
+      phase: 'on_ground',
+      seenAt: '2026-08-12T10:42:00.000Z',
+    })
+    const m = mergeAdsbPreferRicher(
+      null,
+      stale,
+      Date.parse('2026-08-17T13:30:00.000Z'),
+    )
+    expect(m.phase).toBe('no_data')
+    expect(m.lat).toBe(0)
   })
 })
