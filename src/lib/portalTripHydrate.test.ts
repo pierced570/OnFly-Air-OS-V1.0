@@ -73,6 +73,15 @@ describe('portal ETA + award hydrate', () => {
         portal_pickup_address: 'Hangar 5 · CAK',
         portal_dropoff_address: 'Signature HPN',
         portal_pax_names: [],
+        portal_chat: [
+          {
+            id: 'm1',
+            at: '2026-08-17T12:00:00.000Z',
+            role: 'client',
+            from_label: 'Client',
+            body: 'Need a forklift',
+          },
+        ],
         cargo_notes: 'Priority AOG part',
         cargo_only: true,
       },
@@ -95,6 +104,8 @@ describe('portal ETA + award hydrate', () => {
     expect(view.stops.length).toBeGreaterThan(0)
     expect(view.cargo.cargoLines).toContain('Priority AOG part')
     expect(view.code).toBe('TN285')
+    expect(stub.portal_chat).toHaveLength(1)
+    expect(stub.portal_chat?.[0]?.body).toBe('Need a forklift')
   })
 
   it('falls back to award RPC fields when session_meta quick is empty', () => {

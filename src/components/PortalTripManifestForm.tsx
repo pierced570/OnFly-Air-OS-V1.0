@@ -82,7 +82,7 @@ export function PortalTripManifestForm({ tripId }: Props) {
       setTripPassengers(tripId, paxRows, 'client')
       setTripPortalCargo(tripId, cargo, 'client')
       await flushPersistTrip(tripId)
-      setMsg('Saved — dispatch can see your updates')
+      setMsg('Sent — dispatch can see your updates')
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not save')
     } finally {
@@ -108,7 +108,7 @@ export function PortalTripManifestForm({ tripId }: Props) {
           onClick={() => void save()}
           className="rounded-md bg-[#C9A227] px-3 py-2 text-xs font-semibold text-[#0C0C0E] disabled:opacity-50"
         >
-          {busy ? 'Saving…' : 'Save details'}
+          {busy ? 'Sending…' : 'Send info to OnFly'}
         </button>
       </div>
 

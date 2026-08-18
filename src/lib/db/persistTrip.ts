@@ -9,6 +9,10 @@ import { toDbLegType } from '@/domain/tripLegs'
 import { canPersist, db, safeQuery } from '@/lib/db/client'
 import { tripTransition } from '@/lib/supabase'
 import type { OfferRow, TripLegRow, TripStoreRow } from '@/lib/tripStore'
+import {
+  mergePortalChatMessages,
+  normalizePortalChat,
+} from '@/domain/portalChat'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -109,6 +113,29 @@ function portalSafeEtaChain(trip: TripStoreRow): unknown[] {
   }))
 }
 
+/** Union local + DB portal_chat so a snapshot persist cannot drop new messages. */
+async function mergedPortalChatForPersist(
+  trip: TripStoreRow,
+): Promise<ReturnType<typeof normalizePortalChat>> {
+  let dbChat: unknown = []
+  const existing = await safeQuery<{ session_meta?: Record<string, unknown> }>(
+    'trips.portal_chat',
+    () =>
+      db()
+        .from('trips')
+        .select('session_meta')
+        .eq('id', trip.id)
+        .maybeSingle(),
+  )
+  if (existing && typeof existing === 'object' && existing.session_meta) {
+    dbChat = existing.session_meta.portal_chat
+  }
+  return mergePortalChatMessages(
+    normalizePortalChat(dbChat),
+    normalizePortalChat(trip.portal_chat),
+  )
+}
+
 /** Insert trip shell if missing. Does not overwrite state on conflict. */
 export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
   if (!canPersist()) return false
@@ -148,6 +175,7 @@ export async function ensureTripRow(trip: TripStoreRow): Promise<boolean> {
         awb_needed: trip.awb_needed ?? false,
         awb_cleared_at: trip.awb_cleared_at ?? null,
         eta_chain: portalSafeEtaChain(trip),
+        portal_chat: normalizePortalChat(trip.portal_chat),
       },
     }),
   )
@@ -161,6 +189,7 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
 
   const clientUuid = await resolveClientUuid(trip.client_id)
   const route = tripRouteEndpoints(trip)
+  const portalChat = await mergedPortalChatForPersist(trip)
   // Keep ETA/thread fields in session_meta too — prod may lag migrations
   // that add service_pattern / thread_number columns (0014 / 0016).
   await safeQuery('trips.shell', () =>
@@ -197,6 +226,7 @@ export async function persistTripSnapshot(trip: TripStoreRow): Promise<void> {
           portal_ops_stage: trip.portal_ops_stage ?? null,
           passengers: trip.passengers ?? [],
           portal_cargo: trip.portal_cargo ?? null,
+          portal_chat: portalChat,
           request_id: trip.request_id ?? null,
           awb_needed: trip.awb_needed ?? false,
           awb_cleared_at: trip.awb_cleared_at ?? null,

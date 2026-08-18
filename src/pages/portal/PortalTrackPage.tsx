@@ -176,6 +176,7 @@ export default function PortalTrackPage() {
       view={view}
       backHref="/portal"
       tripId={trip?.id ?? tripId}
+      trackToken={token}
     />
   )
 }
