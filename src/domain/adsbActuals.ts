@@ -7,6 +7,9 @@
 import type { AdsbPosition } from '@/adapters/adsb'
 import type { ActualUpdate, ChainLeg } from '@/domain/etaChain'
 
+/** On-ground at dest this long → portal Delivered + trip_transition. */
+export const DEST_GROUND_DELIVERED_MIN = 10
+
 export type AdsbActualProposal = {
   /** Wheels-down at origin before the live leg (e.g. landed KCAK). */
   originArrivalAt: string | null
@@ -22,6 +25,15 @@ export type AdsbActualProposal = {
   groundTimeDestMin: number | null
   /** True when proposal used ADS-B actual_off / actual_on (not estimates). */
   fromActuals: boolean
+}
+
+export function destDwellComplete(
+  landingAt: string | null | undefined,
+  nowIso: string,
+  min = DEST_GROUND_DELIVERED_MIN,
+): boolean {
+  const dwell = minutesBetween(landingAt ?? null, nowIso)
+  return dwell != null && dwell >= min
 }
 
 export function normalizeIcao(code: string | null | undefined): string {
@@ -90,56 +102,71 @@ export function proposeAdsbActuals(opts: {
   const airTo = opts.airToIcao
   const faOrigin = adsb.originIcao ?? null
   const faDest = adsb.destinationIcao ?? null
+  const airborne = adsb.phase === 'airborne'
+  const onGround = adsb.phase === 'on_ground'
 
-  const routeOk =
-    (!faOrigin && !faDest) ||
-    (icaoMatch(faOrigin, airFrom) && icaoMatch(faDest, airTo)) ||
-    (icaoMatch(faOrigin, airFrom) && !faDest) ||
-    (icaoMatch(faDest, airTo) && !faOrigin) ||
-    // Positioning flight into the live-leg origin (e.g. land KCAK before takeoff).
-    icaoMatch(faDest, airFrom)
-
-  if (!routeOk) return empty
+  /** Last completed FA flight ended at pickup — not an unrelated airport. */
+  const positioningIntoOrigin =
+    icaoMatch(faDest, airFrom) && !icaoMatch(faDest, airTo)
+  /** Current FA flight is the live origin → dest leg. */
+  const liveRoute = icaoMatch(faOrigin, airFrom) && icaoMatch(faDest, airTo)
 
   const useOff =
     adsb.takeoffIsActual === true ? (adsb.lastTakeoffAt ?? null) : null
   const useOn =
     adsb.landingIsActual === true ? (adsb.lastLandingAt ?? null) : null
 
-  if (!useOff && !useOn) return empty
-
   let originArrivalAt: string | null = null
   let destLandingAt: string | null = null
-  const takeoff = useOff
+  let takeoffAt: string | null = null
 
-  if (useOn) {
-    const onMs = parseIso(useOn)!
-    const offMs = parseIso(takeoff)
-    if (offMs != null && onMs >= offMs) {
-      destLandingAt = useOn
-    } else if (
-      icaoMatch(faDest, airFrom) ||
-      (!faDest && !faOrigin && (offMs == null || onMs <= offMs))
-    ) {
-      originArrivalAt = useOn
-    } else if (icaoMatch(faDest, airTo)) {
-      destLandingAt = useOn
-    } else if (offMs == null) {
-      originArrivalAt = useOn
-    } else {
-      destLandingAt = useOn
+  // Stage 1→2: landing at pickup ICAO (on the ground there). Never treat a
+  // positioning takeoff+landing as the dest arrival just because on ≥ off.
+  if (positioningIntoOrigin && !airborne && (onGround || Boolean(useOn))) {
+    originArrivalAt =
+      useOn ??
+      (adsb.landingIsActual === true ? adsb.lastLandingAt : null) ??
+      adsb.seenAt ??
+      null
+  }
+
+  // Stage 2→3: wheels-up on the live origin → dest flight only.
+  if (useOff && liveRoute && !positioningIntoOrigin) {
+    takeoffAt = useOff
+  }
+
+  // Stage 3→4: actual wheels-down at dest ICAO on the live origin → dest flight.
+  if (
+    useOn &&
+    !airborne &&
+    icaoMatch(faDest, airTo) &&
+    (liveRoute || (useOff && icaoMatch(faOrigin, airFrom)))
+  ) {
+    destLandingAt = useOn
+  }
+
+  // No ICAOs on the FA payload — fall back to actual off/on order.
+  if (!faOrigin && !faDest && (useOff || useOn)) {
+    takeoffAt = useOff
+    if (useOn) {
+      const onMs = parseIso(useOn)!
+      const offMs = parseIso(useOff)
+      if (offMs != null && onMs >= offMs) destLandingAt = useOn
+      else originArrivalAt = useOn
     }
   }
 
+  if (!originArrivalAt && !takeoffAt && !destLandingAt) return empty
+
   const nowIso = opts.nowIso ?? new Date().toISOString()
-  const airTimeMin = minutesBetween(takeoff, destLandingAt)
+  const airTimeMin = minutesBetween(takeoffAt, destLandingAt)
   const groundTimeDestMin = destLandingAt
     ? minutesBetween(destLandingAt, nowIso)
     : null
 
   return {
     originArrivalAt,
-    takeoffAt: takeoff,
+    takeoffAt,
     destLandingAt,
     originIcao: normalizeIcao(airFrom) || normalizeIcao(faOrigin) || null,
     destIcao: normalizeIcao(airTo) || normalizeIcao(faDest) || null,

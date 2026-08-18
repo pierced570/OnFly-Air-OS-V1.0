@@ -33,16 +33,24 @@ type FaAirportRef = {
   code?: string | null
   code_icao?: string | null
   timezone?: string | null
+  city?: string | null
+  name?: string | null
 }
 
 type FaFlight = {
   ident?: string
   registration?: string
   fa_flight_id?: string
+  aircraft_type?: string | null
+  progress_percent?: number | null
   actual_off?: string | null
   actual_on?: string | null
   estimated_off?: string | null
   estimated_on?: string | null
+  scheduled_off?: string | null
+  scheduled_on?: string | null
+  scheduled_out?: string | null
+  scheduled_in?: string | null
   last_position?: {
     latitude?: number
     longitude?: number
@@ -71,6 +79,7 @@ Deno.serve(async (req) => {
       action?: string
       tails?: string[]
       tail?: string
+      liveLock?: boolean
     }
     const action = String(body.action ?? 'positions').toLowerCase()
 
@@ -93,7 +102,11 @@ Deno.serve(async (req) => {
     const provider = providerName()
     const positions =
       provider === 'flightaware'
-        ? await seedOrPositionsFa(tails, action === 'seed')
+        ? await seedOrPositionsFa(
+            tails,
+            action === 'seed',
+            body.liveLock === true,
+          )
         : await positionsRapid(tails)
 
     return json({ positions, provider })
@@ -119,7 +132,11 @@ function faKey(): string | null {
   return Deno.env.get('FLIGHTAWARE_AEROAPI_KEY')?.trim() || null
 }
 
-async function seedOrPositionsFa(tails: string[], seed: boolean) {
+async function seedOrPositionsFa(
+  tails: string[],
+  seed: boolean,
+  liveLock = false,
+) {
   const key = faKey()
   if (!key) {
     return tails.map((t) => ({
@@ -129,7 +146,7 @@ async function seedOrPositionsFa(tails: string[], seed: boolean) {
   }
   const out = []
   for (const tail of tails) {
-    out.push(await fetchFaTail(key, tail, seed))
+    out.push(await fetchFaTail(key, tail, seed, liveLock))
   }
   return out
 }
@@ -138,7 +155,31 @@ function isUsRegistration(tail: string): boolean {
   return /^N[0-9A-Z]+$/i.test(tail)
 }
 
-async function fetchFaTail(key: string, tail: string, seed: boolean) {
+function mapFaFlightSnapshot(f: FaFlight) {
+  const originIcao = airportCode(f.origin)
+  const destIcao = airportCode(f.destination)
+  return {
+    id: String(f.fa_flight_id || `${f.ident ?? ''}-${f.scheduled_off ?? f.actual_off ?? ''}`),
+    status: f.status ?? null,
+    originIcao,
+    destIcao,
+    originCity: f.origin?.city ?? f.origin?.name ?? null,
+    destCity: f.destination?.city ?? f.destination?.name ?? null,
+    originTz: f.origin?.timezone ?? null,
+    destTz: f.destination?.timezone ?? null,
+    actualOff: f.actual_off ?? null,
+    actualOn: f.actual_on ?? null,
+    estimatedOff: f.estimated_off ?? null,
+    estimatedOn: f.estimated_on ?? null,
+    scheduledOff: f.scheduled_off ?? f.scheduled_out ?? null,
+    scheduledOn: f.scheduled_on ?? f.scheduled_in ?? null,
+    progressPct:
+      typeof f.progress_percent === 'number' ? f.progress_percent : null,
+    aircraftType: f.aircraft_type ?? null,
+  }
+}
+
+async function fetchFaFlightList(key: string, tail: string): Promise<FaFlight[]> {
   const q = isUsRegistration(tail)
     ? '?max_pages=1&ident_type=registration'
     : '?max_pages=1'
@@ -147,33 +188,124 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     headers: { 'x-apikey': key, Accept: 'application/json' },
   })
   if (res.status === 401 || res.status === 403) {
+    throw new Error('FlightAware auth failed — check AeroAPI key / tier')
+  }
+  if (!res.ok) return []
+  const data = (await res.json().catch(() => ({}))) as { flights?: FaFlight[] }
+  return data.flights ?? []
+}
+
+/** Keep in sync with src/domain/adsbFreshness.ts pickFaFlightForTrack. */
+function faFlightLooksAirborne(f: FaFlight): boolean {
+  const s = String(f.status ?? '').toLowerCase()
+  return (
+    s.includes('en route') ||
+    s.includes('airborne') ||
+    s.includes('taxi') ||
+    (Boolean(f.actual_off) && !f.actual_on)
+  )
+}
+
+function pickFaFlight(
+  flights: FaFlight[],
+  seed: boolean,
+  nowMs = Date.now(),
+): FaFlight | undefined {
+  if (!flights.length) return undefined
+  const active = flights.find((f) => faFlightLooksAirborne(f))
+  if (active) return active
+  const recentlyArrived = flights.find((f) => {
+    const on = f.actual_on ? Date.parse(f.actual_on) : NaN
+    return Number.isFinite(on) && nowMs - on < 6 * 60 * 60 * 1000
+  })
+  if (recentlyArrived) return recentlyArrived
+  if (!seed) {
+    const withFix = flights.find(
+      (f) => Boolean(f.last_position?.timestamp) || Boolean(f.actual_on),
+    )
+    if (!withFix) return undefined
+    const ts = withFix.last_position?.timestamp || withFix.actual_on
+    const t = ts ? Date.parse(ts) : NaN
+    if (Number.isFinite(t) && nowMs - t < 6 * 60 * 60 * 1000) return withFix
+    return undefined
+  }
+  return (
+    flights.find(
+      (f) =>
+        Boolean(f.actual_on || f.actual_off || f.last_position?.timestamp),
+    ) ?? flights[0]
+  )
+}
+
+function positionAgeMs(timestamp: string | null | undefined, nowMs: number): number {
+  if (!timestamp) return Number.POSITIVE_INFINITY
+  const t = Date.parse(timestamp)
+  return Number.isFinite(t) ? Math.max(0, nowMs - t) : Number.POSITIVE_INFINITY
+}
+
+async function fetchFaAirborneSearch(
+  key: string,
+  tail: string,
+): Promise<FaFlight | null> {
+  const q = encodeURIComponent(`-identOrReg ${tail}`)
+  const res = await fetch(
+    `${FA_BASE}/flights/search?query=${q}&max_pages=1`,
+    { headers: { 'x-apikey': key, Accept: 'application/json' } },
+  )
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => ({}))) as { flights?: FaFlight[] }
+  return data.flights?.[0] ?? null
+}
+
+async function fetchFaTail(
+  key: string,
+  tail: string,
+  seed: boolean,
+  liveLock = false,
+) {
+  const nowMs = Date.now()
+  let list: FaFlight[] = []
+  try {
+    list = await fetchFaFlightList(key, tail)
+  } catch (e) {
     return {
       ...noData(tail),
-      error: 'FlightAware auth failed — check AeroAPI key / tier',
+      error: e instanceof Error ? e.message : String(e),
     }
   }
-  if (!res.ok) return noData(tail)
-  const data = (await res.json().catch(() => ({}))) as {
-    flights?: FaFlight[]
+
+  let flight: FaFlight | null | undefined = pickFaFlight(list, seed, nowMs)
+
+  // Portal open: currently airborne first (not a 14-day flights[0]).
+  if (!flight && !seed && liveLock) {
+    const air = await fetchFaAirborneSearch(key, tail)
+    if (air) {
+      flight = air
+      if (
+        !list.some(
+          (f) => f.fa_flight_id && f.fa_flight_id === air.fa_flight_id,
+        )
+      ) {
+        list = [air, ...list]
+      }
+    }
   }
-  let flight = data.flights?.[0]
+
+  const flights = list.slice(0, 16).map(mapFaFlightSnapshot)
 
   // Seed fallback: last known historical flight when no recent board entry.
   if (!flight && seed && isUsRegistration(tail)) {
     flight = await fetchFaLastFlight(key, tail)
+    if (flight) flights.unshift(mapFaFlightSnapshot(flight))
   }
   if (!flight) {
     // Empty board ≠ LADD. Do not call /aircraft/{ident}/blocked here — that
     // doubles AeroAPI spend on every seed for parked / idle tails. Blocked is
     // only set from flight.blocked when a flight object is returned.
-    return noData(tail)
+    return { ...noData(tail), flights }
   }
 
-  const status = String(flight.status ?? '').toLowerCase()
-  const airborneHint =
-    status.includes('en route') ||
-    status.includes('airborne') ||
-    (!flight.actual_on && Boolean(flight.actual_off))
+  const airborneHint = faFlightLooksAirborne(flight)
   const flightBlocked = flight.blocked === true
 
   let lat = flight.last_position?.latitude
@@ -183,21 +315,35 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
   let seenAt = flight.last_position?.timestamp
     ? new Date(flight.last_position.timestamp).toISOString()
     : null
+  const staleListPos = positionAgeMs(seenAt, nowMs) > 20 * 60 * 1000
 
-  // En route often omits last_position on the flights list — fetch live point.
-  if ((lat == null || lon == null) && airborneHint && flight.fa_flight_id) {
+  // Live lock: always refresh /position when we have a flight id.
+  // List last_position is often a days-old completed hop.
+  if (
+    flight.fa_flight_id &&
+    (!seed || airborneHint || lat == null || lon == null || staleListPos)
+  ) {
     const live = await fetchFaFlightPosition(key, flight.fa_flight_id)
     if (live) {
-      lat = live.lat
-      lon = live.lon
-      alt = live.alt
-      gs = live.gs
-      seenAt = live.seenAt
+      const liveAge = positionAgeMs(live.seenAt, nowMs)
+      const listAge = positionAgeMs(seenAt, nowMs)
+      if (lat == null || lon == null || liveAge <= listAge) {
+        lat = live.lat
+        lon = live.lon
+        alt = live.alt
+        gs = live.gs
+        seenAt = live.seenAt
+      }
     }
   }
 
-  // Parked / arrived: use destination (or origin) airport coords as last-known.
-  if ((lat == null || lon == null) && seed) {
+  const arrivedStale =
+    Boolean(flight.actual_on) &&
+    positionAgeMs(seenAt, nowMs) > 20 * 60 * 1000
+
+  // Parked / arrived: snap to dest (or origin) airport instead of a stale
+  // en-route radar hit from the last completed hop.
+  if ((lat == null || lon == null || arrivedStale) && (seed || arrivedStale || !airborneHint)) {
     const icao =
       airportCode(flight.destination) || airportCode(flight.origin)
     if (icao) {
@@ -211,6 +357,7 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
           flight.actual_on ||
           flight.actual_off ||
           flight.estimated_on ||
+          seenAt ||
           new Date().toISOString()
       }
     }
@@ -236,6 +383,7 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
       originIcao,
       destinationIcao,
       laddBlocked: flightBlocked,
+      flights,
     }
   }
 
@@ -257,6 +405,7 @@ async function fetchFaTail(key: string, tail: string, seed: boolean) {
     originIcao,
     destinationIcao,
     phase: airborne ? ('airborne' as const) : ('on_ground' as const),
+    flights,
   }
 }
 

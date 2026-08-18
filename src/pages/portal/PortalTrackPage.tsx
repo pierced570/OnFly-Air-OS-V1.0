@@ -115,6 +115,8 @@ export default function PortalTrackPage() {
   const input = trip ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail, {
     enabled: adsbPollEnabledForState(trip?.state),
+    originIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.from.icao,
+    destIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.to.icao,
   })
 
   // Commit FlightAware actual_off / actual_on into the trip spine when present.
@@ -214,6 +216,8 @@ export function PortalTripTrackPage() {
   const input = trip ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail, {
     enabled: adsbPollEnabledForState(trip?.state),
+    originIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.from.icao,
+    destIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.to.icao,
   })
   const view = trip ? viewFromTrip(trip, adsb, nowIso) : null
 

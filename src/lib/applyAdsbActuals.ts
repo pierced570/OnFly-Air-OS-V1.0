@@ -6,6 +6,7 @@
 import type { AdsbPosition } from '@/adapters/adsb'
 import {
   adsbUpdatesForChain,
+  destDwellComplete,
   proposeAdsbActuals,
 } from '@/domain/adsbActuals'
 import { applyActual } from '@/domain/etaChain'
@@ -13,6 +14,7 @@ import { applyChainToLegs } from '@/domain/tripLegs'
 import {
   getTrip,
   mutateTrip,
+  safeTransitionTrip,
   type TripStoreRow,
 } from '@/lib/tripStore'
 
@@ -58,65 +60,93 @@ export function applyAdsbActualsToTrip(
     nowIso: opts?.nowIso,
   })
   const updates = adsbUpdatesForChain(trip.eta_chain, proposal)
-  if (!updates.length) return { applied: false, updates: 0 }
+  const nowIso = opts?.nowIso ?? new Date().toISOString()
 
-  mutateTrip(tripId, (t) => {
-    let chain = t.eta_chain
-    let slipped = 0
-    for (const u of updates) {
-      const r = applyActual(chain, u)
-      chain = r.chain
-      slipped += r.slippedMinutes
-    }
-    t.eta_chain = chain
-    if (t.legs.length) {
-      t.legs = applyChainToLegs(t.legs, chain) as typeof t.legs
-    }
-    t.events.push({
-      at: opts?.nowIso ?? new Date().toISOString(),
-      actor: 'system',
-      kind: 'adsb_actual_applied',
-      payload: {
-        tail: adsb?.tail ?? t.quick?.tail ?? null,
-        updates,
-        slipped_min: slipped,
-        origin_arrival: proposal.originArrivalAt,
-        takeoff: proposal.takeoffAt,
-        dest_landing: proposal.destLandingAt,
-        air_time_min: proposal.airTimeMin,
-        undo: true,
-      },
-    })
-  })
-
-  void import('@/lib/db/persistTrip').then((m) => {
-    const fresh = getTrip(tripId)
-    if (fresh) void m.persistTripSnapshot(fresh).catch(() => {})
-  })
-
-  void import('@/lib/allTimeInfoStore')
-    .then((m) => {
-      const takeoff = proposal.takeoffAt
-      const landing = proposal.destLandingAt
-      m.logAllTimeEvent({
-        kind: 'adsb_actual',
-        trip_id: tripId,
-        trip_code: getTrip(tripId)?.code ?? null,
-        summary: `ADS-B actuals · ${adsb?.tail ?? 'tail?'} · up ${takeoff ?? '—'} · down ${landing ?? '—'}`,
+  if (updates.length) {
+    mutateTrip(tripId, (t) => {
+      let chain = t.eta_chain
+      let slipped = 0
+      for (const u of updates) {
+        const r = applyActual(chain, u)
+        chain = r.chain
+        slipped += r.slippedMinutes
+      }
+      t.eta_chain = chain
+      if (t.legs.length) {
+        t.legs = applyChainToLegs(t.legs, chain) as typeof t.legs
+      }
+      t.events.push({
+        at: nowIso,
+        actor: 'system',
+        kind: 'adsb_actual_applied',
         payload: {
-          updates: updates.length,
-          takeoff,
-          landing,
+          tail: adsb?.tail ?? t.quick?.tail ?? null,
+          updates,
+          slipped_min: slipped,
+          origin_arrival: proposal.originArrivalAt,
+          takeoff: proposal.takeoffAt,
+          dest_landing: proposal.destLandingAt,
           air_time_min: proposal.airTimeMin,
+          undo: true,
         },
-        at: opts?.nowIso,
       })
-      const fresh = getTrip(tripId)
-      if (fresh) m.syncTripToAllTime(fresh)
     })
-    .catch(() => {})
 
-  return { applied: true, updates: updates.length }
+    void import('@/lib/db/persistTrip').then((m) => {
+      const fresh = getTrip(tripId)
+      if (fresh) void m.persistTripSnapshot(fresh).catch(() => {})
+    })
+
+    void import('@/lib/allTimeInfoStore')
+      .then((m) => {
+        const takeoff = proposal.takeoffAt
+        const landing = proposal.destLandingAt
+        m.logAllTimeEvent({
+          kind: 'adsb_actual',
+          trip_id: tripId,
+          trip_code: getTrip(tripId)?.code ?? null,
+          summary: `ADS-B actuals · ${adsb?.tail ?? 'tail?'} · up ${takeoff ?? '—'} · down ${landing ?? '—'}`,
+          payload: {
+            updates: updates.length,
+            takeoff,
+            landing,
+            air_time_min: proposal.airTimeMin,
+          },
+          at: nowIso,
+        })
+        const fresh = getTrip(tripId)
+        if (fresh) m.syncTripToAllTime(fresh)
+      })
+      .catch(() => {})
+  }
+
+  maybeDeliverAfterDestDwell(tripId, proposal, nowIso)
+
+  return { applied: updates.length > 0, updates: updates.length }
+}
+
+/** After ≥10 min on ground at dest, close live tracking (in_progress → delivered). */
+function maybeDeliverAfterDestDwell(
+  tripId: string,
+  proposal: ReturnType<typeof proposeAdsbActuals>,
+  nowIso: string,
+): void {
+  const trip = getTrip(tripId)
+  if (!trip || trip.state !== 'in_progress') return
+  const air = trip.eta_chain.find((l) => l.type === 'air_leg')
+  const landing = air?.actual_end ?? proposal.destLandingAt
+  if (!destDwellComplete(landing, nowIso)) return
+  if (!air?.actual_end && !proposal.destLandingAt) return
+  try {
+    safeTransitionTrip(tripId, 'delivered', 'system', {
+      via: 'adsb_dest_dwell',
+      dest_landing: landing,
+      ground_min: proposal.groundTimeDestMin,
+      undo: true,
+    })
+  } catch (e) {
+    console.warn('[adsb] dest-dwell deliver skipped', e)
+  }
 }
 
 /** Poll ADS-B for dispatched (in_progress) trip tails and commit actuals. */

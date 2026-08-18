@@ -6,6 +6,10 @@
 
 import { adapterMode } from '@/adapters/types'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import {
+  mockTailFlightSnapshots,
+  type TailFlightSnapshot,
+} from '@/domain/tailFlightActivity'
 
 export type AdsbPosition = {
   tail: string
@@ -26,6 +30,8 @@ export type AdsbPosition = {
   originIcao?: string | null
   destinationIcao?: string | null
   phase?: 'airborne' | 'on_ground' | 'no_data'
+  /** Recent / upcoming hops for this tail (FlightAware activity). */
+  flights?: TailFlightSnapshot[]
 }
 
 export type AdsbAlertResult = {
@@ -38,7 +44,14 @@ export type AdsbAlertResult = {
 
 export interface AdsbAdapter {
   /** Live or last-known positions for the given tails. */
-  positions(tails: string[]): Promise<AdsbPosition[]>
+  positions(
+    tails: string[],
+    opts?: {
+      liveLock?: boolean
+      originIcao?: string | null
+      destIcao?: string | null
+    },
+  ): Promise<AdsbPosition[]>
   /** One-shot seed of last-known (cheap /flights/{ident} path when live). */
   seedLastKnown(tails: string[]): Promise<AdsbPosition[]>
   /** Register or remove movement alerts for a tail. */
@@ -51,8 +64,22 @@ export interface AdsbAdapter {
  * Alert toggles succeed locally with a mock alert id.
  */
 export class MockAdsbAdapter implements AdsbAdapter {
-  async positions(tails: string[]): Promise<AdsbPosition[]> {
-    return tails.map((tail) => noData(tail))
+  async positions(
+    tails: string[],
+    opts?: {
+      liveLock?: boolean
+      originIcao?: string | null
+      destIcao?: string | null
+    },
+  ): Promise<AdsbPosition[]> {
+    return tails.map((tail) => ({
+      ...noData(tail),
+      flights: mockTailFlightSnapshots({
+        tail,
+        originIcao: opts?.originIcao,
+        destIcao: opts?.destIcao,
+      }),
+    }))
   }
 
   async seedLastKnown(tails: string[]): Promise<AdsbPosition[]> {
@@ -76,8 +103,15 @@ export class MockAdsbAdapter implements AdsbAdapter {
  * Live via edge function. On provider failure, returns no_data (flag, don't exclude).
  */
 export class EdgeAdsbAdapter implements AdsbAdapter {
-  async positions(tails: string[]): Promise<AdsbPosition[]> {
-    return invokePositions({ action: 'positions', tails })
+  async positions(
+    tails: string[],
+    opts?: { liveLock?: boolean },
+  ): Promise<AdsbPosition[]> {
+    return invokePositions({
+      action: 'positions',
+      tails,
+      liveLock: opts?.liveLock === true,
+    })
   }
 
   async seedLastKnown(tails: string[]): Promise<AdsbPosition[]> {
@@ -129,6 +163,7 @@ export class EdgeAdsbAdapter implements AdsbAdapter {
 async function invokePositions(body: {
   action: 'positions' | 'seed'
   tails: string[]
+  liveLock?: boolean
 }): Promise<AdsbPosition[]> {
   const tails = body.tails.map((t) => t.toUpperCase())
   if (!tails.length) return []

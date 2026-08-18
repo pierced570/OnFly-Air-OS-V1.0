@@ -190,16 +190,20 @@ describe('portalTracking', () => {
 
   it('prefers ADS-B over ETA when live', () => {
     const trip = sampleD2d({ state: 'in_progress' })
-    const pos = resolveAircraftPosition(trip, {
-      tail: 'N123AB',
-      lat: 41.2,
-      lon: -84,
-      alt: 18000,
-      gs: 240,
-      seenAt: '2026-07-15T16:20:00.000Z',
-      laddBlocked: false,
-      phase: 'airborne',
-    })
+    const pos = resolveAircraftPosition(
+      trip,
+      {
+        tail: 'N123AB',
+        lat: 41.2,
+        lon: -84,
+        alt: 18000,
+        gs: 240,
+        seenAt: '2026-07-15T16:20:00.000Z',
+        laddBlocked: false,
+        phase: 'airborne',
+      },
+      '2026-07-15T16:25:00.000Z',
+    )
     expect(pos.source).toBe('adsb')
     expect(pos.summary).toMatch(/airborne/i)
     expect(pos.summary).toMatch(/N123AB/)
@@ -207,6 +211,28 @@ describe('portalTracking', () => {
     expect(pos.fromLat).not.toBeNull()
     expect(pos.toLat).not.toBeNull()
     expect(portalAircraftMapVisible(pos)).toBe(true)
+  })
+
+  it('does not pin a days-old last flight as the live map position', () => {
+    const trip = sampleD2d({ state: 'in_progress' })
+    const pos = resolveAircraftPosition(
+      trip,
+      {
+        tail: 'N6209X',
+        lat: 40.8,
+        lon: -85.5,
+        alt: 0,
+        gs: 0,
+        seenAt: '2026-08-12T10:42:00.000Z',
+        laddBlocked: false,
+        phase: 'on_ground',
+        originIcao: 'KMSN',
+        destinationIcao: 'KHHG',
+      },
+      '2026-08-17T13:30:00.000Z',
+    )
+    expect(pos.source).not.toBe('adsb')
+    expect(pos.lat).not.toBe(40.8)
   })
 
   it('shows map-ready coords while positioning before wheels-up', () => {
@@ -312,6 +338,59 @@ describe('portalTracking', () => {
     expect(view.phase).toBe('in_flight')
     expect(view.etaRows[0]!.scheduledLocal).toBeTruthy()
     expect(view.etaRows[0]!.scheduledZulu).toMatch(/Z/)
+  })
+
+  it('builds FlightAware-style activity for inbound + live hop', () => {
+    const view = buildPortalTrackingView(sampleD2d({ state: 'in_progress' }), {
+      nowIso: '2026-08-17T14:00:00.000Z',
+      adsb: {
+        tail: 'N4258C',
+        lat: 41,
+        lon: -81,
+        alt: 8000,
+        gs: 160,
+        seenAt: '2026-08-17T13:55:00.000Z',
+        phase: 'airborne',
+        laddBlocked: false,
+        flights: [
+          {
+            id: 'sched',
+            status: 'Scheduled',
+            originIcao: 'KCAK',
+            destIcao: 'KMDW',
+            scheduledOff: '2026-08-17T15:00:00.000Z',
+            scheduledOn: '2026-08-17T16:30:00.000Z',
+          },
+          {
+            id: 'enr',
+            status: 'En Route',
+            originIcao: 'KPLD',
+            destIcao: 'KCAK',
+            actualOff: '2026-08-17T13:09:00.000Z',
+            estimatedOn: '2026-08-17T14:01:00.000Z',
+            progressPct: 35,
+          },
+          {
+            id: 'arr',
+            status: 'Arrived',
+            originIcao: 'KMCI',
+            destIcao: 'KPLD',
+            actualOff: '2026-08-15T11:51:00.000Z',
+            actualOn: '2026-08-15T14:30:00.000Z',
+          },
+          {
+            id: 'other',
+            status: 'Scheduled',
+            originIcao: 'KMDW',
+            destIcao: 'KORD',
+            scheduledOff: '2026-08-17T18:00:00.000Z',
+          },
+        ],
+      },
+    })
+    expect(view.flightActivity.scheduled.map((l) => l.id)).toEqual(['sched'])
+    expect(view.flightActivity.enRoute.map((l) => l.id)).toEqual(['enr'])
+    expect(view.flightActivity.arrived.map((l) => l.id)).toEqual(['arr'])
   })
 
   it('builds enroute-pickup / at-pickup / enroute-dest / landed stages', () => {
@@ -480,7 +559,7 @@ describe('portalTracking', () => {
     expect(pos.source).toBe('eta')
   })
 
-  it('advances stages from FlightAware airborne toward destination', () => {
+  it('stays enroute to pickup when airborne toward dest without an origin landing', () => {
     const rows = buildOpsForecastRows(sampleD2d({ state: 'in_progress' }), {
       nowIso: '2026-07-15T16:40:00.000Z',
       adsb: {
@@ -499,10 +578,134 @@ describe('portalTracking', () => {
         landingIsActual: false,
       },
     })
+    expect(rows[0]!.status).toBe('active')
+    expect(rows[1]!.status).toBe('pending')
+    expect(rows[2]!.status).toBe('pending')
+    expect(rows[3]!.status).toBe('pending')
+  })
+
+  it('stays enroute to pickup until FA shows a landing at origin ICAO', () => {
+    const rows = buildOpsForecastRows(sampleD2d({ state: 'in_progress' }), {
+      nowIso: '2026-08-17T12:00:00.000Z',
+      adsb: {
+        tail: 'N6209X',
+        lat: 40.8,
+        lon: -85.5,
+        alt: 0,
+        gs: 0,
+        seenAt: '2026-08-12T10:42:00.000Z',
+        phase: 'on_ground',
+        laddBlocked: false,
+        originIcao: 'KMSN',
+        destinationIcao: 'KHHG',
+        lastLandingAt: '2026-08-12T10:42:00.000Z',
+        landingIsActual: true,
+        takeoffIsActual: false,
+      },
+    })
+    expect(rows[0]!.status).toBe('active')
+    expect(rows[1]!.status).toBe('pending')
+    expect(rows[2]!.status).toBe('pending')
+    expect(rows[3]!.status).toBe('pending')
+  })
+
+  it('moves to at-pickup only after landing at origin ICAO', () => {
+    const rows = buildOpsForecastRows(sampleD2d({ state: 'in_progress' }), {
+      nowIso: '2026-08-17T15:00:00.000Z',
+      adsb: {
+        tail: 'N6209X',
+        lat: 41.4,
+        lon: -81.8,
+        alt: 0,
+        gs: 0,
+        seenAt: '2026-08-17T14:55:00.000Z',
+        phase: 'on_ground',
+        laddBlocked: false,
+        originIcao: 'KBKL',
+        destinationIcao: 'KCAK',
+        lastLandingAt: '2026-08-17T14:50:00.000Z',
+        landingIsActual: true,
+        takeoffIsActual: false,
+      },
+    })
+    expect(rows[0]!.status).toBe('done')
+    expect(rows[1]!.status).toBe('active')
+    expect(rows[2]!.status).toBe('pending')
+    expect(rows[3]!.status).toBe('pending')
+  })
+
+  it('moves to enroute-dest only after origin landing then airborne again', () => {
+    const base = sampleD2d({ state: 'in_progress' })
+    const rows = buildOpsForecastRows(
+      {
+        ...base,
+        eta_chain: base.eta_chain.map((l) =>
+          l.type === 'position'
+            ? { ...l, actual_end: '2026-07-15T14:50:00.000Z' }
+            : l,
+        ),
+      },
+      {
+        nowIso: '2026-07-15T16:40:00.000Z',
+        adsb: {
+          tail: 'N123AB',
+          lat: 41.3,
+          lon: -84,
+          alt: 12000,
+          gs: 220,
+          seenAt: '2026-07-15T16:40:00.000Z',
+          phase: 'airborne',
+          laddBlocked: false,
+          originIcao: 'KCAK',
+          destinationIcao: 'KMDW',
+          lastTakeoffAt: '2026-07-15T16:05:00.000Z',
+          takeoffIsActual: true,
+          landingIsActual: false,
+        },
+      },
+    )
     expect(rows[0]!.status).toBe('done')
     expect(rows[1]!.status).toBe('done')
     expect(rows[2]!.status).toBe('active')
     expect(rows[3]!.status).toBe('pending')
+  })
+
+  it('keeps dest landing active until 10 min on ground, then Delivered', () => {
+    const adsb = {
+      tail: 'N123AB',
+      lat: 41.78,
+      lon: -87.75,
+      alt: 0,
+      gs: 0,
+      seenAt: '2026-07-15T17:36:00.000Z',
+      phase: 'on_ground' as const,
+      laddBlocked: false,
+      originIcao: 'KCAK',
+      destinationIcao: 'KMDW',
+      lastTakeoffAt: '2026-07-15T16:05:00.000Z',
+      lastLandingAt: '2026-07-15T17:35:00.000Z',
+      takeoffIsActual: true,
+      landingIsActual: true,
+    }
+    const early = buildOpsForecastRows(sampleD2d({ state: 'in_progress' }), {
+      nowIso: '2026-07-15T17:40:00.000Z',
+      adsb,
+    })
+    expect(early[2]!.status).toBe('done')
+    expect(early[3]!.status).toBe('active')
+    expect(early[3]!.label).toMatch(/Landed KMDW/)
+
+    const later = buildOpsForecastRows(sampleD2d({ state: 'in_progress' }), {
+      nowIso: '2026-07-15T17:46:00.000Z',
+      adsb,
+    })
+    expect(later[3]!.status).toBe('done')
+    expect(later[3]!.label).toBe('Delivered')
+    const view = buildPortalTrackingView(sampleD2d({ state: 'in_progress' }), {
+      nowIso: '2026-07-15T17:46:00.000Z',
+      adsb,
+    })
+    expect(view.phase).toBe('delivered')
   })
 })
 
