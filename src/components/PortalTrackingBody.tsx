@@ -11,6 +11,7 @@ import { PortalShell } from '@/components/PortalShell'
 import { PortalTripManifestForm } from '@/components/PortalTripManifestForm'
 import { PortalTripChat } from '@/components/PortalTripChat'
 import { TailFlightActivity } from '@/components/TailFlightActivity'
+import { usePortalSession } from '@/hooks/usePortalSession'
 import {
   portalAircraftMapBlocked,
   portalAircraftMapVisible,
@@ -60,6 +61,7 @@ export function PortalTrackingBody({
   /** Magic-link token so guests can persist portal chat. */
   trackToken?: string | null
 }) {
+  const { signedIn } = usePortalSession()
   const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
   const enrichedStops = useMemo(
     () => enrichTrackingStops(view.stops),
@@ -157,7 +159,7 @@ export function PortalTrackingBody({
     : undefined
 
   return (
-    <PortalShell wide>
+    <PortalShell wide appNav={signedIn}>
       <div className="mb-4">
         <Link
           to={backHref}

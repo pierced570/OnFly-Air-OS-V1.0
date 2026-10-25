@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { PortalAppNav } from '@/components/PortalAppNav'
 import { SoftPricingPackageView } from '@/components/SoftPricingPackageView'
+import { usePortalSession } from '@/hooks/usePortalSession'
 import {
   TripRequestForm,
   type PortalSubmitIntent,
@@ -53,6 +55,7 @@ function draftFromRecord(row: TripRequestRecord): TripRequestDraft {
 }
 
 export default function PortalRequestPage() {
+  const { signedIn } = usePortalSession()
   const [done, setDone] = useState<TripRequestRecord | null>(null)
   const [intent, setIntent] = useState<PortalSubmitIntent | null>(null)
   const [softPackage, setSoftPackage] =
@@ -184,7 +187,7 @@ export default function PortalRequestPage() {
 
   if (done && intent === 'hard_quote') {
     return (
-      <WizardShell>
+      <WizardShell appNav={signedIn}>
         <h1 className="text-2xl font-semibold text-ink">
           Quote request received
         </h1>
@@ -220,7 +223,7 @@ export default function PortalRequestPage() {
 
   if (done) {
     return (
-      <WizardShell wide flushTop>
+      <WizardShell wide flushTop appNav={signedIn}>
         {estimating && (
           <div className="mt-6 rounded-2xl bg-white px-5 py-8 text-sm text-muted">
             Building soft pricing across aircraft classes…
@@ -269,7 +272,7 @@ export default function PortalRequestPage() {
   }
 
   return (
-    <WizardShell>
+    <WizardShell appNav={signedIn}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
         <Link to="/portal" className="font-semibold text-gold">
           ← Portal
@@ -325,6 +328,8 @@ function WizardShell(props: {
   wide?: boolean
   /** Soft-quote sticky banner sits flush to the viewport top. */
   flushTop?: boolean
+  /** Signed-in client app bottom tabs (mobile). */
+  appNav?: boolean
 }) {
   return (
     <div
@@ -336,10 +341,12 @@ function WizardShell(props: {
           'mx-auto px-4 sm:px-6',
           props.flushTop ? 'pb-6 pt-0 sm:pb-8' : 'py-6 sm:py-8',
           props.wide ? 'max-w-6xl' : 'max-w-3xl sm:max-w-4xl',
+          props.appNav ? 'pb-28 md:pb-8' : '',
         ].join(' ')}
       >
         {props.children}
       </div>
+      {props.appNav ? <PortalAppNav /> : null}
     </div>
   )
 }

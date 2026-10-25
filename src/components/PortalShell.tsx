@@ -1,10 +1,19 @@
 /**
- * Client portal chrome — single-page: logo + 24-hr ops, cream body.
- * Shipments list and live tracking share this shell (no Documents/Support tabs).
+ * Client portal chrome — cream body, mobile-first app shell.
+ * Desk DispatchShell is never used here — separate login surface.
  */
 
 import { Link } from 'react-router-dom'
-import { BRAND_EMAIL, BRAND_LOGO_PATH, BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
+import {
+  BRAND_EMAIL,
+  BRAND_LOGO_PATH,
+  BRAND_PHONE,
+  BRAND_PHONE_E164,
+} from '@/domain/brand'
+import {
+  PortalAppDesktopNav,
+  PortalAppNav,
+} from '@/components/PortalAppNav'
 
 export function PortalShell(props: {
   children: React.ReactNode
@@ -12,10 +21,16 @@ export function PortalShell(props: {
   headerActions?: React.ReactNode
   /** Constrain main width (default max-w-3xl). */
   wide?: boolean
+  /**
+   * Show bottom tabs (mobile) + section nav (desktop).
+   * Use on signed-in client app pages — not on the dark landing gate.
+   */
+  appNav?: boolean
 }) {
+  const showNav = Boolean(props.appNav)
   return (
-    <div className="min-h-screen bg-[#F7F2E3] text-ink">
-      <header className="border-b border-ink/20 bg-ink pt-[max(0.75rem,env(safe-area-inset-top))] text-cream">
+    <div className="min-h-screen bg-[#F7F2E3] text-ink" data-theme="client">
+      <header className="sticky top-0 z-30 border-b border-ink/20 bg-ink pt-[max(0.75rem,env(safe-area-inset-top))] text-cream">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link to="/portal" className="shrink-0">
             <img
@@ -41,24 +56,50 @@ export function PortalShell(props: {
         className={[
           'mx-auto px-4 py-6 sm:px-6 sm:py-8',
           props.wide ? 'max-w-5xl' : 'max-w-3xl',
+          showNav ? 'pb-28 md:pb-8' : '',
         ].join(' ')}
       >
+        {showNav ? <PortalAppDesktopNav /> : null}
         {props.children}
       </main>
 
-      <footer className="safe-bottom border-t border-border/60 px-4 py-6 text-center text-xs text-ink/70">
-        <a href="https://onflyair.com" className="hover:text-ink">
-          onflyair.com
-        </a>
-        <span className="mx-2">·</span>
-        <a href={`tel:${BRAND_PHONE_E164}`} className="text-gold hover:text-gold-lt">
-          {BRAND_PHONE}
-        </a>
-        <span className="mx-2">·</span>
-        <a href={`mailto:${BRAND_EMAIL}`} className="hover:text-ink">
-          {BRAND_EMAIL}
-        </a>
-      </footer>
+      {showNav ? <PortalAppNav /> : null}
+
+      {!showNav ? (
+        <footer className="safe-bottom border-t border-border/60 px-4 py-6 text-center text-xs text-ink/70">
+          <a href="https://onflyair.com" className="hover:text-ink">
+            onflyair.com
+          </a>
+          <span className="mx-2">·</span>
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="text-gold hover:text-gold-lt"
+          >
+            {BRAND_PHONE}
+          </a>
+          <span className="mx-2">·</span>
+          <a href={`mailto:${BRAND_EMAIL}`} className="hover:text-ink">
+            {BRAND_EMAIL}
+          </a>
+        </footer>
+      ) : (
+        <footer className="hidden border-t border-border/60 px-4 py-6 text-center text-xs text-ink/70 md:block">
+          <a href="https://onflyair.com" className="hover:text-ink">
+            onflyair.com
+          </a>
+          <span className="mx-2">·</span>
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="text-gold hover:text-gold-lt"
+          >
+            {BRAND_PHONE}
+          </a>
+          <span className="mx-2">·</span>
+          <a href={`mailto:${BRAND_EMAIL}`} className="hover:text-ink">
+            {BRAND_EMAIL}
+          </a>
+        </footer>
+      )}
     </div>
   )
 }

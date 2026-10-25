@@ -11,18 +11,18 @@ import { promotePortalGuestToSignedIn, signInPortalByWorkEmail } from '@/lib/por
 const FEATURES = [
   {
     n: '1',
-    title: 'Live position & ETA',
-    body: 'Tail number, wheels-up, landing and delta against plan.',
+    title: 'One-tap book',
+    body: 'Request a charter or full door-to-door move from your phone.',
   },
   {
     n: '2',
-    title: 'Door-to-door visibility',
-    body: 'Pickup, FBO handoffs and final delivery on one timeline.',
+    title: 'Live trips',
+    body: 'Tail, stage progress, and tracking — chat OnFly when you need us.',
   },
   {
     n: '3',
-    title: 'No password to lose',
-    body: 'Verified work emails open the right company portal — no magic link.',
+    title: 'POs & invoices',
+    body: 'Past trips, purchase orders, and invoices in one history hub.',
   },
 ] as const
 
@@ -79,14 +79,15 @@ export function PortalLanding(props?: {
       <main className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-4 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:pt-10">
         <section>
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
-            Client portal
+            Client app
           </div>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight text-cream sm:text-5xl">
-            Your freight, in the air and on the screen.
+            Book. Track. Invoice. One place.
           </h1>
           <p className="mt-4 max-w-md text-base leading-relaxed text-cream/60">
-            Sign in to watch shipments move in real time, or request a new trip
-            without an account. Quotes typically come back in 10–15 minutes.
+            Sign in with your work email — separate from OnFly desk logins — to
+            one-tap book charters and logistics, watch live trips, and pull POs
+            and invoices. Quotes typically land in 10–15 minutes.
           </p>
           <ol className="mt-10 space-y-5">
             {FEATURES.map((f) => (

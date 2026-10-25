@@ -27,9 +27,18 @@ export type PortalTripCard = {
   ready_label: string
   payload_summary: string
   updated_at?: string | null
+  /** Client PO / reference when present on the trip. */
+  po_number?: string | null
+  code?: string | null
 }
 
 export function mapPortalTripRow(r: Record<string, unknown>): PortalTripCard {
+  const po =
+    typeof r.po_number === 'string' && r.po_number.trim()
+      ? r.po_number.trim()
+      : null
+  const code =
+    typeof r.code === 'string' && r.code.trim() ? r.code.trim() : null
   return {
     id: String(r.id),
     ref: Number(r.ref ?? 0),
@@ -38,5 +47,7 @@ export function mapPortalTripRow(r: Record<string, unknown>): PortalTripCard {
     ready_label: String(r.ready_label ?? ''),
     payload_summary: String(r.payload_summary ?? ''),
     updated_at: r.updated_at ? String(r.updated_at) : null,
+    po_number: po,
+    code,
   }
 }

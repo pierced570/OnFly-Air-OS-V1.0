@@ -114,13 +114,49 @@ export async function listPortalTripsForSession(): Promise<PortalTripCard[]> {
   const { data, error } = await supabase
     .from('portal_trips')
     .select(
-      'id,ref,state,lane_label,payload_summary,ready_label,updated_at',
+      'id,ref,state,lane_label,payload_summary,ready_label,updated_at,po_number,code',
     )
     .not('state', 'in', '("closed","lost","cancelled")')
     .order('ref', { ascending: false })
     .limit(50)
   if (error) {
     console.warn('[portal] portal_trips', error.message)
+    return []
+  }
+  return (data ?? []).map((r) => mapPortalTripRow(r as Record<string, unknown>))
+}
+
+/**
+ * Past trips for the signed-in portal client (delivered / invoiced / closed…).
+ * Powers History — POs + invoices hub. Never returns cost/margin/operator.
+ */
+export async function listPortalHistoryForSession(): Promise<PortalTripCard[]> {
+  if (!isSupabaseConfigured || !supabase) return []
+  const domain = readPortalDomainSession()
+  if (domain?.email) {
+    const { data, error } = await supabase.rpc(
+      'portal_trip_history_for_work_email',
+      { p_email: domain.email },
+    )
+    if (error) {
+      console.warn('[portal] portal_trip_history_for_work_email', error.message)
+      return []
+    }
+    return ((data ?? []) as Record<string, unknown>[]).map((r) =>
+      mapPortalTripRow(r),
+    )
+  }
+  await ensurePortalUserLinked()
+  const { data, error } = await supabase
+    .from('portal_trips')
+    .select(
+      'id,ref,state,lane_label,payload_summary,ready_label,updated_at,po_number,code',
+    )
+    .in('state', ['delivered', 'invoiced', 'closed', 'lost', 'cancelled'])
+    .order('ref', { ascending: false })
+    .limit(100)
+  if (error) {
+    console.warn('[portal] portal_trips.history', error.message)
     return []
   }
   return (data ?? []).map((r) => mapPortalTripRow(r as Record<string, unknown>))
