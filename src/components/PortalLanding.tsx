@@ -12,8 +12,22 @@ export function PortalLanding(props?: {
   onSignedIn?: (session: PortalSession) => void
   /** Login-only page (quiet secondary). Default = start with book/quote. */
   loginFocus?: boolean
+  /** Company portal — show company name + lock login to that client. */
+  companyName?: string | null
+  companyDomains?: string[] | null
+  expectedClientId?: string | null
+  /** After one-click login (from ?next=). */
+  nextHref?: string | null
 }) {
   if (props?.loginFocus) {
+    const company = (props.companyName ?? '').trim()
+    const domains = (props.companyDomains ?? [])
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean)
+    const domainHint =
+      domains.length > 0
+        ? `Use your @${domains[0]} work email — no password.`
+        : 'Work email only — no password.'
     return (
       <div
         className="min-h-screen bg-[#0C0C0E] text-cream"
@@ -35,11 +49,30 @@ export function PortalLanding(props?: {
           </a>
         </header>
         <main className="mx-auto max-w-lg space-y-4 px-4 pb-16 sm:px-8">
+          {company ? (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
+                Company portal
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-cream">
+                {company}
+              </h1>
+              <p className="mt-2 text-sm text-cream/55">
+                Open trips, tracking, quotes, and history for this company.
+              </p>
+            </div>
+          ) : null}
           <PortalOneClickLogin
             variant="dark"
             onSignedIn={props.onSignedIn}
-            title="Open your trips"
-            hint="Work email — no password. Prefer to start a new move?"
+            nextHref={props.nextHref ?? undefined}
+            expectedClientId={props.expectedClientId}
+            title={company ? `Sign in to ${company}` : 'Open your trips'}
+            hint={
+              company
+                ? domainHint
+                : 'Work email — no password. Prefer to start a new move?'
+            }
           />
           <Link
             to="/portal"

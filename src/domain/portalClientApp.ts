@@ -296,6 +296,7 @@ export function portalAppTabFromPath(pathname: string): PortalAppTab | null {
   if (pathname.startsWith('/portal/account')) return 'account'
   if (pathname.startsWith('/portal/trips/') || pathname.startsWith('/portal/track/'))
     return 'home'
+  if (pathname.startsWith('/portal/c/')) return null
   if (pathname.startsWith('/portal/login')) return null
   return null
 }

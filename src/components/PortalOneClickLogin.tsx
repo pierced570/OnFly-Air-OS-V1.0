@@ -17,6 +17,10 @@ export function PortalOneClickLogin(props: {
   onSignedIn?: (session: PortalSession) => void
   /** After success navigate here (default /portal). */
   nextHref?: string
+  /**
+   * When set (company portal `/portal/c/:slug`), only that client may sign in.
+   */
+  expectedClientId?: string | null
   /** Compact cream card vs dark landing. */
   variant?: 'cream' | 'dark'
   title?: string
@@ -38,7 +42,9 @@ export function PortalOneClickLogin(props: {
     }
     setBusy(true)
     try {
-      const session = await signInPortalByWorkEmail(cleaned)
+      const session = await signInPortalByWorkEmail(cleaned, {
+        expectedClientId: props.expectedClientId,
+      })
       promotePortalGuestToSignedIn()
       props.onSignedIn?.(session)
       navigate(props.nextHref ?? '/portal', { replace: true })
