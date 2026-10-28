@@ -1247,6 +1247,22 @@ export function TripRequestForm({
                 />
                 Cargo only (no passengers)
               </label>
+              {!draft.cargo_only ? (
+                <label className={`${labelCls} mt-3 max-w-[10rem]`}>
+                  Number of passengers
+                  <NumericDraftInput
+                    integer
+                    min={1}
+                    max={20}
+                    className={inputCls}
+                    value={paxCount > 0 ? paxCount : 1}
+                    onValueChange={(n) => {
+                      if (n == null) return
+                      setPaxCount(Math.max(1, n))
+                    }}
+                  />
+                </label>
+              ) : null}
               )}
             </div>
           </div>
