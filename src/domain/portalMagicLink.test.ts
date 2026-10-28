@@ -19,7 +19,10 @@ describe('portalMagicLink email', () => {
     const html = renderPortalMagicLinkHtml(tpl)
     expect(html).toContain(tpl.loginUrl)
     expect(html).toContain('Open my trips')
-    expect(html).not.toMatch(/margin|operator cost|bid/i)
+    expect(html).toContain('#C9A227')
+    // Portal-safe: no commercial language (ignore CSS `margin:` properties).
+    expect(html.toLowerCase()).not.toMatch(/operator cost|\bbidding\b|\bbid\b/)
+    expect(text.toLowerCase()).not.toMatch(/operator cost|\bbidding\b|\bbid\b/)
   })
 
   it('treats fresh tokens as valid and stale as expired', () => {

@@ -25,8 +25,19 @@ describe('portalLoginStore', () => {
     expect(once).toEqual({
       email: 'desk@acme.com',
       next: '/portal/trips/t1',
+      expectedClientId: null,
     })
     expect(consumePortalLoginToken(token)).toBeNull()
+  })
+
+  it('stores company lock expectedClientId', () => {
+    const token = createPortalLoginToken({
+      email: 'ops@acme.com',
+      expectedClientId: 'client-acme',
+      next: '/portal/history',
+    })
+    expect(peekPortalLoginToken(token)?.expectedClientId).toBe('client-acme')
+    expect(consumePortalLoginToken(token)?.expectedClientId).toBe('client-acme')
   })
 
   it('rejects unsafe next paths', () => {

@@ -65,7 +65,7 @@ function TrackSignInGate(props: {
   trackToken?: string
 }) {
   const nextHref = `/portal/trips/${props.tripId}`
-  const lane = props.trip.lane_label || props.trip.lane || 'Your shipment'
+  const lane = props.trip.lane || 'Your shipment'
   const ref = props.trip.ref
   return (
     <PortalShell>

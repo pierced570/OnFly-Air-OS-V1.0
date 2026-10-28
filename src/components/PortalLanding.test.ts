@@ -10,6 +10,7 @@ describe('portal two-column stack routes', () => {
   })
 
   it('exposes short guest redirects and company entry paths', () => {
+    // App routes: /book → request?mode=book, /quote → request?mode=quote
     expect(portalSharePath('book')).toBe('/portal/request?mode=book')
     expect(portalSharePath('quote')).toBe('/portal/request?mode=quote')
     expect(portalSharePath('company', { slug: 'acme-logistics' })).toBe(

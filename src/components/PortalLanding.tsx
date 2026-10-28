@@ -97,10 +97,16 @@ export function PortalLanding(props?: {
           />
           <div className="space-y-2 pt-2 text-center text-sm">
             <Link
-              to="/portal/request?mode=book"
+              to="/book"
               className="block font-semibold text-gold hover:text-gold-lt"
             >
               Request a trip (no sign-in) →
+            </Link>
+            <Link
+              to="/quote"
+              className="block text-cream/70 hover:text-gold"
+            >
+              Get a rough quote (no account) →
             </Link>
             <Link
               to="/portal"
@@ -180,13 +186,13 @@ export function PortalLanding(props?: {
           />
 
           <Link
-            to="/portal/request?mode=book"
+            to="/book"
             className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink transition hover:bg-gold-lt"
           >
             <div>
               <div className="text-lg font-semibold">Request a trip</div>
               <p className="mt-0.5 text-sm text-ink/75">
-                No sign-in required. Three quick steps, then we quote it.
+                No account needed — three quick steps, then we quote it.
               </p>
             </div>
             <span className="text-2xl font-light" aria-hidden>
@@ -195,13 +201,13 @@ export function PortalLanding(props?: {
           </Link>
 
           <Link
-            to="/portal/request?mode=quote"
+            to="/quote"
             className="flex items-center justify-between gap-4 rounded-2xl border border-cream/20 bg-[#141414] px-5 py-4 text-cream transition hover:border-gold/50"
           >
             <div>
               <div className="text-base font-semibold">Get a rough quote</div>
               <p className="mt-0.5 text-sm text-cream/55">
-                Soft pricing now — no account needed.
+                Soft pricing now — no account needed (/quote).
               </p>
             </div>
             <span className="text-xl font-light text-gold" aria-hidden>
