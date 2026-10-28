@@ -161,16 +161,21 @@ export function PortalLanding(props?: {
           <div className="mt-6 lg:hidden">
             <PortalInstallBanner variant="dark" defaultOpen />
           </div>
-          <ol className="mt-10 space-y-5">
+          <ol className="mt-6 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-4">
             {FEATURES.map((f) => (
-              <li key={f.n} className="flex gap-4">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/40 text-sm font-semibold text-gold">
+              <li
+                key={f.n}
+                className="flex min-w-0 flex-col gap-1.5 border-t border-gold/30 pt-3"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-gold/40 text-xs font-semibold text-gold sm:h-8 sm:w-8 sm:text-sm">
                   {f.n}
                 </span>
-                <div>
-                  <div className="font-semibold text-cream">{f.title}</div>
-                  <p className="mt-0.5 text-sm text-cream/55">{f.body}</p>
+                <div className="text-[12px] font-semibold leading-snug text-cream sm:text-sm">
+                  {f.title}
                 </div>
+                <p className="text-[11px] leading-snug text-cream/50 sm:text-xs">
+                  {f.body}
+                </p>
               </li>
             ))}
           </ol>
