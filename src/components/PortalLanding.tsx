@@ -1,12 +1,13 @@
 /**
  * Unsigned client portal gate — two-column dark hero matching the existing
- * client portal mock: features left, sign-in + request CTAs right.
- * Returning clients: magic-link email. Guests: book/quote with no account.
+ * client portal: features left, verified-email sign-in + request CTAs right.
+ * Returning clients: enter desk-verified work email → instant company portal.
+ * Guests: book/quote with no account.
  */
 
 import { Link } from 'react-router-dom'
 import { BRAND_LOGO_PATH, BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
-import { PortalMagicLinkLogin } from '@/components/PortalMagicLinkLogin'
+import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import type { PortalSession } from '@/domain/portalAuth'
 
 const FEATURES = [
@@ -22,13 +23,12 @@ const FEATURES = [
   },
   {
     n: '3',
-    title: 'Booked with us before?',
-    body: 'Enter your work email — we send a one-time sign-in link. Quotes still work without an account.',
+    title: 'Verified work email',
+    body: 'Emails on your company desk open the right portal — no password or magic link.',
   },
 ] as const
 
 export function PortalLanding(props?: {
-  /** Kept for callers; magic-link signs in on /portal/auth, not here. */
   onSignedIn?: (session: PortalSession) => void
   /** Login-only page (quiet secondary). Default = full two-column gate. */
   loginFocus?: boolean
@@ -36,7 +36,7 @@ export function PortalLanding(props?: {
   companyName?: string | null
   companyDomains?: string[] | null
   expectedClientId?: string | null
-  /** After magic-link consume (from ?next=). */
+  /** After sign-in (from ?next=). */
   nextHref?: string | null
 }) {
   const company = (props?.companyName ?? '').trim()
@@ -45,8 +45,8 @@ export function PortalLanding(props?: {
     .filter(Boolean)
   const domainHint =
     domains.length > 0
-      ? `Use your @${domains[0]} work email — we'll send a one-time sign-in link.`
-      : 'Work email — we\'ll send a one-time sign-in link. No password.'
+      ? `Use your @${domains[0]} work email — opens ${company || 'this company'} instantly. No password.`
+      : 'Work email on file at the desk — opens your company portal. No password.'
 
   if (props?.loginFocus) {
     return (
@@ -83,17 +83,17 @@ export function PortalLanding(props?: {
               </p>
             </div>
           ) : null}
-          <PortalMagicLinkLogin
+          <PortalOneClickLogin
             variant="dark"
+            onSignedIn={props.onSignedIn}
             nextHref={props.nextHref ?? undefined}
             expectedClientId={props.expectedClientId}
             title={company ? `Sign in to ${company}` : 'See your shipments'}
             hint={
               company
                 ? domainHint
-                : 'Enter your work email — we\'ll send a one-time link to open live tracking and company trips.'
+                : 'Enter a work email verified on your company desk — we route you to the right portal.'
             }
-            submitLabel="Email me a sign-in link"
           />
           <div className="space-y-2 pt-2 text-center text-sm">
             <Link
@@ -153,8 +153,8 @@ export function PortalLanding(props?: {
           </h1>
           <p className="mt-4 max-w-md text-base leading-relaxed text-cream/60">
             {company
-              ? 'Request a trip without an account, or open company shipments with a one-time email link. Quotes typically come back in 10–15 minutes.'
-              : 'Request a trip or rough quote without an account — or open live shipments with a one-time email link. Quotes typically come back in 10–15 minutes.'}
+              ? 'Request a trip without an account, or open company shipments with a verified work email. Quotes typically come back in 10–15 minutes.'
+              : 'Request a trip or rough quote without an account — or open live shipments with a verified work email from your company desk. Quotes typically come back in 10–15 minutes.'}
           </p>
           <ol className="mt-10 space-y-5">
             {FEATURES.map((f) => (
@@ -172,17 +172,17 @@ export function PortalLanding(props?: {
         </section>
 
         <section className="space-y-4">
-          <PortalMagicLinkLogin
+          <PortalOneClickLogin
             variant="dark"
+            onSignedIn={props?.onSignedIn}
             nextHref={props?.nextHref ?? undefined}
             expectedClientId={props?.expectedClientId}
             title={company ? `See ${company} shipments` : 'See your shipments'}
             hint={
               company
                 ? domainHint
-                : 'Enter your work email — we\'ll send a one-time sign-in link. No password.'
+                : 'Enter your work email to open your company portal — no password or magic link.'
             }
-            submitLabel="Email me a sign-in link"
           />
 
           <Link

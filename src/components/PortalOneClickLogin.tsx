@@ -81,7 +81,7 @@ export function PortalOneClickLogin(props: {
         {props.hint ??
           (prefilled
             ? 'One tap — we use the email from your request. No password.'
-            : 'Work email only — one tap on this device. Prefer a link in your inbox? Use “Booked with us before?” above.')}
+            : 'Verified work email from your company desk — opens the right portal. No password.')}
       </p>
 
       {prefilled ? (

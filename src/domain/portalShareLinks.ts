@@ -26,7 +26,7 @@ export type PortalShareClientLike = {
 
 /** Paths clients may land on after one-click login (`?next=`). */
 const SAFE_NEXT =
-  /^\/portal(?:\/(?:history|account|request|auth|trips\/[A-Za-z0-9_-]+|track\/[A-Za-z0-9_-]+|c\/[a-z0-9-]+|login))?(?:\?[^\s#]*)?$/i
+  /^\/portal(?:\/(?:history|account|request|trips\/[A-Za-z0-9_-]+|track\/[A-Za-z0-9_-]+|c\/[a-z0-9-]+|login))?(?:\?[^\s#]*)?$/i
 
 export function isSafePortalNextPath(raw: string | null | undefined): boolean {
   if (!raw) return false
@@ -210,8 +210,8 @@ export function buildPortalShareLinkRows(opts: {
     },
     {
       kind: 'login',
-      label: 'Magic-link / login',
-      hint: 'Email a sign-in link — opens their trips',
+      label: 'Work-email login',
+      hint: 'Verified desk email — opens their trips',
       path: portalSharePath('login', base),
     },
     {

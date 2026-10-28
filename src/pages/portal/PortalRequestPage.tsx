@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PortalAppNav } from '@/components/PortalAppNav'
-import { PortalMagicLinkLogin } from '@/components/PortalMagicLinkLogin'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { SoftPricingPackageView } from '@/components/SoftPricingPackageView'
 import { usePortalSession } from '@/hooks/usePortalSession'
@@ -263,21 +262,13 @@ export default function PortalRequestPage() {
           </Link>
         )}
         {!signedIn && done.email?.includes('@') ? (
-          <div className="mt-6 space-y-4">
-            <PortalMagicLinkLogin
-              email={done.email}
-              nextHref={tripHref ?? afterQuoteHref}
-              title="Email me a link to track"
-              hint="Live tracking needs a sign-in. We'll email a one-time link to open this trip on your phone."
-              submitLabel="Email me a link to track"
-              compact
-            />
+          <div className="mt-6">
             <PortalOneClickLogin
               email={done.email}
               onSignedIn={setSession}
               nextHref={afterQuoteHref}
-              title="Already on this device?"
-              hint="One tap with the email you just used — no password."
+              title="Open this trip on your phone"
+              hint="Verified desk email — one tap, no password. Routes you to your company portal."
             />
           </div>
         ) : (
@@ -356,21 +347,13 @@ export default function PortalRequestPage() {
         !estimating &&
         softPackage &&
         !softPackage.error ? (
-          <div className="mt-6 space-y-4 px-1 sm:px-0">
-            <PortalMagicLinkLogin
-              email={done.email}
-              nextHref={tripHref ?? afterQuoteHref}
-              title="Email me a link to track"
-              hint="Live tracking needs a sign-in. We'll email a one-time link for this quote and trip."
-              submitLabel="Email me a link to track"
-              compact
-            />
+          <div className="mt-6 px-1 sm:px-0">
             <PortalOneClickLogin
               email={done.email}
               onSignedIn={setSession}
               nextHref={afterQuoteHref}
-              title="Already on this device?"
-              hint="One tap with the email from your request — opens trips and this quote."
+              title="Keep this quote on your trips list"
+              hint="Verified desk email — one tap opens your company trips and this quote."
             />
           </div>
         ) : null}

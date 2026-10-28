@@ -1,13 +1,13 @@
 /**
  * Live client tracking — track token identifies the trip; live updates need
- * a signed-in portal session (or magic link with next=/portal/trips/:id).
+ * a signed-in portal session (verified desk work email).
  * Cream client theme. Never shows cost, margin, or operator identity.
  */
 
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { PortalTrackingBody } from '@/components/PortalTrackingBody'
-import { PortalMagicLinkLogin } from '@/components/PortalMagicLinkLogin'
+import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { PortalShell } from '@/components/PortalShell'
 import {
   getTrip,
@@ -63,10 +63,17 @@ function TrackSignInGate(props: {
   trip: TripStoreRow
   tripId: string
   trackToken?: string
+  email?: string | null
 }) {
+  const { setSession } = usePortalSession()
   const nextHref = `/portal/trips/${props.tripId}`
   const lane = props.trip.lane || 'Your shipment'
   const ref = props.trip.ref
+  const tokenEmail =
+    props.email?.trim() ||
+    (props.trackToken
+      ? getPortalTrackRow(props.trackToken)?.email?.trim() || null
+      : null)
   return (
     <PortalShell>
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
@@ -86,25 +93,19 @@ function TrackSignInGate(props: {
             · <span className="text-ink">{lane}</span>
           </>
         ) : null}
-        . Live ETAs, stage progress, and status pushes need a portal account —
-        soft and hard quotes stay open without one.
+        . Live ETAs, stage progress, and status pushes need a verified desk
+        email — soft and hard quotes stay open without one.
       </p>
       <div className="mt-6">
-        <PortalMagicLinkLogin
+        <PortalOneClickLogin
+          email={tokenEmail}
+          onSignedIn={setSession}
           nextHref={nextHref}
-          title="Email me a link to track"
-          hint="We'll send a one-time sign-in link to open live tracking for this trip."
-          submitLabel="Email me a link to track"
-          compact
+          title="Open live tracking"
+          hint="Enter the work email on your company desk — we route you to the right portal."
         />
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
-        <Link
-          to={`/portal/login?next=${encodeURIComponent(nextHref)}`}
-          className="inline-flex rounded-md border border-border px-4 py-2 text-sm font-semibold text-ink"
-        >
-          Other sign-in options
-        </Link>
         <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
           ← Book or quote (no account)
         </Link>
@@ -278,7 +279,7 @@ export function PortalTripTrackPage() {
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const nowIso = useClock()
   const { id } = useParams()
-  const { signedIn, loading: authLoading } = usePortalSession()
+  const { signedIn, loading: authLoading, setSession } = usePortalSession()
   const [remoteTrip, setRemoteTrip] = useState<TripStoreRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [etaReadyTick, setEtaReadyTick] = useState(0)
@@ -322,25 +323,18 @@ export function PortalTripTrackPage() {
       <PortalShell>
         <h1 className="text-xl font-semibold">Sign in to track</h1>
         <p className="mt-2 text-sm text-muted">
-          Live tracking needs a portal sign-in. Soft and hard quotes still work
-          without an account.
+          Live tracking needs a verified desk email. Soft and hard quotes still
+          work without an account.
         </p>
         <div className="mt-6">
-          <PortalMagicLinkLogin
+          <PortalOneClickLogin
+            onSignedIn={setSession}
             nextHref={nextHref}
-            title="Email me a link to track"
-            hint="We'll send a one-time sign-in link for live updates on this trip."
-            submitLabel="Email me a link to track"
-            compact
+            title="Open live tracking"
+            hint="Work email on file at the desk — opens your company portal."
           />
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Link
-            to={`/portal/login?next=${encodeURIComponent(nextHref)}`}
-            className="inline-flex rounded-md border border-border px-4 py-2 text-sm font-semibold text-ink"
-          >
-            Other sign-in options
-          </Link>
           <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
             ← Book or quote
           </Link>

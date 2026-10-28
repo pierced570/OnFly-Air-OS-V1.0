@@ -1,5 +1,5 @@
 /**
- * Quiet secondary sign-in — magic-link email (same stack as /portal).
+ * Quiet secondary sign-in — verified desk work email (same stack as /portal).
  * Supports ?company=slug and ?next=/portal/... for desk outreach links.
  * Primary path remains book/quote without login first.
  */

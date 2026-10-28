@@ -17,7 +17,6 @@ const AcceptPage = lazy(() => import('@/pages/AcceptPage'))
 const OneTapPage = lazy(() => import('@/pages/OneTapPage'))
 const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalLoginPage = lazy(() => import('@/pages/portal/PortalLoginPage'))
-const PortalAuthPage = lazy(() => import('@/pages/portal/PortalAuthPage'))
 const PortalCompanyPage = lazy(() => import('@/pages/portal/PortalCompanyPage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
 const PortalHistoryPage = lazy(() => import('@/pages/portal/PortalHistoryPage'))
@@ -162,7 +161,11 @@ export function App() {
         />
         <Route path="/portal" element={<PortalHomePage />} />
         <Route path="/portal/login" element={<PortalLoginPage />} />
-        <Route path="/portal/auth" element={<PortalAuthPage />} />
+        {/* Legacy magic-link bookmarks → instant work-email login */}
+        <Route
+          path="/portal/auth"
+          element={<Navigate to="/portal/login" replace />}
+        />
         <Route path="/portal/c/:slug" element={<PortalCompanyPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
         <Route path="/portal/history" element={<PortalHistoryPage />} />

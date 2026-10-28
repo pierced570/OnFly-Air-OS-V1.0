@@ -1,7 +1,7 @@
 /**
  * Company-designated portal gate — /portal/c/:slug
  * Same two-column client portal stack as /portal, scoped to the company.
- * Guests book/quote without account; returning clients get a magic-link email.
+ * Guests book/quote without account; returning clients enter a verified desk email.
  */
 
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
@@ -37,7 +37,7 @@ export default function PortalCompanyPage() {
           <h1 className="text-2xl font-semibold">Company portal not found</h1>
           <p className="text-sm text-cream/60">
             This company link isn&apos;t set up yet. You can still book or get a
-            rough quote, or open shipments with a sign-in link.
+            rough quote, or open shipments with a verified desk email.
           </p>
           <Link
             to="/portal"
