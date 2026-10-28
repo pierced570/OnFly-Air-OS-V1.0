@@ -23,7 +23,6 @@ export function detectStandalone(opts: {
   if (opts.displayModeStandalone) return true
   if (opts.navigatorStandalone) return true
   const ref = (opts.referrer ?? '').toLowerCase()
-  // Android TWA / shortcut sometimes leave this referrer.
   if (ref.includes('android-app://')) return true
   return false
 }
@@ -32,7 +31,6 @@ export function detectInstallPlatform(ua: string): PortalInstallPlatform {
   const u = ua.toLowerCase()
   const isIos =
     /iphone|ipad|ipod/.test(u) ||
-    // iPadOS 13+ desktop UA
     (/macintosh/.test(u) && u.includes('mobile'))
   if (isIos) return 'ios'
   if (/android/.test(u)) return 'android'
@@ -44,14 +42,10 @@ export function detectInstallPlatform(ua: string): PortalInstallPlatform {
 export function shouldOfferInstall(state: {
   standalone: boolean
   dismissed: boolean
-  platform: PortalInstallPlatform
 }): boolean {
   if (state.standalone || state.dismissed) return false
-  return (
-    state.platform === 'ios' ||
-    state.platform === 'android' ||
-    state.platform === 'desktop'
-  )
+  // Always offer outside standalone — including unknown UAs.
+  return true
 }
 
 export function buildPortalInstallState(input: {
@@ -68,14 +62,16 @@ export function buildPortalInstallState(input: {
   })
   const platform = detectInstallPlatform(input.userAgent)
   const dismissed = Boolean(input.dismissed)
-  const offer = shouldOfferInstall({ standalone, dismissed, platform })
+  const offer = shouldOfferInstall({ standalone, dismissed })
   return {
     standalone,
     platform,
     showIosHint: offer && platform === 'ios',
-    canDeferredPrompt: offer && (platform === 'android' || platform === 'desktop'),
+    canDeferredPrompt:
+      offer && (platform === 'android' || platform === 'desktop'),
     offer,
   }
 }
 
-export const PORTAL_INSTALL_DISMISS_KEY = 'onfly-portal-install-dismissed'
+/** Session-only dismiss so the control returns on a fresh visit. */
+export const PORTAL_INSTALL_DISMISS_KEY = 'onfly-portal-install-dismissed-session'

@@ -7,8 +7,8 @@
 
 import { Link } from 'react-router-dom'
 import { BRAND_LOGO_PATH, BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
-import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
+import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import type { PortalSession } from '@/domain/portalAuth'
 
 const FEATURES = [
@@ -157,6 +157,10 @@ export function PortalLanding(props?: {
               ? 'Request a trip without an account, or open company shipments with a verified work email. Quotes typically come back in 10–15 minutes.'
               : 'Request a trip or rough quote without an account — or open live shipments with a verified work email from your company desk. Quotes typically come back in 10–15 minutes.'}
           </p>
+          {/* Mobile-first: homescreen CTA before feature list so it isn't buried */}
+          <div className="mt-6 lg:hidden">
+            <PortalInstallBanner variant="dark" defaultOpen />
+          </div>
           <ol className="mt-10 space-y-5">
             {FEATURES.map((f) => (
               <li key={f.n} className="flex gap-4">
@@ -173,6 +177,10 @@ export function PortalLanding(props?: {
         </section>
 
         <section className="space-y-4">
+          <div className="hidden lg:block">
+            <PortalInstallBanner variant="dark" defaultOpen />
+          </div>
+
           <PortalOneClickLogin
             variant="dark"
             onSignedIn={props?.onSignedIn}
@@ -226,8 +234,6 @@ export function PortalLanding(props?: {
             </a>{' '}
             and we&apos;ll build the request with you.
           </div>
-
-          <PortalInstallBanner variant="dark" />
         </section>
       </main>
     </div>

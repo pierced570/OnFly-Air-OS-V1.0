@@ -2,21 +2,24 @@
 
 Clients use the same portal (`/portal` — book, quote, track, login). Two packaging layers:
 
-## 1. PWA (shipped now)
+## 1. PWA — Add to Home Screen (production)
 
-- Manifest: `public/portal.webmanifest` (standalone, cream/gold theme).
-- Apple meta + touch icon in `index.html`.
-- Service worker: `public/sw.js` (Chromium installability).
-- In-app tip: **Install OnFly** on the portal landing + Account (iOS Share → Add to Home Screen; Chrome Install app).
+Visible **Add to Home Screen** panel on the first portal page:
 
-**iPhone:** Safari → Share → Add to Home Screen → open the OnFly icon (full-screen).
+- Guest `/portal` landing — under the headline on mobile; top of the actions column on desktop
+- Signed-in Trips home — top of the page
+- Account page as well
 
-**Android:** Chrome → Install app / Add to Home screen (or the in-app Install button when offered).
+Steps open by default. Dismiss is session-only (returns next visit).
 
-Regenerate icons after brand mark changes:
+**iPhone:** open `https://ofaops.onflyair.com/portal` in Safari → follow **Add to Home Screen** / Show me how → Share → Add to Home Screen → open the OnFly icon (full-screen).
+
+**Android:** Chrome → Install app / Add to Home screen (or the in-app button when offered).
+
+Regenerate icons:
 
 ```bash
-node scripts/generate-pwa-icons.mjs
+npm run icons:pwa
 ```
 
 ## 2. Capacitor App Store shell (scaffolded)

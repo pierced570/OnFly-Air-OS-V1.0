@@ -10,9 +10,9 @@ describe('portalPwa', () => {
   it('detects standalone via display-mode or iOS navigator', () => {
     expect(detectStandalone({ displayModeStandalone: true })).toBe(true)
     expect(detectStandalone({ navigatorStandalone: true })).toBe(true)
-    expect(detectStandalone({ referrer: 'android-app://com.onflyair.client' })).toBe(
-      true,
-    )
+    expect(
+      detectStandalone({ referrer: 'android-app://com.onflyair.client' }),
+    ).toBe(true)
     expect(detectStandalone({})).toBe(false)
   })
 
@@ -34,28 +34,16 @@ describe('portalPwa', () => {
     ).toBe('desktop')
   })
 
-  it('offers install only when not standalone and not dismissed', () => {
-    expect(
-      shouldOfferInstall({
-        standalone: false,
-        dismissed: false,
-        platform: 'ios',
-      }),
-    ).toBe(true)
-    expect(
-      shouldOfferInstall({
-        standalone: true,
-        dismissed: false,
-        platform: 'ios',
-      }),
-    ).toBe(false)
-    expect(
-      shouldOfferInstall({
-        standalone: false,
-        dismissed: true,
-        platform: 'android',
-      }),
-    ).toBe(false)
+  it('offers install unless standalone or dismissed', () => {
+    expect(shouldOfferInstall({ standalone: false, dismissed: false })).toBe(
+      true,
+    )
+    expect(shouldOfferInstall({ standalone: true, dismissed: false })).toBe(
+      false,
+    )
+    expect(shouldOfferInstall({ standalone: false, dismissed: true })).toBe(
+      false,
+    )
   })
 
   it('builds iOS hint vs deferred-prompt flags', () => {
