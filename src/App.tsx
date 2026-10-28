@@ -17,6 +17,7 @@ const AcceptPage = lazy(() => import('@/pages/AcceptPage'))
 const OneTapPage = lazy(() => import('@/pages/OneTapPage'))
 const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalLoginPage = lazy(() => import('@/pages/portal/PortalLoginPage'))
+const PortalCompanyPage = lazy(() => import('@/pages/portal/PortalCompanyPage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
 const PortalHistoryPage = lazy(() => import('@/pages/portal/PortalHistoryPage'))
 const PortalAccountPage = lazy(() => import('@/pages/portal/PortalAccountPage'))
@@ -53,11 +54,14 @@ function isPublic(pathname: string) {
   return (
     pathname === '/' ||
     pathname === '/login' ||
+    pathname === '/quote' ||
+    pathname === '/book' ||
     pathname.startsWith('/offer/') ||
     pathname.startsWith('/accept/') ||
     pathname.startsWith('/t/') ||
     pathname.startsWith('/portal') ||
     pathname === '/portal/login' ||
+    pathname === '/portal/auth' ||
     pathname === '/client' ||
     pathname.startsWith('/client/') ||
     pathname === '/onboard' ||
@@ -72,6 +76,8 @@ function isPublic(pathname: string) {
 function isClientThemePath(pathname: string) {
   return (
     pathname.startsWith('/portal') ||
+    pathname === '/quote' ||
+    pathname === '/book' ||
     pathname === '/client' ||
     pathname.startsWith('/client/') ||
     pathname.startsWith('/accept/') ||
@@ -144,8 +150,23 @@ export function App() {
         <Route path="/offer/:token" element={<OfferPublicPage />} />
         <Route path="/accept/:token" element={<AcceptPage />} />
         <Route path="/t/:legToken" element={<OneTapPage />} />
+        {/* Short guest URLs — no account needed for soft/hard quote */}
+        <Route
+          path="/quote"
+          element={<Navigate to="/portal/request?mode=quote" replace />}
+        />
+        <Route
+          path="/book"
+          element={<Navigate to="/portal/request?mode=book" replace />}
+        />
         <Route path="/portal" element={<PortalHomePage />} />
         <Route path="/portal/login" element={<PortalLoginPage />} />
+        {/* Legacy magic-link bookmarks → instant work-email login */}
+        <Route
+          path="/portal/auth"
+          element={<Navigate to="/portal/login" replace />}
+        />
+        <Route path="/portal/c/:slug" element={<PortalCompanyPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
         <Route path="/portal/history" element={<PortalHistoryPage />} />
         <Route path="/portal/account" element={<PortalAccountPage />} />

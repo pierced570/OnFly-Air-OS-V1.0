@@ -21,10 +21,21 @@ import {
 import { getClient, type ClientProfile } from '@/lib/clientStore'
 import { getPortalAuthSession } from '@/lib/portalAuth'
 import {
+  connectPortalRequestToSpine,
+  getRequestSoftPackage,
+  portalNextHrefAfterQuote,
+  saveRequestSoftPackage,
+} from '@/lib/portalRequestConnect'
+import {
   buildSoftPricingForRequest,
   type SoftPricingPackageResult,
 } from '@/lib/softPricingPackage'
-import { requestHardQuote, submitTripRequest } from '@/lib/requestStore'
+import {
+  getRequest,
+  requestHardQuote,
+  submitTripRequest,
+} from '@/lib/requestStore'
+import { portalRequestHelloLabel } from '@/domain/portalClientApp'
 
 function draftFromRecord(row: TripRequestRecord): TripRequestDraft {
   return {
@@ -56,22 +67,31 @@ function draftFromRecord(row: TripRequestRecord): TripRequestDraft {
 }
 
 export default function PortalRequestPage() {
-  const { signedIn, setSession } = usePortalSession()
+  const { signedIn, setSession, session, loading: authLoading } =
+    usePortalSession()
   const [searchParams] = useSearchParams()
   const entryMode: 'quote' | 'book' =
     searchParams.get('mode') === 'book' ? 'book' : 'quote'
+  const restoreId = searchParams.get('requestId')?.trim() || null
   const [done, setDone] = useState<TripRequestRecord | null>(null)
   const [intent, setIntent] = useState<PortalSubmitIntent | null>(null)
   const [softPackage, setSoftPackage] =
     useState<SoftPricingPackageResult | null>(null)
   const [estimating, setEstimating] = useState(false)
   const [hardQuoteDone, setHardQuoteDone] = useState(false)
+  /** Spine trip + track after soft/hard connect. */
+  const [tripHref, setTripHref] = useState<string | null>(null)
+  const [trackHref, setTrackHref] = useState<string | null>(null)
   /** When returning from soft quote, re-seed the form with that submit. */
   const [editDraft, setEditDraft] = useState<TripRequestDraft | null>(null)
   const [formKey, setFormKey] = useState(0)
   const [sessionClient, setSessionClient] = useState<ClientProfile | undefined>()
   const onboardClient = getPortalClient()
   const client = onboardClient ?? sessionClient
+  const companyHello = portalRequestHelloLabel(client?.name)
+  const loginNext = encodeURIComponent(
+    `/portal/request${entryMode === 'book' ? '?mode=book' : '?mode=quote'}`,
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -86,6 +106,20 @@ export default function PortalRequestPage() {
       cancelled = true
     }
   }, [])
+
+  // Restore prior soft quote / hard-quote request from home or history.
+  useEffect(() => {
+    if (!restoreId) return
+    const row = getRequest(restoreId)
+    if (!row) return
+    setDone(row)
+    setIntent(row.hard_quote_requested_at ? 'hard_quote' : 'estimate')
+    setHardQuoteDone(Boolean(row.hard_quote_requested_at))
+    if (row.linked_trip_id) setTripHref(`/portal/trips/${row.linked_trip_id}`)
+    if (row.track_token) setTrackHref(`/portal/track/${row.track_token}`)
+    const pkg = getRequestSoftPackage(restoreId)
+    if (pkg) setSoftPackage(pkg)
+  }, [restoreId])
 
   const initial = useMemo(() => {
     if (editDraft) return editDraft
@@ -128,6 +162,17 @@ export default function PortalRequestPage() {
     setSoftPackage(null)
     setEstimating(false)
     setHardQuoteDone(false)
+    setTripHref(null)
+    setTrackHref(null)
+  }
+
+  async function linkSpine(row: TripRequestRecord) {
+    const linked = await connectPortalRequestToSpine(row)
+    if (!linked) return
+    setTripHref(linked.tripHref)
+    setTrackHref(linked.trackHref)
+    const refreshed = getRequest(row.id)
+    if (refreshed) setDone({ ...refreshed })
   }
 
   async function onSubmit(
@@ -155,6 +200,8 @@ export default function PortalRequestPage() {
     setIntent(mode)
     setHardQuoteDone(false)
     setSoftPackage(null)
+    setTripHref(null)
+    setTrackHref(null)
 
     if (mode === 'hard_quote') {
       const updated = requestHardQuote(row.id)
@@ -165,29 +212,26 @@ export default function PortalRequestPage() {
       // Click handlers also dial — keep this as a desktop fallback if the
       // form path somehow skips dialBrandOps on the button.
       dialBrandOps()
-      try {
-        const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
-        await createRoutedTripFromRequest(updated ?? row)
-      } catch (routeErr) {
-        console.warn('[portal] routed trip deferred', routeErr)
-      }
+      await linkSpine(updated ?? row)
       return
     }
 
     setEstimating(true)
     try {
-      try {
-        const { createRoutedTripFromRequest } = await import('@/lib/ladderFlow')
-        await createRoutedTripFromRequest(row)
-      } catch (routeErr) {
-        console.warn('[portal] routed trip deferred', routeErr)
-      }
+      await linkSpine(row)
       const pkg = await buildSoftPricingForRequest(row)
       setSoftPackage(pkg)
+      if (!pkg.error) saveRequestSoftPackage(row.id, pkg)
     } finally {
       setEstimating(false)
     }
   }
+
+  const afterQuoteHref = portalNextHrefAfterQuote({
+    signedIn,
+    tripHref,
+    trackHref,
+  })
 
   if (done && intent === 'hard_quote') {
     return (
@@ -215,13 +259,22 @@ export default function PortalRequestPage() {
         >
           Call 24-hr ops · {BRAND_PHONE}
         </a>
+        {(tripHref || trackHref) && (
+          <Link
+            to={afterQuoteHref}
+            className="mt-4 flex w-full items-center justify-center rounded-lg border border-gold/40 bg-white px-4 py-3 text-sm font-semibold text-ink"
+          >
+            Open trip &amp; tracking →
+          </Link>
+        )}
         {!signedIn && done.email?.includes('@') ? (
           <div className="mt-6">
             <PortalOneClickLogin
               email={done.email}
               onSignedIn={setSession}
-              title="Save this trip to your phone"
-              hint="One tap with the email you just used — no password."
+              nextHref={afterQuoteHref}
+              title="Open this trip on your phone"
+              hint="Verified desk email — one tap, no password. Routes you to your company portal."
             />
           </div>
         ) : (
@@ -229,7 +282,7 @@ export default function PortalRequestPage() {
             to="/portal"
             className="mt-4 inline-block text-sm font-semibold text-gold"
           >
-            ← Portal
+            ← My trips
           </Link>
         )}
       </WizardShell>
@@ -282,6 +335,19 @@ export default function PortalRequestPage() {
               }}
             />
           )}
+        {!estimating &&
+        softPackage &&
+        !softPackage.error &&
+        (tripHref || trackHref) ? (
+          <div className="mt-4 px-1 sm:px-0">
+            <Link
+              to={afterQuoteHref}
+              className="flex w-full items-center justify-center rounded-lg border border-[#E5DFD0] bg-white px-4 py-3 text-sm font-semibold text-ink"
+            >
+              Open on My trips / tracking →
+            </Link>
+          </div>
+        ) : null}
         {!signedIn &&
         done.email?.includes('@') &&
         !estimating &&
@@ -291,8 +357,9 @@ export default function PortalRequestPage() {
             <PortalOneClickLogin
               email={done.email}
               onSignedIn={setSession}
+              nextHref={afterQuoteHref}
               title="Keep this quote on your trips list"
-              hint="One tap with the email from your request — no password."
+              hint="Verified desk email — one tap opens your company trips and this quote."
             />
           </div>
         ) : null}
@@ -304,28 +371,57 @@ export default function PortalRequestPage() {
     <WizardShell appNav={signedIn}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
         <Link to="/portal" className="font-semibold text-gold">
-          ← Start over
+          ← Portal
         </Link>
-        {signedIn ? (
-          <Link to="/portal" className="font-semibold text-ink underline">
-            My trips
-          </Link>
-        ) : null}
+        {authLoading ? (
+          <p className="text-ink/50">Checking session…</p>
+        ) : signedIn ? (
+          <p className="text-ink">
+            <span className="font-semibold">{companyHello}</span>
+            <span className="text-ink/50"> · </span>
+            <Link
+              to="/portal"
+              className="font-semibold text-ink underline decoration-gold/60 underline-offset-2"
+            >
+              My trips
+            </Link>
+          </p>
+        ) : (
+          <p className="text-ink/70">
+            Already moving?{' '}
+            <Link
+              to={`/portal/login?next=${loginNext}`}
+              className="font-semibold text-ink underline"
+            >
+              Sign in
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
         <header className="flex flex-wrap items-start justify-between gap-3 bg-ink px-5 py-5 text-cream sm:px-6">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              {entryMode === 'book'
-                ? 'Request a flight / delivery'
-                : 'Get a rough quote'}
+              {signedIn && client?.name?.trim()
+                ? `Request for ${client.name.trim()}`
+                : entryMode === 'book'
+                  ? "Let's get your freight moving"
+                  : 'Get a rough quote'}
             </h1>
             <p className="mt-1 text-sm text-cream/60">
-              {entryMode === 'book'
-                ? 'Enter the details — no login yet. We soft-quote or hard-quote from the same form.'
-                : 'Three quick steps. Soft pricing first, then push to a hard quote if it fits.'}
+              {signedIn
+                ? 'Three quick steps. Our team quotes in 10–15 minutes.'
+                : entryMode === 'book'
+                  ? 'Three quick steps. Our team quotes in 10–15 minutes — no login required.'
+                  : 'Three quick steps. Soft pricing first, then push to a hard quote if it fits.'}
             </p>
+            {signedIn && session?.email ? (
+              <p className="mt-2 text-[11px] text-cream/45">
+                Signed in as{' '}
+                <span className="avionic text-cream/70">{session.email}</span>
+              </p>
+            ) : null}
           </div>
           <a
             href={`tel:${BRAND_PHONE_E164}`}

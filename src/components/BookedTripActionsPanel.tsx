@@ -16,6 +16,7 @@ import {
   emptyClientEmailSelection,
   type ClientEmailSelection,
 } from '@/components/ClientEmailRecipientsBubble'
+import { DeskPortalSharePanel } from '@/components/DeskPortalSharePanel'
 import { InvoicePoVendorFields } from '@/components/InvoicePoVendorFields'
 import { computeEtaSheetFromBookedTrip } from '@/lib/etaSheet'
 import {
@@ -308,6 +309,13 @@ export function BookedTripActionsPanel({ tripId }: Props) {
         ) : (
           <p className="text-xs text-muted">ETA chain not ready yet.</p>
         )}
+        {trip.client_id ? (
+          <DeskPortalSharePanel
+            clientId={trip.client_id}
+            tripId={trip.id}
+            includeTrackToken
+          />
+        ) : null}
         <ClientEmailRecipientsBubble
           clientId={trip.client_id}
           value={etaSel}

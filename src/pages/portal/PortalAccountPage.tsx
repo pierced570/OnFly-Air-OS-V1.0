@@ -30,7 +30,10 @@ export default function PortalAccountPage() {
     )
   }
 
-  if (!signedIn) return <Navigate to="/portal/login" replace />
+  if (!signedIn)
+    return (
+      <Navigate to="/portal/login?next=%2Fportal%2Faccount" replace />
+    )
 
   return (
     <PortalShell

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildPortalHistoryLedger,
+  buildPortalOpenRequestCards,
   filterPortalHistoryLedger,
   partitionPortalAppTrips,
   portalAppStateLabel,
   portalAppTabFromPath,
   portalAppTabPath,
+  portalRequestHelloLabel,
 } from './portalClientApp'
 
 describe('portalClientApp', () => {
@@ -89,5 +91,34 @@ describe('portalClientApp', () => {
     expect(portalAppTabFromPath('/portal/login')).toBeNull()
     expect(portalAppStateLabel('in_progress')).toBe('Live')
     expect(portalAppStateLabel('quoted_hard')).toBe('Quote')
+    expect(portalRequestHelloLabel('PSA Airlines')).toBe('Hello PSA Airlines')
+    expect(portalRequestHelloLabel('  ')).toBe('Hello')
+  })
+
+  it('builds open request cards that deep-link trip track or restore quote', () => {
+    const cards = buildPortalOpenRequestCards([
+      {
+        id: 'r1',
+        ref: 12,
+        lane: 'KCLT → KICT',
+        summary: '1 skid',
+        status: 'quoted',
+        created_at: '2026-10-28T12:00:00.000Z',
+        linked_trip_id: 'trip-1',
+      },
+      {
+        id: 'r2',
+        ref: 11,
+        lane: 'KCAK → KHPN',
+        summary: 'soft',
+        status: 'submitted',
+        created_at: '2026-10-27T12:00:00.000Z',
+        hard_quote_requested_at: '2026-10-27T13:00:00.000Z',
+      },
+    ])
+    expect(cards[0]?.href).toBe('/portal/trips/trip-1')
+    expect(cards[0]?.statusLabel).toBe('Rough quote')
+    expect(cards[1]?.href).toContain('requestId=r2')
+    expect(cards[1]?.statusLabel).toBe('Hard quote requested')
   })
 })

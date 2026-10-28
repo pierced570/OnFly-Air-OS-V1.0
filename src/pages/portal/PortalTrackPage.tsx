@@ -1,11 +1,13 @@
 /**
- * Live client tracking — magic link + session trip routes.
+ * Live client tracking — track token identifies the trip; live updates need
+ * a signed-in portal session (verified desk work email).
  * Cream client theme. Never shows cost, margin, or operator identity.
  */
 
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { PortalTrackingBody } from '@/components/PortalTrackingBody'
+import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { PortalShell } from '@/components/PortalShell'
 import {
   getTrip,
@@ -57,11 +59,72 @@ function PortalLoading() {
   )
 }
 
-/** Magic-link tracker `/portal/track/:token` */
+function TrackSignInGate(props: {
+  trip: TripStoreRow
+  tripId: string
+  trackToken?: string
+  email?: string | null
+}) {
+  const { setSession } = usePortalSession()
+  const nextHref = `/portal/trips/${props.tripId}`
+  const lane = props.trip.lane || 'Your shipment'
+  const ref = props.trip.ref
+  const tokenEmail =
+    props.email?.trim() ||
+    (props.trackToken
+      ? getPortalTrackRow(props.trackToken)?.email?.trim() || null
+      : null)
+  return (
+    <PortalShell>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
+        Tracking link
+      </p>
+      <h1 className="mt-2 text-2xl font-semibold text-ink">
+        Sign in for live updates
+      </h1>
+      <p className="mt-2 text-sm text-muted">
+        We found{' '}
+        <span className="avionic font-medium text-ink">
+          {ref ? `T-${ref}` : 'your trip'}
+        </span>
+        {lane ? (
+          <>
+            {' '}
+            · <span className="text-ink">{lane}</span>
+          </>
+        ) : null}
+        . Live ETAs, stage progress, and status pushes need a verified desk
+        email — soft and hard quotes stay open without one.
+      </p>
+      <div className="mt-6">
+        <PortalOneClickLogin
+          email={tokenEmail}
+          onSignedIn={setSession}
+          nextHref={nextHref}
+          title="Open live tracking"
+          hint="Enter the work email on your company desk — we route you to the right portal."
+        />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
+          ← Book or quote (no account)
+        </Link>
+      </div>
+      {props.trackToken ? (
+        <p className="mt-6 text-xs text-muted">
+          Keep this link — after you sign in, it opens the same trip.
+        </p>
+      ) : null}
+    </PortalShell>
+  )
+}
+
+/** Magic-link tracker `/portal/track/:token` — soft-gate: identify trip, require session for live body. */
 export default function PortalTrackPage() {
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const nowIso = useClock()
   const { token } = useParams()
+  const { signedIn, loading: authLoading } = usePortalSession()
   const [tripId, setTripId] = useState<string | null>(() =>
     token ? getPortalTrackRow(token)?.tripId ?? null : null,
   )
@@ -78,13 +141,15 @@ export default function PortalTrackPage() {
       if (cancelled) return
       setTripId(id)
       if (id) {
-        // Only remember for guests — signed-in clients use /portal/trips/:id.
+        // Remember identity for home "your shipment" — live body still needs session.
         const session = await getPortalAuthSession()
         if (!session?.clientId) {
           rememberPortalGuestTrack({ token, tripId: id })
         }
       }
       if (id && canPersist()) {
+        // Hydrate portal-safe shell for identity even when gated; live ADS-B
+        // + PortalTrackingBody stay behind signed-in below.
         const ready = await ensurePortalTripTrackingReady({
           tripId: id,
           token,
@@ -94,13 +159,16 @@ export default function PortalTrackPage() {
           setRemoteTrip(ready)
           setEtaReadyTick((n) => n + 1)
         }
+      } else if (id) {
+        const local = getTrip(id)
+        if (local) setRemoteTrip(local)
       }
       setResolving(false)
     })()
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [token, signedIn])
 
   const trip = useMemo(() => {
     if (tripId) {
@@ -108,25 +176,24 @@ export default function PortalTrackPage() {
       if (local) return local
     }
     return remoteTrip
-    // etaReadyTick forces re-read after async ETA hydrate merges into session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId, remoteTrip, nowIso, etaReadyTick])
 
-  const input = trip ? tripToTrackingInput(trip) : null
+  const input = trip && signedIn ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail, {
-    enabled: adsbPollEnabledForState(trip?.state),
+    enabled: Boolean(signedIn) && adsbPollEnabledForState(trip?.state),
     originIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.from.icao,
     destIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.to.icao,
   })
 
-  // Commit FlightAware actual_off / actual_on into the trip spine when present.
   useEffect(() => {
-    if (!trip?.id || !adsb) return
+    if (!signedIn || !trip?.id || !adsb) return
     if (adsb.takeoffIsActual !== true && adsb.landingIsActual !== true) return
     void import('@/lib/applyAdsbActuals').then((m) => {
       m.applyAdsbActualsToTrip(trip.id, adsb, { nowIso })
     })
   }, [
+    signedIn,
     trip?.id,
     adsb?.tail,
     adsb?.lastTakeoffAt,
@@ -137,21 +204,20 @@ export default function PortalTrackPage() {
   ])
 
   const view = useMemo(() => {
-    if (!trip) return null
-    // Re-read after ADS-B apply so Actual vs Forecast picks up chain stamps.
+    if (!signedIn || !trip) return null
     const live = getTrip(trip.id) ?? trip
     return viewFromTrip(live, adsb, nowIso)
-  }, [trip, adsb, nowIso, etaReadyTick])
+  }, [signedIn, trip, adsb, nowIso, etaReadyTick])
 
-  if (resolving) return <PortalLoading />
+  if (resolving || authLoading) return <PortalLoading />
 
-  if (!view) {
+  if (!tripId || (!trip && !remoteTrip)) {
     return (
       <PortalShell>
         <h1 className="text-2xl font-semibold">Tracking link expired</h1>
         <p className="mt-2 text-sm text-muted">
-          This magic link isn&apos;t recognized. Ask dispatch for a fresh link,
-          or sign in to see your company&apos;s shipments.
+          This link isn&apos;t recognized. Ask dispatch for a fresh link, or
+          sign in to see your company&apos;s shipments.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
@@ -164,9 +230,36 @@ export default function PortalTrackPage() {
             to="/portal"
             className="inline-flex rounded-md border border-border px-4 py-2 text-sm font-semibold text-ink"
           >
-            Back to shipments
+            Book or quote
           </Link>
         </div>
+      </PortalShell>
+    )
+  }
+
+  if (!signedIn) {
+    const identified = trip ?? remoteTrip
+    if (!identified || !tripId) return <PortalLoading />
+    return (
+      <TrackSignInGate
+        trip={identified}
+        tripId={tripId}
+        trackToken={token}
+      />
+    )
+  }
+
+  if (!view) {
+    return (
+      <PortalShell>
+        <h1 className="text-xl font-semibold">Trip not found</h1>
+        <p className="mt-2 text-sm text-muted">
+          Sign in worked, but this trip isn&apos;t available on your account.
+          Open shipments from your list or ask the desk for a fresh link.
+        </p>
+        <Link to="/portal" className="mt-4 inline-block text-gold">
+          ← All shipments
+        </Link>
       </PortalShell>
     )
   }
@@ -186,7 +279,7 @@ export function PortalTripTrackPage() {
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const nowIso = useClock()
   const { id } = useParams()
-  const { signedIn, loading: authLoading } = usePortalSession()
+  const { signedIn, loading: authLoading, setSession } = usePortalSession()
   const [remoteTrip, setRemoteTrip] = useState<TripStoreRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [etaReadyTick, setEtaReadyTick] = useState(0)
@@ -225,23 +318,25 @@ export function PortalTripTrackPage() {
   if (authLoading || (signedIn && loading)) return <PortalLoading />
 
   if (!signedIn) {
+    const nextHref = id ? `/portal/trips/${id}` : '/portal'
     return (
       <PortalShell>
         <h1 className="text-xl font-semibold">Sign in to track</h1>
         <p className="mt-2 text-sm text-muted">
-          Company shipment links need a portal sign-in. Use the tracking link
-          from your ETA email to watch as a guest, or sign in for every
-          shipment.
+          Live tracking needs a verified desk email. Soft and hard quotes still
+          work without an account.
         </p>
+        <div className="mt-6">
+          <PortalOneClickLogin
+            onSignedIn={setSession}
+            nextHref={nextHref}
+            title="Open live tracking"
+            hint="Work email on file at the desk — opens your company portal."
+          />
+        </div>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Link
-            to="/portal/login"
-            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
-          >
-            Sign in
-          </Link>
           <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
-            ← All shipments
+            ← Book or quote
           </Link>
         </div>
       </PortalShell>
@@ -253,8 +348,8 @@ export function PortalTripTrackPage() {
       <PortalShell>
         <h1 className="text-xl font-semibold">Trip not found</h1>
         <p className="mt-2 text-sm text-muted">
-          Open a trip from your shipments list, or use the magic tracking link
-          from email.
+          Open a trip from your shipments list, or use the tracking link from
+          email after you sign in.
         </p>
         <Link to="/portal" className="mt-4 inline-block text-gold">
           ← All shipments

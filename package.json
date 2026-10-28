@@ -24,9 +24,18 @@
     "deploy:vendors": "tsx scripts/deploy-vendor-functions.ts",
     "sync:vercel-env": "tsx scripts/sync-vercel-env.ts",
     "sync:vault-bootstrap": "tsx scripts/sync-vault-bootstrap.ts",
-    "icons:pwa": "node scripts/generate-pwa-icons.mjs"
+    "icons:pwa": "node scripts/generate-pwa-icons.mjs",
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android",
+    "build:native": "npm run build && npx cap sync"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "@supabase/supabase-js": "^2.110.6",
     "@tailwindcss/vite": "^4.3.2",
     "luxon": "^3.7.2",
@@ -37,6 +46,7 @@
     "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@types/geojson": "^7946.0.16",
     "@types/luxon": "^3.7.2",
     "@types/node": "^24.13.3",
@@ -47,6 +57,7 @@
     "dotenv": "^17.4.2",
     "oxlint": "^1.71.0",
     "pg": "^8.22.0",
+    "sharp": "^0.35.5",
     "tsx": "^4.23.1",
     "typescript": "~6.0.2",
     "tz-lookup": "^6.1.25",

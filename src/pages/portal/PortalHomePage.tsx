@@ -29,6 +29,7 @@ import {
   summarizePortalShipments,
   tripToTrackingInput,
 } from '@/domain/portalTracking'
+import { buildPortalOpenRequestCards } from '@/domain/portalClientApp'
 import {
   clearPortalGuestTrack,
   readPortalGuestTrack,
@@ -182,6 +183,11 @@ export default function PortalHomePage() {
       return false
     })
   }, [allRequests, signedIn, session, clientKey])
+
+  const openRequestCards = useMemo(
+    () => buildPortalOpenRequestCards(requests),
+    [requests],
+  )
 
   const liveCards: LiveCard[] = useMemo(() => {
     if (!signedIn || !clientKey) return []
@@ -416,19 +422,44 @@ export default function PortalHomePage() {
             </div>
           ) : null}
 
-          {requests.length > 0 ? (
-            <div className="text-xs text-muted">
-              {requests.length} open request
-              {requests.length === 1 ? '' : 's'} ·{' '}
-              <Link to="/portal/request" className="text-gold">
-                New request
-              </Link>
+          {openRequestCards.length > 0 ? (
+            <div className="space-y-3 border-t border-border/60 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
+                  Open quotes &amp; requests
+                </h2>
+                <Link to="/portal/request?mode=quote" className="text-xs text-gold">
+                  New rough quote
+                </Link>
+              </div>
+              <ul className="space-y-2">
+                {openRequestCards.map((r) => (
+                  <li key={r.id}>
+                    <Link
+                      to={r.href}
+                      className="flex min-h-14 items-center justify-between gap-3 rounded-xl border border-[#E5DFD0] bg-white px-4 py-3 active:bg-[#F7F2E3]"
+                    >
+                      <div className="min-w-0">
+                        <div className="avionic text-sm font-semibold text-ink">
+                          R-{r.ref} · {r.lane}
+                        </div>
+                        <p className="truncate text-xs text-muted">
+                          {r.statusLabel} · {r.summary}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-gold" aria-hidden>
+                        →
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
 
           <div className="flex flex-wrap gap-3 border-t border-border/60 pt-4 text-xs">
             <Link to="/portal/history" className="font-semibold text-gold">
-              Trips, POs &amp; invoices →
+              Prior trips, POs &amp; invoices →
             </Link>
             <Link to="/portal/account" className="text-muted hover:text-ink">
               Account

@@ -129,6 +129,11 @@ export type ClientExtendedProfile = {
    * Public mailboxes (gmail, etc.) are never valid entries.
    */
   allowed_email_domains?: string[]
+  /**
+   * Optional short slug for company portal URL `/portal/c/{slug}`.
+   * When empty, derived from first allowlisted domain or company name.
+   */
+  portal_slug?: string | null
   requires_po?: boolean
   /** client = they provide PO; onfly = we generate */
   po_assigned_by?: 'client' | 'onfly' | null
