@@ -288,6 +288,17 @@ export function portalAppTabPath(tab: PortalAppTab): string {
   return '/portal/account'
 }
 
+/**
+ * Request-page chrome when the client is signed in.
+ * Guests see "Already moving? Sign in" instead.
+ */
+export function portalRequestHelloLabel(
+  companyName: string | null | undefined,
+): string {
+  const name = (companyName ?? '').trim()
+  return name ? `Hello ${name}` : 'Hello'
+}
+
 export function portalAppTabFromPath(pathname: string): PortalAppTab | null {
   if (pathname === '/portal' || pathname === '/portal/') return 'home'
   if (pathname.startsWith('/portal/request')) return 'book'

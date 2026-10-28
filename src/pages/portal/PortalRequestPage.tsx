@@ -35,6 +35,7 @@ import {
   requestHardQuote,
   submitTripRequest,
 } from '@/lib/requestStore'
+import { portalRequestHelloLabel } from '@/domain/portalClientApp'
 
 function draftFromRecord(row: TripRequestRecord): TripRequestDraft {
   return {
@@ -66,7 +67,8 @@ function draftFromRecord(row: TripRequestRecord): TripRequestDraft {
 }
 
 export default function PortalRequestPage() {
-  const { signedIn, setSession } = usePortalSession()
+  const { signedIn, setSession, session, loading: authLoading } =
+    usePortalSession()
   const [searchParams] = useSearchParams()
   const entryMode: 'quote' | 'book' =
     searchParams.get('mode') === 'book' ? 'book' : 'quote'
@@ -86,6 +88,10 @@ export default function PortalRequestPage() {
   const [sessionClient, setSessionClient] = useState<ClientProfile | undefined>()
   const onboardClient = getPortalClient()
   const client = onboardClient ?? sessionClient
+  const companyHello = portalRequestHelloLabel(client?.name)
+  const loginNext = encodeURIComponent(
+    `/portal/request${entryMode === 'book' ? '?mode=book' : '?mode=quote'}`,
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -365,28 +371,57 @@ export default function PortalRequestPage() {
     <WizardShell appNav={signedIn}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
         <Link to="/portal" className="font-semibold text-gold">
-          ← Start over
+          ← Portal
         </Link>
-        {signedIn ? (
-          <Link to="/portal" className="font-semibold text-ink underline">
-            My trips
-          </Link>
-        ) : null}
+        {authLoading ? (
+          <p className="text-ink/50">Checking session…</p>
+        ) : signedIn ? (
+          <p className="text-ink">
+            <span className="font-semibold">{companyHello}</span>
+            <span className="text-ink/50"> · </span>
+            <Link
+              to="/portal"
+              className="font-semibold text-ink underline decoration-gold/60 underline-offset-2"
+            >
+              My trips
+            </Link>
+          </p>
+        ) : (
+          <p className="text-ink/70">
+            Already moving?{' '}
+            <Link
+              to={`/portal/login?next=${loginNext}`}
+              className="font-semibold text-ink underline"
+            >
+              Sign in
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
         <header className="flex flex-wrap items-start justify-between gap-3 bg-ink px-5 py-5 text-cream sm:px-6">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              {entryMode === 'book'
-                ? 'Request a flight / delivery'
-                : 'Get a rough quote'}
+              {signedIn && client?.name?.trim()
+                ? `Request for ${client.name.trim()}`
+                : entryMode === 'book'
+                  ? "Let's get your freight moving"
+                  : 'Get a rough quote'}
             </h1>
             <p className="mt-1 text-sm text-cream/60">
-              {entryMode === 'book'
-                ? 'Enter the details — no login yet. We soft-quote or hard-quote from the same form.'
-                : 'Three quick steps. Soft pricing first, then push to a hard quote if it fits.'}
+              {signedIn
+                ? 'Three quick steps. Our team quotes in 10–15 minutes.'
+                : entryMode === 'book'
+                  ? 'Three quick steps. Our team quotes in 10–15 minutes — no login required.'
+                  : 'Three quick steps. Soft pricing first, then push to a hard quote if it fits.'}
             </p>
+            {signedIn && session?.email ? (
+              <p className="mt-2 text-[11px] text-cream/45">
+                Signed in as{' '}
+                <span className="avionic text-cream/70">{session.email}</span>
+              </p>
+            ) : null}
           </div>
           <a
             href={`tel:${BRAND_PHONE_E164}`}
