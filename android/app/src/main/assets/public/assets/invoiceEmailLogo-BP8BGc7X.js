@@ -1,1 +1,0 @@
-import{n as e}from"./rolldown-runtime-QTnfLwEv.js";import{r as t}from"./brand-BpCPiwSe.js";import{t as n}from"./appUrl-w7zb50hS.js";var r=e({invoiceEmailLogoUrl:()=>i});function i(){return n(t)}export{r as n,i as t};

@@ -1,1 +1,0 @@
-import{n as e}from"./rolldown-runtime-QTnfLwEv.js";import"./supabase-CQWe1M1z.js";var t=e({isSupabaseConfigured:()=>n,supabase:()=>r,tripTransition:()=>i}),n=!1,r=null;async function i(e,t,n,r={}){throw Error(`Supabase not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY`)}export{i,r as n,t as r,n as t};
