@@ -6,7 +6,12 @@
  */
 
 import { Link } from 'react-router-dom'
-import { BRAND_LOGO_PATH, BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
+import {
+  BRAND_LOGO_PATH,
+  BRAND_PHONE,
+  BRAND_PHONE_E164,
+  dialBrandOps,
+} from '@/domain/brand'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import type { PortalSession } from '@/domain/portalAuth'
@@ -225,7 +230,8 @@ export function PortalLanding(props?: {
             </span>
           </Link>
 
-          <div className="rounded-2xl border border-cream/10 bg-[#141414] px-5 py-4 text-sm text-cream/65">
+          {/* Desktop: inline call prompt. Mobile uses sticky bar below. */}
+          <div className="hidden rounded-2xl border border-cream/10 bg-[#141414] px-5 py-4 text-sm text-cream/65 lg:block">
             Time-critical right now? Call 24-hr ops at{' '}
             <a
               href={`tel:${BRAND_PHONE_E164}`}
@@ -238,7 +244,7 @@ export function PortalLanding(props?: {
         </section>
 
         {/* Mobile-only: 1–2–3 as a single compact horizontal row under the CTAs */}
-        <ol className="order-3 grid grid-cols-3 gap-2 border-t border-cream/10 pt-4 lg:hidden">
+        <ol className="order-3 grid grid-cols-3 gap-2 border-t border-cream/10 pt-4 pb-24 lg:hidden lg:pb-0">
           {FEATURES.map((f) => (
             <li
               key={f.n}
@@ -254,6 +260,27 @@ export function PortalLanding(props?: {
           ))}
         </ol>
       </main>
+
+      {/* Mobile sticky click-to-call — follows scroll */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gold/40 bg-[#0C0C0E]/95 px-3 pt-2 backdrop-blur safe-bottom lg:hidden">
+        <button
+          type="button"
+          onClick={() => dialBrandOps()}
+          className="mb-1 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-gold px-4 py-3 text-left text-ink"
+        >
+          <span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-ink/70">
+              Time-critical? Call now
+            </span>
+            <span className="mt-0.5 block text-sm font-semibold">
+              24-hr ops · {BRAND_PHONE}
+            </span>
+          </span>
+          <span className="shrink-0 rounded-md bg-ink/10 px-3 py-1.5 text-xs font-semibold">
+            Tap to call
+          </span>
+        </button>
+      </div>
     </div>
   )
 }
