@@ -17,6 +17,7 @@ const AcceptPage = lazy(() => import('@/pages/AcceptPage'))
 const OneTapPage = lazy(() => import('@/pages/OneTapPage'))
 const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalLoginPage = lazy(() => import('@/pages/portal/PortalLoginPage'))
+const PortalCompanyPage = lazy(() => import('@/pages/portal/PortalCompanyPage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
 const PortalHistoryPage = lazy(() => import('@/pages/portal/PortalHistoryPage'))
 const PortalAccountPage = lazy(() => import('@/pages/portal/PortalAccountPage'))
@@ -146,6 +147,7 @@ export function App() {
         <Route path="/t/:legToken" element={<OneTapPage />} />
         <Route path="/portal" element={<PortalHomePage />} />
         <Route path="/portal/login" element={<PortalLoginPage />} />
+        <Route path="/portal/c/:slug" element={<PortalCompanyPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
         <Route path="/portal/history" element={<PortalHistoryPage />} />
         <Route path="/portal/account" element={<PortalAccountPage />} />

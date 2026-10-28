@@ -22,6 +22,7 @@ import {
   removePortalAccessGrant,
   subscribePortalAccess,
 } from '@/lib/portalAccessStore'
+import { DeskPortalSharePanel } from '@/components/DeskPortalSharePanel'
 
 const field =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
@@ -116,8 +117,14 @@ export function PortalAccessPanel(props?: {
             </Link>
             . Prefer company-wide access? Set{' '}
             <span className="text-cream">Portal email domains</span> on the
-            company profile below.
+            company profile, then copy company / login / history links from the
+            share panel.
           </p>
+          {clientId ? (
+            <div className="mt-3">
+              <DeskPortalSharePanel clientId={clientId} />
+            </div>
+          ) : null}
         </div>
         {props?.onClose ? (
           <button

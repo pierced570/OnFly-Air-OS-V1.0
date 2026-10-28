@@ -183,7 +183,13 @@ export default function PortalHistoryPage() {
     )
   }
 
-  if (!signedIn) return <Navigate to="/portal/login" replace />
+  if (!signedIn)
+    return (
+      <Navigate
+        to="/portal/login?next=%2Fportal%2Fhistory"
+        replace
+      />
+    )
 
   const headerActions = (
     <>

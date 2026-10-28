@@ -186,9 +186,11 @@ async function pickPortalClientId(
 /**
  * Sign in with a work email — no magic link.
  * Routes to the matching client when the address (or its domain) is verified.
+ * Optional `expectedClientId` locks login to a company portal link (`/portal/c/:slug`).
  */
 export async function signInPortalByWorkEmail(
   email: string,
+  opts?: { expectedClientId?: string | null },
 ): Promise<PortalSession> {
   const addr = email.trim().toLowerCase()
   if (!addr.includes('@')) {
@@ -196,11 +198,22 @@ export async function signInPortalByWorkEmail(
   }
 
   const clients = await clientsForPortalResolve()
-  const candidateIds = resolveAllClientIdsByPortalEmail(addr, clients)
+  let candidateIds = resolveAllClientIdsByPortalEmail(addr, clients)
   if (!candidateIds.length) {
     throw new Error(
       'This email is not verified for portal access. Contact OnFly if you need access.',
     )
+  }
+
+  const expected = (opts?.expectedClientId ?? '').trim()
+  if (expected) {
+    const allowed = candidateIds.filter((id) => sameClientId(id, expected))
+    if (!allowed.length) {
+      throw new Error(
+        'That email is not on this company portal. Use your company work email, or open the general portal login.',
+      )
+    }
+    candidateIds = allowed
   }
 
   const clientId = await pickPortalClientId(addr, candidateIds)
