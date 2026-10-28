@@ -136,6 +136,10 @@ export type TripRequestRecord = TripRequestDraft & {
   hard_quote_requested_at: string | null
   /** Derived at submit from piece weights — dispatcher note. */
   forklift: ForkliftHandling
+  /** Portal connect: spine trip created from this request (if any). */
+  linked_trip_id?: string | null
+  /** Portal connect: magic-link track token for guest home / email. */
+  track_token?: string | null
 }
 
 export const ASAP_MAX_HOURS = 4

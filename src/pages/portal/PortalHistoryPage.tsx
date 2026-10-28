@@ -14,6 +14,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { PortalShell } from '@/components/PortalShell'
 import {
   buildPortalHistoryLedger,
+  buildPortalOpenRequestCards,
   filterPortalHistoryLedger,
   isPortalAppHistoryState,
   portalAppStateLabel,
@@ -26,6 +27,7 @@ import {
   listPortalHistoryForSession,
 } from '@/lib/portalAuth'
 import { sameClientId } from '@/lib/clientStore'
+import { listRequests, subscribeRequests } from '@/lib/requestStore'
 import {
   getTrip,
   listTripsStable,
@@ -85,6 +87,11 @@ export default function PortalHistoryPage() {
     subscribeTrips,
     listTripsStable,
     listTripsStable,
+  )
+  const allRequests = useSyncExternalStore(
+    subscribeRequests,
+    listRequests,
+    listRequests,
   )
   const [remote, setRemote] = useState<PortalTripCard[]>([])
   const [kind, setKind] = useState<FilterKind>('all')
@@ -152,6 +159,22 @@ export default function PortalHistoryPage() {
     [ledger, kind, q],
   )
 
+  const openRequestCards = useMemo(() => {
+    if (!signedIn || !session) return []
+    const mine = allRequests.filter((r) => {
+      if (r.source !== 'portal') return false
+      if (session.clientId && r.client_id === session.clientId) return true
+      if (
+        session.email &&
+        r.email?.trim().toLowerCase() === session.email.toLowerCase()
+      ) {
+        return true
+      }
+      return false
+    })
+    return buildPortalOpenRequestCards(mine)
+  }, [allRequests, signedIn, session])
+
   if (loading) {
     return (
       <PortalShell>
@@ -188,10 +211,40 @@ export default function PortalHistoryPage() {
             Trips, POs &amp; invoices
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Everything for your company in one place — tap a row to open tracking
-            or the invoice link.
+            Prior trips plus open quotes from the portal — tap a row to open
+            tracking or the invoice link.
           </p>
         </div>
+
+        {openRequestCards.length > 0 ? (
+          <div className="space-y-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
+              Open quotes &amp; requests
+            </h2>
+            <ul className="space-y-2">
+              {openRequestCards.map((r) => (
+                <li key={r.id}>
+                  <Link
+                    to={r.href}
+                    className="flex min-h-[4.25rem] items-center justify-between gap-3 rounded-xl border border-gold/30 bg-white px-4 py-3 active:bg-[#F7F2E3]"
+                  >
+                    <div className="min-w-0">
+                      <div className="avionic text-sm font-semibold text-ink">
+                        R-{r.ref} · {r.lane}
+                      </div>
+                      <p className="truncate text-xs text-[#6B6560]">
+                        {r.statusLabel} · {r.summary}
+                      </p>
+                    </div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-gold">
+                      Open
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           {(
