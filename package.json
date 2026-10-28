@@ -23,7 +23,8 @@
     "deploy:send-sms": "tsx scripts/deploy-send-sms.ts",
     "deploy:vendors": "tsx scripts/deploy-vendor-functions.ts",
     "sync:vercel-env": "tsx scripts/sync-vercel-env.ts",
-    "sync:vault-bootstrap": "tsx scripts/sync-vault-bootstrap.ts"
+    "sync:vault-bootstrap": "tsx scripts/sync-vault-bootstrap.ts",
+    "icons:pwa": "node scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.6",

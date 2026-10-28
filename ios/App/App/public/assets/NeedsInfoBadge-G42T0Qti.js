@@ -1,0 +1,1 @@
+import{b as e}from"./index-DW4f_HWN.js";var t=e();function n({count:e}){return e<=0?null:(0,t.jsxs)(`span`,{className:`inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs text-gold`,children:[`NEEDS-INFO`,(0,t.jsx)(`span`,{className:`avionic opacity-80`,children:e})]})}export{n as t};

@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-QTnfLwEv.js";var t=e({resolveTripPoNumber:()=>n});function n(e){return e.po_number?.trim()||e.quick?.po?.trim()||null}export{t as n,n as t};

@@ -1,0 +1,1 @@
+var e=`ASAP AIRCRAFT SOLUTIONS AND LOGISTICS`,t=`(858) 529-7860`,n=`+18585297860`,r=`info@onflyair.com`;function i(){typeof window>`u`||(window.location.href=`tel:${n}`)}var a=`/brand/onfly-mark.png`,o=`/brand/onfly-logo.png`,s=`/brand/onfly-logo-light.png`;export{t as a,i as c,a as i,s as n,n as o,o as r,e as s,r as t};

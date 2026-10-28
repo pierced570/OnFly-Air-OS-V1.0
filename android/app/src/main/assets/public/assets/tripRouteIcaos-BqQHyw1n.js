@@ -1,0 +1,1 @@
+function e(e){let t=[],n=new Set,r=e=>{let r=(e??``).trim().toUpperCase();!r||n.has(r)||(n.add(r),t.push(r))},i=e=>{r(e.origin_icao??e.origin),r(e.dest_icao??e.dest)};for(let t of e.legs??[])i(t);if(!t.length)for(let t of e.quick?.legs??[])i(t);return t}export{e as t};

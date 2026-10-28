@@ -1,0 +1,1 @@
+var e=new Map,t=new Set,n=[];function r(){n=[...e.values()].sort((e,t)=>t.created_at.localeCompare(e.created_at))}function i(){r();for(let e of t)e()}function a(e){return t.add(e),()=>{t.delete(e)}}function o(){return n}function s(t){let n={...t,id:crypto.randomUUID(),created_at:new Date().toISOString()};return e.set(n.id,n),i(),n}export{s as n,a as r,o as t};

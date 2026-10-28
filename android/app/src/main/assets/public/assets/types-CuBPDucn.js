@@ -1,0 +1,1 @@
+function e(e,t=`mock`){let n={BASE_URL:`/`,DEV:!1,MODE:`production`,PROD:!0,SSR:!1}[e]?.toLowerCase();return n===`real`||n===`quickbooks`||n===`qbo`?`real`:n===`mock`?`mock`:t}export{e as t};

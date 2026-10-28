@@ -5,6 +5,7 @@
 
 import { Link } from 'react-router-dom'
 import { BRAND_LOGO_PATH, BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
+import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import type { PortalSession } from '@/domain/portalAuth'
 
@@ -84,7 +85,11 @@ export function PortalLanding(props?: {
           login is one tap with your email when you&apos;re ready.
         </p>
 
-        <div className="mt-10 space-y-3">
+        <div className="mt-6">
+          <PortalInstallBanner variant="dark" defaultOpen />
+        </div>
+
+        <div className="mt-8 space-y-3">
           <Link
             to="/portal/request?mode=book"
             className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink transition hover:bg-gold-lt"

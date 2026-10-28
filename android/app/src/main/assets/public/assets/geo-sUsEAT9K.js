@@ -1,0 +1,1 @@
+function e(e,t,n,r){let i=e=>e*Math.PI/180,a=i(n-e),o=i(r-t),s=Math.sin(a/2)**2+Math.cos(i(e))*Math.cos(i(n))*Math.sin(o/2)**2;return 2*3440.065*Math.asin(Math.min(1,Math.sqrt(s)))}function t(t,n,r,i){return e(t,n,r,i)*1.15078}export{e as n,t};

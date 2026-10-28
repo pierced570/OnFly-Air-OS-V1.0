@@ -1,0 +1,1 @@
+var e=`both`;function t(t){let n=(t??``).trim().toLowerCase();return n===`sms`||n===`email`||n===`both`?n:e}function n(e){return e===`sms`||e===`both`}function r(e){return e===`email`||e===`both`}function i(e){return e===`sms`?`SMS only`:e===`email`?`Email only`:`Email + SMS`}export{i as a,t as i,r as n,n as r,e as t};
