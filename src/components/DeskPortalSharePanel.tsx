@@ -1,6 +1,6 @@
 /**
  * Desk outreach — copy different portal hyperlinks for a company / trip.
- * Company portal, one-click login, book, quote, history, trip, guest track.
+ * Company portal, work-email login, book, quote, history, trip, track (gated).
  */
 
 import { useMemo, useState } from 'react'

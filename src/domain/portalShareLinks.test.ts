@@ -32,6 +32,7 @@ describe('portalShareLinks', () => {
     expect(safePortalNextPath('/portal/request?mode=book')).toBe(
       '/portal/request?mode=book',
     )
+    expect(safePortalNextPath('/portal/auth?token=x')).toBeNull()
     expect(safePortalNextPath('https://evil.com')).toBeNull()
     expect(safePortalNextPath('/admin')).toBeNull()
     expect(safePortalNextPath('//evil.com')).toBeNull()

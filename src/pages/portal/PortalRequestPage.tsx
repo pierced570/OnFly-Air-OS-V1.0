@@ -267,8 +267,8 @@ export default function PortalRequestPage() {
               email={done.email}
               onSignedIn={setSession}
               nextHref={afterQuoteHref}
-              title="Save this trip to your phone"
-              hint="One tap with the email you just used — no password. Opens your trips, tracking, and this request."
+              title="Open this trip on your phone"
+              hint="Verified desk email — one tap, no password. Routes you to your company portal."
             />
           </div>
         ) : (
@@ -353,7 +353,7 @@ export default function PortalRequestPage() {
               onSignedIn={setSession}
               nextHref={afterQuoteHref}
               title="Keep this quote on your trips list"
-              hint="One tap with the email from your request — opens tracking, prior trips, and this quote."
+              hint="Verified desk email — one tap opens your company trips and this quote."
             />
           </div>
         ) : null}
