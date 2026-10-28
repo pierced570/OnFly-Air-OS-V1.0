@@ -5,8 +5,12 @@ import './index.css'
 import { App } from './App'
 import { AppErrorBoundary } from '@/components/AppErrorBoundary'
 import { initAppearance } from '@/lib/appearanceStore'
+import { registerPortalServiceWorker } from '@/lib/registerPortalServiceWorker'
+import { bootNativeClientShell } from '@/lib/nativeClientShell'
 
 initAppearance()
+bootNativeClientShell()
+registerPortalServiceWorker()
 
 /** Staff roster must load before login — do not defer behind idle hydrate. */
 void import('@/lib/staffStore').then((m) => {
