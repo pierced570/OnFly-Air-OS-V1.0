@@ -1,7 +1,7 @@
 /**
- * Quiet secondary sign-in — work email one-click.
+ * Quiet secondary sign-in — magic-link email (same stack as /portal).
  * Supports ?company=slug and ?next=/portal/... for desk outreach links.
- * Primary path is still book/quote without login first.
+ * Primary path remains book/quote without login first.
  */
 
 import { Navigate, useSearchParams } from 'react-router-dom'

@@ -26,7 +26,7 @@ export type PortalShareClientLike = {
 
 /** Paths clients may land on after one-click login (`?next=`). */
 const SAFE_NEXT =
-  /^\/portal(?:\/(?:history|account|request|trips\/[A-Za-z0-9_-]+|track\/[A-Za-z0-9_-]+|c\/[a-z0-9-]+|login))?(?:\?[^\s#]*)?$/i
+  /^\/portal(?:\/(?:history|account|request|auth|trips\/[A-Za-z0-9_-]+|track\/[A-Za-z0-9_-]+|c\/[a-z0-9-]+|login))?(?:\?[^\s#]*)?$/i
 
 export function isSafePortalNextPath(raw: string | null | undefined): boolean {
   if (!raw) return false
@@ -155,7 +155,7 @@ export function portalSharePath(
     }
     case 'track': {
       const tok = (opts?.trackToken ?? '').trim()
-      // Track tokens are guest-capable — never force login wrapper.
+      // Soft-gate URL: identifies the trip; live body needs sign-in.
       if (!tok) return wrap('/portal')
       return `/portal/track/${tok}`
     }
@@ -210,20 +210,20 @@ export function buildPortalShareLinkRows(opts: {
     },
     {
       kind: 'login',
-      label: 'One-click login',
-      hint: 'Work email only — opens their trips',
+      label: 'Magic-link / login',
+      hint: 'Email a sign-in link — opens their trips',
       path: portalSharePath('login', base),
     },
     {
       kind: 'book',
       label: 'Request a flight',
-      hint: 'Guest book form (no login first)',
+      hint: 'Guest book — /book (no account)',
       path: portalSharePath('book', { ...base, viaLogin: false }),
     },
     {
       kind: 'quote',
       label: 'Rough quote',
-      hint: 'Soft pricing first',
+      hint: 'Guest soft quote — /quote (no account)',
       path: portalSharePath('quote', { ...base, viaLogin: false }),
     },
     {
@@ -244,8 +244,8 @@ export function buildPortalShareLinkRows(opts: {
   if (opts.trackToken) {
     rows.push({
       kind: 'track',
-      label: 'Guest track link',
-      hint: 'Magic link — no login',
+      label: 'Track link (sign-in gated)',
+      hint: 'Identifies the trip — live updates need account',
       path: portalSharePath('track', base),
     })
   }
