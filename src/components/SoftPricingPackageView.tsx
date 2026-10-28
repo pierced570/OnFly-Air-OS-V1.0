@@ -1,6 +1,5 @@
 /**
- * Soft quote UI — matches portal soft-pricing mockups.
- * Cream client surface; dark hero; 3-col class cards; door table; static guide.
+ * Soft quote UI — cream client surface; dark hero; class cards + math/CTA.
  */
 
 import { Link } from 'react-router-dom'
