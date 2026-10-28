@@ -146,42 +146,42 @@ export function PortalLanding(props?: {
         </a>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-4 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:pt-8">
-        <section>
+      <main className="mx-auto grid max-w-6xl gap-6 px-4 pb-16 pt-4 sm:gap-10 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:pt-8">
+        {/* Headline first; on mobile CTAs come next via order, features last */}
+        <section className="order-1 lg:order-1">
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
             {company ? 'Company portal' : 'Client portal'}
           </div>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-cream sm:text-5xl">
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-cream sm:text-5xl">
             {company
               ? company
               : 'Your freight, in the air and on the screen.'}
           </h1>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-cream/60">
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-cream/60 sm:mt-4 sm:text-base">
             {company
               ? 'Request a trip without an account, or open company shipments with a verified work email. Quotes typically come back in 10–15 minutes.'
               : 'Request a trip or rough quote without an account — or open live shipments with a verified work email from your company desk. Quotes typically come back in 10–15 minutes.'}
           </p>
-          <ol className="mt-6 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-4">
+          {/* Desktop: features under copy. Mobile: compact strip after CTAs (order-3). */}
+          <ol className="mt-8 hidden grid-cols-3 gap-4 lg:grid">
             {FEATURES.map((f) => (
               <li
                 key={f.n}
                 className="flex min-w-0 flex-col gap-1.5 border-t border-gold/30 pt-3"
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-gold/40 text-xs font-semibold text-gold sm:h-8 sm:w-8 sm:text-sm">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-gold/40 text-sm font-semibold text-gold">
                   {f.n}
                 </span>
-                <div className="text-[12px] font-semibold leading-snug text-cream sm:text-sm">
+                <div className="text-sm font-semibold leading-snug text-cream">
                   {f.title}
                 </div>
-                <p className="text-[11px] leading-snug text-cream/50 sm:text-xs">
-                  {f.body}
-                </p>
+                <p className="text-xs leading-snug text-cream/50">{f.body}</p>
               </li>
             ))}
           </ol>
         </section>
 
-        <section className="space-y-4">
+        <section className="order-2 space-y-3 lg:order-2 lg:space-y-4">
           <PortalOneClickLogin
             variant="dark"
             onSignedIn={props?.onSignedIn}
@@ -197,7 +197,7 @@ export function PortalLanding(props?: {
 
           <Link
             to="/book"
-            className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink transition hover:bg-gold-lt"
+            className="flex min-h-[4.75rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-4 text-ink transition hover:bg-gold-lt sm:min-h-[5.5rem] sm:py-5"
           >
             <div>
               <div className="text-lg font-semibold">Request a trip</div>
@@ -236,6 +236,23 @@ export function PortalLanding(props?: {
             and we&apos;ll build the request with you.
           </div>
         </section>
+
+        {/* Mobile-only: 1–2–3 as a single compact horizontal row under the CTAs */}
+        <ol className="order-3 grid grid-cols-3 gap-2 border-t border-cream/10 pt-4 lg:hidden">
+          {FEATURES.map((f) => (
+            <li
+              key={f.n}
+              className="flex min-w-0 flex-col items-start gap-1 text-left"
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-full border border-gold/40 text-[11px] font-semibold text-gold">
+                {f.n}
+              </span>
+              <div className="text-[11px] font-semibold leading-snug text-cream">
+                {f.title}
+              </div>
+            </li>
+          ))}
+        </ol>
       </main>
     </div>
   )
