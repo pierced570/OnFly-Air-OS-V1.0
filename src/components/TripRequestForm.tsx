@@ -34,11 +34,16 @@ import {
   STANDARD_CARGO_DEFAULTS,
   isStandardToolingPieces,
 } from '@/domain/standardTooling'
+import { portalRequestAutofillFromEmail } from '@/domain/portalRequestAutofill'
 import {
   addSessionClient,
   listSessionClients,
   subscribeClients,
 } from '@/lib/requestStore'
+import {
+  listClients as listDirectoryClients,
+  subscribeClients as subscribeDirectoryClients,
+} from '@/lib/clientStore'
 
 export type PortalSubmitIntent = 'estimate' | 'hard_quote'
 
@@ -164,6 +169,45 @@ export function TripRequestForm({
     listSessionClients,
     listSessionClients,
   )
+  /** Full directory (phones + domains) for portal email autofill. */
+  const directoryClients = useSyncExternalStore(
+    subscribeDirectoryClients,
+    listDirectoryClients,
+    listDirectoryClients,
+  )
+
+  function applyPortalEmailAutofill(emailRaw: string) {
+    if (variant !== 'portal') return
+    const hit = portalRequestAutofillFromEmail(
+      emailRaw,
+      directoryClients.map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        invoice_email: c.invoice_email,
+        contacts: c.contacts.map((x) => ({
+          email: x.email,
+          cell: x.cell,
+          name: x.name,
+          role: x.role,
+        })),
+        profile: {
+          allowed_email_domains: c.profile.allowed_email_domains ?? null,
+          website: c.profile.website ?? null,
+          front_desk_phone: c.profile.front_desk_phone ?? null,
+          ops_callback_phone: c.profile.ops_callback_phone ?? null,
+        },
+      })),
+    )
+    if (!hit) return
+    setDraft((d) => ({
+      ...d,
+      email: emailRaw.trim().toLowerCase(),
+      client_id: hit.client_id,
+      client_name: hit.client_name || d.client_name,
+      urgent_phone: hit.urgent_phone || d.urgent_phone,
+    }))
+  }
 
   function setPaxCount(n: number) {
     const count = Math.max(0, Math.min(20, n))
@@ -347,11 +391,15 @@ export function TripRequestForm({
                 type="email"
                 required={!wizard}
                 value={draft.email}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, email: e.target.value }))
-                }
+                onChange={(e) => {
+                  const value = e.target.value
+                  setDraft((d) => ({ ...d, email: value }))
+                  applyPortalEmailAutofill(value)
+                }}
+                onBlur={(e) => applyPortalEmailAutofill(e.target.value)}
                 placeholder="you@company.com"
                 className={inputCls}
+                autoComplete="email"
               />
             </label>
             <label className={labelCls}>
@@ -368,6 +416,13 @@ export function TripRequestForm({
               />
             </label>
           </div>
+          {draft.client_id && draft.client_name?.trim() ? (
+            <p className="text-[11px] text-muted">
+              Matched{' '}
+              <span className="font-medium text-ink">{draft.client_name}</span>{' '}
+              from your email — edit anything that looks off.
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className={labelCls}>
               Best number for urgent matters
@@ -1161,37 +1216,55 @@ export function TripRequestForm({
                   leg on the next step.
                 </p>
               ) : (
-              <label
-                className={[
-                  'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
-                  draft.cargo_only
-                    ? 'border-gold bg-gold/15 text-ink'
-                    : 'border-border bg-white text-[var(--text)]',
-                ].join(' ')}
-              >
-                <input
-                  type="checkbox"
-                  checked={draft.cargo_only}
-                  onChange={(e) => {
-                    const cargo_only = e.target.checked
-                    setDraft((d) =>
-                      syncLegPayloadFromCargoOnly({
-                        ...d,
-                        cargo_only,
-                        pax_details_deferred: cargo_only
-                          ? false
-                          : d.pax_details_deferred,
-                        pax: cargo_only
-                          ? []
-                          : d.pax.length
-                            ? d.pax
-                            : [{ name: '', weight_lbs: '', dob: '' }],
-                      }),
-                    )
-                  }}
-                />
-                Cargo only (no passengers)
-              </label>
+                <>
+                  <label
+                    className={[
+                      'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
+                      draft.cargo_only
+                        ? 'border-gold bg-gold/15 text-ink'
+                        : 'border-border bg-white text-[var(--text)]',
+                    ].join(' ')}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={draft.cargo_only}
+                      onChange={(e) => {
+                        const cargo_only = e.target.checked
+                        setDraft((d) =>
+                          syncLegPayloadFromCargoOnly({
+                            ...d,
+                            cargo_only,
+                            pax_details_deferred: cargo_only
+                              ? false
+                              : d.pax_details_deferred,
+                            pax: cargo_only
+                              ? []
+                              : d.pax.length
+                                ? d.pax
+                                : [{ name: '', weight_lbs: '', dob: '' }],
+                          }),
+                        )
+                      }}
+                    />
+                    Cargo only (no passengers)
+                  </label>
+                  {!draft.cargo_only ? (
+                    <label className={`${labelCls} mt-3 max-w-[10rem]`}>
+                      Number of passengers
+                      <NumericDraftInput
+                        integer
+                        min={1}
+                        max={20}
+                        className={inputCls}
+                        value={paxCount > 0 ? paxCount : 1}
+                        onValueChange={(n) => {
+                          if (n == null) return
+                          setPaxCount(Math.max(1, n))
+                        }}
+                      />
+                    </label>
+                  ) : null}
+                </>
               )}
             </div>
           </div>

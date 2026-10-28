@@ -159,6 +159,32 @@ export function requestHardQuote(id: string): TripRequestRecord | undefined {
   return row
 }
 
+/** Attach spine trip + track token after portal soft/hard quote connect. */
+export function attachRequestTripLink(
+  id: string,
+  link: { tripId: string; trackToken?: string | null },
+): TripRequestRecord | undefined {
+  const row = requests.get(id)
+  if (!row) return undefined
+  row.linked_trip_id = link.tripId
+  if (link.trackToken) row.track_token = link.trackToken
+  bump()
+  return row
+}
+
+/** Bind portal requester to a client profile (one-click login + home filter). */
+export function attachRequestClient(
+  id: string,
+  client: { clientId: string; clientName?: string | null },
+): TripRequestRecord | undefined {
+  const row = requests.get(id)
+  if (!row) return undefined
+  row.client_id = client.clientId
+  if (client.clientName != null) row.client_name = client.clientName
+  bump()
+  return row
+}
+
 export function updateRequestStatus(
   id: string,
   status: TripRequestRecord['status'],

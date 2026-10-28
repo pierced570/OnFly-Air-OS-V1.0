@@ -46,6 +46,7 @@ import {
   parsePortalDomainList,
   suggestPortalDomainFromWebsite,
 } from '@/domain/portalDomains'
+import { DeskPortalSharePanel } from '@/components/DeskPortalSharePanel'
 
 const input =
   'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
@@ -270,11 +271,29 @@ function InfoTab({
             placeholder="company.com"
           />
         </label>
+        <label className={label}>
+          Company portal slug
+          <input
+            className={`${input} avionic`}
+            value={profile.portal_slug ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value.trim().toLowerCase()
+              patchProfile({
+                portal_slug: raw
+                  ? raw.replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
+                  : null,
+              })
+            }}
+            placeholder="acme (optional — defaults from domain)"
+          />
+        </label>
         <p className="text-[11px] leading-relaxed text-muted">
           Verified emails will be routed to the correct client portal. Anyone
           with an address at these domains sees this client&apos;s shipments.
           Exact contacts on file still work one-by-one even if their domain is
-          not listed. Public mailboxes are never allowed.
+          not listed. Public mailboxes are never allowed. Share{' '}
+          <span className="avionic text-ink">/portal/c/&#123;slug&#125;</span>{' '}
+          so logistics lands on this company.
         </p>
         {inferPortalDomainsFromOnFile(client).length > 0 ? (
           <p className="text-[11px] text-muted">
@@ -315,6 +334,7 @@ function InfoTab({
             + Sync domains from emails on file
           </button>
         </div>
+        <DeskPortalSharePanel clientId={client.id} />
         <label className={label}>
           Notes
           <textarea

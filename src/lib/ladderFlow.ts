@@ -4,7 +4,6 @@
  */
 
 import { createMapsAdapter } from '@/adapters/maps'
-import { parseDims } from '@/domain/dimsParser'
 import { AIRPORTS, lookupAirport } from '@/domain/airports'
 import {
   pickClosestByBand,
@@ -13,7 +12,7 @@ import {
   type BandShortlist,
 } from '@/domain/shortlistBands'
 import type { TripRequestRecord } from '@/domain/tripRequest'
-import { draftPayloadKind } from '@/domain/tripRequest'
+import { cargoPiecesFromDraft, draftPayloadKind } from '@/domain/tripRequest'
 import { getClient } from '@/lib/clientStore'
 import { fboFeesForAirport } from '@/lib/fboStore'
 import { fleetStatusByTail } from '@/lib/fleetRadar'
@@ -62,8 +61,8 @@ export async function createRoutedTripFromRequest(
   const originAp = resolveAirport(leg.origin_icao)
   const destAp = resolveAirport(leg.dest_icao)
   const payloadKind = payloadKindOfRequest(row)
-  const parsed = parseDims(row.cargo_notes || '', { unit: row.dim_unit })
-  const pieces = payloadKind === 'pax' ? [] : parsed.pieces
+  // Same piece source as soft pricing — includes “Not yet” assumed-small cargo.
+  const pieces = payloadKind === 'pax' ? [] : cargoPiecesFromDraft(row)
 
   if (payloadKind !== 'pax' && !pieces.length) {
     throw new Error(

@@ -63,6 +63,32 @@ export type PortalHistoryRow = {
   at: string | null
 }
 
+/** Open portal soft/hard quote request — links into trip track or request restore. */
+export type PortalOpenRequestCard = {
+  id: string
+  ref: number
+  lane: string
+  summary: string
+  statusLabel: string
+  hardQuote: boolean
+  href: string
+  created_at: string
+}
+
+export type PortalOpenRequestLike = {
+  id: string
+  ref: number
+  lane: string
+  summary: string
+  status: string
+  created_at: string
+  hard_quote_requested_at?: string | null
+  linked_trip_id?: string | null
+  track_token?: string | null
+  email?: string | null
+  client_id?: string | null
+}
+
 export function isPortalAppActiveState(state: string): boolean {
   return PORTAL_APP_ACTIVE_STATES.has(state)
 }
@@ -121,6 +147,37 @@ export function partitionPortalAppTrips<T extends { state: string }>(
     else active.push(t)
   }
   return { active, history }
+}
+
+/** Cards for open portal requests — deep-link trip track when linked, else restore quote. */
+export function buildPortalOpenRequestCards(
+  requests: PortalOpenRequestLike[],
+): PortalOpenRequestCard[] {
+  return [...requests]
+    .filter((r) => r.status !== 'withdrawn')
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((r) => {
+      const hardQuote = Boolean(r.hard_quote_requested_at)
+      const href = r.linked_trip_id
+        ? `/portal/trips/${r.linked_trip_id}`
+        : r.track_token
+          ? `/portal/track/${r.track_token}`
+          : `/portal/request?requestId=${encodeURIComponent(r.id)}`
+      return {
+        id: r.id,
+        ref: r.ref,
+        lane: (r.lane || '').trim() || '—',
+        summary: (r.summary || '').trim() || 'Trip request',
+        statusLabel: hardQuote
+          ? 'Hard quote requested'
+          : r.status === 'quoted'
+            ? 'Rough quote'
+            : 'Request open',
+        hardQuote,
+        href,
+        created_at: r.created_at,
+      }
+    })
 }
 
 /**
@@ -231,6 +288,17 @@ export function portalAppTabPath(tab: PortalAppTab): string {
   return '/portal/account'
 }
 
+/**
+ * Request-page chrome when the client is signed in.
+ * Guests see "Already moving? Sign in" instead.
+ */
+export function portalRequestHelloLabel(
+  companyName: string | null | undefined,
+): string {
+  const name = (companyName ?? '').trim()
+  return name ? `Hello ${name}` : 'Hello'
+}
+
 export function portalAppTabFromPath(pathname: string): PortalAppTab | null {
   if (pathname === '/portal' || pathname === '/portal/') return 'home'
   if (pathname.startsWith('/portal/request')) return 'book'
@@ -239,6 +307,7 @@ export function portalAppTabFromPath(pathname: string): PortalAppTab | null {
   if (pathname.startsWith('/portal/account')) return 'account'
   if (pathname.startsWith('/portal/trips/') || pathname.startsWith('/portal/track/'))
     return 'home'
+  if (pathname.startsWith('/portal/c/')) return null
   if (pathname.startsWith('/portal/login')) return null
   return null
 }
