@@ -1,6 +1,6 @@
 /**
- * Explicit sign-in route — work-email domain form. Signed-in clients go straight
- * home so login ↔ shipments ↔ track stay one loop.
+ * Quiet secondary sign-in — work email one-click.
+ * Primary path is book/quote without login first.
  */
 
 import { Navigate } from 'react-router-dom'
@@ -17,5 +17,5 @@ export default function PortalLoginPage() {
     )
   }
   if (signedIn) return <Navigate to="/portal" replace />
-  return <PortalLanding onSignedIn={setSession} />
+  return <PortalLanding loginFocus onSignedIn={setSession} />
 }

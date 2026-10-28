@@ -286,11 +286,17 @@ export default function PortalHomePage() {
     </>
   ) : (
     <>
-      <Link to="/portal/login" className="text-gold hover:text-gold-lt">
-        Sign in
+      <Link
+        to="/portal/request?mode=book"
+        className="text-gold hover:text-gold-lt"
+      >
+        Book
       </Link>
-      <Link to="/portal/request" className="text-gold hover:text-gold-lt">
-        Request a trip
+      <Link
+        to="/portal/request?mode=quote"
+        className="text-gold hover:text-gold-lt"
+      >
+        Rough quote
       </Link>
     </>
   )
@@ -451,10 +457,10 @@ export default function PortalHomePage() {
             <div className="flex flex-wrap items-center gap-3">
               <span className="avionic text-[11px] text-muted">{nowLabel}</span>
               <Link
-                to="/portal/login"
+                to="/portal/request?mode=book"
                 className="rounded-md bg-gold px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
               >
-                Sign in
+                Book a trip
               </Link>
             </div>
           </div>

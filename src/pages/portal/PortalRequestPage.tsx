@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { PortalAppNav } from '@/components/PortalAppNav'
+import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { SoftPricingPackageView } from '@/components/SoftPricingPackageView'
 import { usePortalSession } from '@/hooks/usePortalSession'
 import {
@@ -55,7 +56,10 @@ function draftFromRecord(row: TripRequestRecord): TripRequestDraft {
 }
 
 export default function PortalRequestPage() {
-  const { signedIn } = usePortalSession()
+  const { signedIn, setSession } = usePortalSession()
+  const [searchParams] = useSearchParams()
+  const entryMode: 'quote' | 'book' =
+    searchParams.get('mode') === 'book' ? 'book' : 'quote'
   const [done, setDone] = useState<TripRequestRecord | null>(null)
   const [intent, setIntent] = useState<PortalSubmitIntent | null>(null)
   const [softPackage, setSoftPackage] =
@@ -211,12 +215,23 @@ export default function PortalRequestPage() {
         >
           Call 24-hr ops · {BRAND_PHONE}
         </a>
-        <Link
-          to="/portal"
-          className="mt-4 inline-block text-sm font-semibold text-gold"
-        >
-          ← Portal
-        </Link>
+        {!signedIn && done.email?.includes('@') ? (
+          <div className="mt-6">
+            <PortalOneClickLogin
+              email={done.email}
+              onSignedIn={setSession}
+              title="Save this trip to your phone"
+              hint="One tap with the email you just used — no password."
+            />
+          </div>
+        ) : (
+          <Link
+            to="/portal"
+            className="mt-4 inline-block text-sm font-semibold text-gold"
+          >
+            ← Portal
+          </Link>
+        )}
       </WizardShell>
     )
   }
@@ -267,6 +282,20 @@ export default function PortalRequestPage() {
               }}
             />
           )}
+        {!signedIn &&
+        done.email?.includes('@') &&
+        !estimating &&
+        softPackage &&
+        !softPackage.error ? (
+          <div className="mt-6 px-1 sm:px-0">
+            <PortalOneClickLogin
+              email={done.email}
+              onSignedIn={setSession}
+              title="Keep this quote on your trips list"
+              hint="One tap with the email from your request — no password."
+            />
+          </div>
+        ) : null}
       </WizardShell>
     )
   }
@@ -275,24 +304,27 @@ export default function PortalRequestPage() {
     <WizardShell appNav={signedIn}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
         <Link to="/portal" className="font-semibold text-gold">
-          ← Portal
+          ← Start over
         </Link>
-        <p className="text-ink/70">
-          Already moving?{' '}
-          <Link to="/portal/login" className="font-semibold text-ink underline">
-            Sign in
+        {signedIn ? (
+          <Link to="/portal" className="font-semibold text-ink underline">
+            My trips
           </Link>
-        </p>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
         <header className="flex flex-wrap items-start justify-between gap-3 bg-ink px-5 py-5 text-cream sm:px-6">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              Let&apos;s get your freight moving
+              {entryMode === 'book'
+                ? 'Request a flight / delivery'
+                : 'Get a rough quote'}
             </h1>
             <p className="mt-1 text-sm text-cream/60">
-              Three quick steps. Our team quotes in 10–15 minutes.
+              {entryMode === 'book'
+                ? 'Enter the details — no login yet. We soft-quote or hard-quote from the same form.'
+                : 'Three quick steps. Soft pricing first, then push to a hard quote if it fits.'}
             </p>
           </div>
           <a
@@ -309,10 +341,11 @@ export default function PortalRequestPage() {
         </header>
         <div className="px-4 py-5 sm:px-6">
           <TripRequestForm
-            key={`${client?.id ?? 'anon'}-${formKey}`}
+            key={`${client?.id ?? 'anon'}-${formKey}-${entryMode}`}
             variant="portal"
             initial={initial}
             portalWizard
+            portalEntryMode={entryMode}
             onSubmit={(draft, submitIntent) => {
               void onSubmit(draft, submitIntent)
             }}

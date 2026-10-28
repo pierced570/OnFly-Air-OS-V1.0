@@ -56,6 +56,11 @@ type Props = {
    * Implies portalDualActions on the last step.
    */
   portalWizard?: boolean
+  /**
+   * Landing entry: quote → soft estimate first; book → hard quote first.
+   * Both still support soft → hard like existing portal tech.
+   */
+  portalEntryMode?: 'quote' | 'book'
   onSubmit: (
     draft: TripRequestDraft,
     intent?: PortalSubmitIntent,
@@ -97,6 +102,7 @@ export function TripRequestForm({
   submitLabel,
   portalDualActions = false,
   portalWizard = false,
+  portalEntryMode = 'quote',
   onSubmit,
 }: Props) {
   const [draft, setDraft] = useState<TripRequestDraft>(() => {
@@ -1774,43 +1780,89 @@ export function TripRequestForm({
 
       {dualActions ? (
         <div className="space-y-5">
-          <div>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={(e) => void handleSubmit(e, 'estimate')}
-              className="w-full rounded-xl border-2 border-gold bg-white px-4 py-4 text-sm font-semibold text-ink hover:bg-gold/10 disabled:opacity-50"
-            >
-              {busy && pendingIntent === 'estimate'
-                ? 'Estimating…'
-                : 'What could this possibly cost?'}
-            </button>
-            <p className="mt-2 text-xs text-muted">
-              A ballpark from our historical pricing. Real prices vary with ASAP
-              availability, repositioning time and aircraft type required.
-            </p>
-          </div>
-          <div>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={(e) => {
-                // Dial in the same click gesture — awaits after this get blocked on mobile.
-                dialBrandOps()
-                void handleSubmit(e, 'hard_quote')
-              }}
-              className="w-full rounded-xl bg-ink px-4 py-4 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
-            >
-              {busy && pendingIntent === 'hard_quote'
-                ? 'Submitting…'
-                : 'Have OnFly quote this NOW'}
-            </button>
-            <p className="mt-2 text-xs text-muted">
-              Submits your details by email and opens a call to 24-hr ops at{' '}
-              <span className="avionic font-medium text-ink">{BRAND_PHONE}</span>
-              . Typical quote time 10–15 minutes.
-            </p>
-          </div>
+          {portalEntryMode === 'quote' ? (
+            <>
+              <div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={(e) => void handleSubmit(e, 'estimate')}
+                  className="w-full rounded-xl bg-gold px-4 py-4 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
+                >
+                  {busy && pendingIntent === 'estimate'
+                    ? 'Estimating…'
+                    : 'Get my rough quote'}
+                </button>
+                <p className="mt-2 text-xs text-muted">
+                  Soft pricing from our history — then you can push to a hard
+                  quote if it fits.
+                </p>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={(e) => {
+                    dialBrandOps()
+                    void handleSubmit(e, 'hard_quote')
+                  }}
+                  className="w-full rounded-xl border-2 border-ink bg-white px-4 py-4 text-sm font-semibold text-ink hover:bg-ink/5 disabled:opacity-50"
+                >
+                  {busy && pendingIntent === 'hard_quote'
+                    ? 'Submitting…'
+                    : 'Skip — have OnFly quote this NOW'}
+                </button>
+                <p className="mt-2 text-xs text-muted">
+                  Emails the desk and opens a call to{' '}
+                  <span className="avionic font-medium text-ink">
+                    {BRAND_PHONE}
+                  </span>
+                  . Typical hard quote 10–15 minutes.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={(e) => {
+                    dialBrandOps()
+                    void handleSubmit(e, 'hard_quote')
+                  }}
+                  className="w-full rounded-xl bg-ink px-4 py-4 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
+                >
+                  {busy && pendingIntent === 'hard_quote'
+                    ? 'Submitting…'
+                    : 'Request this flight / delivery NOW'}
+                </button>
+                <p className="mt-2 text-xs text-muted">
+                  Submits your details and opens a call to 24-hr ops at{' '}
+                  <span className="avionic font-medium text-ink">
+                    {BRAND_PHONE}
+                  </span>
+                  . Typical quote time 10–15 minutes.
+                </p>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={(e) => void handleSubmit(e, 'estimate')}
+                  className="w-full rounded-xl border-2 border-gold bg-white px-4 py-4 text-sm font-semibold text-ink hover:bg-gold/10 disabled:opacity-50"
+                >
+                  {busy && pendingIntent === 'estimate'
+                    ? 'Estimating…'
+                    : 'Get a rough quote first'}
+                </button>
+                <p className="mt-2 text-xs text-muted">
+                  Soft pricing first — push to a hard quote from the next
+                  screen when you&apos;re ready.
+                </p>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <button
