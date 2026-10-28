@@ -1216,53 +1216,55 @@ export function TripRequestForm({
                   leg on the next step.
                 </p>
               ) : (
-              <label
-                className={[
-                  'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
-                  draft.cargo_only
-                    ? 'border-gold bg-gold/15 text-ink'
-                    : 'border-border bg-white text-[var(--text)]',
-                ].join(' ')}
-              >
-                <input
-                  type="checkbox"
-                  checked={draft.cargo_only}
-                  onChange={(e) => {
-                    const cargo_only = e.target.checked
-                    setDraft((d) =>
-                      syncLegPayloadFromCargoOnly({
-                        ...d,
-                        cargo_only,
-                        pax_details_deferred: cargo_only
-                          ? false
-                          : d.pax_details_deferred,
-                        pax: cargo_only
-                          ? []
-                          : d.pax.length
-                            ? d.pax
-                            : [{ name: '', weight_lbs: '', dob: '' }],
-                      }),
-                    )
-                  }}
-                />
-                Cargo only (no passengers)
-              </label>
-              {!draft.cargo_only ? (
-                <label className={`${labelCls} mt-3 max-w-[10rem]`}>
-                  Number of passengers
-                  <NumericDraftInput
-                    integer
-                    min={1}
-                    max={20}
-                    className={inputCls}
-                    value={paxCount > 0 ? paxCount : 1}
-                    onValueChange={(n) => {
-                      if (n == null) return
-                      setPaxCount(Math.max(1, n))
-                    }}
-                  />
-                </label>
-              ) : null}
+                <>
+                  <label
+                    className={[
+                      'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
+                      draft.cargo_only
+                        ? 'border-gold bg-gold/15 text-ink'
+                        : 'border-border bg-white text-[var(--text)]',
+                    ].join(' ')}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={draft.cargo_only}
+                      onChange={(e) => {
+                        const cargo_only = e.target.checked
+                        setDraft((d) =>
+                          syncLegPayloadFromCargoOnly({
+                            ...d,
+                            cargo_only,
+                            pax_details_deferred: cargo_only
+                              ? false
+                              : d.pax_details_deferred,
+                            pax: cargo_only
+                              ? []
+                              : d.pax.length
+                                ? d.pax
+                                : [{ name: '', weight_lbs: '', dob: '' }],
+                          }),
+                        )
+                      }}
+                    />
+                    Cargo only (no passengers)
+                  </label>
+                  {!draft.cargo_only ? (
+                    <label className={`${labelCls} mt-3 max-w-[10rem]`}>
+                      Number of passengers
+                      <NumericDraftInput
+                        integer
+                        min={1}
+                        max={20}
+                        className={inputCls}
+                        value={paxCount > 0 ? paxCount : 1}
+                        onValueChange={(n) => {
+                          if (n == null) return
+                          setPaxCount(Math.max(1, n))
+                        }}
+                      />
+                    </label>
+                  ) : null}
+                </>
               )}
             </div>
           </div>
