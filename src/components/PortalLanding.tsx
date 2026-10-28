@@ -173,6 +173,8 @@ export function PortalLanding(props?: {
         </section>
 
         <section className="space-y-4">
+          <PortalInstallBanner variant="dark" defaultOpen />
+
           <PortalOneClickLogin
             variant="dark"
             onSignedIn={props?.onSignedIn}
@@ -226,8 +228,6 @@ export function PortalLanding(props?: {
             </a>{' '}
             and we&apos;ll build the request with you.
           </div>
-
-          <PortalInstallBanner variant="dark" />
         </section>
       </main>
     </div>

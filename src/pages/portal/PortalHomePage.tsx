@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { PortalHomeTripCard } from '@/components/PortalHomeTripCard'
+import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalLanding } from '@/components/PortalLanding'
 import { PortalShell } from '@/components/PortalShell'
 import {
@@ -346,6 +347,8 @@ export default function PortalHomePage() {
 
       {signedIn ? (
         <section className="space-y-5">
+          <PortalInstallBanner variant="cream" defaultOpen />
+
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
