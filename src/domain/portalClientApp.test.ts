@@ -7,6 +7,7 @@ import {
   portalAppStateLabel,
   portalAppTabFromPath,
   portalAppTabPath,
+  portalRequestHelloLabel,
 } from './portalClientApp'
 
 describe('portalClientApp', () => {
@@ -90,6 +91,8 @@ describe('portalClientApp', () => {
     expect(portalAppTabFromPath('/portal/login')).toBeNull()
     expect(portalAppStateLabel('in_progress')).toBe('Live')
     expect(portalAppStateLabel('quoted_hard')).toBe('Quote')
+    expect(portalRequestHelloLabel('PSA Airlines')).toBe('Hello PSA Airlines')
+    expect(portalRequestHelloLabel('  ')).toBe('Hello')
   })
 
   it('builds open request cards that deep-link trip track or restore quote', () => {
