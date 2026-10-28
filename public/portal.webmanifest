@@ -1,0 +1,25 @@
+{
+  "name": "OnFly Client",
+  "short_name": "OnFly",
+  "description": "Book charters, track shipments, and find POs & invoices — OnFly client app.",
+  "start_url": "/portal",
+  "scope": "/portal",
+  "display": "standalone",
+  "background_color": "#F7F2E3",
+  "theme_color": "#0C0C0E",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/brand/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/onfly-mark.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

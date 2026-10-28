@@ -55,7 +55,7 @@ export function SoftPricingPackageView(props: {
               }}
               className="w-full rounded-lg bg-[#C9A227] px-4 py-2.5 text-sm font-semibold text-[#0C0C0E] hover:bg-[#E3B341] sm:w-auto"
             >
-              Request this trip NOW · Call ops
+              Push to hard quote · Call ops
             </button>
           )}
           <a

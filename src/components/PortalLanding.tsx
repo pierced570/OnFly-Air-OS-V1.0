@@ -1,58 +1,55 @@
 /**
- * Unsigned portal gate — dark hero + work-email sign-in + request CTA.
+ * Unsigned client gate — two paths only, no login wall.
+ * Login comes after details (one-click with the request email).
  */
 
-import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { BRAND_LOGO_PATH, BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
+import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import type { PortalSession } from '@/domain/portalAuth'
-import { promotePortalGuestToSignedIn, signInPortalByWorkEmail } from '@/lib/portalAuth'
-
-const FEATURES = [
-  {
-    n: '1',
-    title: 'Live position & ETA',
-    body: 'Tail number, wheels-up, landing and delta against plan.',
-  },
-  {
-    n: '2',
-    title: 'Door-to-door visibility',
-    body: 'Pickup, FBO handoffs and final delivery on one timeline.',
-  },
-  {
-    n: '3',
-    title: 'No password to lose',
-    body: 'Verified work emails open the right company portal — no magic link.',
-  },
-] as const
 
 export function PortalLanding(props?: {
   onSignedIn?: (session: PortalSession) => void
+  /** Login-only page (quiet secondary). Default = start with book/quote. */
+  loginFocus?: boolean
 }) {
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault()
-    setError(null)
-    const addr = email.trim().toLowerCase()
-    if (!addr.includes('@')) {
-      setError('Enter a work email')
-      return
-    }
-    setBusy(true)
-    try {
-      const session = await signInPortalByWorkEmail(addr)
-      promotePortalGuestToSignedIn()
-      props?.onSignedIn?.(session)
-      navigate('/portal', { replace: true })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
+  if (props?.loginFocus) {
+    return (
+      <div
+        className="min-h-screen bg-[#0C0C0E] text-cream"
+        data-theme="client"
+      >
+        <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
+          <Link to="/portal">
+            <img
+              src={BRAND_LOGO_PATH}
+              alt="OnFly Air"
+              className="h-8 w-auto max-w-[160px] object-contain"
+            />
+          </Link>
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="text-[11px] font-semibold text-gold"
+          >
+            {BRAND_PHONE}
+          </a>
+        </header>
+        <main className="mx-auto max-w-lg space-y-4 px-4 pb-16 sm:px-8">
+          <PortalOneClickLogin
+            variant="dark"
+            onSignedIn={props.onSignedIn}
+            title="Open your trips"
+            hint="Work email — no password. Prefer to start a new move?"
+          />
+          <Link
+            to="/portal"
+            className="block text-center text-sm text-cream/60 hover:text-gold"
+          >
+            ← Back to book or quote
+          </Link>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -60,7 +57,7 @@ export function PortalLanding(props?: {
       className="min-h-screen bg-[#0C0C0E] text-cream"
       data-theme="client"
     >
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
+      <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
         <img
           src={BRAND_LOGO_PATH}
           alt="OnFly Air"
@@ -71,83 +68,33 @@ export function PortalLanding(props?: {
           className="inline-flex min-h-11 items-center gap-2 rounded-full border border-cream/15 bg-[#141414] px-3 py-1.5 text-[11px] text-cream/85"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]" aria-hidden />
-          24-hr ops ·{' '}
           <span className="font-semibold text-gold">{BRAND_PHONE}</span>
         </a>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-4 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:pt-10">
-        <section>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
-            Client portal
-          </div>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-cream sm:text-5xl">
-            Your freight, in the air and on the screen.
-          </h1>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-cream/60">
-            Sign in to watch shipments move in real time, or request a new trip
-            without an account. Quotes typically come back in 10–15 minutes.
-          </p>
-          <ol className="mt-10 space-y-5">
-            {FEATURES.map((f) => (
-              <li key={f.n} className="flex gap-4">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/40 text-sm font-semibold text-gold">
-                  {f.n}
-                </span>
-                <div>
-                  <div className="font-semibold text-cream">{f.title}</div>
-                  <p className="mt-0.5 text-sm text-cream/55">{f.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
+      <main className="mx-auto flex max-w-lg flex-col px-4 pb-16 pt-6 sm:px-8 sm:pt-10">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
+          OnFly Air
+        </p>
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-cream sm:text-5xl">
+          Need a flight or a delivery?
+        </h1>
+        <p className="mt-3 text-base leading-relaxed text-cream/60">
+          No account first. Tell us the trip, get a rough quote, then book —
+          login is one tap with your email when you&apos;re ready.
+        </p>
 
-        <section className="space-y-4">
-          <div className="rounded-2xl bg-white p-5 text-ink shadow-xl sm:p-6">
-            <h2 className="text-lg font-semibold">See your shipments</h2>
-            <p className="mt-1 text-sm text-muted">
-              Enter your work email to open your company portal — no password
-              or magic link.
-            </p>
-            <form onSubmit={onSubmit} className="mt-4 space-y-3">
-              <label className="block text-xs font-medium text-muted">
-                Work email
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  autoComplete="email"
-                  className="mt-1 w-full rounded-lg border border-[#e5dfd0] bg-[#F7F2E3] px-3 py-2.5 text-sm text-ink outline-none focus:border-gold"
-                />
-              </label>
-              {error ? (
-                <p className="text-sm text-[#C0392B]">{error}</p>
-              ) : null}
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full rounded-lg bg-ink px-4 py-3 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
-              >
-                {busy ? 'Signing in…' : 'Sign in'}
-              </button>
-            </form>
-            <p className="mt-3 text-[11px] leading-relaxed text-muted">
-              Verified emails will be routed to the correct client portal.
-              Personal mailboxes (Gmail, etc.) are not accepted. Not set up
-              yet? Request a trip below and we&apos;ll take it from there.
-            </p>
-          </div>
-
+        <div className="mt-10 space-y-3">
           <Link
-            to="/portal/request"
-            className="flex items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink transition hover:bg-gold-lt"
+            to="/portal/request?mode=book"
+            className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink transition hover:bg-gold-lt"
           >
             <div>
-              <div className="text-lg font-semibold">Request a trip</div>
+              <div className="text-lg font-semibold">
+                Request a flight / delivery
+              </div>
               <p className="mt-0.5 text-sm text-ink/75">
-                No sign-in required. Three quick steps, then we quote it.
+                Full move — we quote and arrange it.
               </p>
             </div>
             <span className="text-2xl font-light" aria-hidden>
@@ -155,17 +102,40 @@ export function PortalLanding(props?: {
             </span>
           </Link>
 
-          <div className="rounded-2xl border border-cream/10 bg-[#141414] px-5 py-4 text-sm text-cream/65 safe-bottom">
-            Time-critical right now? Call 24-hr ops at{' '}
-            <a
-              href={`tel:${BRAND_PHONE_E164}`}
-              className="font-semibold text-gold"
-            >
-              {BRAND_PHONE}
-            </a>{' '}
-            and we&apos;ll build the request with you.
-          </div>
-        </section>
+          <Link
+            to="/portal/request?mode=quote"
+            className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl border border-cream/20 bg-[#141414] px-5 py-5 text-cream transition hover:border-gold/50"
+          >
+            <div>
+              <div className="text-lg font-semibold">Get a rough quote</div>
+              <p className="mt-0.5 text-sm text-cream/55">
+                Soft pricing now — push to a hard quote when it fits.
+              </p>
+            </div>
+            <span className="text-2xl font-light text-gold" aria-hidden>
+              →
+            </span>
+          </Link>
+        </div>
+
+        <p className="mt-8 text-center text-sm text-cream/50">
+          Time-critical?{' '}
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="font-semibold text-gold"
+          >
+            Call {BRAND_PHONE}
+          </a>
+        </p>
+
+        <div className="mt-10 border-t border-cream/10 pt-6">
+          <Link
+            to="/portal/login"
+            className="block text-center text-sm text-cream/45 hover:text-cream/80"
+          >
+            Already booked? Open trips with email →
+          </Link>
+        </div>
       </main>
     </div>
   )

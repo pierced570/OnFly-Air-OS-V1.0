@@ -286,11 +286,17 @@ export default function PortalHomePage() {
     </>
   ) : (
     <>
-      <Link to="/portal/login" className="text-gold hover:text-gold-lt">
-        Sign in
+      <Link
+        to="/portal/request?mode=book"
+        className="text-gold hover:text-gold-lt"
+      >
+        Book
       </Link>
-      <Link to="/portal/request" className="text-gold hover:text-gold-lt">
-        Request a trip
+      <Link
+        to="/portal/request?mode=quote"
+        className="text-gold hover:text-gold-lt"
+      >
+        Rough quote
       </Link>
     </>
   )
@@ -316,7 +322,7 @@ export default function PortalHomePage() {
   }
 
   return (
-    <PortalShell headerActions={headerActions}>
+    <PortalShell headerActions={headerActions} appNav={signedIn}>
       {loadingAuth || (!signedIn && !guestReady) ? (
         <p className="text-sm text-muted">Checking session…</p>
       ) : null}
@@ -344,14 +350,17 @@ export default function PortalHomePage() {
                   ? 'No shipments yet'
                   : summaryLine}
               </h1>
+              <p className="mt-1 text-sm text-muted">
+                One-tap book a charter or logistics move — or open a live trip.
+              </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
               <span className="avionic text-[11px] text-muted">{nowLabel}</span>
               <Link
                 to="/portal/request"
-                className="rounded-md bg-gold px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
+                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-md bg-gold px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt sm:flex-none"
               >
-                Request a trip
+                Book a trip
               </Link>
             </div>
           </div>
@@ -413,6 +422,15 @@ export default function PortalHomePage() {
               </Link>
             </div>
           ) : null}
+
+          <div className="flex flex-wrap gap-3 border-t border-border/60 pt-4 text-xs">
+            <Link to="/portal/history" className="font-semibold text-gold">
+              Trips, POs &amp; invoices →
+            </Link>
+            <Link to="/portal/account" className="text-muted hover:text-ink">
+              Account
+            </Link>
+          </div>
         </section>
       ) : null}
 
@@ -439,10 +457,10 @@ export default function PortalHomePage() {
             <div className="flex flex-wrap items-center gap-3">
               <span className="avionic text-[11px] text-muted">{nowLabel}</span>
               <Link
-                to="/portal/login"
+                to="/portal/request?mode=book"
                 className="rounded-md bg-gold px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
               >
-                Sign in
+                Book a trip
               </Link>
             </div>
           </div>

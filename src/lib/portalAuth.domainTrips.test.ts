@@ -77,6 +77,8 @@ describe('listPortalTripsForSession domain', () => {
         ready_label: 'ASAP',
         payload_summary: 'AOG parts',
         updated_at: '2026-08-16T00:00:00Z',
+        po_number: null,
+        code: null,
       },
     ])
   })

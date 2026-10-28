@@ -18,6 +18,8 @@ const OneTapPage = lazy(() => import('@/pages/OneTapPage'))
 const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalLoginPage = lazy(() => import('@/pages/portal/PortalLoginPage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
+const PortalHistoryPage = lazy(() => import('@/pages/portal/PortalHistoryPage'))
+const PortalAccountPage = lazy(() => import('@/pages/portal/PortalAccountPage'))
 const PortalTrackPage = lazy(() => import('@/pages/portal/PortalTrackPage'))
 const PortalTripTrackPage = lazy(() =>
   import('@/pages/portal/PortalTrackPage').then((m) => ({
@@ -145,9 +147,17 @@ export function App() {
         <Route path="/portal" element={<PortalHomePage />} />
         <Route path="/portal/login" element={<PortalLoginPage />} />
         <Route path="/portal/request" element={<PortalRequestPage />} />
-        {/* Legacy bookmarks → single-page portal */}
-        <Route path="/portal/documents" element={<Navigate to="/portal" replace />} />
-        <Route path="/portal/support" element={<Navigate to="/portal" replace />} />
+        <Route path="/portal/history" element={<PortalHistoryPage />} />
+        <Route path="/portal/account" element={<PortalAccountPage />} />
+        {/* Legacy bookmarks → history hub */}
+        <Route
+          path="/portal/documents"
+          element={<Navigate to="/portal/history" replace />}
+        />
+        <Route
+          path="/portal/support"
+          element={<Navigate to="/portal/account" replace />}
+        />
         <Route path="/portal/track/:token" element={<PortalTrackPage />} />
         <Route path="/portal/trips/:id" element={<PortalTripTrackPage />} />
         {/* Public client page — send this link; not part of the portal */}
