@@ -1,6 +1,7 @@
 /**
- * Add-to-Home-Screen / install prompt for the client portal PWA.
- * iOS: Share → Add to Home Screen. Chromium: beforeinstallprompt.
+ * In-app Add to Home Screen / install control for the client portal PWA.
+ * iOS cannot be installed programmatically — we open Safari Share steps.
+ * Chromium uses beforeinstallprompt when the browser offers it.
  */
 
 import { useEffect, useState } from 'react'
@@ -50,6 +51,8 @@ function liveInstallFlags(dismissed: boolean) {
 export function PortalInstallBanner(props: {
   /** dark = portal landing; cream = signed-in shell */
   variant?: 'dark' | 'cream'
+  /** First portal page — open iOS steps by default. */
+  defaultOpen?: boolean
 }) {
   const variant = props.variant ?? 'cream'
   const [dismissed, setDismissed] = useState(readDismissed)
@@ -59,7 +62,7 @@ export function PortalInstallBanner(props: {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null,
   )
-  const [iosOpen, setIosOpen] = useState(false)
+  const [stepsOpen, setStepsOpen] = useState(Boolean(props.defaultOpen))
 
   useEffect(() => {
     const state = liveInstallFlags(dismissed)
@@ -78,20 +81,19 @@ export function PortalInstallBanner(props: {
   }, [dismissed])
 
   if (!offer) return null
-  // Wait for BIP on Chromium when possible; still show a soft tip otherwise.
-  const showChromeInstall = Boolean(deferred)
-  const showSoftAndroid =
-    platform === 'android' && !deferred && !showIosHint
-  const showDesktop = platform === 'desktop' && !deferred
 
-  if (!showIosHint && !showChromeInstall && !showSoftAndroid && !showDesktop) {
-    return null
-  }
+  const showChromeInstall = Boolean(deferred)
+  const showManual =
+    showIosHint ||
+    (platform === 'android' && !deferred) ||
+    (platform === 'desktop' && !deferred)
+
+  if (!showChromeInstall && !showManual) return null
 
   const dark = variant === 'dark'
   const shell = dark
-    ? 'border-cream/15 bg-[#141414] text-cream'
-    : 'border-[#E5DFD0] bg-white text-ink'
+    ? 'border-gold/35 bg-[#141414] text-cream'
+    : 'border-[#C9A227]/45 bg-white text-ink shadow-sm'
   const muted = dark ? 'text-cream/55' : 'text-[#6B6560]'
   const btn = dark
     ? 'bg-gold text-ink hover:bg-gold-lt'
@@ -116,25 +118,24 @@ export function PortalInstallBanner(props: {
 
   return (
     <div
-      className={`rounded-2xl border px-4 py-3 ${shell}`}
+      className={`rounded-2xl border px-4 py-4 ${shell}`}
       data-testid="portal-install-banner"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#C9A227]">
-            Install OnFly
+            Add to Home Screen
           </div>
           <p className={`mt-1 text-sm leading-snug ${muted}`}>
-            {showIosHint
-              ? 'Add OnFly to your Home Screen for a full-screen client app — book, quote, track, and sign in.'
-              : 'Install the OnFly client app on this device for faster access to trips, quotes, and tracking.'}
+            Put OnFly on your phone like an app — full screen, home-screen icon,
+            same portal for book, quote, track, and sign-in.
           </p>
         </div>
         <button
           type="button"
           onClick={dismiss}
           className={`shrink-0 text-xs ${muted} hover:underline`}
-          aria-label="Dismiss install tip"
+          aria-label="Dismiss Add to Home Screen"
         >
           Not now
         </button>
@@ -145,48 +146,74 @@ export function PortalInstallBanner(props: {
           <button
             type="button"
             onClick={() => void installChrome()}
-            className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold ${btn}`}
+            className={`inline-flex min-h-12 items-center rounded-md px-4 text-sm font-semibold ${btn}`}
           >
-            Install app
+            Add to Home Screen
           </button>
-        ) : null}
-
-        {showIosHint ? (
+        ) : (
           <button
             type="button"
-            onClick={() => setIosOpen((v) => !v)}
-            className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold ${btn}`}
+            onClick={() => setStepsOpen((v) => !v)}
+            className={`inline-flex min-h-12 items-center rounded-md px-4 text-sm font-semibold ${btn}`}
           >
-            {iosOpen ? 'Hide steps' : 'How to add'}
+            {stepsOpen ? 'Hide steps' : 'Add to Home Screen'}
           </button>
-        ) : null}
-
-        {showSoftAndroid || showDesktop ? (
-          <p className={`w-full text-xs ${muted}`}>
-            {showSoftAndroid
-              ? 'In Chrome: menu ⋮ → Install app / Add to Home screen.'
-              : 'In Chrome or Edge: use Install app from the address bar or browser menu.'}
-          </p>
-        ) : null}
+        )}
       </div>
 
-      {showIosHint && iosOpen ? (
+      {stepsOpen && !showChromeInstall ? (
         <ol className={`mt-3 list-decimal space-y-1.5 pl-5 text-sm ${muted}`}>
-          <li>
-            Tap the <span className="font-semibold text-[#C9A227]">Share</span>{' '}
-            button in Safari.
-          </li>
-          <li>
-            Scroll and tap{' '}
-            <span className="font-semibold text-[#C9A227]">
-              Add to Home Screen
-            </span>
-            .
-          </li>
-          <li>
-            Tap <span className="font-semibold text-[#C9A227]">Add</span> — OnFly
-            opens full-screen like an app.
-          </li>
+          {showIosHint ? (
+            <>
+              <li>
+                Tap the{' '}
+                <span className="font-semibold text-[#C9A227]">Share</span>{' '}
+                button in Safari (square with an arrow).
+              </li>
+              <li>
+                Scroll and tap{' '}
+                <span className="font-semibold text-[#C9A227]">
+                  Add to Home Screen
+                </span>
+                .
+              </li>
+              <li>
+                Tap{' '}
+                <span className="font-semibold text-[#C9A227]">Add</span> — OnFly
+                opens full-screen like an app.
+              </li>
+            </>
+          ) : platform === 'android' ? (
+            <>
+              <li>
+                Tap the browser menu{' '}
+                <span className="font-semibold text-[#C9A227]">⋮</span>.
+              </li>
+              <li>
+                Choose{' '}
+                <span className="font-semibold text-[#C9A227]">
+                  Install app
+                </span>{' '}
+                or{' '}
+                <span className="font-semibold text-[#C9A227]">
+                  Add to Home screen
+                </span>
+                .
+              </li>
+            </>
+          ) : (
+            <>
+              <li>
+                In Chrome or Edge, open the install icon in the address bar — or
+                the browser menu.
+              </li>
+              <li>
+                Choose{' '}
+                <span className="font-semibold text-[#C9A227]">Install app</span>
+                .
+              </li>
+            </>
+          )}
         </ol>
       ) : null}
     </div>

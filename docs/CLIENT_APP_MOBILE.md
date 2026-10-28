@@ -7,11 +7,11 @@ Clients use the same portal (`/portal` — book, quote, track, login). Two packa
 - Manifest: `public/portal.webmanifest` (standalone, cream/gold theme).
 - Apple meta + touch icon in `index.html`.
 - Service worker: `public/sw.js` (Chromium installability).
-- In-app tip: **Install OnFly** on the portal landing + Account (iOS Share → Add to Home Screen; Chrome Install app).
+- In-app **Add to Home Screen** control on the first portal page (`/portal` landing + signed-in Trips home). Also on Account. iOS shows Safari Share steps; Chrome can prompt Install when available.
 
-**iPhone:** Safari → Share → Add to Home Screen → open the OnFly icon (full-screen).
+**iPhone:** On `/portal`, tap **Add to Home Screen** → follow Share → Add to Home Screen → open the OnFly icon (full-screen).
 
-**Android:** Chrome → Install app / Add to Home screen (or the in-app Install button when offered).
+**Android:** On `/portal`, tap **Add to Home Screen** (or Install when Chrome offers it).
 
 Regenerate icons after brand mark changes:
 
