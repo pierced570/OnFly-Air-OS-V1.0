@@ -126,7 +126,11 @@ export function PortalLanding(props?: {
       className="min-h-screen bg-[#0C0C0E] text-cream"
       data-theme="client"
     >
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
+      <div className="pt-[env(safe-area-inset-top)]">
+        <PortalInstallBanner variant="dark" />
+      </div>
+
+      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-8">
         <img
           src={BRAND_LOGO_PATH}
           alt="OnFly Air"
@@ -142,7 +146,7 @@ export function PortalLanding(props?: {
         </a>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-4 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:pt-10">
+      <main className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-4 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:pt-8">
         <section>
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
             {company ? 'Company portal' : 'Client portal'}
@@ -157,10 +161,6 @@ export function PortalLanding(props?: {
               ? 'Request a trip without an account, or open company shipments with a verified work email. Quotes typically come back in 10–15 minutes.'
               : 'Request a trip or rough quote without an account — or open live shipments with a verified work email from your company desk. Quotes typically come back in 10–15 minutes.'}
           </p>
-          {/* Mobile-first: homescreen CTA before feature list so it isn't buried */}
-          <div className="mt-6 lg:hidden">
-            <PortalInstallBanner variant="dark" defaultOpen />
-          </div>
           <ol className="mt-6 grid grid-cols-3 gap-2 sm:mt-8 sm:gap-4">
             {FEATURES.map((f) => (
               <li
@@ -182,10 +182,6 @@ export function PortalLanding(props?: {
         </section>
 
         <section className="space-y-4">
-          <div className="hidden lg:block">
-            <PortalInstallBanner variant="dark" defaultOpen />
-          </div>
-
           <PortalOneClickLogin
             variant="dark"
             onSignedIn={props?.onSignedIn}

@@ -14,6 +14,7 @@ import {
   PortalAppDesktopNav,
   PortalAppNav,
 } from '@/components/PortalAppNav'
+import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 
 export function PortalShell(props: {
   children: React.ReactNode
@@ -30,7 +31,11 @@ export function PortalShell(props: {
   const showNav = Boolean(props.appNav)
   return (
     <div className="min-h-screen bg-[#F7F2E3] text-ink" data-theme="client">
-      <header className="sticky top-0 z-30 border-b border-ink/20 bg-ink pt-[max(0.75rem,env(safe-area-inset-top))] text-cream">
+      <div className="sticky top-0 z-30">
+        <div className="bg-[#F7F2E3] pt-[env(safe-area-inset-top)]">
+          <PortalInstallBanner variant="cream" />
+        </div>
+        <header className="border-b border-ink/20 bg-ink text-cream">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link to="/portal" className="shrink-0">
             <img
@@ -50,7 +55,8 @@ export function PortalShell(props: {
             {props.headerActions}
           </div>
         </div>
-      </header>
+        </header>
+      </div>
 
       <main
         className={[

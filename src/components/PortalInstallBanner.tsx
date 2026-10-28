@@ -1,7 +1,6 @@
 /**
- * In-app Add to Home Screen control for the client portal.
- * Always visible on /portal until installed (standalone) or dismissed this tab.
- * iOS: Safari Share steps. Chromium: beforeinstallprompt when offered.
+ * Mini top banner: Add to Home Screen for the client portal PWA.
+ * Compact by default — expands steps only when tapped.
  */
 
 import { useEffect, useState } from 'react'
@@ -50,7 +49,7 @@ function liveInstallFlags(dismissed: boolean) {
 
 export function PortalInstallBanner(props: {
   variant?: 'dark' | 'cream'
-  /** Open platform steps immediately (first portal page). */
+  /** @deprecated Mini is the default top-strip layout. */
   defaultOpen?: boolean
 }) {
   const variant = props.variant ?? 'cream'
@@ -62,7 +61,7 @@ export function PortalInstallBanner(props: {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null,
   )
-  const [stepsOpen, setStepsOpen] = useState(Boolean(props.defaultOpen))
+  const [stepsOpen, setStepsOpen] = useState(false)
 
   useEffect(() => {
     const dismissedNow = readDismissed()
@@ -91,15 +90,14 @@ export function PortalInstallBanner(props: {
     setPlatform(state.platform)
   }, [dismissed, ready])
 
-  // Hide only after we know we're standalone / dismissed — never flash-hide forever.
   if (ready && !offer) return null
 
   const showChromeInstall = Boolean(deferred)
   const dark = variant === 'dark'
-  const shell = dark
-    ? 'border-gold/40 bg-gold/10 text-cream'
-    : 'border-[#C9A227] bg-[#C9A227]/12 text-ink'
-  const muted = dark ? 'text-cream/70' : 'text-[#4A4640]'
+  const bar = dark
+    ? 'border-b border-gold/35 bg-[#141414] text-cream'
+    : 'border-b border-[#C9A227]/40 bg-[#C9A227]/15 text-ink'
+  const muted = dark ? 'text-cream/60' : 'text-[#5A554E]'
   const btn = dark
     ? 'bg-gold text-ink hover:bg-gold-lt'
     : 'bg-[#C9A227] text-[#0C0C0E] hover:brightness-110'
@@ -123,100 +121,80 @@ export function PortalInstallBanner(props: {
 
   return (
     <div
-      className={`rounded-2xl border-2 px-4 py-4 ${shell}`}
+      className={bar}
       data-testid="portal-install-banner"
       id="add-to-home-screen"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#C9A227]">
-            Add to Home Screen
-          </div>
-          <p className={`mt-1 text-sm leading-snug ${muted}`}>
-            Get the full-screen OnFly app feel on this phone — icon on your Home
-            Screen, then book, quote, track, and sign in.
-          </p>
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 sm:px-8">
+        <p className="min-w-0 flex-1 text-[12px] leading-snug sm:text-[13px]">
+          <span className="font-semibold text-[#C9A227]">Add to Home Screen</span>
+          <span className={muted}>
+            {' '}
+            — full-screen OnFly icon on your phone
+          </span>
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          {showChromeInstall ? (
+            <button
+              type="button"
+              onClick={() => void installChrome()}
+              className={`inline-flex h-8 items-center rounded-md px-3 text-[11px] font-semibold ${btn}`}
+            >
+              Install
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setStepsOpen((v) => !v)}
+              className={`inline-flex h-8 items-center rounded-md px-3 text-[11px] font-semibold ${btn}`}
+            >
+              {stepsOpen ? 'Hide' : 'How'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={dismiss}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-sm ${muted} hover:text-[#C9A227]`}
+            aria-label="Dismiss Add to Home Screen"
+          >
+            ×
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={dismiss}
-          className={`shrink-0 text-xs ${muted} hover:underline`}
-          aria-label="Dismiss Add to Home Screen"
-        >
-          Not now
-        </button>
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        {showChromeInstall ? (
-          <button
-            type="button"
-            onClick={() => void installChrome()}
-            className={`inline-flex min-h-12 items-center rounded-md px-4 text-sm font-semibold ${btn}`}
-          >
-            Add to Home Screen
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setStepsOpen((v) => !v)}
-            className={`inline-flex min-h-12 items-center rounded-md px-4 text-sm font-semibold ${btn}`}
-          >
-            {stepsOpen ? 'Hide steps' : 'Show me how'}
-          </button>
-        )}
       </div>
 
       {stepsOpen && !showChromeInstall ? (
-        <ol className={`mt-3 list-decimal space-y-1.5 pl-5 text-sm ${muted}`}>
+        <ol
+          className={`mx-auto max-w-6xl list-decimal space-y-1 border-t px-4 py-2 pl-8 text-[11px] leading-snug sm:px-8 sm:pl-10 ${
+            dark ? 'border-cream/10 text-cream/65' : 'border-[#C9A227]/25 text-[#5A554E]'
+          }`}
+        >
           {showIosHint || platform === 'ios' ? (
             <>
               <li>
-                Tap{' '}
-                <span className="font-semibold text-[#C9A227]">Share</span> in
-                Safari (square with ↑).
+                Tap <span className="font-semibold text-[#C9A227]">Share</span> in
+                Safari (□↑).
               </li>
               <li>
                 Tap{' '}
                 <span className="font-semibold text-[#C9A227]">
                   Add to Home Screen
                 </span>
-                .
-              </li>
-              <li>
-                Tap <span className="font-semibold text-[#C9A227]">Add</span> —
-                open OnFly from your Home Screen for the app feel.
+                , then Add.
               </li>
             </>
           ) : platform === 'android' ? (
-            <>
-              <li>
-                Tap browser menu{' '}
-                <span className="font-semibold text-[#C9A227]">⋮</span>.
-              </li>
-              <li>
-                Choose{' '}
-                <span className="font-semibold text-[#C9A227]">
-                  Install app
-                </span>{' '}
-                or{' '}
-                <span className="font-semibold text-[#C9A227]">
-                  Add to Home screen
-                </span>
-                .
-              </li>
-            </>
+            <li>
+              Chrome menu ⋮ →{' '}
+              <span className="font-semibold text-[#C9A227]">
+                Install app / Add to Home screen
+              </span>
+              .
+            </li>
           ) : (
-            <>
-              <li>
-                On iPhone: open this page in{' '}
-                <span className="font-semibold text-[#C9A227]">Safari</span>,
-                tap Share → Add to Home Screen.
-              </li>
-              <li>
-                On Android Chrome: menu → Install app / Add to Home screen.
-              </li>
-            </>
+            <li>
+              iPhone Safari: Share → Add to Home Screen. Android Chrome: menu →
+              Install app.
+            </li>
           )}
         </ol>
       ) : null}
