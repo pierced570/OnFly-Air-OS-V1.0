@@ -223,6 +223,9 @@ describe('offerFlow — open vs notify', () => {
           'RingCentral SMS failed: application needs to have [SMS] permission',
         )
       },
+      async ringDesk() {
+        return { id: 'mock-ring-unused' }
+      },
     })
     const c = stubCandidate('Alpha Air', 'op-both')
     const trip = createTripFromCandidates({

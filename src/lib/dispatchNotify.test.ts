@@ -10,6 +10,7 @@ import {
   DESK_ALERT_PHONE_E164,
   dispatchAlertEmail,
   formatCostInquiryEmail,
+  formatHardQuoteEmail,
   formatPortalRequestSms,
   notifyCostInquiry,
   notifyHardQuoteRequest,
@@ -51,7 +52,7 @@ describe('dispatchNotify', () => {
     expect(resolveDispatchPhone()).toBe('+16105092031')
   })
 
-  it('portal request SMS hits hard-coded desk 858, not on-shift cell', async () => {
+  it('portal request SMS + RingOut hits hard-coded desk 858, not on-shift cell', async () => {
     startShift('Pierce', '+16105092031')
     expect(DESK_ALERT_PHONE_E164).toBe(BRAND_PHONE_E164)
     expect(DESK_ALERT_PHONE_E164).toBe('+18585297860')
@@ -78,8 +79,12 @@ describe('dispatchNotify', () => {
     expect(result.sms_id).toBeTruthy()
     expect(result.email_id).toBeTruthy()
     expect(result.exception_id).toBeTruthy()
-    expect(getMockCommsLog().length).toBe(beforeSms + 1)
-    expect(getMockCommsLog().at(-1)?.to).toBe(BRAND_PHONE_E164)
+    expect(result.ring_id).toBeTruthy()
+    // SMS + RingOut voice
+    expect(getMockCommsLog().length).toBe(beforeSms + 2)
+    const voice = getMockCommsLog().filter((m) => m.channel === 'voice')
+    expect(voice.at(-1)?.to).toBe(BRAND_PHONE_E164)
+    expect(getMockCommsLog().some((m) => m.channel === 'sms')).toBe(true)
     expect(getMockSentEmails().length).toBe(beforeMail + 1)
     expect(getMockSentEmails().at(-1)?.to).toBe('info@onflyair.com')
     expect(listExceptions().some((e) => e.title === 'Portal request')).toBe(
@@ -87,10 +92,10 @@ describe('dispatchNotify', () => {
     )
   })
 
-  it('soft portal submitTripRequest does not page the desk', async () => {
+  it('soft portal submitTripRequest does not page or ring the desk', async () => {
     startShift('Desk', '+15555550100')
     const beforeSms = getMockCommsLog().length
-    // Soft estimate path: cost_inquiry (email) — never notifyPortalRequest / SMS
+    // Soft estimate path: cost_inquiry (email) — never notifyPortalRequest / SMS / ring
     submitTripRequest(
       {
         ...emptyTripRequestDraft(),
@@ -105,9 +110,9 @@ describe('dispatchNotify', () => {
     expect(getMockCommsLog().length).toBe(beforeSms)
   })
 
-  it('requestHardQuote notifies via cost inquiry email (no SMS)', async () => {
+  it('requestHardQuote rings 858 + emails (no SMS)', async () => {
     startShift('Desk', '+15555550100')
-    const beforeSms = getMockCommsLog().length
+    const beforeComms = getMockCommsLog().length
     const beforeMail = getMockSentEmails().length
     const row = submitTripRequest(
       {
@@ -121,9 +126,15 @@ describe('dispatchNotify', () => {
     )
     requestHardQuote(row.id)
     await new Promise((r) => setTimeout(r, 20))
-    expect(getMockCommsLog().length).toBe(beforeSms)
+    const added = getMockCommsLog().slice(beforeComms)
+    expect(added.some((m) => m.channel === 'sms')).toBe(false)
+    expect(added.some((m) => m.channel === 'voice')).toBe(true)
+    expect(added.find((m) => m.channel === 'voice')?.to).toBe(
+      BRAND_PHONE_E164,
+    )
     expect(getMockSentEmails().length).toBe(beforeMail + 1)
     expect(getMockSentEmails().at(-1)?.to).toBe('info@onflyair.com')
+    expect(getMockSentEmails().at(-1)?.subject).toMatch(/hard quote/i)
   })
 
   it('dispatch-sourced requests do not page the desk', async () => {
@@ -142,7 +153,7 @@ describe('dispatchNotify', () => {
     expect(getMockCommsLog().length).toBe(before)
   })
 
-  it('cost inquiry emails info@ only — no SMS', async () => {
+  it('cost inquiry emails info@ only — no SMS / no ring', async () => {
     startShift('Pierce', '+16105092031')
     const beforeSms = getMockCommsLog().length
     const beforeMail = getMockSentEmails().length
@@ -168,6 +179,7 @@ describe('dispatchNotify', () => {
 
     const result = await notifyCostInquiry(row)
     expect(result.sms_id).toBeNull()
+    expect(result.ring_id).toBeNull()
     expect(result.email_id).toBeTruthy()
     expect(getMockCommsLog().length).toBe(beforeSms)
     expect(getMockSentEmails().length).toBe(beforeMail + 1)
@@ -176,13 +188,42 @@ describe('dispatchNotify', () => {
     expect(getMockSentEmails().at(-1)?.text).toContain(
       'A cost inquiry has been made.',
     )
-
-    const hq = await notifyHardQuoteRequest(row)
-    expect(hq.sms_id).toBeNull()
-    expect(getMockCommsLog().length).toBe(beforeSms)
   })
 
-  it('portal soft-quote submit uses cost inquiry (no SMS)', async () => {
+  it('notifyHardQuoteRequest rings desk and emails', async () => {
+    const beforeComms = getMockCommsLog().length
+    const beforeMail = getMockSentEmails().length
+    const draft = emptyTripRequestDraft()
+    const row = {
+      ...draft,
+      id: crypto.randomUUID(),
+      ref: 9555,
+      source: 'portal' as const,
+      status: 'submitted' as const,
+      created_at: new Date().toISOString(),
+      ready_at: new Date().toISOString(),
+      lane: 'KTEB→KBED',
+      summary: '2 skids · ASAP',
+      email: 'aog@client.com',
+      client_name: 'Acme',
+      hard_quote_requested_at: new Date().toISOString(),
+      forklift: forkliftFromDraft(draft),
+    }
+    expect(formatHardQuoteEmail(row).subject).toMatch(/hard quote/i)
+    const hq = await notifyHardQuoteRequest(row)
+    expect(hq.sms_id).toBeNull()
+    expect(hq.ring_id).toBeTruthy()
+    expect(hq.email_id).toBeTruthy()
+    expect(getMockCommsLog().length).toBe(beforeComms + 1)
+    expect(getMockCommsLog().at(-1)?.channel).toBe('voice')
+    expect(getMockCommsLog().at(-1)?.to).toBe(BRAND_PHONE_E164)
+    expect(getMockSentEmails().length).toBe(beforeMail + 1)
+    expect(listExceptions().some((e) => e.title === 'Hard quote requested')).toBe(
+      true,
+    )
+  })
+
+  it('portal soft-quote submit uses cost inquiry (no SMS / no ring)', async () => {
     const beforeSms = getMockCommsLog().length
     const beforeMail = getMockSentEmails().length
     submitTripRequest(

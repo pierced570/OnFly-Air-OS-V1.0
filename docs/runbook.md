@@ -5,6 +5,14 @@
 2. RingCentral: JWT validity, `RC_FROM_OFFERS` / `RC_FROM_THREADS`, webhook subscription to `comms-inbound`.
 3. Inspect `comms_messages.delivery_status` for failures vs silent operators.
 
+## When the desk does not ring on portal hard quote
+1. Confirm `VITE_COMMS_ADAPTER=real` and `ring-desk` is deployed (`npm run deploy:ring-desk`).
+2. Secrets: `RINGCENTRAL_*` + `RINGCENTRAL_DESK_RING_TO` + `RINGCENTRAL_RINGOUT_CONNECT_TO` (must differ).
+3. Developer app has **RingOut** permission; re-issue JWT after enabling it.
+4. Kill switch: `DESK_RING_DISABLED` must not be `true`.
+5. Soft estimates are email-only by design — only hard quote / desk-alert paths ring.
+6. Full setup: `docs/RINGCENTRAL_DESK_RING.md`.
+
 ## When ADS-B poller dies
 1. Confirm `VITE_ADSB_ADAPTER` and provider API key.
 2. Cron edge function logs; fixture mock still powers Radar UI.

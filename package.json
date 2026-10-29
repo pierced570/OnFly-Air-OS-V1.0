@@ -21,6 +21,7 @@
     "import:clients": "tsx scripts/import-clients-csv.ts",
     "deploy:send-email": "tsx scripts/deploy-send-email.ts",
     "deploy:send-sms": "tsx scripts/deploy-send-sms.ts",
+    "deploy:ring-desk": "tsx scripts/deploy-ring-desk.ts",
     "deploy:vendors": "tsx scripts/deploy-vendor-functions.ts",
     "sync:vercel-env": "tsx scripts/sync-vercel-env.ts",
     "sync:vault-bootstrap": "tsx scripts/sync-vault-bootstrap.ts",

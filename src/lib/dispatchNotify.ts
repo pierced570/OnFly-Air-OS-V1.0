@@ -1,8 +1,8 @@
 /**
  * Page the desk when work lands from a client door (portal request, email/SMS
  * intake). Soft-quote / cost-inquiry path is email-only to info@onflyair.com
- * (no SMS). Other intake may still SMS the desk line (858) via notifyDispatch.
- * Uses Comms + Email adapters — mock-safe.
+ * (no SMS / no desk ring). Desk + hard-quote paths SMS and/or RingOut the 858
+ * desk line via RingCentral. Uses Comms + Email adapters — mock-safe.
  */
 
 import { createCommsAdapter } from '@/adapters/comms'
@@ -93,16 +93,45 @@ export function formatCostInquiryEmail(
   }
 }
 
+export function formatHardQuoteEmail(
+  row: Pick<
+    TripRequestRecord,
+    'id' | 'ref' | 'lane' | 'summary' | 'email' | 'client_name' | 'urgent_phone'
+  >,
+): { subject: string; text: string } {
+  const who = row.email?.trim() || row.client_name?.trim() || 'client'
+  const phone = row.urgent_phone?.trim()
+  const href = portalRequestReviewPath(row.id)
+  const base = appBase()
+  const link = base ? `${base}${href}` : href
+  const text = [
+    'Hard quote requested from the client portal.',
+    '',
+    `R-${row.ref} · ${row.lane}`,
+    row.summary,
+    who + (phone ? ` · ${phone}` : ''),
+    '',
+    `Review: ${link}`,
+  ].join('\n')
+  return {
+    subject: `OnFly hard quote R-${row.ref} · ${row.lane}`,
+    text,
+  }
+}
+
 export type DispatchNotifyResult = {
   phone: string
   sms_id: string | null
   email_id: string | null
   exception_id: string | null
+  /** RingCentral RingOut id when the 858 desk line was rung. */
+  ring_id: string | null
 }
 
 /**
- * SMS a desk/on-shift phone, optionally email the desk inbox, and raise a Board
- * exception card so the queue lights up even if the phone is in a pocket.
+ * SMS a desk/on-shift phone, optionally email the desk inbox, optionally
+ * RingOut the 858 desk line, and raise a Board exception card so the queue
+ * lights up even if the phone is in a pocket.
  */
 export async function notifyDispatch(opts: {
   title: string
@@ -121,12 +150,20 @@ export async function notifyDispatch(opts: {
   phone?: string
   /** Soft-quote cost inquiries: email only — no SMS page. */
   skipSms?: boolean
+  /**
+   * Ring the company desk line via RingCentral RingOut (858).
+   * Soft quotes leave this off; desk + hard-quote paths turn it on.
+   */
+  ringDesk?: boolean
+  /** Logged on the RingOut (not spoken). */
+  ringReason?: string
 }): Promise<DispatchNotifyResult> {
   const phone = opts.phone?.trim() || resolveDispatchPhone()
   const raiseBoard = opts.raiseBoard !== false
   let sms_id: string | null = null
   let email_id: string | null = null
   let exception_id: string | null = null
+  let ring_id: string | null = null
 
   if (!opts.skipSms) {
     try {
@@ -138,6 +175,21 @@ export async function notifyDispatch(opts: {
       sms_id = sms.id
     } catch (err) {
       console.warn('[dispatchNotify] SMS failed', err)
+    }
+  }
+
+  if (opts.ringDesk) {
+    try {
+      const ring = await createCommsAdapter().ringDesk({
+        desk: DESK_ALERT_PHONE_E164,
+        reason:
+          opts.ringReason?.trim() ||
+          opts.title ||
+          `desk ring R-${opts.trip_ref ?? '?'}`,
+      })
+      ring_id = ring.id
+    } catch (err) {
+      console.warn('[dispatchNotify] desk ring failed', err)
     }
   }
 
@@ -172,7 +224,7 @@ export async function notifyDispatch(opts: {
     exception_id = card.id
   }
 
-  return { phone, sms_id, email_id, exception_id }
+  return { phone, sms_id, email_id, exception_id, ring_id }
 }
 
 export async function notifyPortalRequest(
@@ -193,11 +245,13 @@ export async function notifyPortalRequest(
     trip_id: null,
     trip_ref: row.ref,
     phone: DESK_ALERT_PHONE_E164,
+    ringDesk: true,
+    ringReason: `portal request R-${row.ref} · ${row.lane}`,
   })
 }
 
 /**
- * Soft quote / “Have OnFly quote this NOW” — email info@ only, no SMS.
+ * Soft quote / “Have OnFly quote this NOW” — email info@ only, no SMS / no ring.
  */
 export async function notifyCostInquiry(
   row: TripRequestRecord,
@@ -217,11 +271,28 @@ export async function notifyCostInquiry(
   })
 }
 
-/** Hard quote from soft quotes — same as cost inquiry (email only). */
+/**
+ * Hard quote from the client portal — email + RingOut the 858 desk line
+ * (no SMS; soft quotes stay email-only).
+ */
 export async function notifyHardQuoteRequest(
   row: TripRequestRecord,
 ): Promise<DispatchNotifyResult> {
-  return notifyCostInquiry(row)
+  const href = portalRequestReviewPath(row.id)
+  const mail = formatHardQuoteEmail(row)
+  return notifyDispatch({
+    title: 'Hard quote requested',
+    detail: mail.text,
+    smsBody: '',
+    emailSubject: mail.subject,
+    href,
+    trip_id: null,
+    trip_ref: row.ref,
+    phone: DESK_ALERT_PHONE_E164,
+    skipSms: true,
+    ringDesk: true,
+    ringReason: `hard quote R-${row.ref} · ${row.lane}`,
+  })
 }
 
 function escapeHtml(s: string): string {

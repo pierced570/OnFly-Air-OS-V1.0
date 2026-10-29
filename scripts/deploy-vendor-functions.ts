@@ -13,6 +13,7 @@
  *   QB_CLIENT_ID, QB_CLIENT_SECRET (optional — QuickBooks OAuth)
  *   QB_ENVIRONMENT, QB_REDIRECT_URI, INVOICE_EMAIL_FROM (optional)
  *   RINGCENTRAL_CLIENT_ID/SECRET/JWT + RINGCENTRAL_SMS_FROM (optional — SMS)
+ *   RINGCENTRAL_DESK_RING_TO + RINGCENTRAL_RINGOUT_CONNECT_TO (optional — desk RingOut)
  *
  * Usage: npx tsx scripts/deploy-vendor-functions.ts
  */
@@ -107,6 +108,12 @@ const rcJwt =
 const rcFrom =
   process.env.RINGCENTRAL_SMS_FROM?.trim() ||
   process.env.RC_FROM_OFFERS?.trim()
+const rcDesk =
+  process.env.RINGCENTRAL_DESK_RING_TO?.trim() ||
+  process.env.RC_DESK_RING_TO?.trim()
+const rcConnect =
+  process.env.RINGCENTRAL_RINGOUT_CONNECT_TO?.trim() ||
+  process.env.RC_RINGOUT_CONNECT_TO?.trim()
 if (rcId && rcSecret && rcJwt && rcFrom) {
   pairs.push(`RINGCENTRAL_CLIENT_ID=${rcId}`)
   pairs.push(`RINGCENTRAL_CLIENT_SECRET=${rcSecret}`)
@@ -119,6 +126,13 @@ if (rcId && rcSecret && rcJwt && rcFrom) {
       'https://platform.ringcentral.com'
     )}`,
   )
+  if (rcDesk) pairs.push(`RINGCENTRAL_DESK_RING_TO=${rcDesk}`)
+  if (rcConnect) pairs.push(`RINGCENTRAL_RINGOUT_CONNECT_TO=${rcConnect}`)
+  const playPrompt =
+    process.env.RINGCENTRAL_RINGOUT_PLAY_PROMPT?.trim() || 'true'
+  if (rcDesk && rcConnect) {
+    pairs.push(`RINGCENTRAL_RINGOUT_PLAY_PROMPT=${playPrompt}`)
+  }
 }
 
 if (!pairs.length) {
@@ -145,6 +159,7 @@ const noJwt = new Set([
 for (const fn of [
   'send-email',
   'send-sms',
+  'ring-desk',
   'llm-extract',
   'adsb-positions',
   'adsb-alert-webhook',
@@ -173,7 +188,7 @@ Deployed. Enable on Vercel / .env.local:
   VITE_SUPABASE_ANON_KEY=<anon>
   VITE_MAPBOX_TOKEN=<pk from CSV>
   VITE_EMAIL_ADAPTER=real
-  VITE_COMMS_ADAPTER=real   # after RingCentral secrets + send-sms deploy
+  VITE_COMMS_ADAPTER=real   # after RingCentral secrets + send-sms + ring-desk
   VITE_MAPS_ADAPTER=real
   VITE_LLM_ADAPTER=real
   VITE_ADSB_ADAPTER=real

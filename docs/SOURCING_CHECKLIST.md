@@ -44,15 +44,18 @@ We will re-point `adsb-positions` edge at that provider and delete the RapidAPI 
 - **Interim (optional):** if FAA approval is slow, a commercial NOTAM feed (e.g. provider that bundles NOTAMs) — tell us which you prefer
 - **Env:** whatever key/URL the chosen feed uses → Supabase secret
 
-### 4. RingCentral (SMS) — if not already API-ready
-- **What:** SMS send/receive for trip offers + stand-downs (numbers operators already know)
+### 4. RingCentral (SMS + desk RingOut) — if not already API-ready
+- **What:** SMS send/receive for trip offers + stand-downs; RingOut so portal hard quotes ring the 858 desk line
 - **Create / confirm:**
   - RC Developer app (Client ID + Secret)
   - JWT auth (or whatever RC uses for server-to-server today)
   - SMS-capable from-numbers (offers vs trip threads if separate)
+  - **RingOut** app permission (re-issue JWT after enabling)
+  - Desk ring number + distinct connect-to (staff cell / IVR)
   - A2P 10DLC / TCR: check admin — may already be registered
-- **Env:** `RINGCENTRAL_CLIENT_ID`, `RINGCENTRAL_CLIENT_SECRET`, `RINGCENTRAL_JWT`, `RINGCENTRAL_SMS_FROM` (and thread from if split)
-- **Not sourcing:** Twilio as primary SMS (blueprint: RC first; Twilio vetting already failed a partner)
+- **Env:** `RINGCENTRAL_CLIENT_ID`, `RINGCENTRAL_CLIENT_SECRET`, `RINGCENTRAL_JWT`, `RINGCENTRAL_SMS_FROM`, `RINGCENTRAL_DESK_RING_TO`, `RINGCENTRAL_RINGOUT_CONNECT_TO`
+- **Setup:** `docs/RINGCENTRAL_DESK_RING.md` · deploy `npm run deploy:ring-desk`
+- **Not sourcing:** Twilio as primary SMS/voice for desk alerts (blueprint: RC first; Twilio vetting already failed a partner)
 
 ### 5. Telnyx (voice / robocall) — when escalation lands
 - **What:** Programmable voice, TTS, press-1 callouts
