@@ -146,10 +146,17 @@ export function pushScratchPadToTripRequest(): TripRequestRecord {
   return row
 }
 
+export type HardQuoteNotifyResult = {
+  row: TripRequestRecord
+  ring_id: string | null
+  ring_live: boolean
+  ring_error: string | null
+}
+
 /** Client portal: escalate from estimated to hard quote (operator-confirmed numbers). */
 export async function requestHardQuote(
   id: string,
-): Promise<TripRequestRecord | undefined> {
+): Promise<HardQuoteNotifyResult | undefined> {
   const row = requests.get(id)
   if (!row) return undefined
   if (!row.hard_quote_requested_at) {
@@ -157,9 +164,20 @@ export async function requestHardQuote(
     row.status = row.status === 'submitted' ? 'in_review' : row.status
     bump()
     // Await desk RingOut + email so the edge call finishes in this submit.
-    await notifyHardQuoteRequest(row)
+    const notify = await notifyHardQuoteRequest(row)
+    return {
+      row,
+      ring_id: notify.ring_id,
+      ring_live: notify.ring_live,
+      ring_error: notify.ring_error,
+    }
   }
-  return row
+  return {
+    row,
+    ring_id: null,
+    ring_live: false,
+    ring_error: 'Hard quote already requested — desk ring not sent again.',
+  }
 }
 
 /** Attach spine trip + track token after portal soft/hard quote connect. */

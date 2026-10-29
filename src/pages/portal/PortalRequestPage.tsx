@@ -79,6 +79,12 @@ export default function PortalRequestPage() {
     useState<SoftPricingPackageResult | null>(null)
   const [estimating, setEstimating] = useState(false)
   const [hardQuoteDone, setHardQuoteDone] = useState(false)
+  /** Desk RingOut outcome from the last hard-quote notify. */
+  const [ringStatus, setRingStatus] = useState<{
+    live: boolean
+    error: string | null
+    id: string | null
+  } | null>(null)
   /** Spine trip + track after soft/hard connect. */
   const [tripHref, setTripHref] = useState<string | null>(null)
   const [trackHref, setTrackHref] = useState<string | null>(null)
@@ -199,18 +205,24 @@ export default function PortalRequestPage() {
     setDone(row)
     setIntent(mode)
     setHardQuoteDone(false)
+    setRingStatus(null)
     setSoftPackage(null)
     setTripHref(null)
     setTrackHref(null)
 
     if (mode === 'hard_quote') {
       // Await RingOut (ring-desk) + desk email — do not open tel: on the client.
-      const updated = await requestHardQuote(row.id)
-      if (updated) {
-        setDone({ ...updated })
+      const result = await requestHardQuote(row.id)
+      if (result) {
+        setDone({ ...result.row })
         setHardQuoteDone(true)
+        setRingStatus({
+          live: result.ring_live,
+          error: result.ring_error,
+          id: result.ring_id,
+        })
       }
-      await linkSpine(updated ?? row)
+      await linkSpine(result?.row ?? row)
       return
     }
 
@@ -287,6 +299,32 @@ export default function PortalRequestPage() {
                   <dd className="mt-1 text-ink/80">{done.summary}</dd>
                 </div>
               ) : null}
+              <div className="sm:col-span-2">
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  Desk ring
+                </dt>
+                <dd className="mt-1 text-sm">
+                  {ringStatus?.live ? (
+                    <span className="font-medium text-[#2E7D32]">
+                      RingOut sent to {BRAND_PHONE}
+                      {ringStatus.id ? (
+                        <span className="avionic text-muted">
+                          {' '}
+                          · id {ringStatus.id}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : ringStatus?.error ? (
+                    <span className="font-medium text-[#C0392B]">
+                      {ringStatus.error}
+                    </span>
+                  ) : (
+                    <span className="text-muted">
+                      Desk ring status unavailable for this submit.
+                    </span>
+                  )}
+                </dd>
+              </div>
             </dl>
 
             <div className="grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2">
@@ -358,10 +396,15 @@ export default function PortalRequestPage() {
               hardQuoteEmail={done.email || undefined}
               onHardQuote={() => {
                 void (async () => {
-                  const updated = await requestHardQuote(done.id)
-                  if (updated) {
-                    setDone({ ...updated })
+                  const result = await requestHardQuote(done.id)
+                  if (result) {
+                    setDone({ ...result.row })
                     setHardQuoteDone(true)
+                    setRingStatus({
+                      live: result.ring_live,
+                      error: result.ring_error,
+                      id: result.ring_id,
+                    })
                   }
                 })()
               }}

@@ -216,6 +216,9 @@ describe('dispatchNotify', () => {
     const hq = await notifyHardQuoteRequest(row)
     expect(hq.sms_id).toBeNull()
     expect(hq.ring_id).toBeTruthy()
+    // Vitest forces VITE_COMMS_ADAPTER=mock — ring id is mock, error explains why.
+    expect(hq.ring_live).toBe(false)
+    expect(hq.ring_error).toMatch(/mock|VITE_COMMS_ADAPTER/i)
     expect(hq.email_id).toBeTruthy()
     expect(getMockCommsLog().length).toBe(beforeComms + 1)
     expect(getMockCommsLog().at(-1)?.channel).toBe('voice')
