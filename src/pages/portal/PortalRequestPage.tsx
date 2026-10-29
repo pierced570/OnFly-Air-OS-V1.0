@@ -243,7 +243,8 @@ export default function PortalRequestPage() {
         </p>
         <section className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-5 py-5 text-ink">
           <p className="text-sm">
-            Your details went to the desk by email, and we&apos;re ringing{' '}
+            A full copy of this submission went to the desk by email, and
+            we&apos;re ringing{' '}
             <span className="avionic font-medium">{BRAND_PHONE}</span> now.
             We&apos;ll follow up at{' '}
             <span className="font-medium">{done.email || 'your email'}</span>.

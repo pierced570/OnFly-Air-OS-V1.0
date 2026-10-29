@@ -208,7 +208,11 @@ describe('dispatchNotify', () => {
       hard_quote_requested_at: new Date().toISOString(),
       forklift: forkliftFromDraft(draft),
     }
-    expect(formatHardQuoteEmail(row).subject).toMatch(/hard quote/i)
+    const formatted = formatHardQuoteEmail(row)
+    expect(formatted.subject).toMatch(/hard quote/i)
+    expect(formatted.text).toContain('desk line is being rung')
+    expect(formatted.text).toContain('aog@client.com')
+    expect(formatted.text).toContain('Outbound:')
     const hq = await notifyHardQuoteRequest(row)
     expect(hq.sms_id).toBeNull()
     expect(hq.ring_id).toBeTruthy()
@@ -217,6 +221,9 @@ describe('dispatchNotify', () => {
     expect(getMockCommsLog().at(-1)?.channel).toBe('voice')
     expect(getMockCommsLog().at(-1)?.to).toBe(BRAND_PHONE_E164)
     expect(getMockSentEmails().length).toBe(beforeMail + 1)
+    expect(getMockSentEmails().at(-1)?.to).toBe('info@onflyair.com')
+    expect(getMockSentEmails().at(-1)?.reply_to).toBe('aog@client.com')
+    expect(getMockSentEmails().at(-1)?.text).toContain('2 skids · ASAP')
     expect(listExceptions().some((e) => e.title === 'Hard quote requested')).toBe(
       true,
     )

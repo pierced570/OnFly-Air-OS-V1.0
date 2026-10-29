@@ -93,26 +93,118 @@ export function formatCostInquiryEmail(
   }
 }
 
-export function formatHardQuoteEmail(
-  row: Pick<
-    TripRequestRecord,
-    'id' | 'ref' | 'lane' | 'summary' | 'email' | 'client_name' | 'urgent_phone'
-  >,
-): { subject: string; text: string } {
+function formatLegBlock(
+  label: string,
+  legs: TripRequestRecord['legs'],
+): string[] {
+  if (!legs.length) return []
+  const lines = [`${label}:`]
+  legs.forEach((leg, i) => {
+    lines.push(
+      `  ${i + 1}. ${leg.origin_icao || '?'} → ${leg.dest_icao || '?'} · ${
+        leg.payload
+      }${leg.date ? ` · ${leg.date}` : ''}${
+        leg.pickup_time ? ` ${leg.pickup_time}` : ''
+      }`,
+    )
+    if (leg.pickup_address?.trim()) {
+      lines.push(`     Pickup: ${leg.pickup_address.trim()}`)
+    }
+    if (leg.dropoff_address?.trim()) {
+      lines.push(`     Dropoff: ${leg.dropoff_address.trim()}`)
+    }
+    if (leg.cargo_notes?.trim()) {
+      lines.push(`     Cargo: ${leg.cargo_notes.trim()}`)
+    }
+    if (leg.cargo_weight_lbs !== '' && leg.cargo_weight_lbs != null) {
+      lines.push(`     Weight: ${leg.cargo_weight_lbs} lb`)
+    }
+    const paxBits = (leg.pax ?? [])
+      .filter((p) => p.name?.trim() || p.weight_lbs !== '')
+      .map((p) => {
+        const w = p.weight_lbs !== '' ? ` ${p.weight_lbs} lb` : ''
+        const dob = p.dob?.trim() ? ` DOB ${p.dob}` : ''
+        return `${p.name?.trim() || 'pax'}${w}${dob}`
+      })
+    if (paxBits.length) lines.push(`     Pax: ${paxBits.join('; ')}`)
+  })
+  return lines
+}
+
+/** Full portal submission copy for the desk inbox (with the RingOut). */
+export function formatHardQuoteEmail(row: TripRequestRecord): {
+  subject: string
+  text: string
+} {
   const who = row.email?.trim() || row.client_name?.trim() || 'client'
   const phone = row.urgent_phone?.trim()
   const href = portalRequestReviewPath(row.id)
   const base = appBase()
   const link = base ? `${base}${href}` : href
+
+  const tripPax = (row.pax ?? [])
+    .filter((p) => p.name?.trim() || p.weight_lbs !== '')
+    .map((p) => {
+      const w = p.weight_lbs !== '' ? ` ${p.weight_lbs} lb` : ''
+      const dob = p.dob?.trim() ? ` DOB ${p.dob}` : ''
+      return `${p.name?.trim() || 'pax'}${w}${dob}`
+    })
+
+  const flags = [
+    row.timing === 'asap' ? 'ASAP' : 'Scheduled',
+    row.direction === 'round_trip' ? 'Round trip' : 'One way',
+    row.service_mode.toUpperCase(),
+    row.cargo_only ? 'Cargo only' : null,
+    row.hazmat ? 'HAZMAT' : null,
+    row.forklift_required
+      ? 'Forklift required'
+      : row.forklift_recommended
+        ? 'Forklift recommended'
+        : null,
+    row.pax_details_deferred ? 'Pax details deferred' : null,
+  ].filter(Boolean)
+
   const text = [
-    'Hard quote requested from the client portal.',
+    'Hard quote requested from the client portal — desk line is being rung.',
     '',
     `R-${row.ref} · ${row.lane}`,
     row.summary,
-    who + (phone ? ` · ${phone}` : ''),
     '',
-    `Review: ${link}`,
-  ].join('\n')
+    'Contact',
+    `  ${who}${phone ? ` · ${phone}` : ''}`,
+    row.client_name?.trim() ? `  Client: ${row.client_name.trim()}` : null,
+    '',
+    'Trip',
+    `  ${flags.join(' · ')}`,
+    row.hours_on_ground !== '' && row.hours_on_ground != null
+      ? `  Hours on ground: ${row.hours_on_ground}`
+      : null,
+    row.hard_deadline_at?.trim()
+      ? `  Hard deadline: ${row.hard_deadline_at.trim()}`
+      : null,
+    row.po_number?.trim() ? `  PO: ${row.po_number.trim()}` : null,
+    row.declared_value_usd !== '' && row.declared_value_usd != null
+      ? `  Declared value: $${row.declared_value_usd}`
+      : null,
+    '',
+    ...formatLegBlock('Outbound', row.legs),
+    ...formatLegBlock('Return', row.return_legs),
+    '',
+    row.cargo_notes?.trim() ? `Cargo notes: ${row.cargo_notes.trim()}` : null,
+    row.cargo_weight_lbs !== '' && row.cargo_weight_lbs != null
+      ? `Cargo weight: ${row.cargo_weight_lbs} lb`
+      : null,
+    row.cargo_dims_status && row.cargo_dims_status !== 'known'
+      ? `Dims status: ${row.cargo_dims_status}`
+      : null,
+    tripPax.length ? `Passengers: ${tripPax.join('; ')}` : null,
+    row.notes?.trim() ? `Notes: ${row.notes.trim()}` : null,
+    '',
+    `Review in OnFly: ${link}`,
+  ]
+    .filter((line): line is string => line != null)
+    .join('\n')
+
   return {
     subject: `OnFly hard quote R-${row.ref} · ${row.lane}`,
     text,
@@ -138,6 +230,8 @@ export async function notifyDispatch(opts: {
   detail: string
   smsBody: string
   emailSubject?: string
+  /** Reply-To on the desk alert email (usually the client). */
+  emailReplyTo?: string
   href?: string | null
   trip_id?: string | null
   trip_ref?: number | null
@@ -195,19 +289,24 @@ export async function notifyDispatch(opts: {
   const to = dispatchAlertEmail()
   if (to) {
     try {
+      const replyTo = opts.emailReplyTo?.trim()
       const mail = await createEmailAdapter().send({
         to,
         subject: opts.emailSubject ?? opts.title,
         text: opts.detail,
-        html: `<p>${escapeHtml(opts.detail).replace(/\n/g, '<br/>')}</p>${
+        html: `<pre style="font-family:ui-monospace,Menlo,monospace;font-size:13px;white-space:pre-wrap;line-height:1.45">${escapeHtml(
+          opts.detail,
+        )}</pre>${
           opts.href
             ? `<p><a href="${escapeHtml(appBase() + opts.href)}">Open in OnFly</a></p>`
             : ''
         }`,
+        reply_to:
+          replyTo && replyTo.includes('@') ? replyTo : undefined,
       })
       email_id = mail.id
     } catch (err) {
-      console.warn('[dispatchNotify] email failed', err)
+      console.error('[dispatchNotify] email failed', err)
     }
   }
 
@@ -271,8 +370,8 @@ export async function notifyCostInquiry(
 }
 
 /**
- * Hard quote from the client portal — email + RingOut the 858 desk line
- * (no SMS; soft quotes stay email-only).
+ * Hard quote from the client portal — full submission email to info@ +
+ * RingOut the 858 desk line (no SMS; soft quotes stay email-only).
  */
 export async function notifyHardQuoteRequest(
   row: TripRequestRecord,
@@ -284,6 +383,7 @@ export async function notifyHardQuoteRequest(
     detail: mail.text,
     smsBody: '',
     emailSubject: mail.subject,
+    emailReplyTo: row.email?.trim() || undefined,
     href,
     trip_id: null,
     trip_ref: row.ref,
