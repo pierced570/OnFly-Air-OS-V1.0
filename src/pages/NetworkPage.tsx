@@ -50,7 +50,6 @@ import { parseDims, type DimLengthUnit } from '@/domain/dimsParser'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { rankOperatorsForMission } from '@/domain/missionFit'
 import { loadFleetForMissionFit } from '@/lib/fleetRouting'
-import { NetworkSheetView } from '@/components/NetworkSheetView'
 import {
   VERTICAL_IDS,
   VERTICAL_LABELS,
@@ -64,8 +63,13 @@ import {
   type PayloadCapability,
   type VerticalId,
 } from '@/domain/operatorVerticals'
+import { buildOperatorsByBaseView } from '@/domain/operatorsByBase'
+import { buildOperatorsByStateView } from '@/domain/operatorsByState'
+import { OperatorsByBasePanel } from '@/pages/network/OperatorsByBasePanel'
+import { OperatorsByStatePanel } from '@/pages/network/OperatorsByStatePanel'
 
-type ViewMode = 'board' | 'list' | 'sheet'
+/** All operators · by bases · by state · by aircraft type */
+type ViewMode = 'all' | 'by_base' | 'by_state' | 'by_type'
 
 type OpBundle = {
   op: OperatorRow
@@ -103,7 +107,9 @@ export default function NetworkPage({
   const [expandedDocs, setExpandedDocs] = useState<string | null>(null)
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null)
   const [coiNote, setCoiNote] = useState<string | null>(null)
-  const [view, setView] = useState<ViewMode>('board')
+  const [view, setView] = useState<ViewMode>('all')
+  const [selectedState, setSelectedState] = useState<string | null>(null)
+  const [selectedBase, setSelectedBase] = useState<string | null>(null)
   const [adsbBusy, setAdsbBusy] = useState(false)
   const [missionFleet, setMissionFleet] = useState<
     Awaited<ReturnType<typeof loadFleetForMissionFit>>
@@ -417,7 +423,98 @@ export default function NetworkPage({
     }).length
   }, [complianceRows])
 
-  const selectedBundle = bundles.find((b) => b.op.id === selectedOpId) ?? null
+  const byStateSourceOps = useMemo(() => {
+    if (!data) return []
+    const networkIds = new Set(data.operators.map((o) => o.id))
+    const fromNetwork = data.operators.map((op) => ({
+      id: op.id,
+      name: op.name,
+      base_icao: op.base_icao,
+      aircraft_count: op.aircraft_count,
+    }))
+    const fromDrafts = drafts
+      .filter((d) => !networkIds.has(d.id))
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        base_icao: d.base_icao || null,
+        aircraft_count: d.aircraft.length,
+      }))
+    return [...fromDrafts, ...fromNetwork]
+  }, [data, drafts])
+
+  const byStateView = useMemo(
+    () => buildOperatorsByStateView(byStateSourceOps, selectedState),
+    [byStateSourceOps, selectedState],
+  )
+
+  const byBaseView = useMemo(
+    () => buildOperatorsByBaseView(byStateSourceOps, selectedBase),
+    [byStateSourceOps, selectedBase],
+  )
+
+  const selectedBundle = useMemo(() => {
+    const fromFiltered = bundles.find((b) => b.op.id === selectedOpId)
+    if (fromFiltered) return fromFiltered
+    // By-state can filter on city; still open detail from the full network.
+    if (!selectedOpId || !data) return null
+    const op = data.operators.find((o) => o.id === selectedOpId)
+    if (op) {
+      return {
+        op,
+        aircraft: data.aircraft.filter((a) => a.operator_id === op.id),
+        source: 'network' as const,
+      }
+    }
+    const draft = drafts.find((d) => d.id === selectedOpId)
+    if (!draft) return null
+    const draftOp: OperatorRow = {
+      id: draft.id,
+      name: draft.name,
+      base_icao: draft.base_icao || null,
+      needs_info: [],
+      aircraft_count: draft.aircraft.length,
+    }
+    const aircraft: AircraftRow[] = draft.aircraft.map((a, i) => ({
+      id: `${draft.id}:${a.tail}:${i}`,
+      operator_id: draft.id,
+      operator_name: draft.name,
+      tail: a.tail,
+      type_name: a.type_name,
+      category: null,
+      engines: null,
+      cargo_pax: null,
+      base_icao: draft.base_icao || null,
+      cruise_kts: null,
+      range_nm: null,
+      mtow_lbs: null,
+      max_payload_lbs: null,
+      seats: null,
+      door_w_in: null,
+      door_h_in: null,
+      avg_op_per_nm_circuit: null,
+      med_assumed_op_per_nm: null,
+      rate_source: null,
+      fet_applies: null,
+      needs_info: [],
+      active: true,
+    }))
+    return { op: draftOp, aircraft, source: 'draft' as const }
+  }, [bundles, selectedOpId, data, drafts])
+
+  useEffect(() => {
+    if (view !== 'by_state') return
+    if (selectedState) return
+    const first = byStateView.states_with_operators[0]?.state
+    if (first) setSelectedState(first)
+  }, [view, selectedState, byStateView.states_with_operators])
+
+  useEffect(() => {
+    if (view !== 'by_base') return
+    if (selectedBase) return
+    const first = byBaseView.bases[0]?.icao
+    if (first) setSelectedBase(first)
+  }, [view, selectedBase, byBaseView.bases])
 
   useEffect(() => {
     if (!selectedOpId || !detailRef.current) return
@@ -481,59 +578,88 @@ export default function NetworkPage({
           {coiNote && <p className="mt-1 text-xs text-gold">{coiNote}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex w-full rounded-md border border-border bg-surface p-0.5 sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setView('board')}
-              className={[
-                'flex-1 rounded px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
-                view === 'board' ? 'bg-gold text-ink' : 'text-muted hover:text-cream',
-              ].join(' ')}
-            >
-              Board
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('list')}
-              className={[
-                'flex-1 rounded px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
-                view === 'list' ? 'bg-gold text-ink' : 'text-muted hover:text-cream',
-              ].join(' ')}
-            >
-              List
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('sheet')}
-              className={[
-                'flex-1 rounded px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
-                view === 'sheet' ? 'bg-gold text-ink' : 'text-muted hover:text-cream',
-              ].join(' ')}
-            >
-              Sheet
-            </button>
+          <div className="flex w-full flex-wrap rounded-md border border-border bg-surface p-0.5 sm:w-auto">
+            {(
+              [
+                { id: 'all', label: 'All operators' },
+                { id: 'by_base', label: 'View by bases' },
+                { id: 'by_state', label: 'View by state' },
+                { id: 'by_type', label: 'View by aircraft type' },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setView(t.id)}
+                className={[
+                  'flex-1 rounded px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
+                  view === t.id
+                    ? 'bg-gold text-ink'
+                    : 'text-muted hover:text-cream',
+                ].join(' ')}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-          <Link to="/admin" className="text-sm text-gold hover:text-gold-lt">
+          <Link to="/network?tab=invite" className="text-sm text-gold hover:text-gold-lt">
             Add operator →
           </Link>
         </div>
       </header>
 
-      {view === 'sheet' ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:p-4">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="min-w-[12rem] flex-1 text-xs text-muted">
-              Filter
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Operator / tail / type / cell…"
-                className="mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold"
+      {view === 'by_state' ? (
+        <>
+          <OperatorsByStatePanel
+            view={byStateView}
+            selectedState={selectedState}
+            onSelectState={(code) => {
+              setSelectedState(code)
+              setSelectedOpId(null)
+            }}
+            selectedOpId={selectedOpId}
+            onSelectOperator={setSelectedOpId}
+            filter={q}
+            onFilterChange={setQ}
+          />
+          {selectedBundle && (
+            <div ref={detailRef}>
+              <OperatorDetail
+                bundle={selectedBundle}
+                statusByTail={statusByTail}
+                expandedDocs={expandedDocs}
+                setExpandedDocs={setExpandedDocs}
+                onClose={() => setSelectedOpId(null)}
               />
-            </label>
-          </div>
-          <NetworkSheetView filter={q} />
-        </div>
+            </div>
+          )}
+        </>
+      ) : view === 'by_base' ? (
+        <>
+          <OperatorsByBasePanel
+            view={byBaseView}
+            selectedBase={selectedBase}
+            onSelectBase={(icao) => {
+              setSelectedBase(icao)
+              setSelectedOpId(null)
+            }}
+            selectedOpId={selectedOpId}
+            onSelectOperator={setSelectedOpId}
+            filter={q}
+            onFilterChange={setQ}
+          />
+          {selectedBundle && (
+            <div ref={detailRef}>
+              <OperatorDetail
+                bundle={selectedBundle}
+                statusByTail={statusByTail}
+                expandedDocs={expandedDocs}
+                setExpandedDocs={setExpandedDocs}
+                onClose={() => setSelectedOpId(null)}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <>
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:p-4">
@@ -643,7 +769,7 @@ export default function NetworkPage({
                   type="button"
                   onClick={() => {
                     setSelectedOpId(p.operator_id)
-                    setView('board')
+                    setView('by_type')
                   }}
                   className="rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-left text-xs text-cream hover:bg-gold/20 sm:py-1.5"
                 >
@@ -670,7 +796,7 @@ export default function NetworkPage({
         )}
       </div>
 
-      {view === 'board' && (
+      {view === 'by_type' && (
         <>
           <div className="board-rail flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
             <button
@@ -790,7 +916,7 @@ export default function NetworkPage({
         </>
       )}
 
-      {view === 'list' && (
+      {view === 'all' && (
         <div className="space-y-4">
           {sortedBundles.map((bundle) => (
             <OperatorDetail

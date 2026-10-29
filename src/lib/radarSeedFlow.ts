@@ -104,6 +104,41 @@ export async function pollOperatorTailsLastKnown(opts: {
   return seedRadarLastKnown(picks.map((a) => a.tail))
 }
 
+/**
+ * Poll last-known ADS-B for an arbitrary group of tails (paste / type list).
+ * Does not enable continuous movement alerts.
+ */
+export async function pollTailGroupLastKnown(
+  tails: readonly string[],
+  metaByTail?: ReadonlyMap<
+    string,
+    {
+      type_name?: string | null
+      operator_name?: string | null
+      operator_id?: string | null
+      base_icao?: string | null
+    }
+  >,
+): Promise<SeedRadarResult> {
+  const picks = [
+    ...new Set(
+      tails.map((t) => normalizeLookupTail(t)).filter(Boolean),
+    ),
+  ]
+  for (const tail of picks) {
+    const meta = metaByTail?.get(tail) ?? metaByTail?.get(tail.toUpperCase())
+    watchTail({
+      tail,
+      type_name: meta?.type_name ?? null,
+      operator_name: meta?.operator_name?.trim() || 'Group search',
+      operator_id: meta?.operator_id ?? null,
+      base_icao: meta?.base_icao ?? null,
+      source: 'manual',
+    })
+  }
+  return seedRadarLastKnown(picks)
+}
+
 /** Seed last-known for all watched (or provided) tails. */
 export async function seedRadarLastKnown(
   tails?: string[],
