@@ -120,7 +120,11 @@ export type Part135Operator = {
 }
 
 export type Part135FleetPack = {
+  /** ISO date or datetime from the data pack. */
+  generated?: string
   generated_at?: string
+  source?: string
+  categories?: Record<string, string>
   states: Record<string, Part135Operator[]>
 }
 

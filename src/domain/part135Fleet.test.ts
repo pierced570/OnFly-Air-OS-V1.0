@@ -21,7 +21,7 @@ describe('part135Fleet', () => {
     expect(oh).toBeTruthy()
     const { approved } = splitApprovedBands(oh!.operators)
     expect(approved.map((o) => o.onfly_name)).toEqual([
-      'AirNet II',
+      'AirNet II LLC',
       'Castle Aviation',
       'Priority Air Charter',
       'Air Z',
@@ -60,12 +60,14 @@ describe('part135Fleet', () => {
     view = buildPart135FleetView(data, f)
     expect(
       view.states.some((s) =>
-        s.operators.some((o) => /OK AIR 1ST/i.test(o.operator)),
+        s.operators.some((o) =>
+          /AIR 1ST AVIATION COMPANIES OF OKLAHOMA/i.test(o.operator),
+        ),
       ),
     ).toBe(true)
   })
 
-  it('Sonrise expand: cert note + six workhorse freight flown tails', () => {
+  it('Sonrise expand: cert note + four flown 310s and two freight Titans', () => {
     const sonrise = data.states.IN!.find((o) => o.faa_cert === '2BZA')!
     expect(sonrise.cert_note).toMatch(/Sonrise Aviation = B & F/i)
     const tails = filteredPart135Aircraft(
@@ -73,15 +75,14 @@ describe('part135Fleet', () => {
       new Set(PART135_CATS),
     )
     expect(tails).toHaveLength(6)
-    expect(tails.filter((t) => t.aircraft_type === 'Cessna 310')).toHaveLength(
-      4,
-    )
+    const threes = tails.filter((t) => t.aircraft_type === 'Cessna 310')
+    expect(threes).toHaveLength(4)
     expect(
-      tails.filter((t) => t.aircraft_type === 'Cessna 404 Titan'),
-    ).toHaveLength(2)
-    expect(tails.every((t) => t.workhorse && t.freight_history && t.onfly_flown_type)).toBe(
-      true,
-    )
+      threes.every((t) => t.workhorse && t.freight_history && t.onfly_flown_type),
+    ).toBe(true)
+    const titans = tails.filter((t) => t.aircraft_type === 'Cessna 404 Titan')
+    expect(titans).toHaveLength(2)
+    expect(titans.every((t) => t.freight_history && !t.workhorse)).toBe(true)
   })
 
   it('SEP-only chip drops Sonrise and keeps single-engine ops', () => {
@@ -108,6 +109,12 @@ describe('part135Fleet', () => {
     const oh = view.states[0]!
     expect(oh.approved_count).toBe(5)
     expect(oh.operator_count).toBe(5)
-    expect(oh.approved_names[0]).toBe('AirNet II')
+    expect(oh.approved_names[0]).toBe('AirNet II LLC')
+  })
+
+  it('full pack covers 49 states and 1000+ operators', () => {
+    expect(Object.keys(data.states).length).toBe(49)
+    const ops = Object.values(data.states).reduce((n, list) => n + list.length, 0)
+    expect(ops).toBeGreaterThanOrEqual(1000)
   })
 })

@@ -1,7 +1,6 @@
 /**
- * Part 135 fleet pack loader.
- * Drop the full `part135_fleet_by_state.json` data pack at
- * `src/data/part135_fleet_by_state.json` to replace the acceptance fixture.
+ * Part 135 fleet pack loader — bundled `part135_fleet_by_state.json`
+ * (FAA Part 135 holders + OnFly approved-operators export).
  */
 
 import type { Part135FleetPack } from '@/domain/part135Fleet'
