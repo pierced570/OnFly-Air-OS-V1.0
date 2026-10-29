@@ -7,21 +7,29 @@ import { useMemo, useState } from 'react'
 import {
   PART135_CATS,
   PART135_CAT_LABELS,
+  PART135_FLEET_CAVEATS,
   US_STATE_NAMES_FLEET,
   buildPart135FleetView,
+  buildPart135PackStats,
   defaultPart135Filters,
   filteredPart135Aircraft,
+  listApprovedNetworkRows,
   listPart135StateOptions,
+  listPart135StateRollupRows,
   operatorCatCount,
   parseFleetSummarySegments,
   part135StatusPill,
   splitApprovedBands,
   workhorseTypeNames,
+  type Part135ApprovedNetworkRow,
   type Part135Filters,
   type Part135Operator,
   type Part135StateRollup,
 } from '@/domain/part135Fleet'
-import { getPart135FleetPack } from '@/lib/part135FleetStore'
+import {
+  getPart135ApprovedNetworkCsv,
+  getPart135FleetPack,
+} from '@/lib/part135FleetStore'
 
 function pillClass(tone: 'gold' | 'neutral' | 'bad' | 'warn'): string {
   switch (tone) {
@@ -318,12 +326,174 @@ function StateCard({
   )
 }
 
+function NetworkTable({ rows }: { rows: Part135ApprovedNetworkRow[] }) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-[#2A2A30] bg-[#141417]">
+      <div className="border-b border-[#2A2A30] px-4 py-3">
+        <h3 className="text-sm font-semibold text-[#C9A227]">
+          Your network by state
+        </h3>
+        <p className="mt-0.5 text-[11px] text-[#A8A294]">
+          {rows.length} OnFly-approved operators — including five not named on
+          the FAA Part 135 holder list. Caps and callouts from the desk export.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[64rem] border-collapse text-left text-xs">
+          <thead className="bg-[#1B1B1F] text-[10px] uppercase tracking-wider text-[#A8A294]">
+            <tr>
+              <th className="px-3 py-2 font-medium">State</th>
+              <th className="px-3 py-2 font-medium">Operator</th>
+              <th className="px-3 py-2 font-medium">Base</th>
+              <th className="px-3 py-2 font-medium">Cert</th>
+              <th className="px-3 py-2 font-medium">Use</th>
+              <th className="px-3 py-2 font-medium">Callout</th>
+              <th className="px-3 py-2 font-medium">Caps</th>
+              <th className="px-3 py-2 font-medium">Tails</th>
+              <th className="px-3 py-2 font-medium">Fleet</th>
+              <th className="px-3 py-2 font-medium">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr
+                key={`${r.state}:${r.faa_cert || r.name}`}
+                className="border-t border-[#2A2A30] align-top"
+              >
+                <td className="px-3 py-2 font-mono text-[#C9A227]">
+                  {r.state}
+                  {r.state_conflict ? (
+                    <span className="ml-1 text-[10px] text-[#D28B3B]">
+                      CHECK
+                    </span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2 text-[#F7F2E3]">
+                  <div className="font-semibold">{r.name}</div>
+                  {r.faa_name && r.faa_name !== r.name ? (
+                    <div className="text-[10px] text-[#A8A294]">{r.faa_name}</div>
+                  ) : null}
+                  {r.csv_only ? (
+                    <div className="mt-0.5 text-[10px] text-[#D28B3B]">
+                      Not on FAA 135 list
+                    </div>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2 font-mono text-[#A8A294]">{r.base || '—'}</td>
+                <td className="px-3 py-2 font-mono text-[#A8A294]">
+                  {r.faa_cert || '—'}
+                  {r.cert_note ? (
+                    <div className="mt-0.5 max-w-[10rem] text-[10px] normal-case tracking-normal text-[#A8A294]">
+                      {r.cert_note}
+                    </div>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2 font-mono text-[#F7F2E3]">
+                  {r.usefulness || '—'}
+                </td>
+                <td className="px-3 py-2 text-[#A8A294]">{r.callout || '—'}</td>
+                <td className="px-3 py-2 text-[#A8A294]">{r.caps || '—'}</td>
+                <td className="px-3 py-2 font-mono text-[#F7F2E3]">
+                  {r.tails}
+                  {r.workhorse_tails > 0 ? (
+                    <span className="text-[#A8A294]">
+                      {' '}
+                      · {r.workhorse_tails} wh
+                    </span>
+                  ) : null}
+                </td>
+                <td className="max-w-[14rem] px-3 py-2 text-[#A8A294]">
+                  {r.fleet_summary || '—'}
+                </td>
+                <td className="max-w-[16rem] px-3 py-2 text-[#A8A294]">
+                  {r.notes || '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+function RollupTable({ rows }: { rows: Part135StateRollup[] }) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-[#2A2A30] bg-[#141417]">
+      <div className="border-b border-[#2A2A30] px-4 py-3">
+        <h3 className="text-sm font-semibold text-[#F7F2E3]">State rollup</h3>
+        <p className="mt-0.5 text-[11px] text-[#A8A294]">
+          Unfiltered pack totals by state — approved names first when present.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[40rem] border-collapse text-left text-xs">
+          <thead className="bg-[#1B1B1F] text-[10px] uppercase tracking-wider text-[#A8A294]">
+            <tr>
+              <th className="px-3 py-2 font-medium">State</th>
+              <th className="px-3 py-2 font-medium">Ops</th>
+              <th className="px-3 py-2 font-medium">Tails</th>
+              <th className="px-3 py-2 font-medium">Workhorse</th>
+              <th className="px-3 py-2 font-medium">Approved</th>
+              <th className="px-3 py-2 font-medium">Categories</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => (
+              <tr
+                key={s.state}
+                className="border-t border-[#2A2A30] align-top"
+              >
+                <td className="px-3 py-2">
+                  <span className="font-mono text-[#C9A227]">{s.state}</span>
+                  <span className="ml-2 text-[#A8A294]">
+                    {US_STATE_NAMES_FLEET[s.state] ?? s.state}
+                  </span>
+                </td>
+                <td className="px-3 py-2 font-mono text-[#F7F2E3]">
+                  {s.operator_count}
+                </td>
+                <td className="px-3 py-2 font-mono text-[#F7F2E3]">
+                  {s.tails_total}
+                </td>
+                <td className="px-3 py-2 font-mono text-[#F7F2E3]">
+                  {s.workhorse_tails}
+                </td>
+                <td className="px-3 py-2 text-[#A8A294]">
+                  {s.approved_count > 0 ? (
+                    <>
+                      <span className="font-mono text-[#C9A227]">
+                        {s.approved_count}
+                      </span>
+                      <span className="ml-1">{s.approved_names.join(', ')}</span>
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td className="px-3 py-2 text-[#A8A294]">{stateCatLine(s)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
 export function StateFleetBrowser() {
   const pack = useMemo(() => getPart135FleetPack(), [])
+  const csv = useMemo(() => getPart135ApprovedNetworkCsv(), [])
   const [filters, setFilters] = useState<Part135Filters>(() =>
     defaultPart135Filters(),
   )
 
+  const stats = useMemo(() => buildPart135PackStats(pack), [pack])
+  const networkRows = useMemo(
+    () => listApprovedNetworkRows(pack, csv),
+    [pack, csv],
+  )
+  const rollupRows = useMemo(() => listPart135StateRollupRows(pack), [pack])
   const stateOptions = useMemo(() => listPart135StateOptions(pack), [pack])
   const view = useMemo(
     () => buildPart135FleetView(pack, filters),
@@ -347,15 +517,58 @@ export function StateFleetBrowser() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      <header className="space-y-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
+          Network · Operators
+        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-[#F7F2E3] sm:text-3xl">
+          Part 135 fleet by state
+        </h1>
+        <p className="max-w-2xl text-sm text-[#A8A294]">
+          Every Part 135 holder that flies metal OnFly uses, rolled by state.
+          OnFly-approved operators first — expand a row for tails. Keys: FAA
+          cert · N-number.
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {(
+            [
+              ['States', stats.states],
+              ['Operators', stats.operators],
+              ['Tails', stats.tails],
+              ['Approved tails', stats.approvedTails],
+            ] as const
+          ).map(([label, value]) => (
+            <div
+              key={label}
+              className="rounded-lg border border-[#2A2A30] bg-[#141417] px-3 py-3"
+            >
+              <div className="font-mono text-xl font-semibold text-[#C9A227] sm:text-2xl">
+                {value.toLocaleString('en-US')}
+              </div>
+              <div className="mt-0.5 text-[11px] uppercase tracking-wider text-[#A8A294]">
+                {label}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-[#A8A294]">
+          {stats.approvedOperators} FAA-pack operators flagged OnFly-approved ·{' '}
+          {networkRows.length} in the desk network export
+        </p>
+      </header>
+
+      <NetworkTable rows={networkRows} />
+      <RollupTable rows={rollupRows} />
+
       <div className="sticky top-0 z-10 space-y-3 rounded-lg border border-[#2A2A30] bg-[#141417]/95 p-3 backdrop-blur sm:p-4">
         <div>
           <h2 className="text-lg font-semibold text-[#F7F2E3]">
-            View by state
+            State by state
           </h2>
           <p className="mt-0.5 text-xs text-[#A8A294]">
-            Part 135 operators by state — OnFly approved first, expand for
-            tails. Keys: FAA cert · N-number.
+            Filter and expand — approved band first, then everyone else on the
+            list.
           </p>
         </div>
 
@@ -448,15 +661,25 @@ export function StateFleetBrowser() {
         </div>
       )}
 
-      <p className="text-[11px] text-[#A8A294]">
-        FSDO estimate markers mean the state came from the FSDO office, not a
-        verified address — confirm before relying on it. Full FAA pack replaces
-        the bundled fixture via{' '}
-        <span className="font-mono text-[#F7F2E3]">
-          src/data/part135_fleet_by_state.json
-        </span>
-        .
-      </p>
+      <footer className="space-y-2 border-t border-[#2A2A30] pt-4 text-[11px] text-[#A8A294]">
+        <p className="font-semibold uppercase tracking-wider text-[#C9A227]">
+          Caveats
+        </p>
+        <ul className="list-disc space-y-1 pl-4">
+          {PART135_FLEET_CAVEATS.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+        <p>
+          FSDO estimate markers mean the state came from the FSDO office, not a
+          verified address — confirm before relying on it. Full FAA pack
+          replaces the bundled fixture via{' '}
+          <span className="font-mono text-[#F7F2E3]">
+            src/fixtures/part135_fleet_by_state.json
+          </span>
+          .
+        </p>
+      </footer>
     </div>
   )
 }

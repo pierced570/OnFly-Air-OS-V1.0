@@ -529,3 +529,194 @@ export function splitApprovedBands(ops: readonly Part135Operator[]): {
   }
   return { approved, rest }
 }
+
+/** Unfiltered pack totals for the header stats band. */
+export type Part135PackStats = {
+  states: number
+  operators: number
+  tails: number
+  approvedOperators: number
+  approvedTails: number
+}
+
+export function buildPart135PackStats(pack: Part135FleetPack): Part135PackStats {
+  let operators = 0
+  let tails = 0
+  let approvedOperators = 0
+  let approvedTails = 0
+  for (const list of Object.values(pack.states ?? {})) {
+    for (const op of list) {
+      operators += 1
+      tails += op.tails_total || 0
+      if (op.onfly_approved) {
+        approvedOperators += 1
+        approvedTails += op.tails_total || 0
+      }
+    }
+  }
+  return {
+    states: Object.keys(pack.states ?? {}).length,
+    operators,
+    tails,
+    approvedOperators,
+    approvedTails,
+  }
+}
+
+/** One row from the OnFly approved-operators CSV export. */
+export type Part135ApprovedCsvRow = {
+  state: string
+  operator: string
+  company_as_listed: string
+  base: string
+  verified_address: string
+  address_state: string
+  state_conflict: string
+  faa_cert: string
+  in_faa_135_list: boolean
+  cert_note: string
+  usefulness: string
+  callout: string
+  pax: boolean
+  cargo: boolean
+  hazmat: boolean
+  medivac: boolean
+  ops_24hr: boolean
+  tails_listed: number
+  fleet_summary: string
+  workhorse_tails_on_faa_cert: number
+  notes: string
+}
+
+/** Display row for “Your network by state”. */
+export type Part135ApprovedNetworkRow = {
+  state: string
+  name: string
+  faa_name: string
+  base: string
+  faa_cert: string
+  in_faa_135_list: boolean
+  cert_note: string
+  usefulness: string
+  callout: string
+  caps: string
+  tails: number
+  workhorse_tails: number
+  fleet_summary: string
+  notes: string
+  state_conflict: boolean
+  /** True when the CSV row has no matching FAA-pack operator. */
+  csv_only: boolean
+}
+
+export function formatApprovedCaps(row: {
+  pax?: boolean
+  cargo?: boolean
+  hazmat?: boolean
+  medivac?: boolean
+  ops_24hr?: boolean
+}): string {
+  const parts: string[] = []
+  if (row.pax) parts.push('Pax')
+  if (row.cargo) parts.push('Cargo')
+  if (row.hazmat) parts.push('Hazmat')
+  if (row.medivac) parts.push('Medivac')
+  if (row.ops_24hr) parts.push('24hr')
+  return parts.join(' · ')
+}
+
+function indexApprovedByCert(
+  pack: Part135FleetPack,
+): Map<string, Part135Operator> {
+  const byCert = new Map<string, Part135Operator>()
+  for (const [st, list] of Object.entries(pack.states ?? {})) {
+    for (const op of list) {
+      if (!op.onfly_approved) continue
+      const cert = (op.faa_cert || '').trim().toUpperCase()
+      if (!cert) continue
+      byCert.set(cert, { ...op, state: op.state || st })
+    }
+  }
+  return byCert
+}
+
+/**
+ * Build the approved-network table from the CSV export, enriching with pack
+ * tails when the FAA cert matches. CSV-only rows (not on the FAA 135 list)
+ * still appear so the desk sees the full OnFly network.
+ */
+export function listApprovedNetworkRows(
+  pack: Part135FleetPack,
+  csvRows: readonly Part135ApprovedCsvRow[],
+): Part135ApprovedNetworkRow[] {
+  const byCert = indexApprovedByCert(pack)
+  const rows: Part135ApprovedNetworkRow[] = []
+
+  for (const csv of csvRows) {
+    const cert = (csv.faa_cert || '').trim().toUpperCase()
+    const packOp = cert ? byCert.get(cert) : undefined
+    const caps =
+      formatApprovedCaps(csv) ||
+      (packOp?.onfly_caps?.trim() ?? '')
+    rows.push({
+      state: csv.state || packOp?.state || '',
+      name: csv.operator || packOp?.onfly_name || packOp?.operator || '',
+      faa_name:
+        packOp?.operator ||
+        csv.company_as_listed ||
+        csv.operator ||
+        '',
+      base: csv.base || packOp?.onfly_base || '',
+      faa_cert: cert || packOp?.faa_cert || '',
+      in_faa_135_list: csv.in_faa_135_list || Boolean(packOp),
+      cert_note: csv.cert_note || packOp?.cert_note || '',
+      usefulness:
+        csv.usefulness || packOp?.onfly_usefulness || '',
+      callout: csv.callout || packOp?.onfly_callout || '',
+      caps,
+      tails: packOp?.tails_total ?? csv.tails_listed ?? 0,
+      workhorse_tails:
+        packOp?.workhorse_tails ?? csv.workhorse_tails_on_faa_cert ?? 0,
+      fleet_summary:
+        packOp?.fleet_summary || csv.fleet_summary || '',
+      notes: csv.notes || '',
+      state_conflict: String(csv.state_conflict || '')
+        .toUpperCase()
+        .includes('CHECK'),
+      csv_only: !packOp,
+    })
+  }
+
+  return rows.sort(
+    (a, b) =>
+      a.state.localeCompare(b.state) ||
+      a.name.localeCompare(b.name) ||
+      a.faa_cert.localeCompare(b.faa_cert),
+  )
+}
+
+/** Unfiltered per-state rollup for the “State rollup” table. */
+export function listPart135StateRollupRows(
+  pack: Part135FleetPack,
+): Part135StateRollup[] {
+  return Object.entries(pack.states ?? {})
+    .map(([state, ops]) =>
+      rollupState(
+        state,
+        ops.map((op) => ({ ...op, state: op.state || state })),
+      ),
+    )
+    .sort(
+      (a, b) =>
+        b.approved_count - a.approved_count ||
+        b.workhorse_tails - a.workhorse_tails ||
+        a.state.localeCompare(b.state),
+    )
+}
+
+export const PART135_FLEET_CAVEATS = [
+  'FSDO multi-state offices can misplace an operator’s state — confirm address before relying on FSDO estimate rows.',
+  'Four approved operators are not on the FAA Part 135 holder list as named (45 North, Daniel LaMontagne, Jet Nexa, Zanesville); ENG Aviation (T4BA) flies on Thunderbird Airways’ cert and is also absent from the FAA list as ENG.',
+  'Rows marked state conflict CHECK have a verified address in a different state than the network base — confirm before pinging.',
+  'Aircraft categories come from make / model / series mapping in the data pack, not operator config.',
+] as const

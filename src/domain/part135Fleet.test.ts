@@ -1,16 +1,22 @@
 import { describe, expect, it } from 'vitest'
+import approvedCsv from '@/fixtures/part135_approved_network.json'
 import pack from '@/fixtures/part135_fleet_by_state.json'
 import {
   PART135_CATS,
   buildPart135FleetView,
+  buildPart135PackStats,
   defaultPart135Filters,
   filteredPart135Aircraft,
+  listApprovedNetworkRows,
+  listPart135StateRollupRows,
   part135OperatorPasses,
   splitApprovedBands,
+  type Part135ApprovedCsvRow,
   type Part135FleetPack,
 } from './part135Fleet'
 
 const data = pack as Part135FleetPack
+const csv = approvedCsv as Part135ApprovedCsvRow[]
 
 describe('part135Fleet', () => {
   it('OH approved band order: AirNet II → Castle → Priority → Air Z → Aery', () => {
@@ -116,5 +122,44 @@ describe('part135Fleet', () => {
     expect(Object.keys(data.states).length).toBe(49)
     const ops = Object.values(data.states).reduce((n, list) => n + list.length, 0)
     expect(ops).toBeGreaterThanOrEqual(1000)
+  })
+
+  it('pack stats match fixture totals', () => {
+    const stats = buildPart135PackStats(data)
+    expect(stats).toEqual({
+      states: 49,
+      operators: 1244,
+      tails: 5310,
+      approvedOperators: 47,
+      approvedTails: 413,
+    })
+  })
+
+  it('approved network merges CSV to 52 rows including five non-FAA', () => {
+    expect(csv).toHaveLength(52)
+    const rows = listApprovedNetworkRows(data, csv)
+    expect(rows).toHaveLength(52)
+    const csvOnly = rows.filter((r) => r.csv_only)
+    expect(csvOnly.map((r) => r.name).sort()).toEqual([
+      '45 NORTH AVIATION',
+      'Daniel LaMontagne',
+      'ENG Aviation',
+      'Jet Nexa',
+      'Zanesville Aviation',
+    ])
+    const airnet = rows.find((r) => r.faa_cert === '2NEA')
+    expect(airnet?.name).toBe('AirNet II LLC')
+    expect(airnet?.tails).toBe(20)
+    expect(airnet?.caps).toMatch(/Cargo/)
+    expect(airnet?.csv_only).toBe(false)
+  })
+
+  it('state rollup lists every pack state with OH approved names', () => {
+    const rows = listPart135StateRollupRows(data)
+    expect(rows).toHaveLength(49)
+    expect(rows[0]!.approved_count).toBeGreaterThan(0)
+    const oh = rows.find((r) => r.state === 'OH')!
+    expect(oh.approved_count).toBe(5)
+    expect(oh.approved_names).toContain('AirNet II LLC')
   })
 })
