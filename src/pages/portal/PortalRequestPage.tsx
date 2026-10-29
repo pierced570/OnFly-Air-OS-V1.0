@@ -265,22 +265,15 @@ export default function PortalRequestPage() {
             </span>
           </span>
         </a>
-        {(tripHref || trackHref) && (
-          <Link
-            to={afterQuoteHref}
-            className="mt-4 flex w-full items-center justify-center rounded-lg border border-gold/40 bg-white px-4 py-3 text-sm font-semibold text-ink"
-          >
-            Open trip &amp; tracking →
-          </Link>
-        )}
+        {/* First hard-quote confirm: no trip/tracking CTA — desk is still quoting. */}
         {!signedIn && done.email?.includes('@') ? (
           <div className="mt-6">
             <PortalOneClickLogin
               email={done.email}
               onSignedIn={setSession}
-              nextHref={afterQuoteHref}
-              title="Open this trip on your phone"
-              hint="Verified desk email — one tap, no password. Routes you to your company portal."
+              nextHref="/portal"
+              title="Save this on your company portal"
+              hint="Verified desk email — one tap, no password. We’ll show shipments here once the trip is booked."
             />
           </div>
         ) : (
@@ -288,7 +281,7 @@ export default function PortalRequestPage() {
             to="/portal"
             className="mt-4 inline-block text-sm font-semibold text-gold"
           >
-            ← My trips
+            ← Back to portal
           </Link>
         )}
       </WizardShell>
