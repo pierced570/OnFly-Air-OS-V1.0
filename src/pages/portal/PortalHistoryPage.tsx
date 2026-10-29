@@ -10,8 +10,9 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { PortalShell } from '@/components/PortalShell'
+import { PortalGuestContinue } from '@/components/PortalGuestContinue'
 import {
   buildPortalHistoryLedger,
   buildPortalOpenRequestCards,
@@ -183,13 +184,15 @@ export default function PortalHistoryPage() {
     )
   }
 
-  if (!signedIn)
+  if (!signedIn) {
     return (
-      <Navigate
-        to="/portal/login?next=%2Fportal%2Fhistory"
-        replace
+      <PortalGuestContinue
+        title="Sign in for trip history"
+        hint="POs and invoices need a verified desk email. You can still request another trip without signing in."
+        nextHref="/portal/history"
       />
     )
+  }
 
   const headerActions = (
     <>

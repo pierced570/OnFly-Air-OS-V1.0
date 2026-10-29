@@ -2,9 +2,10 @@
  * Client app — Account. Company + sign-out. Never desk staff login.
  */
 
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
+import { PortalGuestContinue } from '@/components/PortalGuestContinue'
 import {
   BRAND_EMAIL,
   BRAND_PHONE,
@@ -30,10 +31,15 @@ export default function PortalAccountPage() {
     )
   }
 
-  if (!signedIn)
+  if (!signedIn) {
     return (
-      <Navigate to="/portal/login?next=%2Fportal%2Faccount" replace />
+      <PortalGuestContinue
+        title="Sign in for account"
+        hint="Company profile and sign-out need a verified desk email. Requesting a trip never requires an account."
+        nextHref="/portal/account"
+      />
     )
+  }
 
   return (
     <PortalShell

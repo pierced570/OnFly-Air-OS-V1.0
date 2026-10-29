@@ -1,10 +1,11 @@
 /**
- * Live client tracking — track token identifies the trip; live updates need
- * a signed-in portal session (verified desk work email).
+ * Live client tracking — magic-link token IS access for that trip.
+ * Signed-in session unlocks company-wide shipments; it is not required to
+ * open a desk/email tracking link or request another trip.
  * Cream client theme. Never shows cost, margin, or operator identity.
  */
 
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { PortalTrackingBody } from '@/components/PortalTrackingBody'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
@@ -15,7 +16,10 @@ import {
   subscribeTrips,
   type TripStoreRow,
 } from '@/lib/tripStore'
-import { rememberPortalGuestTrack } from '@/lib/portalGuestTrack'
+import {
+  readPortalGuestTrack,
+  rememberPortalGuestTrack,
+} from '@/lib/portalGuestTrack'
 import { getPortalAuthSession } from '@/lib/portalAuth'
 import { usePortalSession } from '@/hooks/usePortalSession'
 import { useAdsbForTail, adsbPollEnabledForState } from '@/hooks/useAdsbForTail'
@@ -53,73 +57,13 @@ function viewFromTrip(
 
 function PortalLoading() {
   return (
-    <PortalShell>
+    <PortalShell appNav>
       <p className="text-sm text-muted">Loading live tracking…</p>
     </PortalShell>
   )
 }
 
-function TrackSignInGate(props: {
-  trip: TripStoreRow
-  tripId: string
-  trackToken?: string
-  email?: string | null
-}) {
-  const { setSession } = usePortalSession()
-  const nextHref = `/portal/trips/${props.tripId}`
-  const lane = props.trip.lane || 'Your shipment'
-  const ref = props.trip.ref
-  const tokenEmail =
-    props.email?.trim() ||
-    (props.trackToken
-      ? getPortalTrackRow(props.trackToken)?.email?.trim() || null
-      : null)
-  return (
-    <PortalShell>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
-        Tracking link
-      </p>
-      <h1 className="mt-2 text-2xl font-semibold text-ink">
-        Sign in for live updates
-      </h1>
-      <p className="mt-2 text-sm text-muted">
-        We found{' '}
-        <span className="avionic font-medium text-ink">
-          {ref ? `T-${ref}` : 'your trip'}
-        </span>
-        {lane ? (
-          <>
-            {' '}
-            · <span className="text-ink">{lane}</span>
-          </>
-        ) : null}
-        . Live ETAs, stage progress, and status pushes need a verified desk
-        email — soft and hard quotes stay open without one.
-      </p>
-      <div className="mt-6">
-        <PortalOneClickLogin
-          email={tokenEmail}
-          onSignedIn={setSession}
-          nextHref={nextHref}
-          title="Open live tracking"
-          hint="Enter the work email on your company desk — we route you to the right portal."
-        />
-      </div>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
-          ← Book or quote (no account)
-        </Link>
-      </div>
-      {props.trackToken ? (
-        <p className="mt-6 text-xs text-muted">
-          Keep this link — after you sign in, it opens the same trip.
-        </p>
-      ) : null}
-    </PortalShell>
-  )
-}
-
-/** Magic-link tracker `/portal/track/:token` — soft-gate: identify trip, require session for live body. */
+/** Magic-link tracker `/portal/track/:token` — token unlocks this trip's live body. */
 export default function PortalTrackPage() {
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const nowIso = useClock()
@@ -141,15 +85,12 @@ export default function PortalTrackPage() {
       if (cancelled) return
       setTripId(id)
       if (id) {
-        // Remember identity for home "your shipment" — live body still needs session.
         const session = await getPortalAuthSession()
         if (!session?.clientId) {
           rememberPortalGuestTrack({ token, tripId: id })
         }
       }
       if (id && canPersist()) {
-        // Hydrate portal-safe shell for identity even when gated; live ADS-B
-        // + PortalTrackingBody stay behind signed-in below.
         const ready = await ensurePortalTripTrackingReady({
           tripId: id,
           token,
@@ -179,21 +120,20 @@ export default function PortalTrackPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId, remoteTrip, nowIso, etaReadyTick])
 
-  const input = trip && signedIn ? tripToTrackingInput(trip) : null
+  const input = trip ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail, {
-    enabled: Boolean(signedIn) && adsbPollEnabledForState(trip?.state),
+    enabled: adsbPollEnabledForState(trip?.state),
     originIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.from.icao,
     destIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.to.icao,
   })
 
   useEffect(() => {
-    if (!signedIn || !trip?.id || !adsb) return
+    if (!trip?.id || !adsb) return
     if (adsb.takeoffIsActual !== true && adsb.landingIsActual !== true) return
     void import('@/lib/applyAdsbActuals').then((m) => {
       m.applyAdsbActualsToTrip(trip.id, adsb, { nowIso })
     })
   }, [
-    signedIn,
     trip?.id,
     adsb?.tail,
     adsb?.lastTakeoffAt,
@@ -204,62 +144,58 @@ export default function PortalTrackPage() {
   ])
 
   const view = useMemo(() => {
-    if (!signedIn || !trip) return null
+    if (!trip) return null
     const live = getTrip(trip.id) ?? trip
     return viewFromTrip(live, adsb, nowIso)
-  }, [signedIn, trip, adsb, nowIso, etaReadyTick])
+  }, [trip, adsb, nowIso, etaReadyTick])
 
   if (resolving || authLoading) return <PortalLoading />
 
   if (!tripId || (!trip && !remoteTrip)) {
     return (
-      <PortalShell>
+      <PortalShell appNav>
         <h1 className="text-2xl font-semibold">Tracking link expired</h1>
         <p className="mt-2 text-sm text-muted">
           This link isn&apos;t recognized. Ask dispatch for a fresh link, or
-          sign in to see your company&apos;s shipments.
+          request a new trip below — no account needed.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
-            to="/portal/login"
+            to="/portal/request?mode=book"
             className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
           >
-            Sign in
+            Request a trip
           </Link>
           <Link
             to="/portal"
             className="inline-flex rounded-md border border-border px-4 py-2 text-sm font-semibold text-ink"
           >
-            Book or quote
+            Portal home
           </Link>
         </div>
       </PortalShell>
     )
   }
 
-  if (!signedIn) {
-    const identified = trip ?? remoteTrip
-    if (!identified || !tripId) return <PortalLoading />
-    return (
-      <TrackSignInGate
-        trip={identified}
-        tripId={tripId}
-        trackToken={token}
-      />
-    )
-  }
-
   if (!view) {
     return (
-      <PortalShell>
+      <PortalShell appNav>
         <h1 className="text-xl font-semibold">Trip not found</h1>
         <p className="mt-2 text-sm text-muted">
-          Sign in worked, but this trip isn&apos;t available on your account.
-          Open shipments from your list or ask the desk for a fresh link.
+          This tracking link couldn&apos;t load the trip. Request another move
+          or ask the desk for a fresh link.
         </p>
-        <Link to="/portal" className="mt-4 inline-block text-gold">
-          ← All shipments
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            to="/portal/request?mode=book"
+            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
+          >
+            Request a trip
+          </Link>
+          <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
+            ← Portal home
+          </Link>
+        </div>
       </PortalShell>
     )
   }
@@ -283,6 +219,7 @@ export function PortalTripTrackPage() {
   const [remoteTrip, setRemoteTrip] = useState<TripStoreRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [etaReadyTick, setEtaReadyTick] = useState(0)
+  const guest = readPortalGuestTrack()
 
   useEffect(() => {
     if (!id || !signedIn) return
@@ -309,7 +246,7 @@ export function PortalTripTrackPage() {
 
   const input = trip ? tripToTrackingInput(trip) : null
   const adsb = useAdsbForTail(input?.tail, {
-    enabled: adsbPollEnabledForState(trip?.state),
+    enabled: Boolean(signedIn) && adsbPollEnabledForState(trip?.state),
     originIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.from.icao,
     destIcao: input?.eta_chain.find((l) => l.type === 'air_leg')?.to.icao,
   })
@@ -317,26 +254,45 @@ export function PortalTripTrackPage() {
 
   if (authLoading || (signedIn && loading)) return <PortalLoading />
 
+  // Guest who already has this trip's magic link — send them to track, not login.
+  if (!signedIn && id && guest?.tripId === id && guest.token) {
+    return <Navigate to={`/portal/track/${guest.token}`} replace />
+  }
+
   if (!signedIn) {
     const nextHref = id ? `/portal/trips/${id}` : '/portal'
     return (
-      <PortalShell>
-        <h1 className="text-xl font-semibold">Sign in to track</h1>
+      <PortalShell appNav>
+        <h1 className="text-xl font-semibold">Open live tracking</h1>
         <p className="mt-2 text-sm text-muted">
-          Live tracking needs a verified desk email. Soft and hard quotes still
-          work without an account.
+          Use the tracking link from your email, or sign in with a verified desk
+          email. You can always request another trip without an account.
         </p>
-        <div className="mt-6">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <Link
+            to="/portal/request?mode=book"
+            className="inline-flex min-h-12 items-center justify-center rounded-md bg-gold px-4 text-sm font-semibold text-ink"
+          >
+            Request another trip
+          </Link>
+          <Link
+            to="/portal/request?mode=quote"
+            className="inline-flex min-h-12 items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-semibold text-ink"
+          >
+            Get a rough estimate
+          </Link>
+        </div>
+        <div className="mt-8">
           <PortalOneClickLogin
             onSignedIn={setSession}
             nextHref={nextHref}
-            title="Open live tracking"
+            title="Sign in for this trip"
             hint="Work email on file at the desk — opens your company portal."
           />
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
           <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
-            ← Book or quote
+            ← Portal home
           </Link>
         </div>
       </PortalShell>
@@ -345,15 +301,23 @@ export function PortalTripTrackPage() {
 
   if (!view) {
     return (
-      <PortalShell>
+      <PortalShell appNav>
         <h1 className="text-xl font-semibold">Trip not found</h1>
         <p className="mt-2 text-sm text-muted">
           Open a trip from your shipments list, or use the tracking link from
-          email after you sign in.
+          email.
         </p>
-        <Link to="/portal" className="mt-4 inline-block text-gold">
-          ← All shipments
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            to="/portal/request?mode=book"
+            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
+          >
+            Request another trip
+          </Link>
+          <Link to="/portal" className="inline-flex px-4 py-2 text-sm text-gold">
+            ← All shipments
+          </Link>
+        </div>
       </PortalShell>
     )
   }

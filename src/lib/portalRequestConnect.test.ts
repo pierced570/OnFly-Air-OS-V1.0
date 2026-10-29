@@ -42,13 +42,21 @@ describe('portalRequestConnect', () => {
     ).toBe(client!.id)
   })
 
-  it('prefers trip href after quote', () => {
+  it('prefers trip href only when signed in; guests use magic track', () => {
     expect(
       portalNextHrefAfterQuote({
+        signedIn: true,
         tripHref: '/portal/trips/t1',
         trackHref: '/portal/track/tok',
       }),
     ).toBe('/portal/trips/t1')
+    expect(
+      portalNextHrefAfterQuote({
+        signedIn: false,
+        tripHref: '/portal/trips/t1',
+        trackHref: '/portal/track/tok',
+      }),
+    ).toBe('/portal/track/tok')
     expect(
       portalNextHrefAfterQuote({
         tripHref: null,

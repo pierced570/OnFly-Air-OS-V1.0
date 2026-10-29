@@ -4,7 +4,7 @@
  * Stop / ETA edits live on the OnFly dispatcher Live tracking card — not here.
  */
 
-import { useMemo, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { PortalAircraftMap } from '@/components/PortalAircraftMap'
 import { PortalShell } from '@/components/PortalShell'
@@ -12,6 +12,7 @@ import { PortalTripManifestForm } from '@/components/PortalTripManifestForm'
 import { PortalTripChat } from '@/components/PortalTripChat'
 import { TailFlightActivity } from '@/components/TailFlightActivity'
 import { usePortalSession } from '@/hooks/usePortalSession'
+import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 import {
   portalAircraftMapBlocked,
   portalAircraftMapVisible,
@@ -62,9 +63,14 @@ export function PortalTrackingBody({
   trackToken?: string | null
 }) {
   const { signedIn } = usePortalSession()
+  const [section, setSection] = useState<'live' | 'stages' | 'details' | 'chat'>(
+    'live',
+  )
   const fbos = useSyncExternalStore(subscribeFbos, listFbos, listFbos)
   const enrichedStops = useMemo(
     () => enrichTrackingStops(view.stops),
+    // fbos subscription invalidates via store; stops are the primary key
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [view.stops, fbos],
   )
   const a = view.aircraft
@@ -158,14 +164,30 @@ export function PortalTrackingBody({
         : view.dropoffStop.icao || undefined)
     : undefined
 
+  const sections: Array<{
+    id: typeof section
+    label: string
+  }> = [
+    { id: 'live', label: 'Live' },
+    { id: 'stages', label: 'Stages' },
+    { id: 'details', label: 'Details' },
+    { id: 'chat', label: 'Chat' },
+  ]
+
   return (
-    <PortalShell wide appNav={signedIn}>
-      <div className="mb-4">
+    <PortalShell wide appNav>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Link
           to={backHref}
           className="text-xs font-semibold uppercase tracking-[0.14em] text-gold hover:text-gold-lt"
         >
           ← All shipments
+        </Link>
+        <Link
+          to="/portal/request?mode=book"
+          className="inline-flex min-h-10 items-center rounded-md bg-gold px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
+        >
+          Request another trip
         </Link>
       </div>
 
@@ -195,7 +217,37 @@ export function PortalTrackingBody({
         </div>
       </header>
 
-      <section className="mt-6 overflow-hidden rounded-md border border-ink/20 bg-ink text-cream">
+      {/* One screen at a time on mobile — desktop still shows the full stack. */}
+      <nav
+        aria-label="Tracking sections"
+        className="mt-5 flex gap-1 overflow-x-auto pb-1 md:hidden"
+      >
+        {sections.map((s) => {
+          const active = section === s.id
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSection(s.id)}
+              className={[
+                'inline-flex min-h-10 shrink-0 items-center rounded-md px-3 text-[11px] font-semibold uppercase tracking-[0.12em]',
+                active
+                  ? 'bg-gold text-ink'
+                  : 'border border-border bg-white text-muted',
+              ].join(' ')}
+            >
+              {s.label}
+            </button>
+          )
+        })}
+      </nav>
+
+      <div
+        className={
+          section === 'live' ? 'mt-4 block' : 'mt-4 hidden md:block'
+        }
+      >
+      <section className="overflow-hidden rounded-md border border-ink/20 bg-ink text-cream">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em]">
           <span className="text-gold">
             ●{' '}
@@ -287,83 +339,131 @@ export function PortalTrackingBody({
         variant="portal"
         aircraftType={view.aircraftType}
       />
+      </div>
 
-      <section className="mt-6">
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-          Trip stages
-        </div>
-        {opsRows.length === 0 ? (
-          <p className="text-sm text-muted">
-            {view.state === 'in_progress' || view.state === 'booked'
-              ? 'Trip schedule is updating — check back shortly, or ask dispatch.'
-              : 'Stages appear once the trip is live.'}
-          </p>
-        ) : (
-          <ol className="divide-y divide-border overflow-hidden rounded-md border border-border bg-white">
-            {opsRows.map((row) => {
-              const done = row.status === 'done'
-              const active = row.status === 'active'
-              return (
-                <li
-                  key={row.key}
-                  className="flex items-start gap-3 px-3.5 py-3"
-                >
-                  <span
-                    className={[
-                      'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold',
-                      done
-                        ? 'border-gold bg-gold text-ink'
-                        : active
-                          ? 'border-gold bg-[#F7F2E3] text-gold ring-4 ring-gold/25'
-                          : 'border-border bg-white text-transparent',
-                    ].join(' ')}
-                    aria-hidden
+      <div
+        className={
+          section === 'stages' ? 'mt-6 block' : 'mt-6 hidden md:block'
+        }
+      >
+        <section>
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+            Trip stages
+          </div>
+          {opsRows.length === 0 ? (
+            <p className="text-sm text-muted">
+              {view.state === 'in_progress' || view.state === 'booked'
+                ? 'Trip schedule is updating — check back shortly, or ask dispatch.'
+                : 'Stages appear once the trip is live.'}
+            </p>
+          ) : (
+            <ol className="divide-y divide-border overflow-hidden rounded-md border border-border bg-white">
+              {opsRows.map((row) => {
+                const done = row.status === 'done'
+                const active = row.status === 'active'
+                return (
+                  <li
+                    key={row.key}
+                    className="flex items-start gap-3 px-3.5 py-3"
                   >
-                    {done ? '✓' : ''}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div
+                    <span
                       className={[
-                        'text-sm font-semibold leading-snug',
-                        active ? 'text-gold' : 'text-ink',
-                      ].join(' ')}
-                    >
-                      {clientOpsStageLabel(row)}
-                    </div>
-                    <div
-                      className={[
-                        'mt-0.5 text-[11px] uppercase tracking-wider',
+                        'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold',
                         done
-                          ? 'text-[#2E7D32]'
+                          ? 'border-gold bg-gold text-ink'
                           : active
-                            ? 'text-gold'
-                            : 'text-muted',
+                            ? 'border-gold bg-[#F7F2E3] text-gold ring-4 ring-gold/25'
+                            : 'border-border bg-white text-transparent',
                       ].join(' ')}
+                      aria-hidden
                     >
-                      {stageStatusLabel(row.status)}
+                      {done ? '✓' : ''}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={[
+                          'text-sm font-semibold leading-snug',
+                          active ? 'text-gold' : 'text-ink',
+                        ].join(' ')}
+                      >
+                        {clientOpsStageLabel(row)}
+                      </div>
+                      <div
+                        className={[
+                          'mt-0.5 text-[11px] uppercase tracking-wider',
+                          done
+                            ? 'text-[#2E7D32]'
+                            : active
+                              ? 'text-gold'
+                              : 'text-muted',
+                        ].join(' ')}
+                      >
+                        {stageStatusLabel(row.status)}
+                      </div>
                     </div>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      <div
+        className={
+          section === 'details' ? 'mt-6 block' : 'mt-6 hidden md:block'
+        }
+      >
+        <section className="grid gap-3 sm:grid-cols-3">
+          <InfoCard
+            title="Aircraft"
+            body={`${tail}${view.aircraftType ? ` · ${view.aircraftType}` : ''}`}
+            sub={`Operated by ${view.carrierLabel}.`}
+          />
+          <InfoCard title="Pickup" body={pickupTitle} sub={pickupSub} />
+          <InfoCard title="Drop-off" body={dropoffTitle} sub={dropoffSub} />
+        </section>
+        {tripId ? <PortalTripManifestForm tripId={tripId} /> : null}
+      </div>
+
+      <div
+        className={
+          section === 'chat' ? 'mt-6 block' : 'mt-6 hidden md:block'
+        }
+      >
+        {tripId ? (
+          <PortalTripChat tripId={tripId} variant="portal" token={trackToken} />
+        ) : (
+          <p className="text-sm text-muted">Chat opens once this trip is linked.</p>
         )}
-      </section>
+      </div>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-3">
-        <InfoCard
-          title="Aircraft"
-          body={`${tail}${view.aircraftType ? ` · ${view.aircraftType}` : ''}`}
-          sub={`Operated by ${view.carrierLabel}.`}
-        />
-        <InfoCard title="Pickup" body={pickupTitle} sub={pickupSub} />
-        <InfoCard title="Drop-off" body={dropoffTitle} sub={dropoffSub} />
-      </section>
-
-      {tripId ? <PortalTripManifestForm tripId={tripId} /> : null}
-      {tripId ? (
-        <PortalTripChat tripId={tripId} variant="portal" token={trackToken} />
-      ) : null}
+      <div className="mt-8 space-y-3 border-t border-border/60 pt-5">
+        <Link
+          to="/portal/request?mode=book"
+          className="flex w-full min-h-12 items-center justify-center rounded-md bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-lt"
+        >
+          Request another trip
+        </Link>
+        <a
+          href={`tel:${BRAND_PHONE_E164}`}
+          className="flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-ink/20 bg-ink px-4 py-3 text-center text-sm font-semibold text-gold"
+        >
+          <span>Rather talk to a real person? Call now</span>
+          <span className="text-xs font-normal text-gold/80">
+            Dispatchers always on call ·{' '}
+            <span className="avionic">{BRAND_PHONE}</span>
+          </span>
+        </a>
+        {!signedIn ? (
+          <p className="text-center text-xs text-muted">
+            Want every company shipment in one place?{' '}
+            <Link to="/portal/login" className="font-semibold text-gold">
+              Sign in
+            </Link>
+          </p>
+        ) : null}
+      </div>
     </PortalShell>
   )
 }
