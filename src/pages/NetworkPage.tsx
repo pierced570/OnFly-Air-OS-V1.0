@@ -64,9 +64,8 @@ import {
   type VerticalId,
 } from '@/domain/operatorVerticals'
 import { buildOperatorsByBaseView } from '@/domain/operatorsByBase'
-import { buildOperatorsByStateView } from '@/domain/operatorsByState'
 import { OperatorsByBasePanel } from '@/pages/network/OperatorsByBasePanel'
-import { OperatorsByStatePanel } from '@/pages/network/OperatorsByStatePanel'
+import { StateFleetBrowser } from '@/pages/network/StateFleetBrowser'
 
 /** All operators · by bases · by state · by aircraft type */
 type ViewMode = 'all' | 'by_base' | 'by_state' | 'by_type'
@@ -108,7 +107,6 @@ export default function NetworkPage({
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null)
   const [coiNote, setCoiNote] = useState<string | null>(null)
   const [view, setView] = useState<ViewMode>('all')
-  const [selectedState, setSelectedState] = useState<string | null>(null)
   const [selectedBase, setSelectedBase] = useState<string | null>(null)
   const [adsbBusy, setAdsbBusy] = useState(false)
   const [missionFleet, setMissionFleet] = useState<
@@ -443,11 +441,6 @@ export default function NetworkPage({
     return [...fromDrafts, ...fromNetwork]
   }, [data, drafts])
 
-  const byStateView = useMemo(
-    () => buildOperatorsByStateView(byStateSourceOps, selectedState),
-    [byStateSourceOps, selectedState],
-  )
-
   const byBaseView = useMemo(
     () => buildOperatorsByBaseView(byStateSourceOps, selectedBase),
     [byStateSourceOps, selectedBase],
@@ -501,13 +494,6 @@ export default function NetworkPage({
     }))
     return { op: draftOp, aircraft, source: 'draft' as const }
   }, [bundles, selectedOpId, data, drafts])
-
-  useEffect(() => {
-    if (view !== 'by_state') return
-    if (selectedState) return
-    const first = byStateView.states_with_operators[0]?.state
-    if (first) setSelectedState(first)
-  }, [view, selectedState, byStateView.states_with_operators])
 
   useEffect(() => {
     if (view !== 'by_base') return
@@ -609,31 +595,7 @@ export default function NetworkPage({
       </header>
 
       {view === 'by_state' ? (
-        <>
-          <OperatorsByStatePanel
-            view={byStateView}
-            selectedState={selectedState}
-            onSelectState={(code) => {
-              setSelectedState(code)
-              setSelectedOpId(null)
-            }}
-            selectedOpId={selectedOpId}
-            onSelectOperator={setSelectedOpId}
-            filter={q}
-            onFilterChange={setQ}
-          />
-          {selectedBundle && (
-            <div ref={detailRef}>
-              <OperatorDetail
-                bundle={selectedBundle}
-                statusByTail={statusByTail}
-                expandedDocs={expandedDocs}
-                setExpandedDocs={setExpandedDocs}
-                onClose={() => setSelectedOpId(null)}
-              />
-            </div>
-          )}
-        </>
+        <StateFleetBrowser />
       ) : view === 'by_base' ? (
         <>
           <OperatorsByBasePanel

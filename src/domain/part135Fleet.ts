@@ -1,0 +1,527 @@
+/**
+ * Part 135 State Fleet Browser — pure filter/sort/roll-up logic.
+ * Data pack keys: faa_cert (operator), tail (aircraft). Spec: State Fleet Browser.
+ */
+
+/** Fixed category order — use everywhere (§2.4). */
+export const PART135_CATS = [
+  'MEP',
+  'MET',
+  'SET',
+  'Light Jet',
+  'VLJ',
+  'CARGO',
+  'SEP',
+] as const
+
+export type Part135Category = (typeof PART135_CATS)[number]
+
+export const PART135_CAT_LABELS: Record<Part135Category, string> = {
+  MEP: 'ME piston',
+  MET: 'ME turboprop',
+  SET: 'SE turboprop',
+  'Light Jet': 'Light jet',
+  VLJ: 'VLJ',
+  CARGO: 'Cargo spec.',
+  SEP: 'SE piston',
+}
+
+/**
+ * Workhorse type names — keep in one place so Pierce can extend (§2.5).
+ * Matching is substring / starts-with on normalized aircraft_type.
+ */
+export const PART135_WORKHORSE_TYPES = [
+  'Cessna 310',
+  'Cessna 340',
+  'Cessna 402',
+  'Cessna 404',
+  'Cessna 414',
+  'Cessna 421',
+  'Beechcraft Baron 58',
+  'Baron 58',
+  'King Air 90',
+  'King Air C90',
+  'King Air 100',
+  'King Air 200',
+  'Piper Navajo',
+  'Piper Navajo Chieftain',
+  'Piper Cheyenne',
+  'Piper Aerostar',
+  'Mitsubishi MU-2',
+  'MU-2',
+  'Cessna Caravan',
+  'Pilatus PC-12',
+  'Fairchild Metroliner',
+  'Beechcraft 99',
+  'Beechcraft 1900',
+  'Beech 99',
+  'Beech 1900',
+  'Dassault Falcon 20',
+  'Falcon 20',
+  'Learjet 35',
+  'Learjet 36',
+] as const
+
+export type Part135OnflyStatus =
+  | 'approved'
+  | 'prospect'
+  | 'skip_jetcard_fractional'
+  | 'skip_broker_nonop'
+  | 'skip_defunct'
+  | 'air_medical'
+  | 'unclassified'
+
+export type Part135StateSource =
+  | 'onfly_approved_base'
+  | 'operator_base_lookup'
+  | 'fsdo_estimate'
+
+export type Part135Aircraft = {
+  tail: string
+  aircraft_type: string
+  faa_code: string
+  category: Part135Category | string
+  engines: number
+  workhorse: boolean
+  onfly_flown_type: boolean
+  freight_history: boolean
+  serial?: string
+}
+
+export type Part135Operator = {
+  state: string
+  state_source: Part135StateSource | string
+  operator: string
+  faa_cert: string
+  cfr_part: string
+  fsdo?: string
+  fsdo_office?: string
+  onfly_approved: boolean
+  onfly_status: Part135OnflyStatus | string
+  onfly_name: string
+  onfly_base: string
+  onfly_usefulness: string
+  onfly_callout: string
+  onfly_caps: string
+  cert_note: string
+  tails_total: number
+  workhorse_tails: number
+  freight_tails: number
+  SEP: number
+  MEP: number
+  SET: number
+  MET: number
+  VLJ: number
+  Light_Jet: number
+  CARGO: number
+  workhorse_types: string
+  fleet_summary: string
+  aircraft: Part135Aircraft[]
+}
+
+export type Part135FleetPack = {
+  generated_at?: string
+  states: Record<string, Part135Operator[]>
+}
+
+export type Part135Filters = {
+  state: string
+  q: string
+  approvedOnly: boolean
+  workhorseOps: boolean
+  freightTypes: boolean
+  /** Hide skip_* statuses (never drops approved). Default true. */
+  hideSkip: boolean
+  /** Hide AK / HI / PR. Default true. */
+  hideAkHiPr: boolean
+  cats: Set<string>
+  openAllStates: boolean
+}
+
+export type Part135CatCounts = Record<Part135Category, number>
+
+export type Part135StateRollup = {
+  state: string
+  operators: Part135Operator[]
+  operator_count: number
+  tails_total: number
+  workhorse_tails: number
+  approved_count: number
+  approved_names: string[]
+  cats: Part135CatCounts
+}
+
+export const US_STATE_NAMES_FLEET: Record<string, string> = {
+  AL: 'Alabama',
+  AK: 'Alaska',
+  AZ: 'Arizona',
+  AR: 'Arkansas',
+  CA: 'California',
+  CO: 'Colorado',
+  CT: 'Connecticut',
+  DC: 'District of Columbia',
+  DE: 'Delaware',
+  FL: 'Florida',
+  GA: 'Georgia',
+  HI: 'Hawaii',
+  ID: 'Idaho',
+  IL: 'Illinois',
+  IN: 'Indiana',
+  IA: 'Iowa',
+  KS: 'Kansas',
+  KY: 'Kentucky',
+  LA: 'Louisiana',
+  ME: 'Maine',
+  MD: 'Maryland',
+  MA: 'Massachusetts',
+  MI: 'Michigan',
+  MN: 'Minnesota',
+  MS: 'Mississippi',
+  MO: 'Missouri',
+  MT: 'Montana',
+  NE: 'Nebraska',
+  NV: 'Nevada',
+  NH: 'New Hampshire',
+  NJ: 'New Jersey',
+  NM: 'New Mexico',
+  NY: 'New York',
+  NC: 'North Carolina',
+  ND: 'North Dakota',
+  OH: 'Ohio',
+  OK: 'Oklahoma',
+  OR: 'Oregon',
+  PA: 'Pennsylvania',
+  PR: 'Puerto Rico',
+  RI: 'Rhode Island',
+  SC: 'South Carolina',
+  SD: 'South Dakota',
+  TN: 'Tennessee',
+  TX: 'Texas',
+  UT: 'Utah',
+  VT: 'Vermont',
+  VA: 'Virginia',
+  WA: 'Washington',
+  WV: 'West Virginia',
+  WI: 'Wisconsin',
+  WY: 'Wyoming',
+}
+
+export function defaultPart135Filters(): Part135Filters {
+  return {
+    state: '',
+    q: '',
+    approvedOnly: false,
+    workhorseOps: false,
+    freightTypes: false,
+    hideSkip: true,
+    hideAkHiPr: true,
+    cats: new Set(PART135_CATS),
+    openAllStates: false,
+  }
+}
+
+export function emptyCatCounts(): Part135CatCounts {
+  return {
+    MEP: 0,
+    MET: 0,
+    SET: 0,
+    'Light Jet': 0,
+    VLJ: 0,
+    CARGO: 0,
+    SEP: 0,
+  }
+}
+
+/** Map operator row Light_Jet field → category code. */
+export function operatorCatCount(
+  op: Part135Operator,
+  cat: Part135Category,
+): number {
+  switch (cat) {
+    case 'MEP':
+      return op.MEP || 0
+    case 'MET':
+      return op.MET || 0
+    case 'SET':
+      return op.SET || 0
+    case 'Light Jet':
+      return op.Light_Jet || 0
+    case 'VLJ':
+      return op.VLJ || 0
+    case 'CARGO':
+      return op.CARGO || 0
+    case 'SEP':
+      return op.SEP || 0
+  }
+}
+
+export function normalizeCategory(raw: string): Part135Category | string {
+  const s = raw.trim()
+  if ((PART135_CATS as readonly string[]).includes(s)) return s
+  if (s === 'Light_Jet' || s === 'Light jet') return 'Light Jet'
+  if (s === 'Cargo spec.' || s === 'Cargo') return 'CARGO'
+  return s
+}
+
+export function categorySortIndex(cat: string): number {
+  const n = normalizeCategory(cat)
+  const i = PART135_CATS.indexOf(n as Part135Category)
+  return i >= 0 ? i : 99
+}
+
+/** Status pill label + tone (§3.4). */
+export function part135StatusPill(status: string): {
+  label: string
+  tone: 'gold' | 'neutral' | 'bad' | 'warn'
+} {
+  switch (status) {
+    case 'approved':
+      return { label: 'Approved', tone: 'gold' }
+    case 'prospect':
+      return { label: 'Prospect', tone: 'neutral' }
+    case 'skip_jetcard_fractional':
+      return { label: 'Jet card / fractional', tone: 'bad' }
+    case 'skip_broker_nonop':
+      return { label: 'Broker / non-op', tone: 'bad' }
+    case 'skip_defunct':
+      return { label: 'Defunct', tone: 'bad' }
+    case 'air_medical':
+      return { label: 'Air medical', tone: 'warn' }
+    case 'unclassified':
+      return { label: 'Unclassified', tone: 'neutral' }
+    default:
+      return { label: status || 'Unclassified', tone: 'neutral' }
+  }
+}
+
+/**
+ * Operator passes sticky filters (AND). Mirrors prototype `pass()`.
+ */
+export function part135OperatorPasses(
+  op: Part135Operator,
+  f: Part135Filters,
+): boolean {
+  if (f.state && op.state !== f.state) return false
+  if (f.hideAkHiPr && (op.state === 'AK' || op.state === 'HI' || op.state === 'PR')) {
+    return false
+  }
+  if (f.approvedOnly && !op.onfly_approved) return false
+  if (f.workhorseOps && op.workhorse_tails === 0) return false
+  if (f.freightTypes && op.freight_tails === 0) return false
+  if (
+    f.hideSkip &&
+    !op.onfly_approved &&
+    /^skip/i.test(String(op.onfly_status ?? ''))
+  ) {
+    return false
+  }
+  const hasCat = PART135_CATS.some(
+    (c) => f.cats.has(c) && operatorCatCount(op, c) > 0,
+  )
+  if (!hasCat) return false
+
+  const q = f.q.trim().toLowerCase()
+  if (q) {
+    const cert = String(op.faa_cert ?? '').toLowerCase()
+    const hit =
+      String(op.operator ?? '')
+        .toLowerCase()
+        .includes(q) ||
+      String(op.onfly_name ?? '')
+        .toLowerCase()
+        .includes(q) ||
+      String(op.fleet_summary ?? '')
+        .toLowerCase()
+        .includes(q) ||
+      cert === q
+    if (!hit) return false
+  }
+  return true
+}
+
+export function sortPart135Operators(
+  ops: readonly Part135Operator[],
+): Part135Operator[] {
+  return [...ops].sort((a, b) => {
+    const ap = a.onfly_approved ? 1 : 0
+    const bp = b.onfly_approved ? 1 : 0
+    if (bp !== ap) return bp - ap
+    if (b.workhorse_tails !== a.workhorse_tails) {
+      return b.workhorse_tails - a.workhorse_tails
+    }
+    if (b.tails_total !== a.tails_total) return b.tails_total - a.tails_total
+    const an = (a.onfly_name || a.operator).toLowerCase()
+    const bn = (b.onfly_name || b.operator).toLowerCase()
+    return an.localeCompare(bn)
+  })
+}
+
+export function sortPart135Aircraft(
+  tails: readonly Part135Aircraft[],
+): Part135Aircraft[] {
+  return [...tails].sort((a, b) => {
+    const ca = categorySortIndex(a.category)
+    const cb = categorySortIndex(b.category)
+    if (ca !== cb) return ca - cb
+    const ta = a.aircraft_type.localeCompare(b.aircraft_type)
+    if (ta !== 0) return ta
+    return a.tail.localeCompare(b.tail)
+  })
+}
+
+/** Tails visible under current category chips. */
+export function filteredPart135Aircraft(
+  op: Part135Operator,
+  cats: Set<string>,
+): Part135Aircraft[] {
+  const list = (op.aircraft ?? []).filter((a) => {
+    const c = normalizeCategory(String(a.category ?? ''))
+    return cats.has(c)
+  })
+  return sortPart135Aircraft(list)
+}
+
+export function workhorseTypeNames(op: Part135Operator): Set<string> {
+  const set = new Set<string>()
+  const raw = String(op.workhorse_types ?? '')
+  // "Cessna 310 (4), Cessna 404 Titan (2)"
+  for (const part of raw.split(',')) {
+    const name = part.replace(/\(\d+\)\s*$/, '').trim()
+    if (name) set.add(name.toLowerCase())
+  }
+  return set
+}
+
+export function isWorkhorseTypeInSummary(
+  typeName: string,
+  workhorseTypes: Set<string>,
+): boolean {
+  const n = typeName.trim().toLowerCase()
+  if (!n) return false
+  if (workhorseTypes.has(n)) return true
+  for (const w of workhorseTypes) {
+    if (n.startsWith(w) || w.startsWith(n)) return true
+  }
+  return false
+}
+
+/** Parse fleet_summary into { type, count, workhorse } segments. */
+export function parseFleetSummarySegments(
+  fleetSummary: string,
+  workhorseTypes: Set<string>,
+): Array<{ type: string; count: number | null; workhorse: boolean }> {
+  const out: Array<{ type: string; count: number | null; workhorse: boolean }> =
+    []
+  for (const part of String(fleetSummary ?? '').split(',')) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+    const m = trimmed.match(/^(.*?)(?:\s*\((\d+)\))?$/)
+    const type = (m?.[1] ?? trimmed).trim()
+    const count = m?.[2] ? Number(m[2]) : null
+    out.push({
+      type,
+      count: Number.isFinite(count) ? count : null,
+      workhorse: isWorkhorseTypeInSummary(type, workhorseTypes),
+    })
+  }
+  return out
+}
+
+export function rollupState(
+  state: string,
+  operators: readonly Part135Operator[],
+): Part135StateRollup {
+  const cats = emptyCatCounts()
+  let tails_total = 0
+  let workhorse_tails = 0
+  const approved_names: string[] = []
+  for (const op of operators) {
+    tails_total += op.tails_total || 0
+    workhorse_tails += op.workhorse_tails || 0
+    for (const c of PART135_CATS) {
+      cats[c] += operatorCatCount(op, c)
+    }
+    if (op.onfly_approved) {
+      approved_names.push(op.onfly_name?.trim() || op.operator)
+    }
+  }
+  return {
+    state,
+    operators: [...operators],
+    operator_count: operators.length,
+    tails_total,
+    workhorse_tails,
+    approved_count: approved_names.length,
+    approved_names,
+    cats,
+  }
+}
+
+/**
+ * Apply filters, group by state, sort states + operators.
+ * State order: approved count desc → workhorse desc → state code.
+ */
+export function buildPart135FleetView(
+  pack: Part135FleetPack,
+  filters: Part135Filters,
+): {
+  states: Part135StateRollup[]
+  total_operators: number
+  empty: boolean
+} {
+  const byState = new Map<string, Part135Operator[]>()
+
+  for (const [st, list] of Object.entries(pack.states ?? {})) {
+    for (const op of list) {
+      const row: Part135Operator = {
+        ...op,
+        state: op.state || st,
+      }
+      if (!part135OperatorPasses(row, filters)) continue
+      const key = row.state
+      const bucket = byState.get(key)
+      if (bucket) bucket.push(row)
+      else byState.set(key, [row])
+    }
+  }
+
+  const states = [...byState.entries()]
+    .map(([state, ops]) => rollupState(state, sortPart135Operators(ops)))
+    .sort(
+      (a, b) =>
+        b.approved_count - a.approved_count ||
+        b.workhorse_tails - a.workhorse_tails ||
+        a.state.localeCompare(b.state),
+    )
+
+  const total_operators = states.reduce((n, s) => n + s.operator_count, 0)
+  return {
+    states,
+    total_operators,
+    empty: total_operators === 0,
+  }
+}
+
+export function listPart135StateOptions(
+  pack: Part135FleetPack,
+): Array<{ code: string; label: string }> {
+  const codes = Object.keys(pack.states ?? {}).sort()
+  return codes.map((code) => ({
+    code,
+    label: US_STATE_NAMES_FLEET[code] ?? code,
+  }))
+}
+
+/** Split approved vs everyone else for band separators. */
+export function splitApprovedBands(ops: readonly Part135Operator[]): {
+  approved: Part135Operator[]
+  rest: Part135Operator[]
+} {
+  const approved: Part135Operator[] = []
+  const rest: Part135Operator[] = []
+  for (const op of ops) {
+    if (op.onfly_approved) approved.push(op)
+    else rest.push(op)
+  }
+  return { approved, rest }
+}
