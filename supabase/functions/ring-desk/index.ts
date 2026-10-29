@@ -13,9 +13,9 @@
  *   RINGCENTRAL_CLIENT_SECRET | RC_CLIENT_SECRET
  *   RINGCENTRAL_JWT | RC_JWT
  *   RINGCENTRAL_DESK_RING_TO — defaults to +18585297860 (the number that rings)
- *   RINGCENTRAL_RINGOUT_CONNECT_TO — any non-858 number RC accepts
+ *   RINGCENTRAL_RINGOUT_CONNECT_TO — defaults to +14246759472 (RC API second leg)
  * Optional:
- *   RINGCENTRAL_SMS_FROM | RC_FROM_OFFERS — caller ID / fallback connect-to
+ *   RINGCENTRAL_SMS_FROM | RC_FROM_OFFERS — caller ID only
  *   RINGCENTRAL_SERVER_URL
  *   RINGCENTRAL_RINGOUT_PLAY_PROMPT — true|false (default true)
  *   DESK_RING_DISABLED — true to soft-kill
@@ -192,14 +192,12 @@ Deno.serve(async (request) => {
 
     const smsFrom = envFirst('RINGCENTRAL_SMS_FROM', 'RC_FROM_OFFERS')
 
-    // RingCentral requires a different `to` — not a product feature.
+    // RingCentral requires a different `to` — API ballast only (not the alert).
     const connectTo = toE164(
       envFirst(
         'RINGCENTRAL_RINGOUT_CONNECT_TO',
         'RC_RINGOUT_CONNECT_TO',
-      ) ??
-        (smsFrom && toE164(smsFrom) !== desk ? smsFrom : '') ??
-        '',
+      ) ?? '+14246759472',
     )
 
     if (!desk) {
@@ -213,7 +211,7 @@ Deno.serve(async (request) => {
       return json(
         {
           error:
-            'RingCentral RingOut needs a second number different from 858. Set RINGCENTRAL_RINGOUT_CONNECT_TO to any other company DID, auto-attendant, or voicemail (API requirement only — the alert is 858 ringing).',
+            'RINGCENTRAL_RINGOUT_CONNECT_TO must be a valid E.164 number different from 858 (default +14246759472).',
         },
         500,
       )
@@ -223,7 +221,7 @@ Deno.serve(async (request) => {
       return json(
         {
           error:
-            'RINGCENTRAL_RINGOUT_CONNECT_TO must differ from +18585297860 (RingCentral rejects same from/to). Use any other company number.',
+            'RINGCENTRAL_RINGOUT_CONNECT_TO must differ from +18585297860 (RingCentral rejects same from/to).',
         },
         500,
       )

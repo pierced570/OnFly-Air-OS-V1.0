@@ -9,7 +9,7 @@
 1. Confirm `VITE_COMMS_ADAPTER=real` (Production + Preview) and `ring-desk` is deployed.
 2. Secrets (exact names, no spaces): `RINGCENTRAL_CLIENT_ID/SECRET/JWT`,
    `RINGCENTRAL_DESK_RING_TO=+18585297860` (this is the number that rings),
-   `RINGCENTRAL_RINGOUT_CONNECT_TO` = any other company number (RC API only).
+   `RINGCENTRAL_RINGOUT_CONNECT_TO=+14246759472` (RC API second leg only).
 3. Developer app has **RingOut** permission; re-issue JWT after enabling it.
 4. Kill switch: `DESK_RING_DISABLED` must not be `true`.
 5. Soft estimates are email-only — only hard quote / desk-alert paths ring 858.

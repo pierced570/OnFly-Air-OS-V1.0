@@ -8,10 +8,8 @@ whole product. Soft quotes stay email-only (no ring).
 `ring-desk` uses RingCentral **RingOut** with:
 
 1. **`from` = +18585297860** — this is the number that rings (the alert).
-2. **`to` = RINGCENTRAL_RINGOUT_CONNECT_TO** — RingCentral’s API requires a
-   *different* second number. It is **not** a staff-cell feature. Set it to any
-   other company DID, auto-attendant, or voicemail. Nobody needs to care about
-   that leg; the alert is 858 ringing.
+2. **`to` = +14246759472** (`RINGCENTRAL_RINGOUT_CONNECT_TO`) — RingCentral’s
+   API requires a *different* second number. Not the alert; 858 is.
 
 Phone numbers come from **Supabase Secrets only** (the website cannot override).
 
@@ -24,8 +22,8 @@ Exact names (no spaces — Deno will not load friendly labels).
 | `RINGCENTRAL_CLIENT_ID` | RC app client id |
 | `RINGCENTRAL_CLIENT_SECRET` | RC app client secret |
 | `RINGCENTRAL_JWT` | JWT for an extension that can RingOut |
-| `RINGCENTRAL_DESK_RING_TO` | `+18585297860` |
-| `RINGCENTRAL_RINGOUT_CONNECT_TO` | any **other** company number RC accepts |
+| `RINGCENTRAL_DESK_RING_TO` | `+18585297860` ← rings |
+| `RINGCENTRAL_RINGOUT_CONNECT_TO` | `+14246759472` ← RC API second leg only |
 
 Optional: `RINGCENTRAL_SMS_FROM` (caller ID). Delete any secret named like
 `Ring Central Request Auto Call` — that never loads.
