@@ -5,14 +5,9 @@
 
 export const NETWORK_HUB_TABS = [
   {
-    id: 'invite',
-    label: 'Add operator',
-    blurb: 'Short email → docs, tails, banking',
-  },
-  {
     id: 'operators',
     label: 'Operators',
-    blurb: 'Search, board, sheet, and docs',
+    blurb: 'Board, list, sheet, by state',
   },
   {
     id: 'recommend',
@@ -34,6 +29,11 @@ export const NETWORK_HUB_TABS = [
     label: 'Ground couriers',
     blurb: 'Hotshot / trucking directory',
   },
+  {
+    id: 'invite',
+    label: 'Add operator',
+    blurb: 'Short email → docs, tails, banking',
+  },
 ] as const
 
 export type NetworkHubTabId = (typeof NETWORK_HUB_TABS)[number]['id']
@@ -47,5 +47,5 @@ export function parseNetworkHubTab(
   if (NETWORK_HUB_TABS.some((t) => t.id === id)) {
     return id as NetworkHubTabId
   }
-  return 'invite'
+  return 'operators'
 }

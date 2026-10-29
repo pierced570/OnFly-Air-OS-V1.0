@@ -64,8 +64,10 @@ import {
   type PayloadCapability,
   type VerticalId,
 } from '@/domain/operatorVerticals'
+import { buildOperatorsByStateView } from '@/domain/operatorsByState'
+import { OperatorsByStatePanel } from '@/pages/network/OperatorsByStatePanel'
 
-type ViewMode = 'board' | 'list' | 'sheet'
+type ViewMode = 'board' | 'list' | 'sheet' | 'by_state'
 
 type OpBundle = {
   op: OperatorRow
@@ -104,6 +106,7 @@ export default function NetworkPage({
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null)
   const [coiNote, setCoiNote] = useState<string | null>(null)
   const [view, setView] = useState<ViewMode>('board')
+  const [selectedState, setSelectedState] = useState<string | null>(null)
   const [adsbBusy, setAdsbBusy] = useState(false)
   const [missionFleet, setMissionFleet] = useState<
     Awaited<ReturnType<typeof loadFleetForMissionFit>>
@@ -419,6 +422,38 @@ export default function NetworkPage({
 
   const selectedBundle = bundles.find((b) => b.op.id === selectedOpId) ?? null
 
+  const byStateSourceOps = useMemo(() => {
+    if (!data) return []
+    const networkIds = new Set(data.operators.map((o) => o.id))
+    const fromNetwork = data.operators.map((op) => ({
+      id: op.id,
+      name: op.name,
+      base_icao: op.base_icao,
+      aircraft_count: op.aircraft_count,
+    }))
+    const fromDrafts = drafts
+      .filter((d) => !networkIds.has(d.id))
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        base_icao: d.base_icao || null,
+        aircraft_count: d.aircraft.length,
+      }))
+    return [...fromDrafts, ...fromNetwork]
+  }, [data, drafts])
+
+  const byStateView = useMemo(
+    () => buildOperatorsByStateView(byStateSourceOps, selectedState),
+    [byStateSourceOps, selectedState],
+  )
+
+  useEffect(() => {
+    if (view !== 'by_state') return
+    if (selectedState) return
+    const first = byStateView.states_with_operators[0]?.state
+    if (first) setSelectedState(first)
+  }, [view, selectedState, byStateView.states_with_operators])
+
   useEffect(() => {
     if (!selectedOpId || !detailRef.current) return
     detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -512,6 +547,18 @@ export default function NetworkPage({
             >
               Sheet
             </button>
+            <button
+              type="button"
+              onClick={() => setView('by_state')}
+              className={[
+                'flex-1 rounded px-3 py-2 text-xs font-medium sm:flex-none sm:py-1.5',
+                view === 'by_state'
+                  ? 'bg-gold text-ink'
+                  : 'text-muted hover:text-cream',
+              ].join(' ')}
+            >
+              By state
+            </button>
           </div>
           <Link to="/admin" className="text-sm text-gold hover:text-gold-lt">
             Add operator →
@@ -534,6 +581,32 @@ export default function NetworkPage({
           </div>
           <NetworkSheetView filter={q} />
         </div>
+      ) : view === 'by_state' ? (
+        <>
+          <OperatorsByStatePanel
+            view={byStateView}
+            selectedState={selectedState}
+            onSelectState={(code) => {
+              setSelectedState(code)
+              setSelectedOpId(null)
+            }}
+            selectedOpId={selectedOpId}
+            onSelectOperator={setSelectedOpId}
+            filter={q}
+            onFilterChange={setQ}
+          />
+          {selectedBundle && (
+            <div ref={detailRef}>
+              <OperatorDetail
+                bundle={selectedBundle}
+                statusByTail={statusByTail}
+                expandedDocs={expandedDocs}
+                setExpandedDocs={setExpandedDocs}
+                onClose={() => setSelectedOpId(null)}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <>
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:p-4">

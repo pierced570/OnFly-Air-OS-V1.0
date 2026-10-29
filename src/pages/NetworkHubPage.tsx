@@ -41,7 +41,7 @@ export default function NetworkHubPage() {
   useEffect(() => {
     const raw = params.get('tab')
     if (!raw) {
-      setParams({ tab: 'invite' }, { replace: true })
+      setParams({ tab: 'operators' }, { replace: true })
       return
     }
     // Normalize legacy ?tab=matrix bookmarks to recommend.
