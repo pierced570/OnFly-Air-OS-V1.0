@@ -21,7 +21,6 @@ import {
   getTrip,
   listTripsStable,
   subscribeTrips,
-  type TripStoreRow,
 } from '@/lib/tripStore'
 import {
   buildPortalTrackingView,
@@ -31,15 +30,9 @@ import {
 } from '@/domain/portalTracking'
 import { buildPortalOpenRequestCards } from '@/domain/portalClientApp'
 import {
-  clearPortalGuestTrack,
   readPortalGuestTrack,
   type PortalGuestTrack,
 } from '@/lib/portalGuestTrack'
-import {
-  getPortalTrackRow,
-  resolvePortalTrackTripId,
-} from '@/lib/portalTrackStore'
-import { ensurePortalTripTrackingReady } from '@/lib/portalTripHydrate'
 
 function useRequests() {
   return useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -91,12 +84,10 @@ export default function PortalHomePage() {
   } = usePortalSession()
   const [remoteTrips, setRemoteTrips] = useState<PortalTripCard[]>([])
   const [nowLabel, setNowLabel] = useState(() => clockLabel())
+  /** Token only — landing stays black; optional "Continue tracking" CTA. */
   const [guest, setGuest] = useState<PortalGuestTrack | null>(() =>
     readPortalGuestTrack(),
   )
-  const [guestTrip, setGuestTrip] = useState<TripStoreRow | null>(null)
-  /** False while resolving a remembered track token (avoids empty-state flash). */
-  const [guestReady, setGuestReady] = useState(() => !readPortalGuestTrack())
 
   useEffect(() => {
     const id = window.setInterval(() => setNowLabel(clockLabel()), 30_000)
@@ -113,8 +104,6 @@ export default function PortalHomePage() {
       }
       setPortalClientId(session.clientId)
       setGuest(null)
-      setGuestTrip(null)
-      setGuestReady(true)
       const rows = await listPortalTripsForSession()
       if (!cancelled) setRemoteTrips(rows)
     })()
@@ -123,49 +112,13 @@ export default function PortalHomePage() {
     }
   }, [session?.clientId, session?.email])
 
-  // Remembered guest track: hydrate the trip they were tracking for "Your shipments".
+  // Keep a light pointer to the last magic-link track (no trip hydrate on home).
   useEffect(() => {
-    const g = readPortalGuestTrack()
-    setGuest(g)
-    if (!g || session?.clientId) {
-      setGuestTrip(null)
-      setGuestReady(true)
+    if (session?.clientId) {
+      setGuest(null)
       return
     }
-    setGuestReady(false)
-    let cancelled = false
-    void (async () => {
-      const id =
-        getPortalTrackRow(g.token)?.tripId ??
-        g.tripId ??
-        (await resolvePortalTrackTripId(g.token))
-      if (cancelled) return
-      if (!id) {
-        clearPortalGuestTrack()
-        setGuest(null)
-        setGuestTrip(null)
-        setGuestReady(true)
-        return
-      }
-      const ready = await ensurePortalTripTrackingReady({
-        tripId: id,
-        token: g.token,
-      })
-      if (cancelled) return
-      const trip = ready ?? getTrip(id)
-      if (!trip) {
-        // Stale sessionStorage token — drop it so Sign in / landing work.
-        clearPortalGuestTrack()
-        setGuest(null)
-        setGuestTrip(null)
-      } else {
-        setGuestTrip(trip)
-      }
-      setGuestReady(true)
-    })()
-    return () => {
-      cancelled = true
-    }
+    setGuest(readPortalGuestTrack())
   }, [session?.clientId, localTrips])
 
   const clientKey = session?.clientId || null
@@ -259,16 +212,6 @@ export default function PortalHomePage() {
 
   const summaryLine = `${counts.inMotion} in motion · ${counts.onGround} on the ground · ${counts.delivered} delivered`
 
-  const guestView = guestTrip
-    ? buildPortalTrackingView(tripToTrackingInput(guestTrip))
-    : null
-  const guestCounts = guestView
-    ? summarizePortalShipments([guestView.phase])
-    : { inMotion: 0, onGround: 0, delivered: 0 }
-  const guestSummary = guestView
-    ? `${guestCounts.inMotion} in motion · ${guestCounts.onGround} on the ground · ${guestCounts.delivered} delivered`
-    : 'Open your tracking link from email'
-
   const headerActions = session ? (
     <>
       <span className="hidden text-cream/60 md:inline">{session.email}</span>
@@ -282,9 +225,7 @@ export default function PortalHomePage() {
           void endPortalSession().then(() => {
             setSession(null)
             setRemoteTrips([])
-            setGuest(null)
-            setGuestTrip(null)
-            setGuestReady(true)
+            setGuest(readPortalGuestTrack())
           })
         }}
       >
@@ -308,32 +249,25 @@ export default function PortalHomePage() {
     </>
   )
 
-  // Dark gate — work-email sign-in + request CTA (no empty Welcome wall).
-  if (
-    !loadingAuth &&
-    guestReady &&
-    !signedIn &&
-    !guest &&
-    !(session && !session.clientId)
-  ) {
+  // Black booking gate is the public home — never skip it for guests just
+  // because a tracking token is remembered (that felt like "inside a portal").
+  if (!loadingAuth && !signedIn && !(session && !session.clientId)) {
     return (
       <PortalLanding
+        continueTrackHref={
+          guest?.token ? `/portal/track/${guest.token}` : null
+        }
         onSignedIn={(s) => {
           setSession(s)
           setGuest(null)
-          setGuestTrip(null)
-          setGuestReady(true)
         }}
       />
     )
   }
 
   return (
-    <PortalShell
-      headerActions={headerActions}
-      appNav={signedIn || Boolean(guest)}
-    >
-      {loadingAuth || (!signedIn && !guestReady) ? (
+    <PortalShell headerActions={headerActions} appNav={signedIn}>
+      {loadingAuth ? (
         <p className="text-sm text-muted">Checking session…</p>
       ) : null}
 
@@ -466,69 +400,6 @@ export default function PortalHomePage() {
             </Link>
             <Link to="/portal/account" className="text-muted hover:text-ink">
               Account
-            </Link>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Magic-link guest (not signed in) — same chrome, trip from last track token */}
-      {!signedIn &&
-      guestReady &&
-      guest &&
-      !loadingAuth &&
-      !(session && !session.clientId) ? (
-        <section className="space-y-5">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
-                Your shipments
-              </div>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-                {guestView ? guestSummary : 'Track your shipment'}
-              </h1>
-              <p className="mt-1 text-sm text-muted">
-                Showing the trip from your tracking link. Sign in to see every
-                shipment for your company.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="avionic text-[11px] text-muted">{nowLabel}</span>
-              <Link
-                to="/portal/request?mode=book"
-                className="rounded-md bg-gold px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
-              >
-                Book a trip
-              </Link>
-            </div>
-          </div>
-
-          {guestTrip && guest ? (
-            <ul className="space-y-4">
-              <PortalHomeTripCard
-                id={guestTrip.id}
-                tripRef={guestTrip.ref}
-                state={guestTrip.state}
-                lane={guestTrip.lane}
-                ready_label={guestTrip.ready_label}
-                payload_summary={guestTrip.payload_summary}
-                trackHref={`/portal/track/${guest.token}`}
-                etaHint={null}
-                nextLabel={(() => {
-                  const active = guestView?.opsForecastRows.find(
-                    (r) => r.status === 'active',
-                  )
-                  return active
-                    ? clientOpsStageLabel(active)
-                    : guestView?.nextMilestoneLabel ?? null
-                })()}
-              />
-            </ul>
-          ) : null}
-
-          <div className="text-xs text-muted">
-            Need a new move?{' '}
-            <Link to="/portal/request" className="text-gold">
-              Request a trip
             </Link>
           </div>
         </section>
