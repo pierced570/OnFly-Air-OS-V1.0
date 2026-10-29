@@ -252,9 +252,13 @@ export default function PortalRequestPage() {
         </section>
         <a
           href={`tel:${BRAND_PHONE_E164}`}
-          className="mt-4 flex w-full items-center justify-center rounded-lg bg-ink px-4 py-3 text-sm font-semibold text-gold"
+          className="mt-4 flex w-full flex-col items-center justify-center gap-0.5 rounded-lg bg-ink px-4 py-3 text-center text-sm font-semibold text-gold"
         >
-          Call desk · {BRAND_PHONE}
+          <span>Rather talk to a real person? Call now</span>
+          <span className="text-xs font-normal text-gold/80">
+            Dispatchers always on call ·{' '}
+            <span className="avionic">{BRAND_PHONE}</span>
+          </span>
         </a>
         {(tripHref || trackHref) && (
           <Link
