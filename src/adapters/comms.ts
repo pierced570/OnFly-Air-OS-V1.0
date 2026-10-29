@@ -148,12 +148,11 @@ export class RingCentralCommsAdapter implements CommsAdapter {
         'RingCentral desk ring requires Supabase — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY',
       )
     }
+    // Phone numbers live in Supabase Secrets on ring-desk — do not send
+    // desk/connectTo from the client (avoids flipping 858 ↔ staff cell).
     const { data, error } = await supabase.functions.invoke('ring-desk', {
       body: {
-        desk: opts?.desk?.trim() || undefined,
-        connectTo: opts?.connectTo?.trim() || undefined,
         reason: opts?.reason?.trim() || undefined,
-        playPrompt: opts?.playPrompt,
       },
     })
 

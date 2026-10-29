@@ -1,17 +1,22 @@
 /**
  * Ring the OnFly desk line via RingCentral RingOut (no Twilio).
  *
- * RingOut is 2-legged: first the desk number rings (`from`), then after answer
- * RC connects to `to` (staff cell / IVR / auto-attendant).
+ * RingOut is 2-legged:
+ *   1. `from` = RINGCENTRAL_DESK_RING_TO — rings first (must be +18585297860)
+ *   2. After answer, RC connects `to` = RINGCENTRAL_RINGOUT_CONNECT_TO
+ *      (staff cell / IVR — must differ from desk)
+ *
+ * Phone numbers always come from Supabase Secrets — never from the request body
+ * (avoids stale client overrides flipping desk ↔ cell).
  *
  * Secrets (aliases OK):
  *   RINGCENTRAL_CLIENT_ID | RC_CLIENT_ID
  *   RINGCENTRAL_CLIENT_SECRET | RC_CLIENT_SECRET
  *   RINGCENTRAL_JWT | RC_JWT
- *   RINGCENTRAL_DESK_RING_TO — number that rings first (default +18585297860)
- *   RINGCENTRAL_RINGOUT_CONNECT_TO — second leg (required if != desk)
+ *   RINGCENTRAL_DESK_RING_TO — first leg (default +18585297860)
+ *   RINGCENTRAL_RINGOUT_CONNECT_TO — second leg
  * Optional:
- *   RINGCENTRAL_SMS_FROM | RC_FROM_OFFERS — fallback connect-to if different from desk
+ *   RINGCENTRAL_SMS_FROM | RC_FROM_OFFERS — caller ID / fallback connect-to
  *   RINGCENTRAL_SERVER_URL
  *   RINGCENTRAL_RINGOUT_PLAY_PROMPT — true|false (default true)
  *   DESK_RING_DISABLED — true to soft-kill
@@ -21,53 +26,56 @@
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
 }
 
 type Body = {
-  /** Override desk ring number (E.164). */
-  desk?: string
-  /** Override second-leg connect number (E.164). */
-  connectTo?: string
-  /** Shown on second leg caller ID when allowed. */
-  callerId?: string
-  playPrompt?: boolean
   /** Logged only — never spoken (RingOut has no TTS). */
   reason?: string
 }
 
 function envFirst(...names: string[]): string | undefined {
-  for (const n of names) {
-    const v = Deno.env.get(n)?.trim()
-    if (v) return v
+  for (const name of names) {
+    const value = Deno.env.get(name)?.trim()
+    if (value) return value
   }
   return undefined
 }
 
 function toE164(raw: string): string | null {
-  const s = raw.trim()
-  if (!s) return null
-  if (s.startsWith('+')) {
-    const digits = s.slice(1).replace(/\D/g, '')
+  const value = raw.trim()
+  if (!value) return null
+
+  if (value.startsWith('+')) {
+    const digits = value.slice(1).replace(/\D/g, '')
     return digits.length >= 10 ? `+${digits}` : null
   }
-  const d = s.replace(/\D/g, '')
-  if (d.length === 10) return `+1${d}`
-  if (d.length === 11 && d.startsWith('1')) return `+${d}`
-  if (d.length >= 10 && d.length <= 15) return `+${d}`
+
+  const digits = value.replace(/\D/g, '')
+  if (digits.length === 10) return `+1${digits}`
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+${digits}`
+  }
+  if (digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`
+  }
   return null
 }
 
 function envBool(name: string, fallback: boolean): boolean {
-  const raw = (Deno.env.get(name) ?? '').trim().toLowerCase()
-  if (!raw) return fallback
-  if (raw === 'true' || raw === '1' || raw === 'yes') return true
-  if (raw === 'false' || raw === '0' || raw === 'no') return false
+  const value = (Deno.env.get(name) ?? '').trim().toLowerCase()
+  if (!value) return fallback
+  if (['true', '1', 'yes'].includes(value)) return true
+  if (['false', '0', 'no'].includes(value)) return false
   return fallback
 }
 
-let cachedToken: { access: string; expiresAt: number } | null = null
+let cachedToken: {
+  access: string
+  expiresAt: number
+} | null = null
 
 async function rcAccessToken(
   server: string,
@@ -76,66 +84,77 @@ async function rcAccessToken(
   jwt: string,
 ): Promise<string> {
   const now = Date.now()
+
   if (cachedToken && cachedToken.expiresAt > now + 60_000) {
     return cachedToken.access
   }
 
-  const basic = btoa(`${clientId}:${clientSecret}`)
-  const form = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion: jwt,
-  })
-  const res = await fetch(`${server}/restapi/oauth/token`, {
+  const response = await fetch(`${server}/restapi/oauth/token`, {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${basic}`,
+      Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: form.toString(),
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }).toString(),
   })
-  const result = (await res.json().catch(() => ({}))) as {
+
+  const result = (await response.json().catch(() => ({}))) as {
     access_token?: string
     expires_in?: number
     error?: string
     error_description?: string
     message?: string
   }
-  if (!res.ok || !result.access_token) {
+
+  if (!response.ok || !result.access_token) {
     throw new Error(
       result.error_description ||
         result.message ||
         result.error ||
-        `RingCentral token failed (${res.status})`,
+        `RingCentral authentication failed (${response.status})`,
     )
   }
-  const ttlSec = typeof result.expires_in === 'number' ? result.expires_in : 3600
+
   cachedToken = {
     access: result.access_token,
-    expiresAt: now + ttlSec * 1000,
+    expiresAt: now + (result.expires_in ?? 3600) * 1000,
   }
+
   return result.access_token
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  try {
-    if (req.method !== 'POST') {
-      return json({ error: 'POST required' }, 405)
-    }
-    if (!req.headers.get('Authorization')) {
-      return json({ error: 'Missing Authorization' }, 401)
-    }
+  if (request.method !== 'POST') {
+    return json({ error: 'POST required' }, 405)
+  }
 
-    const kill = (Deno.env.get('DESK_RING_DISABLED') ?? '').trim().toLowerCase()
-    if (kill === 'true' || kill === '1' || kill === 'yes') {
+  if (!request.headers.get('Authorization')) {
+    return json({ error: 'Missing Authorization' }, 401)
+  }
+
+  try {
+    if (envBool('DESK_RING_DISABLED', false)) {
       console.warn('[ring-desk] blocked — DESK_RING_DISABLED is on')
       return json(
         {
-          error:
-            'Desk ring disabled (DESK_RING_DISABLED). Set DESK_RING_DISABLED=false to resume.',
+          error: 'Desk ring disabled by DESK_RING_DISABLED.',
           disabled: true,
         },
         503,
@@ -148,6 +167,7 @@ Deno.serve(async (req) => {
       'RC_CLIENT_SECRET',
     )
     const jwt = envFirst('RINGCENTRAL_JWT', 'RC_JWT')
+
     const server = (
       envFirst('RINGCENTRAL_SERVER_URL', 'RC_SERVER_URL') ??
       'https://platform.ringcentral.com'
@@ -157,58 +177,54 @@ Deno.serve(async (req) => {
       return json(
         {
           error:
-            'RingCentral not configured — set RINGCENTRAL_CLIENT_ID/SECRET/JWT',
+            'Missing RingCentral client ID, client secret, or JWT. Secret names must be exact (RINGCENTRAL_CLIENT_ID / RINGCENTRAL_CLIENT_SECRET / RINGCENTRAL_JWT) — spaces in the name will not load.',
         },
         500,
       )
     }
 
-    const body = (await req.json().catch(() => ({}))) as Body
-    const defaultDesk =
+    const body = (await request.json().catch(() => ({}))) as Body
+
+    // Always use phone numbers from Supabase Secrets.
+    // Ignore any desk/connectTo overrides from the website.
+    const desk = toE164(
       envFirst('RINGCENTRAL_DESK_RING_TO', 'RC_DESK_RING_TO') ??
-      '+18585297860'
+        '+18585297860',
+    )
+
     const smsFrom = envFirst('RINGCENTRAL_SMS_FROM', 'RC_FROM_OFFERS')
-    const defaultConnect =
-      envFirst('RINGCENTRAL_RINGOUT_CONNECT_TO', 'RC_RINGOUT_CONNECT_TO') ??
-      smsFrom
 
-    const desk = toE164(String(body.desk ?? defaultDesk))
-    if (!desk) {
-      return json(
-        { error: 'Valid desk number required (RINGCENTRAL_DESK_RING_TO)' },
-        500,
-      )
-    }
+    const connectTo = toE164(
+      envFirst(
+        'RINGCENTRAL_RINGOUT_CONNECT_TO',
+        'RC_RINGOUT_CONNECT_TO',
+      ) ??
+        smsFrom ??
+        '',
+    )
 
-    const connectTo = toE164(String(body.connectTo ?? defaultConnect ?? ''))
-    if (!connectTo) {
+    if (!desk || !connectTo) {
       return json(
         {
           error:
-            'Valid RINGCENTRAL_RINGOUT_CONNECT_TO required — second leg after desk answers (staff cell or IVR). Cannot equal the desk number.',
-        },
-        500,
-      )
-    }
-    if (connectTo === desk) {
-      return json(
-        {
-          error:
-            'RINGCENTRAL_RINGOUT_CONNECT_TO must differ from the desk ring number (RingOut rejects same from/to).',
+            'Set RINGCENTRAL_DESK_RING_TO (+18585297860) and RINGCENTRAL_RINGOUT_CONNECT_TO (staff cell or IVR, different number) in Supabase Secrets.',
         },
         500,
       )
     }
 
-    const playPrompt =
-      typeof body.playPrompt === 'boolean'
-        ? body.playPrompt
-        : envBool('RINGCENTRAL_RINGOUT_PLAY_PROMPT', true)
+    if (desk === connectTo) {
+      return json(
+        {
+          error:
+            'The first and second RingOut numbers must be different. Desk (858) rings first; CONNECT_TO is the second leg after answer.',
+        },
+        500,
+      )
+    }
 
-    const callerIdRaw = body.callerId
-      ? toE164(String(body.callerId))
-      : toE164(smsFrom ?? '') || undefined
-
+    const playPrompt = envBool('RINGCENTRAL_RINGOUT_PLAY_PROMPT', true)
+    const callerId = toE164(smsFrom ?? '')
     const token = await rcAccessToken(server, clientId, clientSecret, jwt)
 
     const payload: Record<string, unknown> = {
@@ -216,18 +232,20 @@ Deno.serve(async (req) => {
       to: { phoneNumber: connectTo },
       playPrompt,
     }
-    if (callerIdRaw) payload.callerId = { phoneNumber: callerIdRaw }
+
+    if (callerId) {
+      payload.callerId = { phoneNumber: callerId }
+    }
 
     console.info(
       '[ring-desk]',
-      body.reason?.slice(0, 80) ?? 'portal',
-      'desk',
+      typeof body.reason === 'string' ? body.reason.slice(0, 80) : 'portal',
       desk,
       '→',
       connectTo,
     )
 
-    const res = await fetch(
+    const response = await fetch(
       `${server}/restapi/v1.0/account/~/extension/~/ring-out`,
       {
         method: 'POST',
@@ -239,7 +257,7 @@ Deno.serve(async (req) => {
       },
     )
 
-    const result = (await res.json().catch(() => ({}))) as {
+    const result = (await response.json().catch(() => ({}))) as {
       id?: string | number
       status?: { callStatus?: string }
       errorCode?: string
@@ -247,46 +265,44 @@ Deno.serve(async (req) => {
       errors?: { message?: string }[]
     }
 
-    if (!res.ok) {
-      console.error('[ring-desk] RingCentral error', res.status, result)
+    if (!response.ok) {
+      console.error('[ring-desk] RingCentral error', response.status, result)
       let detail =
         result.message ||
         result.errors?.[0]?.message ||
         result.errorCode ||
-        result
+        'Unknown RingCentral error'
       const detailText =
         typeof detail === 'string' ? detail : JSON.stringify(detail)
-      if (/\[RingOut\] permission|RingOut/i.test(detailText) && /permission/i.test(detailText)) {
-        detail =
-          `${detailText} — In RingCentral Developer Console → App Permissions → enable RingOut, then re-issue JWT and update RINGCENTRAL_JWT.`
+      if (
+        /\[RingOut\] permission|RingOut/i.test(detailText) &&
+        /permission/i.test(detailText)
+      ) {
+        detail = `${detailText} — Developer Console → App Permissions → enable RingOut, then re-issue JWT and update RINGCENTRAL_JWT.`
       }
       return json(
-        { error: 'RingCentral RingOut failed', detail, status: res.status },
+        {
+          error: 'RingCentral RingOut failed',
+          detail,
+          status: response.status,
+        },
         502,
       )
     }
 
-    const id = result.id != null ? String(result.id) : `rc-ring-${Date.now()}`
     return json({
-      id,
+      id: result.id != null ? String(result.id) : `rc-ring-${Date.now()}`,
       provider: 'ringcentral',
       status: result.status?.callStatus ?? 'InProgress',
       desk,
       connectTo,
       playPrompt,
     })
-  } catch (e) {
-    console.error('[ring-desk]', e)
+  } catch (error) {
+    console.error('[ring-desk]', error)
     return json(
-      { error: e instanceof Error ? e.message : String(e) },
+      { error: error instanceof Error ? error.message : String(error) },
       500,
     )
   }
 })
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
