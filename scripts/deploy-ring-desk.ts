@@ -7,7 +7,7 @@
  *   RINGCENTRAL_CLIENT_SECRET (or RC_CLIENT_SECRET)
  *   RINGCENTRAL_JWT (or RC_JWT)
  *   RINGCENTRAL_DESK_RING_TO — E.164 desk line that rings (e.g. +18585297860)
- *   RINGCENTRAL_RINGOUT_CONNECT_TO — second leg after desk answers (staff cell / IVR)
+ *   RINGCENTRAL_RINGOUT_CONNECT_TO — RC API second leg (e.g. +14246759472)
  * Optional:
  *   RINGCENTRAL_SMS_FROM
  *   RINGCENTRAL_SERVER_URL

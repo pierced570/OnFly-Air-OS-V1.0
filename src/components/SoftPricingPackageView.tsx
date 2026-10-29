@@ -3,7 +3,7 @@
  */
 
 import { Link } from 'react-router-dom'
-import { BRAND_PHONE, BRAND_PHONE_E164, dialBrandOps } from '@/domain/brand'
+import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 import {
   destinationFromGoMinutes,
   formatHoursMinutes,
@@ -46,13 +46,11 @@ export function SoftPricingPackageView(props: {
             <button
               type="button"
               onClick={() => {
-                // Same gesture: open dialer, then escalate to hard quote email.
-                dialBrandOps()
                 props.onHardQuote?.()
               }}
               className="w-full rounded-lg bg-[#C9A227] px-4 py-2.5 text-sm font-semibold text-[#0C0C0E] hover:bg-[#E3B341] sm:w-auto"
             >
-              Push to hard quote · Call ops
+              Push to hard quote · Ring desk
             </button>
           )}
           <a
@@ -192,12 +190,11 @@ export function SoftPricingPackageView(props: {
           <button
             type="button"
             onClick={() => {
-              dialBrandOps()
               props.onHardQuote?.()
             }}
             className="shrink-0 rounded-xl bg-[#C9A227] px-6 py-3.5 text-sm font-semibold text-[#0C0C0E] hover:bg-[#E3B341]"
           >
-            Request this trip NOW · Call ops
+            Request this trip NOW · Ring desk
           </button>
         )}
       </section>

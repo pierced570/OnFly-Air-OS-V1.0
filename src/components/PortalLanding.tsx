@@ -98,16 +98,16 @@ export function PortalLanding(props?: {
           />
           <div className="space-y-2 pt-2 text-center text-sm">
             <Link
-              to="/book"
+              to="/quote"
               className="block font-semibold text-gold hover:text-gold-lt"
             >
-              Request a trip (no sign-in) →
+              Get a rough estimate (historical pricing) →
             </Link>
             <Link
-              to="/quote"
+              to="/book"
               className="block text-cream/70 hover:text-gold"
             >
-              Get a rough quote (no account) →
+              Request a trip (no sign-in) →
             </Link>
             <Link
               to="/portal"
@@ -195,13 +195,32 @@ export function PortalLanding(props?: {
           />
 
           <Link
+            to="/quote"
+            className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl border border-gold/45 bg-[#141414] px-5 py-5 text-cream transition hover:border-gold"
+          >
+            <div>
+              <div className="text-lg font-semibold text-gold">
+                Get a rough estimate
+              </div>
+              <p className="mt-0.5 text-sm text-cream/65">
+                Soft pricing from our historical trip data — no account, no
+                commitment. Push to a hard quote if it fits.
+              </p>
+            </div>
+            <span className="text-2xl font-light text-gold" aria-hidden>
+              →
+            </span>
+          </Link>
+
+          <Link
             to="/book"
             className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink transition hover:bg-gold-lt"
           >
             <div>
               <div className="text-lg font-semibold">Request a trip</div>
               <p className="mt-0.5 text-sm text-ink/75">
-                No account needed — three quick steps, then we quote it.
+                No account needed — three quick steps, then we ring the desk
+                for a hard quote.
               </p>
             </div>
             <span className="text-2xl font-light" aria-hidden>
@@ -209,31 +228,20 @@ export function PortalLanding(props?: {
             </span>
           </Link>
 
-          <Link
-            to="/quote"
-            className="flex items-center justify-between gap-4 rounded-2xl border border-cream/20 bg-[#141414] px-5 py-4 text-cream transition hover:border-gold/50"
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="flex flex-col gap-0.5 rounded-2xl border border-cream/10 bg-[#141414] px-5 py-4 text-sm text-cream/85 transition hover:border-gold/40"
           >
-            <div>
-              <div className="text-base font-semibold">Get a rough quote</div>
-              <p className="mt-0.5 text-sm text-cream/55">
-                Soft pricing now — no account needed (/quote).
-              </p>
-            </div>
-            <span className="text-xl font-light text-gold" aria-hidden>
-              →
+            <span className="font-semibold text-cream">
+              Rather talk to a real person? Call now
             </span>
-          </Link>
-
-          <div className="rounded-2xl border border-cream/10 bg-[#141414] px-5 py-4 text-sm text-cream/65">
-            Time-critical right now? Call 24-hr ops at{' '}
-            <a
-              href={`tel:${BRAND_PHONE_E164}`}
-              className="font-semibold text-gold"
-            >
-              {BRAND_PHONE}
-            </a>{' '}
-            and we&apos;ll build the request with you.
-          </div>
+            <span className="text-cream/55">
+              Dispatchers always on call ·{' '}
+              <span className="avionic font-semibold text-gold">
+                {BRAND_PHONE}
+              </span>
+            </span>
+          </a>
         </section>
       </main>
     </div>

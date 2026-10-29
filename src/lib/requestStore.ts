@@ -147,14 +147,17 @@ export function pushScratchPadToTripRequest(): TripRequestRecord {
 }
 
 /** Client portal: escalate from estimated to hard quote (operator-confirmed numbers). */
-export function requestHardQuote(id: string): TripRequestRecord | undefined {
+export async function requestHardQuote(
+  id: string,
+): Promise<TripRequestRecord | undefined> {
   const row = requests.get(id)
   if (!row) return undefined
   if (!row.hard_quote_requested_at) {
     row.hard_quote_requested_at = new Date().toISOString()
     row.status = row.status === 'submitted' ? 'in_review' : row.status
     bump()
-    void notifyHardQuoteRequest(row)
+    // Await desk RingOut + email so the edge call finishes in this submit.
+    await notifyHardQuoteRequest(row)
   }
   return row
 }
