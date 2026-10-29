@@ -750,8 +750,9 @@ export function listPart135StateRollupRows(
 }
 
 export const PART135_FLEET_CAVEATS = [
-  'FSDO multi-state offices can misplace an operator’s state — confirm address before relying on FSDO estimate rows.',
-  'Four approved operators are not on the FAA Part 135 holder list as named (45 North, Daniel LaMontagne, Jet Nexa, Zanesville); ENG Aviation (T4BA) flies on Thunderbird Airways’ cert and is also absent from the FAA list as ENG.',
-  'Rows marked state conflict CHECK have a verified address in a different state than the network base — confirm before pinging.',
-  'Aircraft categories come from make / model / series mapping in the data pack, not operator config.',
+  'DC-9s, 727s and other Part 121 freighters are not in this pack (Part 121 supplemental). One 737-200 shows up under 121/135.',
+  'FSDO estimate state is the FSDO’s state — multi-state districts misplace some operators (1,219 of 5,310 tails). Confirm address before relying on it.',
+  'Four approved operators are not on the FAA list under any matching name or tail (45 North Aviation, Daniel LaMontagne, Jet Nexa, Zanesville) — they appear only in the approved CSV. ENG Aviation uses Thunderbird Airways’ cert (T4BA) and is also absent as ENG.',
+  'state_conflict CHECK: listed base and verified address differ (Ameristar MI/TX, Aery OH/VA, American Jet Charter OK/MO, Ace PA/DE, Gem Air UT/ID).',
+  'Aircraft categories come from the M/M/S code, not how a tail is configured. A King Air 200 with a cargo door and one with club seats look the same here.',
 ] as const
