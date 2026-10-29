@@ -27,7 +27,7 @@ import {
   type PaxRow,
 } from '@/domain/tripRequest'
 import { TripRequestLegPayloadSection } from '@/components/TripRequestLegPayloadSection'
-import { dialBrandOps, BRAND_PHONE } from '@/domain/brand'
+import { BRAND_PHONE } from '@/domain/brand'
 import {
   STANDARD_TOOLING,
   composeStandardCargoDims,
@@ -1876,7 +1876,6 @@ export function TripRequestForm({
                   type="button"
                   disabled={busy}
                   onClick={(e) => {
-                    dialBrandOps()
                     void handleSubmit(e, 'hard_quote')
                   }}
                   className="w-full rounded-xl border-2 border-ink bg-white px-4 py-4 text-sm font-semibold text-ink hover:bg-ink/5 disabled:opacity-50"
@@ -1886,7 +1885,7 @@ export function TripRequestForm({
                     : 'Skip — have OnFly quote this NOW'}
                 </button>
                 <p className="mt-2 text-xs text-muted">
-                  Emails the desk and opens a call to{' '}
+                  Emails the desk and rings{' '}
                   <span className="avionic font-medium text-ink">
                     {BRAND_PHONE}
                   </span>
@@ -1901,7 +1900,6 @@ export function TripRequestForm({
                   type="button"
                   disabled={busy}
                   onClick={(e) => {
-                    dialBrandOps()
                     void handleSubmit(e, 'hard_quote')
                   }}
                   className="w-full rounded-xl bg-ink px-4 py-4 text-sm font-semibold text-gold hover:bg-[#1a1a1a] disabled:opacity-50"
@@ -1911,7 +1909,7 @@ export function TripRequestForm({
                     : 'Request this flight / delivery NOW'}
                 </button>
                 <p className="mt-2 text-xs text-muted">
-                  Submits your details and opens a call to 24-hr ops at{' '}
+                  Submits your details and rings 24-hr ops at{' '}
                   <span className="avionic font-medium text-ink">
                     {BRAND_PHONE}
                   </span>

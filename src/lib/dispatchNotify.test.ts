@@ -124,8 +124,7 @@ describe('dispatchNotify', () => {
       'portal',
       { alert: 'none' },
     )
-    requestHardQuote(row.id)
-    await new Promise((r) => setTimeout(r, 20))
+    await requestHardQuote(row.id)
     const added = getMockCommsLog().slice(beforeComms)
     expect(added.some((m) => m.channel === 'sms')).toBe(false)
     expect(added.some((m) => m.channel === 'voice')).toBe(true)

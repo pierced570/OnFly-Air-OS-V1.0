@@ -13,7 +13,7 @@ import {
   type TripRequestDraft,
   type TripRequestRecord,
 } from '@/domain/tripRequest'
-import { BRAND_PHONE, BRAND_PHONE_E164, dialBrandOps } from '@/domain/brand'
+import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 import {
   getPortalClient,
   setPortalClientId,
@@ -204,14 +204,12 @@ export default function PortalRequestPage() {
     setTrackHref(null)
 
     if (mode === 'hard_quote') {
-      const updated = requestHardQuote(row.id)
+      // Await RingOut (ring-desk) + desk email — do not open tel: on the client.
+      const updated = await requestHardQuote(row.id)
       if (updated) {
         setDone({ ...updated })
         setHardQuoteDone(true)
       }
-      // Click handlers also dial — keep this as a desktop fallback if the
-      // form path somehow skips dialBrandOps on the button.
-      dialBrandOps()
       await linkSpine(updated ?? row)
       return
     }
@@ -245,10 +243,9 @@ export default function PortalRequestPage() {
         </p>
         <section className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-5 py-5 text-ink">
           <p className="text-sm">
-            Your details went to the desk by email. Your phone should open a
-            call to{' '}
-            <span className="avionic font-medium">{BRAND_PHONE}</span> — if it
-            didn&apos;t, tap below. We&apos;ll also follow up at{' '}
+            Your details went to the desk by email, and we&apos;re ringing{' '}
+            <span className="avionic font-medium">{BRAND_PHONE}</span> now.
+            We&apos;ll follow up at{' '}
             <span className="font-medium">{done.email || 'your email'}</span>.
             Typical quote time is 10–15 minutes.
           </p>
@@ -257,7 +254,7 @@ export default function PortalRequestPage() {
           href={`tel:${BRAND_PHONE_E164}`}
           className="mt-4 flex w-full items-center justify-center rounded-lg bg-ink px-4 py-3 text-sm font-semibold text-gold"
         >
-          Call 24-hr ops · {BRAND_PHONE}
+          Call desk · {BRAND_PHONE}
         </a>
         {(tripHref || trackHref) && (
           <Link
@@ -326,12 +323,13 @@ export default function PortalRequestPage() {
               hardQuoteDone={hardQuoteDone || Boolean(done.hard_quote_requested_at)}
               hardQuoteEmail={done.email || undefined}
               onHardQuote={() => {
-                dialBrandOps()
-                const updated = requestHardQuote(done.id)
-                if (updated) {
-                  setDone({ ...updated })
-                  setHardQuoteDone(true)
-                }
+                void (async () => {
+                  const updated = await requestHardQuote(done.id)
+                  if (updated) {
+                    setDone({ ...updated })
+                    setHardQuoteDone(true)
+                  }
+                })()
               }}
             />
           )}

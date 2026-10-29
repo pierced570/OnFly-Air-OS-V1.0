@@ -181,7 +181,6 @@ export async function notifyDispatch(opts: {
   if (opts.ringDesk) {
     try {
       const ring = await createCommsAdapter().ringDesk({
-        desk: DESK_ALERT_PHONE_E164,
         reason:
           opts.ringReason?.trim() ||
           opts.title ||
@@ -189,7 +188,7 @@ export async function notifyDispatch(opts: {
       })
       ring_id = ring.id
     } catch (err) {
-      console.warn('[dispatchNotify] desk ring failed', err)
+      console.error('[dispatchNotify] desk ring failed', err)
     }
   }
 
