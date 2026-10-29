@@ -23,6 +23,9 @@ vi.mock('@/adapters/comms', async () => {
           'RingCentral SMS failed: Parameter [from] value [+15557100002] is invalid',
         )
       },
+      async ringDesk() {
+        return { id: 'mock-ring-unused' }
+      },
     }),
     isSmsDeliveryEnabled: () => true,
   }

@@ -89,17 +89,17 @@ export function listAdapterDoorStatus(): AdapterDoorStatus[] {
     },
     {
       id: 'comms',
-      label: 'SMS (RingCentral)',
+      label: 'SMS + desk ring (RingCentral)',
       state: isLiveCommsConfigured()
         ? 'live'
         : isRealCommsEnabled()
           ? 'blocked'
           : 'mock',
       detail: isLiveCommsConfigured()
-        ? 'send-sms edge · RINGCENTRAL_* secrets'
+        ? 'send-sms + ring-desk · RINGCENTRAL_* secrets'
         : isRealCommsEnabled()
-          ? 'Set VITE_SUPABASE_* + deploy send-sms with RC JWT/from'
-          : 'Deploy send-sms + RINGCENTRAL_* secrets; set VITE_COMMS_ADAPTER=real',
+          ? 'Set VITE_SUPABASE_* + deploy send-sms / ring-desk with RC JWT'
+          : 'Deploy send-sms + ring-desk + RINGCENTRAL_* secrets; set VITE_COMMS_ADAPTER=real',
     },
     {
       id: 'qb',

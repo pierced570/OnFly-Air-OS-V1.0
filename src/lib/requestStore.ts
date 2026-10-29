@@ -99,9 +99,9 @@ export function submitTripRequest(
   source: TripRequestSource,
   opts?: {
     /**
-     * Portal soft quotes: email-only cost inquiry (no SMS).
-     * Hard quote from soft page uses requestHardQuote → notifyCostInquiry.
-     * Default `desk` keeps SMS + email for non–soft-quote portal submits.
+     * Portal soft quotes: email-only cost inquiry (no SMS / no desk ring).
+     * Hard quote from soft page uses requestHardQuote → notifyHardQuoteRequest
+     * (email + RingOut 858). Default `desk` keeps SMS + email + ring.
      */
     alert?: 'desk' | 'cost_inquiry' | 'none'
   },
@@ -125,7 +125,7 @@ export function submitTripRequest(
   bump()
   flagForkliftForDispatchers(row)
   // Soft portal estimates use alert: 'cost_inquiry' (email only) or 'none' —
-  // never notifyPortalRequest / desk SMS. Hard quote notifies via requestHardQuote.
+  // never notifyPortalRequest / desk SMS / ring. Hard quote → requestHardQuote.
   if (source === 'portal') {
     const alert = opts?.alert ?? 'desk'
     if (alert === 'cost_inquiry') void notifyCostInquiry(row)
