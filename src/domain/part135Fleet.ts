@@ -640,51 +640,86 @@ function indexApprovedByCert(
   return byCert
 }
 
+function networkRowFromPackOp(op: Part135Operator): Part135ApprovedNetworkRow {
+  return {
+    state: op.state,
+    name: op.onfly_name?.trim() || op.operator,
+    faa_name: op.operator,
+    base: op.onfly_base || '',
+    faa_cert: (op.faa_cert || '').trim().toUpperCase(),
+    in_faa_135_list: true,
+    cert_note: op.cert_note || '',
+    usefulness: op.onfly_usefulness || '',
+    callout: op.onfly_callout || '',
+    caps: op.onfly_caps || '',
+    tails: op.tails_total || 0,
+    workhorse_tails: op.workhorse_tails || 0,
+    fleet_summary: op.fleet_summary || '',
+    notes: '',
+    state_conflict: false,
+    csv_only: false,
+  }
+}
+
 /**
- * Build the approved-network table from the CSV export, enriching with pack
- * tails when the FAA cert matches. CSV-only rows (not on the FAA 135 list)
- * still appear so the desk sees the full OnFly network.
+ * Build the approved-network table. When `csvExtras` is provided (the OnFly
+ * approved-operators CSV), merge it so ~5 non-FAA approved ops still appear.
+ * Without CSV, fall back to pack `onfly_approved` rows only.
  */
 export function listApprovedNetworkRows(
   pack: Part135FleetPack,
-  csvRows: readonly Part135ApprovedCsvRow[],
+  csvExtras?: readonly Part135ApprovedCsvRow[],
 ): Part135ApprovedNetworkRow[] {
   const byCert = indexApprovedByCert(pack)
-  const rows: Part135ApprovedNetworkRow[] = []
 
-  for (const csv of csvRows) {
+  if (!csvExtras?.length) {
+    return [...byCert.values()]
+      .map(networkRowFromPackOp)
+      .sort(
+        (a, b) =>
+          a.state.localeCompare(b.state) ||
+          a.name.localeCompare(b.name) ||
+          a.faa_cert.localeCompare(b.faa_cert),
+      )
+  }
+
+  const rows: Part135ApprovedNetworkRow[] = []
+  const seenCerts = new Set<string>()
+
+  for (const csv of csvExtras) {
     const cert = (csv.faa_cert || '').trim().toUpperCase()
     const packOp = cert ? byCert.get(cert) : undefined
+    if (cert) seenCerts.add(cert)
     const caps =
-      formatApprovedCaps(csv) ||
-      (packOp?.onfly_caps?.trim() ?? '')
+      formatApprovedCaps(csv) || (packOp?.onfly_caps?.trim() ?? '')
     rows.push({
       state: csv.state || packOp?.state || '',
       name: csv.operator || packOp?.onfly_name || packOp?.operator || '',
       faa_name:
-        packOp?.operator ||
-        csv.company_as_listed ||
-        csv.operator ||
-        '',
+        packOp?.operator || csv.company_as_listed || csv.operator || '',
       base: csv.base || packOp?.onfly_base || '',
       faa_cert: cert || packOp?.faa_cert || '',
-      in_faa_135_list: csv.in_faa_135_list || Boolean(packOp),
+      in_faa_135_list: Boolean(csv.in_faa_135_list) || Boolean(packOp),
       cert_note: csv.cert_note || packOp?.cert_note || '',
-      usefulness:
-        csv.usefulness || packOp?.onfly_usefulness || '',
+      usefulness: csv.usefulness || packOp?.onfly_usefulness || '',
       callout: csv.callout || packOp?.onfly_callout || '',
       caps,
       tails: packOp?.tails_total ?? csv.tails_listed ?? 0,
       workhorse_tails:
         packOp?.workhorse_tails ?? csv.workhorse_tails_on_faa_cert ?? 0,
-      fleet_summary:
-        packOp?.fleet_summary || csv.fleet_summary || '',
+      fleet_summary: packOp?.fleet_summary || csv.fleet_summary || '',
       notes: csv.notes || '',
       state_conflict: String(csv.state_conflict || '')
         .toUpperCase()
         .includes('CHECK'),
       csv_only: !packOp,
     })
+  }
+
+  // Pack-approved certs missing from the CSV still show (flag, don't exclude).
+  for (const [cert, op] of byCert) {
+    if (seenCerts.has(cert)) continue
+    rows.push(networkRowFromPackOp(op))
   }
 
   return rows.sort(
