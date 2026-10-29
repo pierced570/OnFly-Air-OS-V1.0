@@ -237,13 +237,18 @@ export async function connectPortalRequestToSpine(
   }
 }
 
-/** Prefer trip detail (works signed-in); fall back to magic-link track. */
+/**
+ * After soft/hard quote: signed-in clients go to /portal/trips/:id.
+ * Guests must use the magic-link track URL — trip detail requires a session
+ * and was dumping people on a login wall instead of letting them track or book again.
+ */
 export function portalNextHrefAfterQuote(opts: {
   signedIn?: boolean
   tripHref: string | null
   trackHref: string | null
 }): string {
-  if (opts.tripHref) return opts.tripHref
+  if (opts.signedIn && opts.tripHref) return opts.tripHref
   if (opts.trackHref) return opts.trackHref
+  if (opts.tripHref) return opts.tripHref
   return '/portal'
 }

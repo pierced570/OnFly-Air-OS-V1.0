@@ -329,7 +329,10 @@ export default function PortalHomePage() {
   }
 
   return (
-    <PortalShell headerActions={headerActions} appNav={signedIn}>
+    <PortalShell
+      headerActions={headerActions}
+      appNav={signedIn || Boolean(guest)}
+    >
       {loadingAuth || (!signedIn && !guestReady) ? (
         <p className="text-sm text-muted">Checking session…</p>
       ) : null}

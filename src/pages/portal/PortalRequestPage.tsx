@@ -233,7 +233,7 @@ export default function PortalRequestPage() {
 
   if (done && intent === 'hard_quote') {
     return (
-      <WizardShell appNav={signedIn}>
+      <WizardShell appNav>
         <h1 className="text-2xl font-semibold text-ink">
           Quote request received
         </h1>
@@ -293,7 +293,7 @@ export default function PortalRequestPage() {
 
   if (done) {
     return (
-      <WizardShell wide flushTop appNav={signedIn}>
+      <WizardShell wide flushTop appNav>
         {estimating && (
           <div className="mt-6 rounded-2xl bg-white px-5 py-8 text-sm text-muted">
             Building soft pricing across aircraft classes…
@@ -371,7 +371,7 @@ export default function PortalRequestPage() {
   }
 
   return (
-    <WizardShell appNav={signedIn}>
+    <WizardShell appNav>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
         <Link to="/portal" className="font-semibold text-gold">
           ← Portal

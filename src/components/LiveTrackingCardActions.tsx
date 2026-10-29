@@ -94,8 +94,13 @@ export function LiveTrackingCardActions({ tripId }: Props) {
   const flightActivity = groupTailFlightActivity(
     legsFromSnapshots(adsb?.flights),
   )
-  const [contactsOpen, setContactsOpen] = useState(false)
-  const [updateOpen, setUpdateOpen] = useState(false)
+  /** One expandable panel at a time — chat / update / contacts used to stack and overlap. */
+  const [panel, setPanel] = useState<'none' | 'chat' | 'update' | 'contacts'>(
+    'none',
+  )
+  const contactsOpen = panel === 'contacts'
+  const updateOpen = panel === 'update'
+  const chatOpen = panel === 'chat'
   const [updateMode, setUpdateMode] = useState<UpdateMode>('stage')
   const [completing, setCompleting] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -245,8 +250,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
           onClick={() => {
             setErr(null)
             setNote(null)
-            setUpdateOpen((o) => !o)
-            if (!updateOpen) setContactsOpen(false)
+            setPanel((p) => (p === 'update' ? 'none' : 'update'))
           }}
         >
           {updateOpen ? 'Close client update' : 'Client update'}
@@ -261,11 +265,25 @@ export function LiveTrackingCardActions({ tripId }: Props) {
           ].join(' ')}
           onClick={() => {
             setErr(null)
-            setContactsOpen((o) => !o)
-            if (!contactsOpen) setUpdateOpen(false)
+            setPanel((p) => (p === 'contacts' ? 'none' : 'contacts'))
           }}
         >
           {contactsOpen ? 'Close trip contacts' : 'Trip contacts'}
+        </button>
+        <button
+          type="button"
+          className={[
+            'min-h-11 rounded-md px-3 py-2 text-xs font-semibold',
+            chatOpen
+              ? 'border border-gold/50 bg-gold/10 text-gold'
+              : 'border border-border text-cream hover:border-gold/40',
+          ].join(' ')}
+          onClick={() => {
+            setErr(null)
+            setPanel((p) => (p === 'chat' ? 'none' : 'chat'))
+          }}
+        >
+          {chatOpen ? 'Close portal chat' : 'Portal chat'}
         </button>
         {canComplete ? (
           <button
@@ -287,7 +305,7 @@ export function LiveTrackingCardActions({ tripId }: Props) {
         </button>
       </div>
 
-      <PortalTripChat tripId={trip.id} variant="desk" />
+      {chatOpen ? <PortalTripChat tripId={trip.id} variant="desk" /> : null}
 
       {err ? <p className="text-xs text-late">{err}</p> : null}
       {note ? <p className="text-xs text-onplan">{note}</p> : null}
