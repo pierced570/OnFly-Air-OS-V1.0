@@ -447,12 +447,16 @@ export function PortalTrackingBody({
         </Link>
         <a
           href={`tel:${BRAND_PHONE_E164}`}
-          className="flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-ink/20 bg-ink px-4 py-3 text-center text-sm font-semibold text-gold"
+          className="flex w-full flex-col gap-0.5 rounded-xl border border-ink/15 bg-[#141414] px-5 py-4 text-left transition hover:border-gold/40"
         >
-          <span>Rather talk to a real person? Call now</span>
-          <span className="text-xs font-normal text-gold/80">
+          <span className="text-sm font-semibold text-cream">
+            Rather talk to a real person? Call now
+          </span>
+          <span className="text-xs text-cream/55">
             Dispatchers always on call ·{' '}
-            <span className="avionic">{BRAND_PHONE}</span>
+            <span className="avionic font-semibold text-gold">
+              {BRAND_PHONE}
+            </span>
           </span>
         </a>
         {!signedIn ? (

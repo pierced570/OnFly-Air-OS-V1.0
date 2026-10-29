@@ -232,61 +232,90 @@ export default function PortalRequestPage() {
   })
 
   if (done && intent === 'hard_quote') {
+    const accountHref = signedIn
+      ? '/portal'
+      : `/portal/login?next=${encodeURIComponent('/portal')}`
     return (
       <WizardShell appNav>
-        <h1 className="text-2xl font-semibold text-ink">
-          Quote request received
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Ref <span className="avionic text-ink">R-{done.ref}</span> ·{' '}
-          {done.lane}
-        </p>
-        <section className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-5 py-5 text-ink">
-          <p className="text-sm">
-            A full copy of this submission went to the desk by email, and
-            we&apos;re ringing{' '}
-            <span className="avionic font-medium">{BRAND_PHONE}</span> now.
-            We&apos;ll follow up at{' '}
-            <span className="font-medium">{done.email || 'your email'}</span>.
-            Typical quote time is 10–15 minutes.
-          </p>
-        </section>
-        <a
-          href={`tel:${BRAND_PHONE_E164}`}
-          className="mt-4 flex w-full flex-col items-center justify-center gap-0.5 rounded-lg bg-ink px-4 py-3 text-center text-sm font-semibold text-gold"
-        >
-          <span>Rather talk to a real person? Call now</span>
-          <span className="text-xs font-normal text-gold/80">
-            Dispatchers always on call ·{' '}
-            <span className="avionic">{BRAND_PHONE}</span>
-          </span>
-        </a>
-        {(tripHref || trackHref) && (
-          <Link
-            to={afterQuoteHref}
-            className="mt-4 flex w-full items-center justify-center rounded-lg border border-gold/40 bg-white px-4 py-3 text-sm font-semibold text-ink"
-          >
-            Open trip &amp; tracking →
-          </Link>
-        )}
-        {!signedIn && done.email?.includes('@') ? (
-          <div className="mt-6">
-            <PortalOneClickLogin
-              email={done.email}
-              onSignedIn={setSession}
-              nextHref={afterQuoteHref}
-              title="Open this trip on your phone"
-              hint="Verified desk email — one tap, no password. Routes you to your company portal."
-            />
+        <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+          <header className="bg-ink px-5 py-5 text-cream sm:px-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
+              Hard quote
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+              Your submission has been submitted
+            </h1>
+            <p className="mt-1 text-sm text-cream/60">
+              Desk has the details and will follow up shortly.
+            </p>
+          </header>
+
+          <div className="space-y-4 px-5 py-5 sm:px-6">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  Reference
+                </dt>
+                <dd className="avionic mt-1 font-semibold text-ink">
+                  R-{done.ref}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  Route
+                </dt>
+                <dd className="mt-1 font-medium text-ink">{done.lane}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  Follow-up
+                </dt>
+                <dd className="mt-1 text-ink">
+                  We&apos;ll reply at{' '}
+                  <span className="font-medium">
+                    {done.email || 'your email'}
+                  </span>
+                  . Typical quote time is 10–15 minutes. Desk alert:{' '}
+                  <span className="avionic font-medium">{BRAND_PHONE}</span>.
+                </dd>
+              </div>
+              {done.summary ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                    Summary
+                  </dt>
+                  <dd className="mt-1 text-ink/80">{done.summary}</dd>
+                </div>
+              ) : null}
+            </dl>
+
+            <div className="grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2">
+              <Link
+                to={accountHref}
+                className="inline-flex min-h-12 items-center justify-center rounded-lg bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-lt"
+              >
+                {signedIn ? 'Go to my account' : 'Sign into your account'}
+              </Link>
+              <button
+                type="button"
+                onClick={editTripRequest}
+                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-border bg-white px-4 text-sm font-semibold text-ink hover:border-gold/40"
+              >
+                Back to request page
+              </button>
+            </div>
+
+            <p className="text-center text-xs text-muted">
+              Need us now?{' '}
+              <a
+                href={`tel:${BRAND_PHONE_E164}`}
+                className="font-semibold text-gold hover:text-gold-lt"
+              >
+                Call {BRAND_PHONE}
+              </a>
+            </p>
           </div>
-        ) : (
-          <Link
-            to="/portal"
-            className="mt-4 inline-block text-sm font-semibold text-gold"
-          >
-            ← My trips
-          </Link>
-        )}
+        </div>
       </WizardShell>
     )
   }
