@@ -21,11 +21,13 @@ import {
 } from '@/lib/d085Review'
 import { fleetStatusByTail, loadFleetStatuses } from '@/lib/fleetRadar'
 import { loadNetwork, type LoadedNetwork } from '@/lib/networkData'
+import { parseTailGroup } from '@/domain/radarTailGroup'
 import {
   addTailToTracking,
   lookupRadarTail,
   normalizeLookupTail,
   pollOperatorTailsLastKnown,
+  pollTailGroupLastKnown,
   setRadarMovementAlert,
   type LookupRadarTailResult,
 } from '@/lib/radarSeedFlow'
@@ -91,7 +93,11 @@ export default function RadarPage({
     () => new Set(),
   )
   const [pollBusy, setPollBusy] = useState(false)
-  /** Last-known statuses from company poll (shown even without alert tracking). */
+  /** Freeform multi-tail paste for group last-known. */
+  const [groupQ, setGroupQ] = useState('')
+  const groupTails = useMemo(() => parseTailGroup(groupQ), [groupQ])
+  const [groupBusy, setGroupBusy] = useState(false)
+  /** Last-known statuses from company / group poll (shown even without alert tracking). */
   const [polledStatuses, setPolledStatuses] = useState<FleetStatus[]>([])
 
   const [alertBusyTail, setAlertBusyTail] = useState<string | null>(null)
@@ -302,6 +308,20 @@ export default function RadarPage({
     setSelectedOpTails(new Set(pickedOp.tails.map((t) => t.tail)))
   }
 
+  async function mergePolledStatuses(tails: string[]) {
+    const byTail = await fleetStatusByTail(tails)
+    const rows = tails
+      .map((t) => byTail.get(t) ?? byTail.get(t.toUpperCase()))
+      .filter((s): s is FleetStatus => Boolean(s))
+    setPolledStatuses((prev) => {
+      const map = new Map(prev.map((s) => [s.tail.toUpperCase(), s]))
+      for (const s of rows) map.set(s.tail.toUpperCase(), s)
+      return [...map.values()]
+    })
+    if (rows[0]) setSelected(rows[0].tail)
+    return rows
+  }
+
   async function onPollSelectedLastKnown() {
     if (!pickedOp || selectedOpTails.size === 0) return
     setPollBusy(true)
@@ -315,16 +335,7 @@ export default function RadarPage({
         base_icao: pickedOp.base_icao,
         tails: picks,
       })
-      const byTail = await fleetStatusByTail(picks.map((t) => t.tail))
-      const rows = picks
-        .map((t) => byTail.get(t.tail) ?? byTail.get(t.tail.toUpperCase()))
-        .filter((s): s is FleetStatus => Boolean(s))
-      setPolledStatuses((prev) => {
-        const map = new Map(prev.map((s) => [s.tail.toUpperCase(), s]))
-        for (const s of rows) map.set(s.tail.toUpperCase(), s)
-        return [...map.values()]
-      })
-      if (rows[0]) setSelected(rows[0].tail)
+      await mergePolledStatuses(picks.map((t) => t.tail))
       setActionNote(
         `Last-known for ${result.seeded}/${result.requested} selected · ${pickedOp.name}${
           result.noData ? ` · ${result.noData} no data` : ''
@@ -335,6 +346,55 @@ export default function RadarPage({
       setAlertError(err instanceof Error ? err.message : String(err))
     } finally {
       setPollBusy(false)
+    }
+  }
+
+  async function onPollTailGroup(e?: FormEvent) {
+    e?.preventDefault()
+    const tails = groupTails
+    if (!tails.length) {
+      setAlertError('Paste one or more tails (space, comma, or newline separated)')
+      return
+    }
+    setGroupBusy(true)
+    setAlertError(null)
+    setActionNote(null)
+    try {
+      const meta = new Map<
+        string,
+        {
+          type_name?: string | null
+          operator_name?: string | null
+          operator_id?: string | null
+          base_icao?: string | null
+        }
+      >()
+      if (network) {
+        for (const a of network.aircraft) {
+          const t = String(a.tail ?? '')
+            .trim()
+            .toUpperCase()
+          if (!t || t.startsWith('TBD')) continue
+          meta.set(t, {
+            type_name: a.type_name,
+            operator_name: a.operator_name,
+            operator_id: a.operator_id,
+            base_icao: a.base_icao,
+          })
+        }
+      }
+      const result = await pollTailGroupLastKnown(tails, meta)
+      await mergePolledStatuses(tails)
+      setActionNote(
+        `Group last-known · ${result.seeded}/${result.requested} with position${
+          result.noData ? ` · ${result.noData} no data` : ''
+        }`,
+      )
+      await refresh()
+    } catch (err) {
+      setAlertError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setGroupBusy(false)
     }
   }
 
@@ -525,13 +585,56 @@ export default function RadarPage({
         </div>
       ) : null}
 
-      {/* FlightAware-style tail lookup */}
+      {/* Group of aircraft → last-known ADS-B on the map */}
+      <form
+        onSubmit={(e) => void onPollTailGroup(e)}
+        className="flex flex-col gap-2 rounded-lg border border-gold/30 bg-gold/5 p-3 sm:p-4"
+      >
+        <div>
+          <h2 className="text-sm font-medium text-cream">
+            Search aircraft group
+          </h2>
+          <p className="mt-0.5 text-xs text-muted">
+            Paste several tails — we pull last-known ADS-B and plot them on the
+            map (does not start continuous tracking).
+          </p>
+        </div>
+        <label className="block text-xs text-muted">
+          Tails
+          <textarea
+            value={groupQ}
+            onChange={(e) => setGroupQ(e.target.value.toUpperCase())}
+            placeholder={'N159FM N123AB\nN456CD'}
+            rows={3}
+            className="avionic mt-1 w-full rounded-md border border-border bg-ink px-3 py-2.5 text-sm text-gold tracking-wide"
+            spellCheck={false}
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="submit"
+            disabled={groupBusy || !groupTails.length}
+            className="rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
+          >
+            {groupBusy
+              ? 'Getting positions…'
+              : `Show last known${
+                  groupTails.length ? ` (${groupTails.length})` : ''
+                }`}
+          </button>
+          <span className="text-[11px] text-muted">
+            Separators: space, comma, or new line
+          </span>
+        </div>
+      </form>
+
+      {/* FlightAware-style single tail lookup */}
       <form
         onSubmit={(e) => void onLookupTail(e)}
         className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 sm:flex-row sm:items-end"
       >
         <label className="block flex-1 text-xs text-muted">
-          Look up tail
+          Look up one tail
           <input
             value={tailQ}
             onChange={(e) => setTailQ(e.target.value.toUpperCase())}
@@ -544,7 +647,7 @@ export default function RadarPage({
         <button
           type="submit"
           disabled={lookupBusy}
-          className="rounded-md bg-gold px-4 py-2.5 text-sm font-medium text-ink hover:bg-gold-lt disabled:opacity-50"
+          className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-cream hover:border-gold/40 disabled:opacity-50"
         >
           {lookupBusy ? 'Looking up…' : 'Lookup'}
         </button>
@@ -617,11 +720,11 @@ export default function RadarPage({
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-xs uppercase tracking-wider text-muted">
-            Company fleet poll
+            Operator fleet group
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Pick an operator, select individual tails, then pull last-known
-            locations — or add them to continuous tracking.
+            Search a company, select a group of their tails, then show
+            last-known ADS-B — or add them to continuous tracking.
           </p>
           <input
             value={opQ}

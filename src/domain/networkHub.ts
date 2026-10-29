@@ -1,18 +1,13 @@
 /**
- * Network hub — vertical tabs consolidating operators, recommend, radar, FBOs, couriers.
- * Pure TypeScript.
+ * Network hub — vertical tabs consolidating operators, radar, FBOs, couriers.
+ * Pure TypeScript. Recommend is retired from the hub for now.
  */
 
 export const NETWORK_HUB_TABS = [
   {
     id: 'operators',
     label: 'Operators',
-    blurb: 'Board, list, sheet, by state',
-  },
-  {
-    id: 'recommend',
-    label: 'Recommend',
-    blurb: 'Priority calls by client + base',
+    blurb: 'All, bases, state, aircraft type',
   },
   {
     id: 'radar',
@@ -42,8 +37,8 @@ export function parseNetworkHubTab(
   raw: string | null | undefined,
 ): NetworkHubTabId {
   const id = (raw ?? '').trim().toLowerCase()
-  // Legacy bookmark: ?tab=matrix → recommend
-  if (id === 'matrix') return 'recommend'
+  // Legacy bookmarks: recommend / matrix → operators (Recommend retired)
+  if (id === 'matrix' || id === 'recommend') return 'operators'
   if (NETWORK_HUB_TABS.some((t) => t.id === id)) {
     return id as NetworkHubTabId
   }

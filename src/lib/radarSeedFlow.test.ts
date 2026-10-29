@@ -45,6 +45,7 @@ import {
   addTailToTracking,
   normalizeLookupTail,
   pollOperatorTailsLastKnown,
+  pollTailGroupLastKnown,
   seedRadarLastKnown,
   setRadarMovementAlert,
 } from './radarSeedFlow'
@@ -132,5 +133,30 @@ describe('radarSeedFlow', () => {
     expect(watched.some((w) => w.tail === 'N111AA' && w.operator_name === 'Acme Air')).toBe(
       true,
     )
+  })
+
+  it('pollTailGroupLastKnown seeds pasted tails without alerts', async () => {
+    const result = await pollTailGroupLastKnown(['N333CC', '444DD'], new Map([
+      [
+        'N333CC',
+        {
+          type_name: 'C182',
+          operator_name: 'Paste Op',
+          base_icao: 'KCAK',
+        },
+      ],
+      [
+        'N444DD',
+        {
+          type_name: 'BE58',
+          operator_name: 'Paste Op',
+          base_icao: 'KCAK',
+        },
+      ],
+    ]))
+    expect(result.requested).toBe(2)
+    expect(result.seeded).toBe(2)
+    expect(getRadarTrack('N333CC')?.alertEnabled).toBeFalsy()
+    expect(getRadarTrack('N444DD')?.lastKnown?.phase).toBe('on_ground')
   })
 })
