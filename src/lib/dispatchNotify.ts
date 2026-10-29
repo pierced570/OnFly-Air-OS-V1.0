@@ -5,7 +5,11 @@
  * desk line via RingCentral. Uses Comms + Email adapters — mock-safe.
  */
 
-import { createCommsAdapter } from '@/adapters/comms'
+import {
+  createCommsAdapter,
+  isLiveCommsConfigured,
+  isRealCommsEnabled,
+} from '@/adapters/comms'
 import { createEmailAdapter } from '@/adapters/email'
 import { BRAND_PHONE_E164 } from '@/domain/brand'
 import { BRAND_EMAIL } from '@/domain/clientInviteEmail'
@@ -218,6 +222,10 @@ export type DispatchNotifyResult = {
   exception_id: string | null
   /** RingCentral RingOut id when the 858 desk line was rung. */
   ring_id: string | null
+  /** true when RingOut used the live edge function (not MockComms). */
+  ring_live: boolean
+  /** Set when ringDesk was requested but failed or stayed on mock. */
+  ring_error: string | null
 }
 
 /**
@@ -258,6 +266,8 @@ export async function notifyDispatch(opts: {
   let email_id: string | null = null
   let exception_id: string | null = null
   let ring_id: string | null = null
+  let ring_live = false
+  let ring_error: string | null = null
 
   if (!opts.skipSms) {
     try {
@@ -273,6 +283,13 @@ export async function notifyDispatch(opts: {
   }
 
   if (opts.ringDesk) {
+    if (!isRealCommsEnabled()) {
+      ring_error =
+        'VITE_COMMS_ADAPTER is not real on this deploy — desk ring stayed on mock.'
+    } else if (!isLiveCommsConfigured()) {
+      ring_error =
+        'VITE_COMMS_ADAPTER=real but Supabase URL/anon key missing — desk ring stayed on mock.'
+    }
     try {
       const ring = await createCommsAdapter().ringDesk({
         reason:
@@ -281,8 +298,16 @@ export async function notifyDispatch(opts: {
           `desk ring R-${opts.trip_ref ?? '?'}`,
       })
       ring_id = ring.id
+      const mockId = ring_id.startsWith('mock-ring-')
+      ring_live = !mockId
+      if (mockId && !ring_error) {
+        ring_error =
+          'Desk ring used mock adapter — check VITE_COMMS_ADAPTER=real + Supabase on this deploy.'
+      }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
       console.error('[dispatchNotify] desk ring failed', err)
+      ring_error = msg
     }
   }
 
@@ -322,7 +347,7 @@ export async function notifyDispatch(opts: {
     exception_id = card.id
   }
 
-  return { phone, sms_id, email_id, exception_id, ring_id }
+  return { phone, sms_id, email_id, exception_id, ring_id, ring_live, ring_error }
 }
 
 export async function notifyPortalRequest(
