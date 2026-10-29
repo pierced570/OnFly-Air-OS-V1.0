@@ -39,6 +39,11 @@ export function PortalLanding(props?: {
   expectedClientId?: string | null
   /** After sign-in (from ?next=). */
   nextHref?: string | null
+  /**
+   * Optional magic-link resume — keep the black gate as home; don't dump
+   * guests into a cream "inside portal" screen.
+   */
+  continueTrackHref?: string | null
 }) {
   const company = (props?.companyName ?? '').trim()
   const domains = (props?.companyDomains ?? [])
@@ -193,6 +198,25 @@ export function PortalLanding(props?: {
                 : 'Enter your work email to open your company portal — no password or magic link.'
             }
           />
+
+          {props?.continueTrackHref ? (
+            <Link
+              to={props.continueTrackHref}
+              className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-cream/15 bg-[#141414] px-5 py-4 text-cream transition hover:border-gold/40"
+            >
+              <div>
+                <div className="text-sm font-semibold text-cream">
+                  Continue tracking your shipment
+                </div>
+                <p className="mt-0.5 text-xs text-cream/55">
+                  Opens the trip from your last tracking link — still no account.
+                </p>
+              </div>
+              <span className="text-xl font-light text-gold" aria-hidden>
+                →
+              </span>
+            </Link>
+          ) : null}
 
           <Link
             to="/quote"
