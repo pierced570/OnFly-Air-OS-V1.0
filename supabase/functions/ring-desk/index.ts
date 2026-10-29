@@ -1,20 +1,19 @@
 /**
- * Ring the OnFly desk line via RingCentral RingOut (no Twilio).
+ * Ring the OnFly desk line (858) via RingCentral RingOut — alert only.
  *
- * RingOut is 2-legged:
- *   1. `from` = RINGCENTRAL_DESK_RING_TO — rings first (must be +18585297860)
- *   2. After answer, RC connects `to` = RINGCENTRAL_RINGOUT_CONNECT_TO
- *      (staff cell / IVR — must differ from desk)
+ * Product goal: hard quote → **+18585297860 rings**. Nothing else matters.
  *
- * Phone numbers always come from Supabase Secrets — never from the request body
- * (avoids stale client overrides flipping desk ↔ cell).
+ * RingCentral’s RingOut API still requires a second `to` number (must differ
+ * from 858). That leg is API ballast — set RINGCENTRAL_RINGOUT_CONNECT_TO to
+ * any other company DID / auto-attendant / voicemail. It is not a staff-cell
+ * feature and is never shown to clients.
  *
  * Secrets (aliases OK):
  *   RINGCENTRAL_CLIENT_ID | RC_CLIENT_ID
  *   RINGCENTRAL_CLIENT_SECRET | RC_CLIENT_SECRET
  *   RINGCENTRAL_JWT | RC_JWT
- *   RINGCENTRAL_DESK_RING_TO — first leg (default +18585297860)
- *   RINGCENTRAL_RINGOUT_CONNECT_TO — second leg
+ *   RINGCENTRAL_DESK_RING_TO — defaults to +18585297860 (the number that rings)
+ *   RINGCENTRAL_RINGOUT_CONNECT_TO — any non-858 number RC accepts
  * Optional:
  *   RINGCENTRAL_SMS_FROM | RC_FROM_OFFERS — caller ID / fallback connect-to
  *   RINGCENTRAL_SERVER_URL
@@ -185,8 +184,7 @@ Deno.serve(async (request) => {
 
     const body = (await request.json().catch(() => ({}))) as Body
 
-    // Always use phone numbers from Supabase Secrets.
-    // Ignore any desk/connectTo overrides from the website.
+    // 858 is the only number we care about ringing. Secrets only — ignore body.
     const desk = toE164(
       envFirst('RINGCENTRAL_DESK_RING_TO', 'RC_DESK_RING_TO') ??
         '+18585297860',
@@ -194,20 +192,28 @@ Deno.serve(async (request) => {
 
     const smsFrom = envFirst('RINGCENTRAL_SMS_FROM', 'RC_FROM_OFFERS')
 
+    // RingCentral requires a different `to` — not a product feature.
     const connectTo = toE164(
       envFirst(
         'RINGCENTRAL_RINGOUT_CONNECT_TO',
         'RC_RINGOUT_CONNECT_TO',
       ) ??
-        smsFrom ??
+        (smsFrom && toE164(smsFrom) !== desk ? smsFrom : '') ??
         '',
     )
 
-    if (!desk || !connectTo) {
+    if (!desk) {
+      return json(
+        { error: 'RINGCENTRAL_DESK_RING_TO must be a valid E.164 number.' },
+        500,
+      )
+    }
+
+    if (!connectTo) {
       return json(
         {
           error:
-            'Set RINGCENTRAL_DESK_RING_TO (+18585297860) and RINGCENTRAL_RINGOUT_CONNECT_TO (staff cell or IVR, different number) in Supabase Secrets.',
+            'RingCentral RingOut needs a second number different from 858. Set RINGCENTRAL_RINGOUT_CONNECT_TO to any other company DID, auto-attendant, or voicemail (API requirement only — the alert is 858 ringing).',
         },
         500,
       )
@@ -217,7 +223,7 @@ Deno.serve(async (request) => {
       return json(
         {
           error:
-            'The first and second RingOut numbers must be different. Desk (858) rings first; CONNECT_TO is the second leg after answer.',
+            'RINGCENTRAL_RINGOUT_CONNECT_TO must differ from +18585297860 (RingCentral rejects same from/to). Use any other company number.',
         },
         500,
       )
