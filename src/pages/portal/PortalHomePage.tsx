@@ -28,10 +28,6 @@ import {
   tripToTrackingInput,
 } from '@/domain/portalTracking'
 import { buildPortalOpenRequestCards } from '@/domain/portalClientApp'
-import {
-  readPortalGuestTrack,
-  type PortalGuestTrack,
-} from '@/lib/portalGuestTrack'
 
 function useRequests() {
   return useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -83,17 +79,13 @@ export default function PortalHomePage() {
   } = usePortalSession()
   const [remoteTrips, setRemoteTrips] = useState<PortalTripCard[]>([])
   const [nowLabel, setNowLabel] = useState(() => clockLabel())
-  /** Token only — landing stays black; optional "Continue tracking" CTA. */
-  const [guest, setGuest] = useState<PortalGuestTrack | null>(() =>
-    readPortalGuestTrack(),
-  )
 
   useEffect(() => {
     const id = window.setInterval(() => setNowLabel(clockLabel()), 30_000)
     return () => window.clearInterval(id)
   }, [])
 
-  // Load company trips when signed in; clear guest memory (session hook also clears storage).
+  // Load company trips when signed in.
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -102,7 +94,6 @@ export default function PortalHomePage() {
         return
       }
       setPortalClientId(session.clientId)
-      setGuest(null)
       const rows = await listPortalTripsForSession()
       if (!cancelled) setRemoteTrips(rows)
     })()
@@ -110,15 +101,6 @@ export default function PortalHomePage() {
       cancelled = true
     }
   }, [session?.clientId, session?.email])
-
-  // Keep a light pointer to the last magic-link track (no trip hydrate on home).
-  useEffect(() => {
-    if (session?.clientId) {
-      setGuest(null)
-      return
-    }
-    setGuest(readPortalGuestTrack())
-  }, [session?.clientId, localTrips])
 
   const clientKey = session?.clientId || null
 
@@ -221,7 +203,6 @@ export default function PortalHomePage() {
           void endPortalSession().then(() => {
             setSession(null)
             setRemoteTrips([])
-            setGuest(readPortalGuestTrack())
           })
         }}
       >
@@ -230,17 +211,12 @@ export default function PortalHomePage() {
     </>
   ) : null
 
-  // Public ofaops home = client landing — never skip for guests just because
-  // a tracking token is remembered (that felt like "inside a portal").
+  // Public ofaops home = client landing (no “resume last tracking link” CTA).
   if (!loadingAuth && !signedIn && !(session && !session.clientId)) {
     return (
       <PortalLanding
-        continueTrackHref={
-          guest?.token ? `/portal/track/${guest.token}` : null
-        }
         onSignedIn={(s) => {
           setSession(s)
-          setGuest(null)
         }}
       />
     )

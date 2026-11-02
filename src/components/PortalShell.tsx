@@ -32,6 +32,8 @@ export function PortalShell(props: {
    * Use on signed-in client app pages — not on the dark landing gate.
    */
   appNav?: boolean
+  /** Cooler translucent wash for frosted-glass surfaces (tracking, etc.). */
+  frost?: boolean
 }) {
   const showNav = Boolean(props.appNav)
   // Signed-in app pages share max-w-5xl so Trips / History / Account feel even.
@@ -47,7 +49,9 @@ export function PortalShell(props: {
             ? 'max-w-5xl'
             : 'max-w-3xl'
   return (
-    <PortalAtmosphere>
+    <PortalAtmosphere
+      className={props.frost ? 'portal-atmosphere--frost' : undefined}
+    >
       <header className="sticky top-0 z-30 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div
           className={[
