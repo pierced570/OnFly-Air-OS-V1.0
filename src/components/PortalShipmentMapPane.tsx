@@ -102,7 +102,11 @@ export function PortalShipmentMapPane(props: {
     'Pending'
   const po =
     view.poNumber?.replace(/^PO\s*#?\s*/i, '') || `T-${view.ref}`
-  const requestedAt = trip.created_at || null
+  const requestedAt =
+    [...trip.events].sort((a, b) => a.at.localeCompare(b.at))[0]?.at ||
+    trip.hard_quote?.sent_at ||
+    trip.invoice?.created_at ||
+    null
   const requestedLabel = (() => {
     if (!requestedAt) return null
     try {

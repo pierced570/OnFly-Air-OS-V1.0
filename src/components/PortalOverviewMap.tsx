@@ -195,9 +195,15 @@ function arcCoords(
   return out
 }
 
+type RouteLineFeature = {
+  type: 'Feature'
+  properties: Record<string, never>
+  geometry: { type: 'LineString'; coordinates: [number, number][] }
+}
+
 function selectedRouteLine(
   pins: PortalOverviewPin[],
-): GeoJSON.Feature<GeoJSON.LineString> | null {
+): RouteLineFeature | null {
   const selected = pins.find((p) => p.selected)
   if (!selected) return null
   const trip = getTrip(selected.id)
