@@ -4,8 +4,6 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { PortalGlassPanel } from '@/components/PortalGlass'
 import { PortalOverviewMap } from '@/components/PortalOverviewMap'
 import { PortalQuickActions } from '@/components/PortalQuickActions'
 import { PortalShipmentListItem } from '@/components/PortalShipmentListItem'
@@ -178,50 +176,30 @@ export function PortalShipmentsDashboard(props: {
               trackHref={selected.trackHref}
             />
           ) : (
-            <>
-              <div className="portal-glass-ink overflow-hidden rounded-2xl">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-cream">
-                  <span className="text-gold">● Live routes on map</span>
-                  <span className="text-cream/55">{props.nowLabel}</span>
-                </div>
-                {mapPins.length === 0 ? (
-                  <div className="flex h-56 flex-col items-center justify-center gap-2 px-6 text-center sm:h-72">
-                    <p className="text-sm text-cream/70">
-                      Overview map waits for a booked trip with airports or a
-                      live tail.
-                    </p>
-                    <p className="text-xs text-cream/45">
-                      Cargo / pax · tail · ETA show on each shipment once
-                      tracking starts.
-                    </p>
-                  </div>
-                ) : (
-                  <PortalOverviewMap
-                    pins={mapPins}
-                    onSelect={setSelectedId}
-                    className="h-56 w-full border-t border-cream/10 bg-[#141414] sm:h-72"
-                  />
-                )}
+            <div className="portal-glass-ink overflow-hidden rounded-2xl">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-cream">
+                <span className="text-gold">● Live routes on map</span>
+                <span className="text-cream/55">{props.nowLabel}</span>
               </div>
-              <PortalGlassPanel className="flex min-h-[10rem] flex-col items-center justify-center gap-2 border-dashed px-5 py-6 text-center text-sm text-muted">
-                <p>Select a trip from the sidebar to open live tracking.</p>
-                <p className="text-xs">
-                  You&apos;ll see cargo/pax, tail number, and ETAs for the
-                  selected flight.
-                </p>
-                <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs">
-                  <Link to="/quote" className="font-semibold text-gold">
-                    Rough estimate →
-                  </Link>
-                  <Link
-                    to="/portal/request?mode=book"
-                    className="font-semibold text-ink hover:text-gold"
-                  >
-                    Book a trip →
-                  </Link>
+              {mapPins.length === 0 ? (
+                <div className="flex h-56 flex-col items-center justify-center gap-2 px-6 text-center sm:h-72">
+                  <p className="text-sm text-cream/70">
+                    Overview map waits for a booked trip with airports or a
+                    live tail.
+                  </p>
+                  <p className="text-xs text-cream/45">
+                    Cargo / pax · tail · ETA show on each shipment once
+                    tracking starts.
+                  </p>
                 </div>
-              </PortalGlassPanel>
-            </>
+              ) : (
+                <PortalOverviewMap
+                  pins={mapPins}
+                  onSelect={setSelectedId}
+                  className="h-56 w-full border-t border-cream/10 bg-[#141414] sm:h-72"
+                />
+              )}
+            </div>
           )}
         </div>
       </div>
