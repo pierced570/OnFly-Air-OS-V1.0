@@ -229,6 +229,7 @@ export default function PortalHomePage() {
       headerActions={headerActions}
       appNav={signedIn}
       wide={signedIn ? 'dashboard' : false}
+      command={signedIn}
     >
       {loadingAuth ? (
         <p className="text-sm text-muted">Checking session…</p>
@@ -248,13 +249,13 @@ export default function PortalHomePage() {
       {signedIn ? (
         <section className="space-y-6">
           {client ? (
-            <div className="flex flex-col items-start gap-1">
-              <p className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
+            <div className="mb-3 flex flex-col items-start gap-1">
+              <p className="text-lg font-semibold tracking-tight text-cream sm:text-xl">
                 {portalRequestHelloLabel(client.name)}
               </p>
               <button
                 type="button"
-                className="text-sm text-muted hover:text-ink"
+                className="text-sm text-cream/50 hover:text-gold"
                 onClick={() => {
                   void endPortalSession().then(() => {
                     setSession(null)

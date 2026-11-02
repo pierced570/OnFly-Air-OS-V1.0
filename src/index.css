@@ -371,6 +371,21 @@ button {
     );
 }
 
+/* Signed-in trips command center — dark map stage (Pinterest logistics feel). Never navy. */
+.portal-atmosphere--command {
+  background:
+    radial-gradient(ellipse 75% 45% at 15% 0%, rgba(201, 162, 39, 0.14), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 95% 85%, rgba(201, 162, 39, 0.07), transparent 50%),
+    #0C0C0E;
+  color: #f7f2e3;
+}
+
+.portal-atmosphere--command::before,
+.portal-atmosphere--command::after {
+  opacity: 0;
+  content: none;
+}
+
 .portal-atmosphere > * {
   position: relative;
   z-index: 1;

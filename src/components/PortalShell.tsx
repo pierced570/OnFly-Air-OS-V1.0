@@ -34,13 +34,21 @@ export function PortalShell(props: {
   appNav?: boolean
   /** Cooler translucent wash for frosted-glass surfaces (tracking, etc.). */
   frost?: boolean
+  /**
+   * Dark command-center shell for the signed-in trips map
+   * (Pinterest logistics feel — cream landing stays separate).
+   */
+  command?: boolean
 }) {
   const showNav = Boolean(props.appNav)
+  const command = Boolean(props.command)
   // Signed-in app pages share max-w-5xl so Trips / History / Account feel even.
   // Dashboard widens for list+map; narrow forms opt into max-w-3xl via wide={false}.
   const widthCls =
     props.wide === 'dashboard'
-      ? 'max-w-7xl'
+      ? command
+        ? 'max-w-[1600px]'
+        : 'max-w-7xl'
       : props.wide === true
         ? 'max-w-5xl'
         : props.wide === false
@@ -48,10 +56,13 @@ export function PortalShell(props: {
           : showNav
             ? 'max-w-5xl'
             : 'max-w-3xl'
+  const atmosphereClass = command
+    ? 'portal-atmosphere--command'
+    : props.frost
+      ? 'portal-atmosphere--frost'
+      : undefined
   return (
-    <PortalAtmosphere
-      className={props.frost ? 'portal-atmosphere--frost' : undefined}
-    >
+    <PortalAtmosphere className={atmosphereClass}>
       <header className="sticky top-0 z-30 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div
           className={[
@@ -83,12 +94,13 @@ export function PortalShell(props: {
 
       <main
         className={[
-          'mx-auto px-4 py-6 sm:px-6 sm:py-8',
+          'mx-auto px-3 sm:px-5',
+          command ? 'py-3 sm:py-4' : 'px-4 py-6 sm:px-6 sm:py-8',
           widthCls,
-          showNav ? 'pb-28 md:pb-8' : '',
+          showNav ? 'pb-28 md:pb-6' : '',
         ].join(' ')}
       >
-        {showNav ? <PortalAppDesktopNav /> : null}
+        {showNav ? <PortalAppDesktopNav command={command} /> : null}
         {props.children}
       </main>
 
@@ -112,8 +124,16 @@ export function PortalShell(props: {
           </a>
         </footer>
       ) : (
-        <footer className="hidden px-4 py-6 text-center text-xs text-ink/70 md:block">
-          <a href="https://onflyair.com" className="hover:text-ink">
+        <footer
+          className={[
+            'hidden px-4 py-6 text-center text-xs md:block',
+            command ? 'text-cream/45' : 'text-ink/70',
+          ].join(' ')}
+        >
+          <a
+            href="https://onflyair.com"
+            className={command ? 'hover:text-cream' : 'hover:text-ink'}
+          >
             onflyair.com
           </a>
           <span className="mx-2">·</span>
@@ -124,7 +144,10 @@ export function PortalShell(props: {
             {BRAND_PHONE}
           </a>
           <span className="mx-2">·</span>
-          <a href={`mailto:${BRAND_EMAIL}`} className="hover:text-ink">
+          <a
+            href={`mailto:${BRAND_EMAIL}`}
+            className={command ? 'hover:text-cream' : 'hover:text-ink'}
+          >
             {BRAND_EMAIL}
           </a>
         </footer>
