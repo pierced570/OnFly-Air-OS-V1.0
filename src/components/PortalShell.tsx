@@ -19,8 +19,13 @@ export function PortalShell(props: {
   children: React.ReactNode
   /** Optional right-side header actions (sign out, etc.). */
   headerActions?: React.ReactNode
-  /** Constrain main width (default max-w-3xl). */
-  wide?: boolean
+  /**
+   * Constrain main width.
+   * - false / omit: max-w-3xl
+   * - true: max-w-5xl
+   * - 'dashboard': max-w-7xl for list + map
+   */
+  wide?: boolean | 'dashboard'
   /**
    * Show bottom tabs (mobile) + section nav (desktop).
    * Use on signed-in client app pages — not on the dark landing gate.
@@ -28,10 +33,21 @@ export function PortalShell(props: {
   appNav?: boolean
 }) {
   const showNav = Boolean(props.appNav)
+  const widthCls =
+    props.wide === 'dashboard'
+      ? 'max-w-7xl'
+      : props.wide
+        ? 'max-w-5xl'
+        : 'max-w-3xl'
   return (
     <div className="min-h-screen bg-[#F7F2E3] text-ink" data-theme="client">
       <header className="sticky top-0 z-30 border-b border-ink/20 bg-ink pt-[max(0.75rem,env(safe-area-inset-top))] text-cream">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div
+          className={[
+            'mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6',
+            widthCls,
+          ].join(' ')}
+        >
           <Link to="/portal" className="shrink-0">
             <img
               src={BRAND_LOGO_PATH}
@@ -55,7 +71,7 @@ export function PortalShell(props: {
       <main
         className={[
           'mx-auto px-4 py-6 sm:px-6 sm:py-8',
-          props.wide ? 'max-w-5xl' : 'max-w-3xl',
+          widthCls,
           showNav ? 'pb-28 md:pb-8' : '',
         ].join(' ')}
       >

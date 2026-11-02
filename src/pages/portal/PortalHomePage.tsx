@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { PortalHomeTripCard } from '@/components/PortalHomeTripCard'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalLanding } from '@/components/PortalLanding'
 import { PortalShell } from '@/components/PortalShell'
+import { PortalShipmentsDashboard } from '@/components/PortalShipmentsDashboard'
 import {
   clearPortalClient,
   getPortalClient,
@@ -266,7 +266,11 @@ export default function PortalHomePage() {
   }
 
   return (
-    <PortalShell headerActions={headerActions} appNav={signedIn}>
+    <PortalShell
+      headerActions={headerActions}
+      appNav={signedIn}
+      wide={signedIn ? 'dashboard' : false}
+    >
       {loadingAuth ? (
         <p className="text-sm text-muted">Checking session…</p>
       ) : null}
@@ -284,56 +288,23 @@ export default function PortalHomePage() {
 
       {signedIn ? (
         <section className="space-y-5">
-          <PortalInstallBanner variant="cream" defaultOpen />
+          <PortalInstallBanner variant="cream" />
 
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
-                Your shipments
-              </div>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-                {liveCards.length === 0
-                  ? 'No shipments yet'
-                  : summaryLine}
-              </h1>
-              <p className="mt-1 text-sm text-muted">
-                One-tap book a charter or logistics move — or open a live trip.
-              </p>
-            </div>
-            <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-              <span className="avionic text-[11px] text-muted">{nowLabel}</span>
-              <Link
-                to="/portal/request"
-                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-md bg-gold px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt sm:flex-none"
-              >
-                Book a trip
-              </Link>
-            </div>
-          </div>
-
-          {liveCards.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border bg-white/60 p-6 text-sm text-muted">
-              After booking you&apos;ll see live cards here — in flight, on the
-              truck, and delivered with POD.
-            </div>
-          ) : (
-            <ul className="space-y-4">
-              {liveCards.map((t) => (
-                <PortalHomeTripCard
-                  key={t.id}
-                  id={t.id}
-                  tripRef={t.ref}
-                  state={t.state}
-                  lane={t.lane}
-                  ready_label={t.ready_label}
-                  payload_summary={t.payload_summary}
-                  trackHref={t.trackHref}
-                  etaHint={t.etaHint}
-                  nextLabel={t.nextLabel}
-                />
-              ))}
-            </ul>
-          )}
+          <PortalShipmentsDashboard
+            shipments={liveCards.map((t) => ({
+              id: t.id,
+              ref: t.ref,
+              state: t.state,
+              lane: t.lane,
+              ready_label: t.ready_label,
+              payload_summary: t.payload_summary,
+              trackHref: t.trackHref,
+              nextLabel: t.nextLabel,
+              phase: t.phase,
+            }))}
+            summaryLine={summaryLine}
+            nowLabel={nowLabel}
+          />
 
           {client ? (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-4 text-xs text-muted">
