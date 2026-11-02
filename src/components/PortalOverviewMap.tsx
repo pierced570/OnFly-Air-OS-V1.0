@@ -170,6 +170,31 @@ function collectPoints(pins: PortalOverviewPin[]): Point[] {
   return out
 }
 
+/** Soft great-circle-ish arc between two lon/lat points (Pinterest route glow). */
+function arcCoords(
+  a: [number, number],
+  b: [number, number],
+  steps = 28,
+): [number, number][] {
+  const [lng1, lat1] = a
+  const [lng2, lat2] = b
+  const midLng = (lng1 + lng2) / 2
+  const midLat = (lat1 + lat2) / 2
+  const dist = Math.hypot(lng2 - lng1, lat2 - lat1)
+  const bulge = Math.min(8, Math.max(1.2, dist * 0.18))
+  const ctrl: [number, number] = [midLng, midLat + bulge]
+  const out: [number, number][] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const u = 1 - t
+    out.push([
+      u * u * lng1 + 2 * u * t * ctrl[0] + t * t * lng2,
+      u * u * lat1 + 2 * u * t * ctrl[1] + t * t * lat2,
+    ])
+  }
+  return out
+}
+
 function selectedRouteLine(
   pins: PortalOverviewPin[],
 ): GeoJSON.Feature<GeoJSON.LineString> | null {
@@ -181,25 +206,31 @@ function selectedRouteLine(
     adsb: null,
   })
   const a = view.aircraft
-  const coords: [number, number][] = []
+  const anchors: [number, number][] = []
   if (
     a.fromLat != null &&
     a.fromLon != null &&
     !(a.fromLat === 0 && a.fromLon === 0)
   ) {
-    coords.push([a.fromLon, a.fromLat])
+    anchors.push([a.fromLon, a.fromLat])
   }
   if (a.lat != null && a.lon != null && !(a.lat === 0 && a.lon === 0)) {
-    coords.push([a.lon, a.lat])
+    anchors.push([a.lon, a.lat])
   }
   if (
     a.toLat != null &&
     a.toLon != null &&
     !(a.toLat === 0 && a.toLon === 0)
   ) {
-    coords.push([a.toLon, a.toLat])
+    anchors.push([a.toLon, a.toLat])
   }
-  if (coords.length < 2) return null
+  if (anchors.length < 2) return null
+  const coords: [number, number][] = []
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const seg = arcCoords(anchors[i]!, anchors[i + 1]!)
+    if (i > 0) seg.shift()
+    coords.push(...seg)
+  }
   return {
     type: 'Feature',
     properties: {},

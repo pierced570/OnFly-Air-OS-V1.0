@@ -95,13 +95,19 @@ export function PortalAppNav() {
 }
 
 /** Desktop / tablet secondary nav — glass pills. */
-export function PortalAppDesktopNav() {
+export function PortalAppDesktopNav(props?: { command?: boolean }) {
   const { pathname, search } = useLocation()
   const active = portalAppTabFromPath(pathname, search)
+  const command = Boolean(props?.command)
   return (
     <nav
       aria-label="Client app sections"
-      className="portal-glass mb-6 hidden rounded-2xl px-2 py-2 md:block"
+      className={[
+        'mb-4 hidden rounded-2xl px-2 py-2 md:block',
+        command
+          ? 'border border-white/15 bg-white/5 text-cream backdrop-blur-xl'
+          : 'portal-glass',
+      ].join(' ')}
     >
       <ul className="flex flex-wrap gap-1">
         {TABS.map((tab) => {
@@ -113,8 +119,10 @@ export function PortalAppDesktopNav() {
                 className={[
                   'inline-flex min-h-11 items-center rounded-xl px-3 text-xs font-semibold uppercase tracking-[0.12em]',
                   isActive
-                    ? 'bg-gold/20 text-gold'
-                    : 'text-muted hover:bg-white/40 hover:text-ink',
+                    ? 'bg-gold/25 text-gold'
+                    : command
+                      ? 'text-cream/55 hover:bg-white/10 hover:text-cream'
+                      : 'text-muted hover:bg-white/40 hover:text-ink',
                 ].join(' ')}
               >
                 {tab.label}

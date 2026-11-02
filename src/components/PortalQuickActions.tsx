@@ -16,21 +16,23 @@ export function PortalQuickActions(props?: {
 }) {
   const compact = Boolean(props?.compact)
   const stacked = Boolean(props?.stacked)
-  // Stacked landing rail: taller tiles so they fill the glass outline.
+  // Stacked landing rail: larger tiles — easier to hit, fills the glass.
   const pad = compact
     ? 'px-4 py-3.5 min-h-[4.25rem]'
     : stacked
-      ? 'px-5 py-5 min-h-[4.85rem]'
+      ? 'px-6 py-6 min-h-[5.75rem] sm:min-h-[6.25rem]'
       : 'px-5 py-4 min-h-[4.25rem]'
   const title = stacked
-    ? 'text-[1.05rem] font-semibold tracking-tight'
+    ? 'text-lg font-semibold tracking-tight sm:text-xl'
     : 'text-base font-semibold tracking-tight'
-  const body = 'mt-0.5 text-sm leading-snug text-ink/55'
+  const body = stacked
+    ? 'mt-1 text-[0.95rem] leading-snug text-ink/55'
+    : 'mt-0.5 text-sm leading-snug text-ink/55'
 
   return (
     <div
       className={[
-        stacked ? 'grid gap-2.5' : 'grid gap-3 sm:grid-cols-3',
+        stacked ? 'grid gap-3.5' : 'grid gap-3 sm:grid-cols-3',
         props?.className ?? '',
       ].join(' ')}
     >

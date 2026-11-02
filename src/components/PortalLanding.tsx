@@ -139,9 +139,9 @@ export function PortalLanding(props?: {
             />
           </section>
 
-          {/* Right — glass-gray stacked options (hug content, no empty stretch) */}
-          <section className="flex h-fit flex-col rounded-3xl border border-white/40 bg-white/25 p-3.5 shadow-[0_20px_60px_rgba(12,12,14,0.1)] backdrop-blur-2xl sm:p-4">
-            <h2 className="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45">
+          {/* Right — glass-gray stacked options (hug content, larger hits) */}
+          <section className="flex h-fit flex-col rounded-3xl border border-white/40 bg-white/25 p-4 shadow-[0_20px_60px_rgba(12,12,14,0.1)] backdrop-blur-2xl sm:p-5">
+            <h2 className="mb-3 px-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45">
               No account needed
             </h2>
             <PortalQuickActions stacked />

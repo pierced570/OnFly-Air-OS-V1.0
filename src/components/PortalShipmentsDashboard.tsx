@@ -234,7 +234,7 @@ export function PortalShipmentsDashboard(props: {
   return (
     <section className="space-y-3">
       {/* Stage */}
-      <div className="relative min-h-[min(82vh,54rem)] overflow-hidden rounded-[1.75rem] border border-white/30 bg-[#0C0C0E] shadow-[0_28px_80px_rgba(12,12,14,0.35)]">
+      <div className="relative min-h-[min(86vh,58rem)] overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#0C0C0E] shadow-[0_28px_80px_rgba(12,12,14,0.55)] ring-1 ring-gold/15">
         {stageBook ? (
           <PortalAmendedBookPanel
             email={props.email}
@@ -262,9 +262,9 @@ export function PortalShipmentsDashboard(props: {
               className="absolute inset-0 h-full w-full"
             />
 
-            {/* Left flight list — big tabs, big rows */}
-            <aside className="absolute bottom-3 left-3 top-3 z-10 flex w-[min(100%-1.5rem,21rem)] flex-col overflow-hidden rounded-3xl border border-white/50 bg-[rgba(247,242,227,0.88)] shadow-[0_18px_50px_rgba(12,12,14,0.28)] backdrop-blur-2xl sm:w-[21rem]">
-              <div className="grid grid-cols-3 gap-1 border-b border-ink/10 p-2">
+            {/* Left flight list — dark glass, big tabs (logistics-pin feel) */}
+            <aside className="absolute bottom-3 left-3 top-3 z-10 flex w-[min(100%-1.5rem,21rem)] flex-col overflow-hidden rounded-3xl border border-white/15 bg-[rgba(12,12,14,0.78)] text-cream shadow-[0_18px_50px_rgba(12,12,14,0.45)] backdrop-blur-2xl sm:w-[21rem]">
+              <div className="grid grid-cols-3 gap-1 border-b border-white/10 p-2">
                 {(
                   [
                     { id: 'live', label: 'Live', n: live.length },
@@ -285,15 +285,15 @@ export function PortalShipmentsDashboard(props: {
                       className={[
                         'min-h-12 rounded-2xl px-1 text-sm font-semibold transition',
                         active
-                          ? 'bg-ink text-cream'
-                          : 'text-ink/55 hover:bg-white/50 hover:text-ink',
+                          ? 'bg-gold text-ink'
+                          : 'text-cream/55 hover:bg-white/10 hover:text-cream',
                       ].join(' ')}
                     >
                       {t.label}
                       <span
                         className={[
                           'ml-1 avionic text-xs',
-                          active ? 'text-gold' : 'text-ink/35',
+                          active ? 'text-ink/70' : 'text-cream/35',
                         ].join(' ')}
                       >
                         {t.n}
@@ -456,10 +456,10 @@ function FlightList(props: {
               onClick={() => props.onSelect(s.id)}
               aria-current={selected ? 'true' : undefined}
               className={[
-                'flex min-h-[4.5rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left transition',
+                'flex min-h-[4.75rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left transition',
                 selected
-                  ? 'bg-ink text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.85)]'
-                  : 'bg-white/55 text-ink hover:bg-white/80',
+                  ? 'bg-white/10 text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.9)]'
+                  : 'bg-white/[0.06] text-cream hover:bg-white/12',
               ].join(' ')}
             >
               <div className="flex items-center justify-between gap-2">
@@ -471,22 +471,12 @@ function FlightList(props: {
                 >
                   {st.label}
                 </span>
-                <span
-                  className={[
-                    'avionic text-[11px]',
-                    selected ? 'text-cream/50' : 'text-ink/45',
-                  ].join(' ')}
-                >
+                <span className="avionic text-[11px] text-cream/45">
                   PO #
                   {(s.poNumber || `T-${s.ref}`).replace(/^PO\s*#?\s*/i, '')}
                 </span>
               </div>
-              <div
-                className={[
-                  'avionic mt-1.5 text-lg font-semibold leading-tight',
-                  selected ? 'text-gold' : 'text-ink',
-                ].join(' ')}
-              >
+              <div className="avionic mt-1.5 text-lg font-semibold leading-tight text-gold">
                 {shortLane(s.lane)}
               </div>
             </button>
@@ -512,18 +502,18 @@ function PendingList(props: {
         <li key={p.id}>
           <Link
             to={p.href}
-            className="flex min-h-[4.5rem] w-full flex-col justify-center rounded-2xl bg-white/55 px-3.5 py-3 text-left text-ink hover:bg-white/80"
+            className="flex min-h-[4.75rem] w-full flex-col justify-center rounded-2xl bg-white/[0.06] px-3.5 py-3 text-left text-cream hover:bg-white/12"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="rounded-full bg-ink/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cream">
+              <span className="rounded-full bg-gold/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">
                 Pending
               </span>
-              <span className="avionic text-[11px] text-ink/45">
+              <span className="avionic text-[11px] text-cream/45">
                 R-{p.ref}
                 {p.at ? ` · ${formatShortDate(p.at)}` : ''}
               </span>
             </div>
-            <div className="avionic mt-1.5 text-lg font-semibold text-ink">
+            <div className="avionic mt-1.5 text-lg font-semibold text-gold">
               {shortLane(p.lane)}
             </div>
           </Link>
@@ -537,37 +527,27 @@ function PendingList(props: {
               type="button"
               onClick={() => props.onSelect(s.id)}
               className={[
-                'flex min-h-[4.5rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left',
+                'flex min-h-[4.75rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left',
                 selected
-                  ? 'bg-ink text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.85)]'
-                  : 'bg-white/55 text-ink hover:bg-white/80',
+                  ? 'bg-white/10 text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.9)]'
+                  : 'bg-white/[0.06] text-cream hover:bg-white/12',
               ].join(' ')}
             >
               <div className="flex items-center justify-between gap-2">
                 <span
                   className={[
                     'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                    selected ? 'bg-gold text-ink' : 'bg-ink/80 text-cream',
+                    selected ? 'bg-gold text-ink' : 'bg-gold/20 text-gold',
                   ].join(' ')}
                 >
                   Pending
                 </span>
-                <span
-                  className={[
-                    'avionic text-[11px]',
-                    selected ? 'text-cream/50' : 'text-ink/45',
-                  ].join(' ')}
-                >
+                <span className="avionic text-[11px] text-cream/45">
                   PO #
                   {(s.poNumber || `T-${s.ref}`).replace(/^PO\s*#?\s*/i, '')}
                 </span>
               </div>
-              <div
-                className={[
-                  'avionic mt-1.5 text-lg font-semibold',
-                  selected ? 'text-gold' : 'text-ink',
-                ].join(' ')}
-              >
+              <div className="avionic mt-1.5 text-lg font-semibold text-gold">
                 {shortLane(s.lane)}
               </div>
             </button>
@@ -597,37 +577,22 @@ function PastList(props: {
               type="button"
               onClick={() => props.onSelect(s.id)}
               className={[
-                'flex min-h-[4.5rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left',
+                'flex min-h-[4.75rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left',
                 selected
-                  ? 'bg-ink text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.85)]'
-                  : 'bg-white/55 text-ink hover:bg-white/80',
+                  ? 'bg-white/10 text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.9)]'
+                  : 'bg-white/[0.06] text-cream hover:bg-white/12',
               ].join(' ')}
             >
               <div className="flex items-center justify-between gap-2">
-                <span
-                  className={[
-                    'avionic text-[11px] font-semibold',
-                    selected ? 'text-cream/55' : 'text-ink/45',
-                  ].join(' ')}
-                >
+                <span className="avionic text-[11px] font-semibold text-cream/45">
                   {date || '—'}
                 </span>
-                <span
-                  className={[
-                    'avionic text-sm font-semibold',
-                    selected ? 'text-cream' : 'text-ink',
-                  ].join(' ')}
-                >
+                <span className="avionic text-sm font-semibold text-cream/80">
                   PO #
                   {(s.poNumber || `T-${s.ref}`).replace(/^PO\s*#?\s*/i, '')}
                 </span>
               </div>
-              <div
-                className={[
-                  'avionic mt-1.5 text-lg font-semibold',
-                  selected ? 'text-gold' : 'text-ink',
-                ].join(' ')}
-              >
+              <div className="avionic mt-1.5 text-lg font-semibold text-gold">
                 {shortLane(s.lane)}
               </div>
             </button>
@@ -640,7 +605,7 @@ function PastList(props: {
 
 function Empty(props: { children: React.ReactNode }) {
   return (
-    <p className="rounded-2xl border border-dashed border-ink/15 px-3 py-8 text-center text-sm text-ink/45">
+    <p className="rounded-2xl border border-dashed border-white/15 px-3 py-8 text-center text-sm text-cream/45">
       {props.children}
     </p>
   )
