@@ -1,6 +1,6 @@
 /**
- * Public ofaops home — brand + client login first, then Estimate / Book / Call.
- * Staff login is a quiet footer link (desk gate is separate).
+ * Public ofaops home — compact logo + Staff top-right, then stacked actions.
+ * Client login left / Estimate·Book·Call stacked right (single column on mobile).
  */
 
 import { Link } from 'react-router-dom'
@@ -8,7 +8,6 @@ import {
   BRAND_LOGO_LIGHT_PATH,
   BRAND_PHONE,
   BRAND_PHONE_E164,
-  BRAND_TAGLINE,
 } from '@/domain/brand'
 import { PortalAtmosphere } from '@/components/PortalGlass'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
@@ -37,12 +36,12 @@ export function PortalLanding(props?: {
   if (props?.loginFocus) {
     return (
       <PortalAtmosphere className="portal-atmosphere--landing" detail>
-        <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-6 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
+        <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
           <Link to="/">
             <img
               src={BRAND_LOGO_LIGHT_PATH}
               alt="OnFly Air"
-              className="h-11 w-auto max-w-[220px] object-contain object-left sm:h-12"
+              className="h-8 w-auto max-w-[160px] object-contain object-left"
             />
           </Link>
           <a
@@ -75,7 +74,7 @@ export function PortalLanding(props?: {
                 : 'Enter your work email — we open the right company portal.'
             }
           />
-          <PortalQuickActions compact />
+          <PortalQuickActions stacked compact />
           <p className="text-center text-sm">
             <Link to="/" className="font-semibold text-ink hover:text-gold">
               ← Back home
@@ -92,99 +91,103 @@ export function PortalLanding(props?: {
         <PortalInstallBanner variant="glass" density="banner" />
       </div>
 
-      <header className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-6 sm:px-8">
-        <div className="min-w-0">
+      {/* Compact logo left · Staff login top right */}
+      <header className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-8">
+        <Link to="/" className="min-w-0 shrink">
           <img
             src={BRAND_LOGO_LIGHT_PATH}
             alt="OnFly Air"
-            className="h-12 w-auto max-w-[min(100%,280px)] object-contain object-left sm:h-14"
+            className="h-8 w-auto max-w-[150px] object-contain object-left sm:h-9 sm:max-w-[170px]"
           />
-          <p className="mt-1.5 hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-muted sm:block">
-            {BRAND_TAGLINE}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+        </Link>
+        <div className="flex shrink-0 items-center gap-2">
           <a
             href={`tel:${BRAND_PHONE_E164}`}
-            className="avionic text-sm font-semibold text-ink hover:text-gold"
+            className="hidden avionic text-xs font-semibold text-ink hover:text-gold sm:inline"
           >
             {BRAND_PHONE}
           </a>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-            24-hr ops
-          </span>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-4xl space-y-8 px-4 pb-20 sm:px-8">
-        <section className="max-w-2xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
-            {company ? 'Company portal' : 'Client portal'}
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-[2.5rem] sm:leading-tight">
-            {company
-              ? company
-              : 'Your freight, in the air and on the screen.'}
-          </h1>
-          <p className="mt-3 max-w-xl text-base leading-relaxed text-muted">
-            {company
-              ? 'Sign in for live trips — or estimate, book, or call without an account.'
-              : 'Sign in for live shipments — or get a rough estimate, book a trip, or call ops.'}
-          </p>
-        </section>
-
-        {props?.continueTrackHref ? (
-          <Link
-            to={props.continueTrackHref}
-            className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-ink/15 bg-[#FFFDFA] px-5 py-4 text-ink transition hover:border-ink/35"
-          >
-            <div>
-              <div className="text-sm font-semibold">
-                Continue tracking your shipment
-              </div>
-              <p className="mt-0.5 text-xs text-muted">
-                From your last tracking link — no account needed.
-              </p>
-            </div>
-            <span className="text-lg font-semibold text-ink" aria-hidden>
-              →
-            </span>
-          </Link>
-        ) : null}
-
-        {/* Client login takes the former hero slot */}
-        <section>
-          <PortalOneClickLogin
-            variant="glass"
-            onSignedIn={props?.onSignedIn}
-            nextHref={props?.nextHref ?? undefined}
-            expectedClientId={props?.expectedClientId}
-            title={company ? `Client login · ${company}` : 'Client login'}
-            hint={
-              company
-                ? domainHint
-                : 'Work email on file — opens live tracking, past trips, and booking. No password.'
-            }
-          />
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-            No account needed
-          </h2>
-          <PortalQuickActions />
-        </section>
-
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-6 text-xs text-muted">
-          <a href="https://onflyair.com" className="hover:text-ink">
-            onflyair.com
-          </a>
           <Link
             to="/login?next=/dispatch"
-            className="font-semibold uppercase tracking-[0.12em] text-muted hover:text-ink"
+            className="inline-flex min-h-10 items-center rounded-full border border-ink/15 bg-ink/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-cream backdrop-blur hover:border-gold/40"
           >
             Staff login
           </Link>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-5xl px-4 pb-16 pt-2 sm:px-8 sm:pt-4">
+        <div className="grid items-start gap-6 lg:grid-cols-2 lg:gap-8">
+          {/* Left — headline + client login (replaces hero image) */}
+          <section className="space-y-5">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
+                {company ? 'Company portal' : 'Client portal'}
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+                {company
+                  ? company
+                  : 'Your freight, in the air and on the screen.'}
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                {company
+                  ? 'Sign in for live trips — or estimate, book, or call without an account.'
+                  : 'Sign in for live shipments — or start without an account.'}
+              </p>
+            </div>
+
+            {props?.continueTrackHref ? (
+              <Link
+                to={props.continueTrackHref}
+                className="flex min-h-12 items-center justify-between gap-4 rounded-2xl border border-ink/15 bg-[#FFFDFA] px-4 py-3 text-ink transition hover:border-ink/35"
+              >
+                <div>
+                  <div className="text-sm font-semibold">
+                    Continue tracking
+                  </div>
+                  <p className="text-xs text-muted">
+                    Last tracking link — no account needed.
+                  </p>
+                </div>
+                <span className="text-ink" aria-hidden>
+                  →
+                </span>
+              </Link>
+            ) : null}
+
+            <PortalOneClickLogin
+              variant="glass"
+              onSignedIn={props?.onSignedIn}
+              nextHref={props?.nextHref ?? undefined}
+              expectedClientId={props?.expectedClientId}
+              title={company ? `Client login · ${company}` : 'Client login'}
+              hint={
+                company
+                  ? domainHint
+                  : 'Work email on file — live tracking, past trips, booking. No password.'
+              }
+            />
+          </section>
+
+          {/* Right — three stacked buttons */}
+          <section className="space-y-3 lg:pt-1">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+              No account needed
+            </h2>
+            <PortalQuickActions stacked />
+          </section>
+        </div>
+
+        <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-6 text-xs text-muted">
+          <a href="https://onflyair.com" className="hover:text-ink">
+            onflyair.com
+          </a>
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="avionic hover:text-ink sm:hidden"
+          >
+            {BRAND_PHONE}
+          </a>
         </footer>
       </main>
     </PortalAtmosphere>

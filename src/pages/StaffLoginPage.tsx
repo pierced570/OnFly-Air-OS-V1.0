@@ -238,13 +238,13 @@ export default function StaffLoginPage() {
 
           <form
             onSubmit={(e) => void submit(e)}
-            className="space-y-4 rounded-2xl border border-cream/12 bg-cream/[0.05] p-5 sm:p-6"
+            className="space-y-4 rounded-2xl border border-cream/15 bg-cream/[0.08] p-5 sm:p-6"
           >
             <label className="block text-xs font-medium text-cream/55">
               Name on roster
               <input
                 ref={nameRef}
-                className="mt-1.5 w-full rounded-xl border border-cream/15 bg-[#232326] px-3 py-3.5 text-base text-cream outline-none placeholder:text-cream/30 focus:border-gold"
+                className="mt-1.5 w-full rounded-xl border border-cream/20 bg-[#3A3A40] px-3 py-3.5 text-base text-cream outline-none placeholder:text-cream/35 focus:border-gold"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
@@ -255,7 +255,7 @@ export default function StaffLoginPage() {
             <label className="block text-xs font-medium text-cream/55">
               Phone on roster
               <PhoneInput
-                className="mt-1.5 w-full rounded-xl border border-cream/15 bg-[#232326] px-3 py-3.5 font-mono text-base text-cream outline-none focus:border-gold"
+                className="mt-1.5 w-full rounded-xl border border-cream/20 bg-[#3A3A40] px-3 py-3.5 font-mono text-base text-cream outline-none focus:border-gold"
                 value={phone}
                 onChange={setPhone}
                 required
