@@ -86,8 +86,11 @@ describe('portalClientApp', () => {
   })
 
   it('maps tabs and friendly state labels', () => {
-    expect(portalAppTabPath('book')).toBe('/portal/request?mode=book')
+    expect(portalAppTabPath('book')).toBe('/?panel=book')
+    expect(portalAppTabPath('history')).toBe('/?history=1')
     expect(portalAppTabFromPath('/portal/history')).toBe('history')
+    expect(portalAppTabFromPath('/', '?panel=book')).toBe('book')
+    expect(portalAppTabFromPath('/', '?history=1')).toBe('history')
     expect(portalAppTabFromPath('/portal/login')).toBeNull()
     expect(portalAppStateLabel('in_progress')).toBe('Live')
     expect(portalAppStateLabel('quoted_hard')).toBe('Quote')

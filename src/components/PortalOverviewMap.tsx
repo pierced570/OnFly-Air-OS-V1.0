@@ -1,6 +1,6 @@
 /**
- * Client dashboard overview map — lit pins for origin / dest / aircraft
- * across active (and selected) shipments. Cream/gold on dark basemap.
+ * Client trips overview — full US dark basemap with gold city twinkles
+ * plus lit pins / route for selected shipments.
  */
 
 import { useEffect, useMemo, useRef } from 'react'
@@ -11,6 +11,7 @@ import {
   tripToTrackingInput,
   type PortalShipmentPhase,
 } from '@/domain/portalTracking'
+import { PORTAL_US_CITY_TWINKLES } from '@/domain/portalUsCities'
 import { getTrip } from '@/lib/tripStore'
 
 export type PortalOverviewPin = {
@@ -27,6 +28,38 @@ type Point = {
   label: string
   selected: boolean
   live: boolean
+}
+
+const US_CENTER: [number, number] = [-97.5, 38.5]
+const US_ZOOM = 3.55
+
+function ensureTwinkleStyle(): void {
+  if (typeof document === 'undefined') return
+  if (document.getElementById('onfly-city-twinkle-style')) return
+  const style = document.createElement('style')
+  style.id = 'onfly-city-twinkle-style'
+  style.textContent = `
+@keyframes onfly-city-twinkle {
+  0%, 100% { opacity: 0.28; transform: scale(0.72); box-shadow: 0 0 0 0 rgba(201,162,39,0); }
+  50% { opacity: 1; transform: scale(1.15); box-shadow: 0 0 10px 2px rgba(201,162,39,0.65); }
+}
+.onfly-city-twinkle {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #C9A227;
+  pointer-events: none;
+  animation: onfly-city-twinkle 2.8s ease-in-out infinite;
+}
+`
+  document.head.appendChild(style)
+}
+
+function cityTwinkleEl(delayMs: number): HTMLDivElement {
+  const el = document.createElement('div')
+  el.className = 'onfly-city-twinkle'
+  el.style.animationDelay = `${delayMs}ms`
+  return el
 }
 
 function pinEl(p: Point): HTMLDivElement {
@@ -137,30 +170,77 @@ function collectPoints(pins: PortalOverviewPin[]): Point[] {
   return out
 }
 
+function selectedRouteLine(
+  pins: PortalOverviewPin[],
+): GeoJSON.Feature<GeoJSON.LineString> | null {
+  const selected = pins.find((p) => p.selected)
+  if (!selected) return null
+  const trip = getTrip(selected.id)
+  if (!trip) return null
+  const view = buildPortalTrackingView(tripToTrackingInput(trip), {
+    adsb: null,
+  })
+  const a = view.aircraft
+  const coords: [number, number][] = []
+  if (
+    a.fromLat != null &&
+    a.fromLon != null &&
+    !(a.fromLat === 0 && a.fromLon === 0)
+  ) {
+    coords.push([a.fromLon, a.fromLat])
+  }
+  if (a.lat != null && a.lon != null && !(a.lat === 0 && a.lon === 0)) {
+    coords.push([a.lon, a.lat])
+  }
+  if (
+    a.toLat != null &&
+    a.toLon != null &&
+    !(a.toLat === 0 && a.toLon === 0)
+  ) {
+    coords.push([a.toLon, a.toLat])
+  }
+  if (coords.length < 2) return null
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'LineString', coordinates: coords },
+  }
+}
+
 export function PortalOverviewMap(props: {
   pins: PortalOverviewPin[]
   className?: string
   onSelect?: (id: string) => void
+  /** Keep continental US framing even with trip pins. */
+  lockUsFrame?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
+  const cityMarkersRef = useRef<maplibregl.Marker[]>([])
   const paintedKeyRef = useRef('')
+  const onSelectRef = useRef(props.onSelect)
+  onSelectRef.current = props.onSelect
 
   const points = useMemo(() => collectPoints(props.pins), [props.pins])
+  const route = useMemo(() => selectedRouteLine(props.pins), [props.pins])
   const paintKey = useMemo(
     () =>
-      points
-        .map(
-          (p) =>
-            `${p.id}:${p.kind}:${p.lng.toFixed(3)},${p.lat.toFixed(3)}:${p.selected ? 1 : 0}`,
-        )
-        .join('|'),
-    [points],
+      [
+        points
+          .map(
+            (p) =>
+              `${p.id}:${p.kind}:${p.lng.toFixed(3)},${p.lat.toFixed(3)}:${p.selected ? 1 : 0}`,
+          )
+          .join('|'),
+        route ? JSON.stringify(route.geometry.coordinates) : '',
+      ].join('#'),
+    [points, route],
   )
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
+    ensureTwinkleStyle()
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
@@ -177,8 +257,8 @@ export function PortalOverviewMap(props: {
         },
         layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
       },
-      center: [-95.5, 38.5],
-      zoom: 3.4,
+      center: US_CENTER,
+      zoom: US_ZOOM,
       attributionControl: false,
       interactive: true,
     })
@@ -186,10 +266,40 @@ export function PortalOverviewMap(props: {
       new maplibregl.NavigationControl({ showCompass: false }),
       'top-right',
     )
+
+    map.on('load', () => {
+      // Soft gold city twinkles across the US.
+      for (const [i, city] of PORTAL_US_CITY_TWINKLES.entries()) {
+        const el = cityTwinkleEl((i * 170) % 2800)
+        cityMarkersRef.current.push(
+          new maplibregl.Marker({ element: el, anchor: 'center' })
+            .setLngLat([city.lon, city.lat])
+            .addTo(map),
+        )
+      }
+      map.addSource('portal-route', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'portal-route-line',
+        type: 'line',
+        source: 'portal-route',
+        paint: {
+          'line-color': '#C9A227',
+          'line-width': 2.5,
+          'line-opacity': 0.85,
+          'line-dasharray': [1.2, 1.4],
+        },
+      })
+    })
+
     mapRef.current = map
     return () => {
       for (const m of markersRef.current) m.remove()
       markersRef.current = []
+      for (const m of cityMarkersRef.current) m.remove()
+      cityMarkersRef.current = []
       map.remove()
       mapRef.current = null
       paintedKeyRef.current = ''
@@ -199,7 +309,9 @@ export function PortalOverviewMap(props: {
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    if (paintKey === paintedKeyRef.current && markersRef.current.length) return
+    if (paintKey === paintedKeyRef.current && markersRef.current.length) {
+      // Still refresh route source when only selection route changes mid-key.
+    }
 
     const paint = () => {
       for (const m of markersRef.current) m.remove()
@@ -212,7 +324,7 @@ export function PortalOverviewMap(props: {
         el.style.pointerEvents = 'auto'
         el.addEventListener('click', (e) => {
           e.stopPropagation()
-          props.onSelect?.(p.id)
+          onSelectRef.current?.(p.id)
         })
         markersRef.current.push(
           new maplibregl.Marker({ element: el, anchor: 'bottom' })
@@ -222,14 +334,26 @@ export function PortalOverviewMap(props: {
         coords.push([p.lng, p.lat])
       }
 
-      if (coords.length === 1) {
-        map.easeTo({ center: coords[0], zoom: 6.5, duration: 450 })
-      } else if (coords.length > 1) {
+      const src = map.getSource('portal-route') as
+        | maplibregl.GeoJSONSource
+        | undefined
+      if (src) {
+        src.setData({
+          type: 'FeatureCollection',
+          features: route ? [route] : [],
+        })
+      }
+
+      if (props.lockUsFrame || coords.length === 0) {
+        map.easeTo({ center: US_CENTER, zoom: US_ZOOM, duration: 450 })
+      } else if (coords.length === 1) {
+        map.easeTo({ center: coords[0], zoom: 5.8, duration: 450 })
+      } else {
         const bounds = new maplibregl.LngLatBounds(coords[0], coords[0])
         for (const c of coords) bounds.extend(c)
         map.fitBounds(bounds, {
-          padding: { top: 48, bottom: 48, left: 40, right: 40 },
-          maxZoom: 8.5,
+          padding: { top: 72, bottom: 72, left: 320, right: 72 },
+          maxZoom: 7.5,
           duration: 450,
         })
       }
@@ -238,14 +362,14 @@ export function PortalOverviewMap(props: {
 
     if (map.loaded()) paint()
     else map.once('load', paint)
-  }, [paintKey, points, props])
+  }, [paintKey, points, route, props.lockUsFrame])
 
   return (
     <div
       ref={containerRef}
       className={
         props.className ??
-        'h-64 w-full overflow-hidden rounded-2xl border border-cream/10 bg-[#141414] sm:h-80'
+        'h-full min-h-[28rem] w-full overflow-hidden bg-[#141414]'
       }
     />
   )

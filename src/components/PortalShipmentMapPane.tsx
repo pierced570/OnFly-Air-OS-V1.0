@@ -25,6 +25,8 @@ import {
 export function PortalShipmentMapPane(props: {
   tripId: string
   trackHref: string
+  /** Show when the trip was requested alongside ETA. */
+  showRequested?: boolean
 }) {
   useSyncExternalStore(subscribeTrips, listTripsStable, listTripsStable)
   const [hydrating, setHydrating] = useState(true)
@@ -100,13 +102,37 @@ export function PortalShipmentMapPane(props: {
     'Pending'
   const po =
     view.poNumber?.replace(/^PO\s*#?\s*/i, '') || `T-${view.ref}`
+  const requestedAt = trip.created_at || null
+  const requestedLabel = (() => {
+    if (!requestedAt) return null
+    try {
+      return new Date(requestedAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    } catch {
+      return null
+    }
+  })()
+  const etaLabel =
+    view.eteLabel ||
+    view.projectedDisplay ||
+    view.promisedDisplay ||
+    view.nextMilestoneLabel ||
+    null
 
   return (
     <div className="portal-glass-strong flex h-full min-h-0 flex-col overflow-hidden rounded-2xl">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[rgba(201,162,39,0.18)] px-4 py-3">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
-            Live track
+            {view.phase === 'delivered'
+              ? 'Previous flight'
+              : trip.state === 'in_progress'
+                ? 'Live track'
+                : 'Selected flight'}
           </div>
           <h2 className="mt-1 truncate text-lg font-semibold text-ink">
             PO #{po}
@@ -120,6 +146,29 @@ export function PortalShipmentMapPane(props: {
               <span className="text-muted"> · {view.aircraftType}</span>
             ) : null}
           </p>
+          {props.showRequested ? (
+            <p className="mt-1.5 text-xs text-muted">
+              {requestedLabel ? (
+                <>
+                  Requested{' '}
+                  <span className="avionic font-semibold text-ink">
+                    {requestedLabel}
+                  </span>
+                </>
+              ) : (
+                'Request time pending'
+              )}
+              {etaLabel ? (
+                <>
+                  {' '}
+                  · ETA{' '}
+                  <span className="avionic font-semibold text-ink">
+                    {etaLabel}
+                  </span>
+                </>
+              ) : null}
+            </p>
+          ) : null}
         </div>
         <Link
           to={props.trackHref}
