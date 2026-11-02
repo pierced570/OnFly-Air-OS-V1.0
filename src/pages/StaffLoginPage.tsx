@@ -168,14 +168,14 @@ export default function StaffLoginPage() {
 
   return (
     <div
-      className="relative flex min-h-screen flex-col bg-[#2A2A2E] text-cream"
+      className="relative flex min-h-screen flex-col bg-[#45454C] text-cream"
       data-theme="dispatcher"
     >
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 80% 45% at 50% -5%, rgba(201,162,39,0.16), transparent 55%), linear-gradient(180deg, #3A3A40 0%, #2A2A2E 55%)',
+            'radial-gradient(ellipse 80% 45% at 50% -5%, rgba(201,162,39,0.14), transparent 55%), linear-gradient(180deg, #55555D 0%, #45454C 55%)',
         }}
       />
 
