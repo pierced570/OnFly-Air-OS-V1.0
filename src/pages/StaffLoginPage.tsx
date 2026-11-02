@@ -13,8 +13,10 @@ export default function StaffLoginPage() {
   const [rosterReady, setRosterReady] = useState(false)
   const [params] = useSearchParams()
   const nav = useNavigate()
-  const next = params.get('next') || '/dispatch'
+  const next = params.get('next') || '/scratch'
   const goingToDesk = next === '/desk' || next.startsWith('/desk?')
+  const goingToScratch =
+    next === '/scratch' || next.startsWith('/scratch?')
 
   useEffect(() => {
     let cancelled = false
@@ -64,7 +66,9 @@ export default function StaffLoginPage() {
         <p className="mt-2 text-sm text-muted">
           {goingToDesk
             ? 'Sign in to parse your scratchpad and shortlist operators.'
-            : 'Enter your name and phone for general ops (Board, network, trips).'}
+            : goingToScratch
+              ? 'Sign in, then open the scratchpad — parse when the call ends, or enter Dispatch center.'
+              : 'Enter your name and phone for general ops (Board, network, trips).'}
         </p>
 
         <form onSubmit={(e) => void submit(e)} className="mt-8 space-y-4">
@@ -102,15 +106,20 @@ export default function StaffLoginPage() {
                 ? 'Checking…'
                 : goingToDesk
                   ? 'Login & parse'
-                  : 'Enter desk'}
+                  : goingToScratch
+                    ? 'Open scratchpad'
+                    : 'Enter desk'}
           </button>
         </form>
 
         <p className="mt-6 text-center text-[11px] text-muted">
-          <a href="/" className="text-gold hover:text-gold-lt">
-            ← Back to scratchpad
+          <a href="/scratch" className="text-gold hover:text-gold-lt">
+            ← Scratchpad (no login)
           </a>
-          {' · '}no login needed until you parse
+          {' · '}
+          <a href="/" className="text-muted hover:text-gold">
+            Client portal
+          </a>
         </p>
       </div>
     </div>

@@ -471,7 +471,7 @@ export default function DeskParsePage() {
           </p>
         </div>
         <Link
-          to="/"
+          to="/scratch"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted hover:text-cream"
           aria-label="Close"
         >
@@ -1554,7 +1554,7 @@ function RawCallNotes({ notes }: { notes: string }) {
       ) : (
         <p className="mt-2 text-xs text-muted">No scratchpad notes captured.</p>
       )}
-      <Link to="/" className="mt-2 inline-block text-[11px] text-gold hover:text-gold-lt">
+      <Link to="/scratch" className="mt-2 inline-block text-[11px] text-gold hover:text-gold-lt">
         Edit on scratchpad →
       </Link>
     </section>

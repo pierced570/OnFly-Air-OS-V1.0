@@ -1028,7 +1028,7 @@ export default function DispatchCenterPage() {
 
   // Deep link from desk send / share: /dispatch?drawer=offers&focus=<tripId>
   // Quick Dispatch: /dispatch?tool=quick
-  // Scratchpad / parse use the same routes as pre-login: / and /desk
+  // Scratchpad / parse use the same routes as pre-login: /scratch and /desk
   useEffect(() => {
     if (toolParam === 'scratchpad') {
       nav('/', { replace: true })
@@ -1296,7 +1296,7 @@ export default function DispatchCenterPage() {
         <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => nav('/')}
+            onClick={() => nav('/scratch')}
             className="rounded-lg border border-gold/55 bg-transparent px-4 py-2.5 text-sm font-semibold text-gold hover:bg-gold/10"
           >
             Start new request
@@ -1396,7 +1396,7 @@ export default function DispatchCenterPage() {
             </button>
             <button
               type="button"
-              onClick={() => nav('/')}
+              onClick={() => nav('/scratch')}
               className="rounded-lg border border-gold/50 px-3 py-2 text-xs font-medium text-gold hover:bg-gold/10"
             >
               Open scratchpad
@@ -1484,7 +1484,7 @@ export default function DispatchCenterPage() {
               onClick={() => {
                 // Same destinations as pre-login: scratchpad = /, parse = /desk
                 if (t.id === 'scratchpad') {
-                  nav('/')
+                  nav('/scratch')
                   return
                 }
                 if (t.id === 'parse') {

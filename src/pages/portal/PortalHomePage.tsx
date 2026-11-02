@@ -249,8 +249,8 @@ export default function PortalHomePage() {
     </>
   )
 
-  // Black booking gate is the public home — never skip it for guests just
-  // because a tracking token is remembered (that felt like "inside a portal").
+  // Public ofaops home = client landing — never skip for guests just because
+  // a tracking token is remembered (that felt like "inside a portal").
   if (!loadingAuth && !signedIn && !(session && !session.clientId)) {
     return (
       <PortalLanding

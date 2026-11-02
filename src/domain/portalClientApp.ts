@@ -282,7 +282,7 @@ export function filterPortalHistoryLedger(
 }
 
 export function portalAppTabPath(tab: PortalAppTab): string {
-  if (tab === 'home') return '/portal'
+  if (tab === 'home') return '/'
   if (tab === 'book') return '/portal/request'
   if (tab === 'history') return '/portal/history'
   return '/portal/account'
@@ -300,7 +300,8 @@ export function portalRequestHelloLabel(
 }
 
 export function portalAppTabFromPath(pathname: string): PortalAppTab | null {
-  if (pathname === '/portal' || pathname === '/portal/') return 'home'
+  if (pathname === '/' || pathname === '/portal' || pathname === '/portal/')
+    return 'home'
   if (pathname.startsWith('/portal/request')) return 'book'
   if (pathname.startsWith('/portal/history') || pathname.startsWith('/portal/documents'))
     return 'history'

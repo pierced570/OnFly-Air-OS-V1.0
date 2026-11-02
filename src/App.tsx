@@ -54,6 +54,7 @@ function isPublic(pathname: string) {
   return (
     pathname === '/' ||
     pathname === '/login' ||
+    pathname === '/scratch' ||
     pathname === '/quote' ||
     pathname === '/book' ||
     pathname.startsWith('/offer/') ||
@@ -75,6 +76,7 @@ function isPublic(pathname: string) {
 /** Cream client surfaces — keep <html> theme in sync so tokens aren't dark. */
 function isClientThemePath(pathname: string) {
   return (
+    pathname === '/' ||
     pathname.startsWith('/portal') ||
     pathname === '/quote' ||
     pathname === '/book' ||
@@ -102,7 +104,9 @@ export function App() {
   const routes = (
     <Suspense fallback={<Fallback />}>
       <Routes>
-        <Route path="/" element={<ScratchPadPage />} />
+        {/* ofaops.onflyair.com — client portal is the public home */}
+        <Route path="/" element={<PortalHomePage />} />
+        <Route path="/scratch" element={<ScratchPadPage />} />
         <Route path="/login" element={<StaffLoginPage />} />
         <Route path="/dispatch" element={<DispatchCenterPage />} />
         <Route path="/desk" element={<DeskParsePage />} />
