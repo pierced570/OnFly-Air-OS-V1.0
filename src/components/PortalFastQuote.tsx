@@ -21,6 +21,7 @@ import {
   destinationFromGoMinutes,
   formatHoursMinutes,
 } from '@/domain/softPricing'
+import { SoftEstimateTimeline } from '@/components/SoftEstimateTimeline'
 import {
   buildSoftPricingForRequest,
   type SoftPricingPackageResult,
@@ -179,6 +180,8 @@ export function PortalFastQuote(props: {
             )
           })}
         </ul>
+
+        <SoftEstimateTimeline classes={pkg.classes} compact />
 
         <p className="text-xs leading-relaxed text-muted">{pkg.disclaimer}</p>
 

@@ -5,8 +5,10 @@
  * Pure TypeScript. No React / Supabase.
  *
  * Timing (planning assumptions, not a hard quote):
- *   - Repo: fixed 2.5 hr
- *   - Live: great-circle NM ÷ class average GS → hrs+mins
+ *   - Pilot call-out: fixed 2 hr
+ *   - Position to pickup: fixed 1 hr
+ *   - Loading & fueling: fixed 1 hr
+ *   - Live flight: great-circle NM ÷ class average GS → hrs+mins
  *   - Return: live duration + 1.0 hr
  * Price: billable hours × class hourly rate range → all-in estimate range.
  *
@@ -21,8 +23,17 @@ import {
 import type { Piece } from '@/domain/dimsParser'
 import { maxPieceDims, totalWeightLbs } from '@/domain/dimsParser'
 
-/** Fixed reposition assumption for soft quotes. */
-export const SOFT_REPO_HOURS = 2.5
+/** Fixed planning stages before wheels-up (soft quotes). */
+export const SOFT_PILOT_CALLOUT_HOURS = 2
+export const SOFT_POSITION_HOURS = 1
+export const SOFT_LOAD_FUEL_HOURS = 1
+
+/**
+ * Pre-flight ground total (call-out + position + load/fuel).
+ * Kept as SOFT_REPO_HOURS for older call sites / tests.
+ */
+export const SOFT_REPO_HOURS =
+  SOFT_PILOT_CALLOUT_HOURS + SOFT_POSITION_HOURS + SOFT_LOAD_FUEL_HOURS
 
 /** Extra time on the return beyond same-distance flight time. */
 export const SOFT_HOME_EXTRA_HOURS = 1
@@ -211,6 +222,16 @@ export function flightMinutesFromNmGs(nm: number, gsKts: number): number {
 }
 
 export type SoftLegTiming = {
+  /** Pilot call-out (fixed planning assumption). */
+  callout_min: number
+  /** Time for aircraft to position to pickup. */
+  position_min: number
+  /** Loading and fueling at origin. */
+  load_fuel_min: number
+  /**
+   * Pre-flight ground total (call-out + position + load/fuel).
+   * Same as callout_min + position_min + load_fuel_min.
+   */
   repo_min: number
   live_min: number
   home_min: number
@@ -219,9 +240,47 @@ export type SoftLegTiming = {
   avg_gs_kts: number
 }
 
-/** Repo + live — when the aircraft reaches the destination after Go. */
+export type SoftTimelineStage = {
+  key: 'callout' | 'position' | 'load_fuel' | 'flight'
+  label: string
+  /** Fixed stages use minutes; flight uses null (per-class). */
+  minutes: number | null
+  hint: string
+}
+
+/** Fixed ground stages shown in the expandable soft-estimate timeline. */
+export function softFixedTimelineStages(): SoftTimelineStage[] {
+  return [
+    {
+      key: 'callout',
+      label: 'Pilot call-out',
+      minutes: Math.round(SOFT_PILOT_CALLOUT_HOURS * 60),
+      hint: 'Crew alerted and reporting for duty',
+    },
+    {
+      key: 'position',
+      label: 'Position to pickup',
+      minutes: Math.round(SOFT_POSITION_HOURS * 60),
+      hint: 'Aircraft repositions to your origin',
+    },
+    {
+      key: 'load_fuel',
+      label: 'Loading & fueling',
+      minutes: Math.round(SOFT_LOAD_FUEL_HOURS * 60),
+      hint: 'Cargo / pax onboard and fueled for departure',
+    },
+    {
+      key: 'flight',
+      label: 'Flight time',
+      minutes: null,
+      hint: 'Great-circle distance ÷ class average ground speed',
+    },
+  ]
+}
+
+/** Call-out + position + load/fuel + live — destination after Go. */
 export function destinationFromGoMinutes(t: SoftLegTiming): number {
-  return t.repo_min + t.live_min
+  return t.callout_min + t.position_min + t.load_fuel_min + t.live_min
 }
 
 export function buildSoftLegTiming(
@@ -232,8 +291,14 @@ export function buildSoftLegTiming(
   const live_nm = Math.max(0, Math.round(liveNm))
   const live_min = flightMinutesFromNmGs(live_nm, gs)
   const home_min = live_min + Math.round(SOFT_HOME_EXTRA_HOURS * 60)
-  const repo_min = Math.round(SOFT_REPO_HOURS * 60)
+  const callout_min = Math.round(SOFT_PILOT_CALLOUT_HOURS * 60)
+  const position_min = Math.round(SOFT_POSITION_HOURS * 60)
+  const load_fuel_min = Math.round(SOFT_LOAD_FUEL_HOURS * 60)
+  const repo_min = callout_min + position_min + load_fuel_min
   return {
+    callout_min,
+    position_min,
+    load_fuel_min,
     repo_min,
     live_min,
     home_min,
@@ -603,19 +668,19 @@ export function buildSoftPricingPackage(input: {
     }),
     fit_summary,
     pricing_logic_overview:
-      'We assume a 2.5 hr repositioning leg to reach you. Live leg uses distance and average ground speed for each class. Return home ≈ live leg + 1 hr. All-in ranges reflect typical class rates — not a bookable quote.',
+      'Planning timeline: 2 hr pilot call-out, 1 hr to position, 1 hr loading & fueling, then flight time by aircraft class (distance ÷ average ground speed). Return home ≈ live leg + 1 hr. All-in ranges reflect typical class rates — not a bookable quote.',
     math_cards: [
       {
-        title: '1. Repositioning',
-        body: `We assume 2.5 hrs for the aircraft to reach ${origin_display}. Real repo depends on where the fleet sits today — the single biggest swing in your final price.`,
+        title: '1. Call-out · position · load',
+        body: `We plan 2 hr pilot call-out, 1 hr for the aircraft to reach ${origin_display}, and 1 hr for loading & fueling. Real positioning swings with where the fleet sits today — often the biggest move in your final price.`,
       },
       {
         title: '2. Live leg',
-        body: `${live_nm} NM ÷ average ground speed. Averages come from our own trip logs: 180 kt is a Cessna 310 / Aerostar day, 260 kt a PC-12, 420 kt a Lear 35A.`,
+        body: `${live_nm} NM ÷ average ground speed by class. Averages come from our own trip logs: 180 kt is a Cessna 310 / Aerostar day, 260 kt a PC-12, 420 kt a Lear 35A.`,
       },
       {
         title: '3. At your destination',
-        body: 'From Go, destination arrival is repositioning plus the live leg for that class. Final price still depends on the actual aircraft we book — this page only shows estimated all-in ranges.',
+        body: 'From Go, destination arrival is call-out + position + loading & fueling + the live leg for that class. Final price still depends on the actual aircraft we book — this page only shows estimated all-in ranges.',
       },
     ],
     disclaimer: SOFT_PRICING_DISCLAIMER,

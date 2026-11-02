@@ -4,6 +4,7 @@
 
 import { Link } from 'react-router-dom'
 import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
+import { SoftEstimateTimeline } from '@/components/SoftEstimateTimeline'
 import {
   destinationFromGoMinutes,
   formatHoursMinutes,
@@ -126,13 +127,14 @@ export function SoftPricingPackageView(props: {
               How we estimate
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-cream/85">
-              We assume a{' '}
-              <span className="font-semibold text-cream">
-                2.5 hr repositioning leg
-              </span>{' '}
-              to reach you. Live leg uses distance and class average ground
-              speed. Destination arrival from Go is repo plus the live leg —
-              ranges above are estimates only, not a bookable quote.
+              Planning timeline:{' '}
+              <span className="font-semibold text-cream">2 hr pilot call-out</span>
+              ,{' '}
+              <span className="font-semibold text-cream">1 hr to position</span>
+              ,{' '}
+              <span className="font-semibold text-cream">1 hr loading &amp; fueling</span>
+              , then flight time by aircraft class. Expand the timeline below for
+              per-type flight estimates — not a bookable quote.
             </p>
           </aside>
         </div>
@@ -144,6 +146,8 @@ export function SoftPricingPackageView(props: {
           <SoftClassCard key={c.class_id} quote={c} />
         ))}
       </section>
+
+      <SoftEstimateTimeline classes={pkg.classes} />
 
       {/* Disclaimer banner */}
       <aside className="portal-glass-strong rounded-2xl border-gold/35 px-4 py-4 text-sm leading-relaxed text-ink sm:px-5">
