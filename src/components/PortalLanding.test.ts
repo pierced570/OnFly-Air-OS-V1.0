@@ -4,7 +4,7 @@ import { portalSharePath } from '@/domain/portalShareLinks'
 
 describe('portal two-column stack routes', () => {
   it('keeps book and quote reachable without a login wall', () => {
-    expect(portalAppTabPath('book')).toBe('/portal/request?mode=book')
+    expect(portalAppTabPath('book')).toBe('/?panel=book')
     expect(portalAppTabFromPath('/portal/request')).toBe('book')
     expect(portalAppTabFromPath('/quote')).toBe('book')
     expect(portalAppTabFromPath('/portal/login')).toBeNull()

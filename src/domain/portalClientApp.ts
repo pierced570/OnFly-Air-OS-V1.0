@@ -283,8 +283,9 @@ export function filterPortalHistoryLedger(
 
 export function portalAppTabPath(tab: PortalAppTab): string {
   if (tab === 'home') return '/'
-  if (tab === 'book') return '/portal/request?mode=book'
-  if (tab === 'history') return '/portal/history'
+  // Signed-in Book / History stay on the trips workspace (map stage).
+  if (tab === 'book') return '/?panel=book'
+  if (tab === 'history') return '/?history=1'
   return '/portal/account'
 }
 
@@ -299,9 +300,20 @@ export function portalRequestHelloLabel(
   return name ? `Hello ${name}` : 'Hello'
 }
 
-export function portalAppTabFromPath(pathname: string): PortalAppTab | null {
-  if (pathname === '/' || pathname === '/portal' || pathname === '/portal/')
+export function portalAppTabFromPath(
+  pathname: string,
+  search?: string,
+): PortalAppTab | null {
+  const qs = search?.startsWith('?') ? search.slice(1) : (search ?? '')
+  const params = new URLSearchParams(qs)
+  const panel = params.get('panel')
+  const history = params.get('history') === '1'
+
+  if (pathname === '/' || pathname === '/portal' || pathname === '/portal/') {
+    if (panel === 'book' || panel === 'quote') return 'book'
+    if (history || panel === 'history') return 'history'
     return 'home'
+  }
   if (pathname === '/quote' || pathname === '/book' || pathname.startsWith('/portal/request'))
     return 'book'
   if (pathname.startsWith('/portal/history') || pathname.startsWith('/portal/documents'))
