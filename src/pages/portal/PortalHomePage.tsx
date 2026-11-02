@@ -249,12 +249,12 @@ export default function PortalHomePage() {
         <section className="space-y-6">
           {client ? (
             <div className="flex flex-col items-start gap-1">
-              <p className="text-sm font-semibold tracking-tight text-ink">
+              <p className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
                 {portalRequestHelloLabel(client.name)}
               </p>
               <button
                 type="button"
-                className="text-xs text-muted hover:text-ink"
+                className="text-sm text-muted hover:text-ink"
                 onClick={() => {
                   void endPortalSession().then(() => {
                     setSession(null)

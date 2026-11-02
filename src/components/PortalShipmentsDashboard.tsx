@@ -1,7 +1,7 @@
 /**
- * Signed-in client trips workspace — full-bleed US map with gold city
- * twinkles; sidebar Pending / Live / Previous; separate Estimate + Call spots;
- * Book replaces the map with a light amended booking panel.
+ * Signed-in trips — map-first, boomer-simple.
+ * Big Live / Pending / Past tabs. Tap a row → route lights on the US map.
+ * Estimate / Book / Call sit as large separate actions. Minimal copy.
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -9,14 +9,16 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { PortalAmendedBookPanel } from '@/components/PortalAmendedBookPanel'
 import { PortalFastQuote } from '@/components/PortalFastQuote'
 import { PortalOverviewMap } from '@/components/PortalOverviewMap'
-import { PortalShipmentMapPane } from '@/components/PortalShipmentMapPane'
-import { PortalShipmentListItem } from '@/components/PortalShipmentListItem'
 import {
   BRAND_PHONE,
   BRAND_PHONE_E164,
   dialBrandOps,
 } from '@/domain/brand'
-import type { PortalShipmentPhase } from '@/domain/portalTracking'
+import {
+  buildPortalTrackingView,
+  tripToTrackingInput,
+  type PortalShipmentPhase,
+} from '@/domain/portalTracking'
 import { getTrip } from '@/lib/tripStore'
 
 export type PortalDashboardShipment = {
@@ -29,7 +31,6 @@ export type PortalDashboardShipment = {
   trackHref: string
   nextLabel: string | null
   phase: PortalShipmentPhase
-  /** ISO when the trip / request was opened. */
   requestedAt?: string | null
   poNumber?: string | null
 }
@@ -44,6 +45,8 @@ export type PortalDashboardPending = {
   at?: string | null
 }
 
+type FlightTab = 'live' | 'pending' | 'past'
+
 function isLive(phase: PortalShipmentPhase, state: string): boolean {
   if (phase === 'in_flight' || phase === 'on_truck') return true
   if (phase === 'booked') return true
@@ -51,21 +54,43 @@ function isLive(phase: PortalShipmentPhase, state: string): boolean {
   return false
 }
 
-function isPrevious(phase: PortalShipmentPhase): boolean {
+function isPast(phase: PortalShipmentPhase): boolean {
   return phase === 'delivered'
 }
 
 function formatShortDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
+  if (!iso) return ''
   try {
     return new Date(iso).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric',
     })
   } catch {
-    return '—'
+    return ''
   }
+}
+
+function shortLane(lane: string): string {
+  return lane.replace(/\s+/g, ' ').trim() || '—'
+}
+
+function statusForShipment(s: PortalDashboardShipment): {
+  label: string
+  tone: 'live' | 'pending' | 'done' | 'warn'
+} {
+  if (s.phase === 'in_flight') return { label: 'In air', tone: 'live' }
+  if (s.phase === 'on_truck') return { label: 'On ground', tone: 'warn' }
+  if (s.phase === 'delivered') return { label: 'Done', tone: 'done' }
+  if (s.phase === 'booked' || s.state === 'booked')
+    return { label: 'Booked', tone: 'pending' }
+  return { label: 'Open', tone: 'pending' }
+}
+
+const toneClass: Record<string, string> = {
+  live: 'bg-gold text-ink',
+  pending: 'bg-ink/80 text-cream',
+  done: 'bg-[#2E7D32] text-cream',
+  warn: 'bg-[#C0392B]/90 text-cream',
 }
 
 export function PortalShipmentsDashboard(props: {
@@ -76,23 +101,24 @@ export function PortalShipmentsDashboard(props: {
   email?: string | null
 }) {
   const { shipments } = props
-  const pending = props.pending ?? []
+  const pendingReqs = props.pending ?? []
   const [searchParams, setSearchParams] = useSearchParams()
   const panel = searchParams.get('panel')
-  const historyOpen = searchParams.get('history') === '1' || panel === 'history'
+  const historyFlag = searchParams.get('history') === '1'
 
+  const [tab, setTab] = useState<FlightTab>(() =>
+    historyFlag ? 'past' : 'live',
+  )
   const [selectedId, setSelectedId] = useState<string | null>(
     () =>
       shipments.find((s) => isLive(s.phase, s.state))?.id ??
       shipments[0]?.id ??
       null,
   )
-  const [query, setQuery] = useState('')
-  const [prevOpen, setPrevOpen] = useState(historyOpen)
 
   useEffect(() => {
-    if (historyOpen) setPrevOpen(true)
-  }, [historyOpen])
+    if (historyFlag) setTab('past')
+  }, [historyFlag])
 
   useEffect(() => {
     if (!shipments.length) {
@@ -107,84 +133,51 @@ export function PortalShipmentsDashboard(props: {
     }
   }, [shipments, selectedId])
 
-  const needle = query.trim().toLowerCase()
-  const matchesQuery = (s: PortalDashboardShipment) => {
-    if (!needle) return true
-    return [
-      s.lane,
-      s.payload_summary,
-      `t-${s.ref}`,
-      s.ready_label,
-      s.state,
-      s.poNumber,
-    ]
-      .join(' ')
-      .toLowerCase()
-      .includes(needle)
-  }
-
   const live = useMemo(
     () =>
       shipments.filter(
-        (s) => isLive(s.phase, s.state) && !isPrevious(s.phase) && matchesQuery(s),
+        (s) => isLive(s.phase, s.state) && !isPast(s.phase),
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shipments, needle],
+    [shipments],
   )
-  const previous = useMemo(
-    () => shipments.filter((s) => isPrevious(s.phase) && matchesQuery(s)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shipments, needle],
+  const past = useMemo(
+    () => shipments.filter((s) => isPast(s.phase)),
+    [shipments],
   )
-  /** Pre-book trips (quoted / intake) sit with open requests under Pending. */
   const pendingTrips = useMemo(
     () =>
       shipments.filter(
-        (s) =>
-          !isPrevious(s.phase) &&
-          !isLive(s.phase, s.state) &&
-          matchesQuery(s),
+        (s) => !isPast(s.phase) && !isLive(s.phase, s.state),
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shipments, needle],
+    [shipments],
   )
-  const pendingFiltered = useMemo(() => {
-    if (!needle) return pending
-    return pending.filter((p) =>
-      [p.lane, p.summary, `r-${p.ref}`, p.statusLabel]
-        .join(' ')
-        .toLowerCase()
-        .includes(needle),
-    )
-  }, [pending, needle])
-  const pendingCount = pendingFiltered.length + pendingTrips.length
 
   const selected =
     shipments.find((s) => s.id === selectedId) ??
     live[0] ??
     pendingTrips[0] ??
-    previous[0] ??
+    past[0] ??
     null
 
-  const mapPins = useMemo(
-    () =>
-      [
-        ...live,
-        ...pendingTrips.filter((s) => s.id === selected?.id),
-        ...previous.filter((s) => s.id === selected?.id),
-      ].map((s) => ({
-        id: s.id,
+  const mapPins = useMemo(() => {
+    const base = tab === 'past' ? past : tab === 'pending' ? pendingTrips : live
+    const ids = new Set(base.map((s) => s.id))
+    if (selected && !ids.has(selected.id)) ids.add(selected.id)
+    return [...ids].map((id) => {
+      const s = shipments.find((x) => x.id === id)!
+      return {
+        id,
         phase: s.phase,
-        selected: selected?.id === s.id,
-      })),
-    [live, pendingTrips, previous, selected?.id],
-  )
+        selected: selected?.id === id,
+      }
+    })
+  }, [tab, live, past, pendingTrips, selected, shipments])
 
   function setPanel(next: string | null) {
     const sp = new URLSearchParams(searchParams)
     if (next) sp.set('panel', next)
     else sp.delete('panel')
-    if (next !== 'history') sp.delete('history')
+    sp.delete('history')
     setSearchParams(sp, { replace: true })
   }
 
@@ -193,382 +186,462 @@ export function PortalShipmentsDashboard(props: {
     if (panel === 'book' || panel === 'quote') setPanel(null)
   }
 
+  function switchTab(next: FlightTab) {
+    setTab(next)
+    const sp = new URLSearchParams(searchParams)
+    if (next === 'past') sp.set('history', '1')
+    else sp.delete('history')
+    setSearchParams(sp, { replace: true })
+    const pool =
+      next === 'live' ? live : next === 'past' ? past : pendingTrips
+    if (pool[0]) setSelectedId(pool[0].id)
+  }
+
   const stageBook = panel === 'book'
   const stageQuote = panel === 'quote'
 
+  const selectedFacts = useMemo(() => {
+    if (!selected) return null
+    const trip = getTrip(selected.id)
+    const view = trip
+      ? buildPortalTrackingView(tripToTrackingInput(trip), { adsb: null })
+      : null
+    const po = (
+      selected.poNumber ||
+      view?.poNumber ||
+      trip?.po_number ||
+      `T-${selected.ref}`
+    ).replace(/^PO\s*#?\s*/i, '')
+    const tail =
+      (view?.tail && view.tail !== '—' ? view.tail : null) ||
+      trip?.quick?.tail ||
+      null
+    const eta =
+      view?.eteLabel ||
+      view?.projectedDisplay ||
+      view?.promisedDisplay ||
+      null
+    return {
+      po,
+      lane: shortLane(view?.lane || selected.lane),
+      tail,
+      eta,
+      trackHref: selected.trackHref,
+      status: statusForShipment(selected),
+    }
+  }, [selected])
+
   return (
     <section className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
-            Your trips
-          </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-            {stageBook
-              ? 'Quick book'
-              : stageQuote
-                ? 'Rough estimate'
-                : props.summaryLine}
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            {stageBook
-              ? 'Essentials only — desk finishes the rest.'
-              : stageQuote
-                ? 'Ballpark by aircraft class, then call or book.'
-                : 'Select pending, live, or previous — the map lights the route. Live tails show tracking, request time, and ETA.'}
-          </p>
-        </div>
-        <span className="avionic text-[11px] text-muted">{props.nowLabel}</span>
-      </div>
-
-      <div className="relative min-h-[min(78vh,52rem)] overflow-hidden rounded-3xl border border-white/35 bg-ink/80 shadow-[0_24px_70px_rgba(12,12,14,0.22)]">
-        {/* Stage: map | amended book | rough estimate */}
-        <div className="absolute inset-0">
-          {stageBook ? (
-            <PortalAmendedBookPanel
-              email={props.email}
-              onClose={() => setPanel(null)}
-            />
-          ) : stageQuote ? (
-            <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-[rgba(247,242,227,0.92)] px-4 py-5 backdrop-blur-xl sm:px-8">
-              <div className="mb-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setPanel(null)}
-                  className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 hover:text-ink"
-                >
-                  ← Back to map
-                </button>
-              </div>
-              <div className="mx-auto w-full max-w-3xl">
-                <PortalFastQuote email={props.email} />
-              </div>
+      {/* Stage */}
+      <div className="relative min-h-[min(82vh,54rem)] overflow-hidden rounded-[1.75rem] border border-white/30 bg-[#0C0C0E] shadow-[0_28px_80px_rgba(12,12,14,0.35)]">
+        {stageBook ? (
+          <PortalAmendedBookPanel
+            email={props.email}
+            onClose={() => setPanel(null)}
+          />
+        ) : stageQuote ? (
+          <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-[rgba(247,242,227,0.94)] px-4 py-5 backdrop-blur-xl sm:px-8">
+            <button
+              type="button"
+              onClick={() => setPanel(null)}
+              className="mb-4 self-start text-sm font-semibold text-ink/60 hover:text-ink"
+            >
+              ← Map
+            </button>
+            <div className="mx-auto w-full max-w-3xl">
+              <PortalFastQuote email={props.email} />
             </div>
-          ) : (
+          </div>
+        ) : (
+          <>
             <PortalOverviewMap
               pins={mapPins}
               onSelect={selectShipment}
               lockUsFrame={mapPins.length === 0}
-              className="h-full w-full"
+              className="absolute inset-0 h-full w-full"
             />
-          )}
-        </div>
 
-        {/* Left sidebar — Pending / Live / Previous */}
-        {!stageBook && !stageQuote ? (
-          <aside className="absolute bottom-3 left-3 top-3 z-10 flex w-[min(100%-1.5rem,20rem)] flex-col overflow-hidden rounded-2xl border border-white/45 bg-white/40 shadow-[0_16px_48px_rgba(12,12,14,0.18)] backdrop-blur-2xl sm:w-[19.5rem]">
-            <div className="border-b border-ink/10 px-3 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
-                  Flights
-                </h2>
-                <span className="rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10px] font-semibold text-gold">
-                  {pendingCount} pend · {live.length} live · {previous.length}{' '}
-                  prev
-                </span>
-              </div>
-              <label className="mt-2 block">
-                <span className="sr-only">Search shipments</span>
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search PO, lane, tail…"
-                  className="portal-glass-input w-full rounded-xl px-3 py-2 text-sm text-ink outline-none"
-                />
-              </label>
-            </div>
-
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-              <SidebarGroup
-                title="Pending"
-                empty="No open quotes or requests."
-                count={pendingCount}
-              >
-                {pendingCount === 0 ? null : (
-                  <ul className="space-y-2">
-                    {pendingFiltered.map((p) => (
-                      <li key={p.id}>
-                        <Link
-                          to={p.href}
-                          className="portal-glass-row block w-full rounded-xl px-3.5 py-3 text-left"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="avionic text-sm font-semibold text-ink">
-                              R-{p.ref}
-                            </div>
-                            <span className="shrink-0 rounded border border-gold/40 bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold">
-                              Pending
-                            </span>
-                          </div>
-                          <div className="avionic mt-1 text-xs font-medium text-gold">
-                            {p.lane}
-                          </div>
-                          <p className="mt-1 truncate text-[11px] text-muted">
-                            {p.statusLabel}
-                            {p.at ? ` · ${formatShortDate(p.at)}` : ''}
-                          </p>
-                        </Link>
-                      </li>
-                    ))}
-                    {pendingTrips.map((s) => (
-                      <PortalShipmentListItem
-                        key={s.id}
-                        id={s.id}
-                        tripRef={s.ref}
-                        state={s.state}
-                        lane={s.lane}
-                        nextLabel={s.nextLabel}
-                        payloadSummary={s.payload_summary}
-                        selected={selected?.id === s.id}
-                        onSelect={selectShipment}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </SidebarGroup>
-
-              <SidebarGroup
-                title="Live"
-                empty="Nothing live yet — book a trip to light the map."
-                count={live.length}
-              >
-                {live.length === 0 ? null : (
-                  <ul className="space-y-2">
-                    {live.map((s) => (
-                      <PortalShipmentListItem
-                        key={s.id}
-                        id={s.id}
-                        tripRef={s.ref}
-                        state={s.state}
-                        lane={s.lane}
-                        nextLabel={s.nextLabel}
-                        payloadSummary={s.payload_summary}
-                        selected={selected?.id === s.id}
-                        onSelect={selectShipment}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </SidebarGroup>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !prevOpen
-                    setPrevOpen(next)
-                    const sp = new URLSearchParams(searchParams)
-                    if (next) sp.set('history', '1')
-                    else {
-                      sp.delete('history')
-                      if (panel === 'history') sp.delete('panel')
-                    }
-                    setSearchParams(sp, { replace: true })
-                  }}
-                  className="mb-2 flex w-full items-center justify-between gap-2 px-0.5"
-                  aria-expanded={prevOpen}
-                >
-                  <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-                    Previous
-                  </h3>
-                  <span className="flex items-center gap-2 text-[10px] font-semibold text-gold">
-                    {previous.length}
-                    <span aria-hidden>{prevOpen ? '▴' : '▾'}</span>
-                  </span>
-                </button>
-                {prevOpen ? (
-                  previous.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-[rgba(201,162,39,0.25)] px-3 py-4 text-center text-xs text-muted">
-                      No previous flights yet.
-                    </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {previous.map((s) => (
-                        <HistoryRow
-                          key={s.id}
-                          shipment={s}
-                          selected={selected?.id === s.id}
-                          onSelect={selectShipment}
-                        />
-                      ))}
-                    </ul>
+            {/* Left flight list — big tabs, big rows */}
+            <aside className="absolute bottom-3 left-3 top-3 z-10 flex w-[min(100%-1.5rem,21rem)] flex-col overflow-hidden rounded-3xl border border-white/50 bg-[rgba(247,242,227,0.88)] shadow-[0_18px_50px_rgba(12,12,14,0.28)] backdrop-blur-2xl sm:w-[21rem]">
+              <div className="grid grid-cols-3 gap-1 border-b border-ink/10 p-2">
+                {(
+                  [
+                    { id: 'live', label: 'Live', n: live.length },
+                    {
+                      id: 'pending',
+                      label: 'Pending',
+                      n: pendingTrips.length + pendingReqs.length,
+                    },
+                    { id: 'past', label: 'Past', n: past.length },
+                  ] as const
+                ).map((t) => {
+                  const active = tab === t.id
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => switchTab(t.id)}
+                      className={[
+                        'min-h-12 rounded-2xl px-1 text-sm font-semibold transition',
+                        active
+                          ? 'bg-ink text-cream'
+                          : 'text-ink/55 hover:bg-white/50 hover:text-ink',
+                      ].join(' ')}
+                    >
+                      {t.label}
+                      <span
+                        className={[
+                          'ml-1 avionic text-xs',
+                          active ? 'text-gold' : 'text-ink/35',
+                        ].join(' ')}
+                      >
+                        {t.n}
+                      </span>
+                    </button>
                   )
-                ) : (
-                  <p className="px-0.5 text-[11px] text-muted">
-                    Expand for date · route · PO #
-                  </p>
-                )}
+                })}
               </div>
-            </div>
-          </aside>
-        ) : null}
 
-        {/* Separate Rough estimate + Call ops spots */}
-        {!stageBook && !stageQuote ? (
-          <div className="absolute bottom-3 right-3 z-10 flex w-[min(100%-1.5rem,15.5rem)] flex-col gap-2 sm:bottom-4 sm:right-4">
-            <button
-              type="button"
-              onClick={() => setPanel('quote')}
-              className="rounded-2xl border border-white/50 bg-white/45 px-4 py-3.5 text-left text-ink shadow-[0_12px_36px_rgba(12,12,14,0.16)] backdrop-blur-xl transition hover:bg-white/60"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold">Rough estimate</div>
-                  <p className="mt-0.5 text-xs text-ink/55">
-                    Own space · ballpark in seconds
-                  </p>
-                </div>
-                <span className="text-ink/40" aria-hidden>
-                  →
-                </span>
+              <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
+                {tab === 'live' ? (
+                  <FlightList
+                    empty="Nothing flying yet. Tap Book."
+                    items={live}
+                    selectedId={selected?.id ?? null}
+                    onSelect={selectShipment}
+                  />
+                ) : null}
+                {tab === 'pending' ? (
+                  <PendingList
+                    requests={pendingReqs}
+                    trips={pendingTrips}
+                    selectedId={selected?.id ?? null}
+                    onSelect={selectShipment}
+                  />
+                ) : null}
+                {tab === 'past' ? (
+                  <PastList
+                    items={past}
+                    selectedId={selected?.id ?? null}
+                    onSelect={selectShipment}
+                  />
+                ) : null}
               </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => dialBrandOps()}
-              className="rounded-2xl border border-ink/70 bg-ink/80 px-4 py-3.5 text-left text-cream shadow-[0_12px_36px_rgba(12,12,14,0.28)] backdrop-blur-xl transition hover:border-gold/50"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold">Call ops</div>
-                  <p className="mt-0.5 text-xs text-cream/55">
-                    24-hr desk ·{' '}
-                    <span className="avionic font-semibold text-gold">
-                      {BRAND_PHONE}
-                    </span>
-                  </p>
-                </div>
-                <a
-                  href={`tel:${BRAND_PHONE_E164}`}
-                  className="text-gold"
-                  aria-label={`Call ${BRAND_PHONE}`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  →
-                </a>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel('book')}
-              className="rounded-2xl border border-gold/50 bg-gold px-4 py-3 text-left text-ink shadow-[0_12px_36px_rgba(201,162,39,0.35)] transition hover:bg-gold-lt"
-            >
-              <div className="text-sm font-semibold">Book a trip</div>
-              <p className="mt-0.5 text-xs text-ink/70">
-                Amended form over the map
-              </p>
-            </button>
-          </div>
-        ) : null}
+            </aside>
 
-        {/* Selected live / previous detail over the map */}
-        {!stageBook && !stageQuote && selected ? (
-          <div className="pointer-events-none absolute bottom-3 left-[calc(min(100%-1.5rem,20rem)+1.25rem)] right-[calc(min(100%-1.5rem,15.5rem)+1.25rem)] z-10 hidden min-w-0 lg:block">
-            <div className="pointer-events-auto max-h-[42%] overflow-y-auto rounded-2xl shadow-[0_16px_48px_rgba(12,12,14,0.28)]">
-              <PortalShipmentMapPane
-                tripId={selected.id}
-                trackHref={selected.trackHref}
-                showRequested
+            {/* Big simple actions — own space */}
+            <div className="absolute right-3 top-3 z-10 flex w-[min(100%-1.5rem,11.5rem)] flex-col gap-2 sm:right-4 sm:top-4">
+              <ActionBtn
+                label="Estimate"
+                hint="Ballpark $"
+                onClick={() => setPanel('quote')}
+                tone="glass"
+              />
+              <ActionBtn
+                label="Book"
+                hint="Send to desk"
+                onClick={() => setPanel('book')}
+                tone="gold"
+              />
+              <ActionBtn
+                label="Call"
+                hint={BRAND_PHONE}
+                onClick={() => dialBrandOps()}
+                tone="ink"
+                href={`tel:${BRAND_PHONE_E164}`}
               />
             </div>
-          </div>
-        ) : null}
+
+            {/* Selected flight strip — FUI-simple facts, one tap to full track */}
+            {selectedFacts ? (
+              <div className="absolute bottom-3 left-[calc(min(100%-1.5rem,21rem)+1.1rem)] right-3 z-10 sm:right-4">
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/40 bg-[rgba(12,12,14,0.82)] px-4 py-3 text-cream shadow-[0_16px_40px_rgba(12,12,14,0.35)] backdrop-blur-xl">
+                  <span
+                    className={[
+                      'rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide',
+                      toneClass[selectedFacts.status.tone],
+                    ].join(' ')}
+                  >
+                    {selectedFacts.status.label}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="avionic truncate text-lg font-semibold text-gold sm:text-xl">
+                      {selectedFacts.lane}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-cream/60">
+                      PO #{selectedFacts.po}
+                      {selectedFacts.tail
+                        ? ` · Tail ${selectedFacts.tail}`
+                        : ''}
+                      {selectedFacts.eta ? ` · ETA ${selectedFacts.eta}` : ''}
+                    </p>
+                  </div>
+                  <Link
+                    to={selectedFacts.trackHref}
+                    className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-lt"
+                  >
+                    Track →
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
-
-      {/* Mobile / tablet: selected detail below map when sidebar covers */}
-      {!stageBook && !stageQuote && selected ? (
-        <div className="lg:hidden">
-          <PortalShipmentMapPane
-            tripId={selected.id}
-            trackHref={selected.trackHref}
-            showRequested
-          />
-        </div>
-      ) : null}
-
-      {!stageBook && !stageQuote && !selected ? (
-        <p className="text-center text-xs text-muted">
-          Gold twinkles mark major US cities. Live tails and routes appear when
-          a trip is out — or{' '}
-          <button
-            type="button"
-            className="font-semibold text-gold"
-            onClick={() => setPanel('book')}
-          >
-            book now
-          </button>
-          .
-        </p>
-      ) : null}
     </section>
   )
 }
 
-function SidebarGroup(props: {
-  title: string
-  empty: string
-  count: number
-  children: React.ReactNode
+function ActionBtn(props: {
+  label: string
+  hint: string
+  onClick: () => void
+  tone: 'glass' | 'gold' | 'ink'
+  href?: string
 }) {
+  const cls =
+    props.tone === 'gold'
+      ? 'border-gold/60 bg-gold text-ink hover:bg-gold-lt'
+      : props.tone === 'ink'
+        ? 'border-ink/80 bg-ink/90 text-cream hover:border-gold/50'
+        : 'border-white/55 bg-white/55 text-ink hover:bg-white/70'
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
-        <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-          {props.title}
-        </h3>
-        <span className="text-[10px] font-semibold text-gold">
-          {props.count}
-        </span>
-      </div>
-      {props.count === 0 ? (
-        <p className="rounded-xl border border-dashed border-[rgba(201,162,39,0.25)] px-3 py-4 text-center text-xs text-muted">
-          {props.empty}
-        </p>
-      ) : (
-        props.children
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={props.onClick}
+      className={[
+        'rounded-2xl border px-3.5 py-3 text-left shadow-[0_10px_28px_rgba(12,12,14,0.2)] backdrop-blur-xl transition',
+        cls,
+      ].join(' ')}
+    >
+      <div className="text-base font-semibold">{props.label}</div>
+      <p
+        className={[
+          'mt-0.5 text-xs',
+          props.tone === 'ink' ? 'text-cream/55' : 'text-ink/55',
+          props.tone === 'gold' ? 'text-ink/70' : '',
+        ].join(' ')}
+      >
+        {props.href ? (
+          <a href={props.href} className="avionic font-semibold text-gold">
+            {props.hint}
+          </a>
+        ) : (
+          props.hint
+        )}
+      </p>
+    </button>
   )
 }
 
-function HistoryRow(props: {
-  shipment: PortalDashboardShipment
-  selected: boolean
+function FlightList(props: {
+  empty: string
+  items: PortalDashboardShipment[]
+  selectedId: string | null
   onSelect: (id: string) => void
 }) {
-  const s = props.shipment
-  const trip = getTrip(s.id)
-  const po =
-    (s.poNumber || trip?.po_number || trip?.quick?.po || `T-${s.ref}`).replace(
-      /^PO\s*#?\s*/i,
-      '',
-    )
-  const requested = s.requestedAt || trip?.created_at || null
-
+  if (!props.items.length) {
+    return <Empty>{props.empty}</Empty>
+  }
   return (
-    <li>
-      <button
-        type="button"
-        onClick={() => props.onSelect(s.id)}
-        aria-current={props.selected ? 'true' : undefined}
-        className={[
-          'portal-glass-row w-full rounded-xl px-3.5 py-3 text-left',
-          props.selected ? 'is-selected' : '',
-        ].join(' ')}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="avionic text-[11px] font-semibold text-muted">
-            {formatShortDate(requested)}
-          </div>
-          <div className="avionic text-sm font-semibold text-ink">
-            PO #{po}
-          </div>
-        </div>
-        <div className="avionic mt-1 text-xs font-medium text-gold">
-          {s.lane || '—'}
-        </div>
-      </button>
-    </li>
+    <ul className="space-y-2">
+      {props.items.map((s) => {
+        const st = statusForShipment(s)
+        const selected = props.selectedId === s.id
+        return (
+          <li key={s.id}>
+            <button
+              type="button"
+              onClick={() => props.onSelect(s.id)}
+              aria-current={selected ? 'true' : undefined}
+              className={[
+                'flex min-h-[4.5rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left transition',
+                selected
+                  ? 'bg-ink text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.85)]'
+                  : 'bg-white/55 text-ink hover:bg-white/80',
+              ].join(' ')}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={[
+                    'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                    selected ? 'bg-gold text-ink' : toneClass[st.tone],
+                  ].join(' ')}
+                >
+                  {st.label}
+                </span>
+                <span
+                  className={[
+                    'avionic text-[11px]',
+                    selected ? 'text-cream/50' : 'text-ink/45',
+                  ].join(' ')}
+                >
+                  PO #
+                  {(s.poNumber || `T-${s.ref}`).replace(/^PO\s*#?\s*/i, '')}
+                </span>
+              </div>
+              <div
+                className={[
+                  'avionic mt-1.5 text-lg font-semibold leading-tight',
+                  selected ? 'text-gold' : 'text-ink',
+                ].join(' ')}
+              >
+                {shortLane(s.lane)}
+              </div>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function PendingList(props: {
+  requests: PortalDashboardPending[]
+  trips: PortalDashboardShipment[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+}) {
+  if (!props.requests.length && !props.trips.length) {
+    return <Empty>Nothing pending. Tap Estimate or Book.</Empty>
+  }
+  return (
+    <ul className="space-y-2">
+      {props.requests.map((p) => (
+        <li key={p.id}>
+          <Link
+            to={p.href}
+            className="flex min-h-[4.5rem] w-full flex-col justify-center rounded-2xl bg-white/55 px-3.5 py-3 text-left text-ink hover:bg-white/80"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="rounded-full bg-ink/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cream">
+                Pending
+              </span>
+              <span className="avionic text-[11px] text-ink/45">
+                R-{p.ref}
+                {p.at ? ` · ${formatShortDate(p.at)}` : ''}
+              </span>
+            </div>
+            <div className="avionic mt-1.5 text-lg font-semibold text-ink">
+              {shortLane(p.lane)}
+            </div>
+          </Link>
+        </li>
+      ))}
+      {props.trips.map((s) => {
+        const selected = props.selectedId === s.id
+        return (
+          <li key={s.id}>
+            <button
+              type="button"
+              onClick={() => props.onSelect(s.id)}
+              className={[
+                'flex min-h-[4.5rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left',
+                selected
+                  ? 'bg-ink text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.85)]'
+                  : 'bg-white/55 text-ink hover:bg-white/80',
+              ].join(' ')}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={[
+                    'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                    selected ? 'bg-gold text-ink' : 'bg-ink/80 text-cream',
+                  ].join(' ')}
+                >
+                  Pending
+                </span>
+                <span
+                  className={[
+                    'avionic text-[11px]',
+                    selected ? 'text-cream/50' : 'text-ink/45',
+                  ].join(' ')}
+                >
+                  PO #
+                  {(s.poNumber || `T-${s.ref}`).replace(/^PO\s*#?\s*/i, '')}
+                </span>
+              </div>
+              <div
+                className={[
+                  'avionic mt-1.5 text-lg font-semibold',
+                  selected ? 'text-gold' : 'text-ink',
+                ].join(' ')}
+              >
+                {shortLane(s.lane)}
+              </div>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function PastList(props: {
+  items: PortalDashboardShipment[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+}) {
+  if (!props.items.length) {
+    return <Empty>No past flights yet.</Empty>
+  }
+  return (
+    <ul className="space-y-2">
+      {props.items.map((s) => {
+        const selected = props.selectedId === s.id
+        const date = formatShortDate(s.requestedAt)
+        return (
+          <li key={s.id}>
+            <button
+              type="button"
+              onClick={() => props.onSelect(s.id)}
+              className={[
+                'flex min-h-[4.5rem] w-full flex-col justify-center rounded-2xl px-3.5 py-3 text-left',
+                selected
+                  ? 'bg-ink text-cream shadow-[0_0_0_2px_rgba(201,162,39,0.85)]'
+                  : 'bg-white/55 text-ink hover:bg-white/80',
+              ].join(' ')}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={[
+                    'avionic text-[11px] font-semibold',
+                    selected ? 'text-cream/55' : 'text-ink/45',
+                  ].join(' ')}
+                >
+                  {date || '—'}
+                </span>
+                <span
+                  className={[
+                    'avionic text-sm font-semibold',
+                    selected ? 'text-cream' : 'text-ink',
+                  ].join(' ')}
+                >
+                  PO #
+                  {(s.poNumber || `T-${s.ref}`).replace(/^PO\s*#?\s*/i, '')}
+                </span>
+              </div>
+              <div
+                className={[
+                  'avionic mt-1.5 text-lg font-semibold',
+                  selected ? 'text-gold' : 'text-ink',
+                ].join(' ')}
+              >
+                {shortLane(s.lane)}
+              </div>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function Empty(props: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-2xl border border-dashed border-ink/15 px-3 py-8 text-center text-sm text-ink/45">
+      {props.children}
+    </p>
   )
 }
