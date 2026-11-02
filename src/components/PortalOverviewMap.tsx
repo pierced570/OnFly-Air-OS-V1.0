@@ -40,16 +40,16 @@ function ensureTwinkleStyle(): void {
   style.id = 'onfly-city-twinkle-style'
   style.textContent = `
 @keyframes onfly-city-twinkle {
-  0%, 100% { opacity: 0.28; transform: scale(0.72); box-shadow: 0 0 0 0 rgba(201,162,39,0); }
-  50% { opacity: 1; transform: scale(1.15); box-shadow: 0 0 10px 2px rgba(201,162,39,0.65); }
+  0%, 100% { opacity: 0.22; transform: scale(0.7); box-shadow: 0 0 0 0 rgba(201,162,39,0); }
+  50% { opacity: 1; transform: scale(1.25); box-shadow: 0 0 14px 3px rgba(201,162,39,0.75); }
 }
 .onfly-city-twinkle {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
-  background: #C9A227;
+  background: #E3B341;
   pointer-events: none;
-  animation: onfly-city-twinkle 2.8s ease-in-out infinite;
+  animation: onfly-city-twinkle 2.6s ease-in-out infinite;
 }
 `
   document.head.appendChild(style)
@@ -282,14 +282,24 @@ export function PortalOverviewMap(props: {
         data: { type: 'FeatureCollection', features: [] },
       })
       map.addLayer({
-        id: 'portal-route-line',
+        id: 'portal-route-glow',
         type: 'line',
         source: 'portal-route',
         paint: {
           'line-color': '#C9A227',
-          'line-width': 2.5,
-          'line-opacity': 0.85,
-          'line-dasharray': [1.2, 1.4],
+          'line-width': 8,
+          'line-opacity': 0.28,
+          'line-blur': 4,
+        },
+      })
+      map.addLayer({
+        id: 'portal-route-line',
+        type: 'line',
+        source: 'portal-route',
+        paint: {
+          'line-color': '#E3B341',
+          'line-width': 3,
+          'line-opacity': 0.95,
         },
       })
     })

@@ -297,7 +297,7 @@ export function portalRequestHelloLabel(
   companyName: string | null | undefined,
 ): string {
   const name = (companyName ?? '').trim()
-  return name ? `Hello ${name}` : 'Hello'
+  return name ? `Hello, ${name}` : 'Hello'
 }
 
 export function portalAppTabFromPath(

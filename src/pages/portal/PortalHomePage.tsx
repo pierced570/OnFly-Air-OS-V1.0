@@ -26,7 +26,10 @@ import {
   summarizePortalShipments,
   tripToTrackingInput,
 } from '@/domain/portalTracking'
-import { buildPortalOpenRequestCards } from '@/domain/portalClientApp'
+import {
+  buildPortalOpenRequestCards,
+  portalRequestHelloLabel,
+} from '@/domain/portalClientApp'
 
 function useRequests() {
   return useSyncExternalStore(subscribeRequests, listRequests, listRequests)
@@ -245,16 +248,13 @@ export default function PortalHomePage() {
       {signedIn ? (
         <section className="space-y-6">
           {client ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-              <span>
-                <span className="font-semibold text-ink">{client.name}</span>
-                {client.profile.front_desk_phone
-                  ? ` · Desk ${client.profile.front_desk_phone}`
-                  : ''}
-              </span>
+            <div className="flex flex-col items-start gap-1">
+              <p className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
+                {portalRequestHelloLabel(client.name)}
+              </p>
               <button
                 type="button"
-                className="text-muted hover:text-ink"
+                className="text-sm text-muted hover:text-ink"
                 onClick={() => {
                   void endPortalSession().then(() => {
                     setSession(null)
