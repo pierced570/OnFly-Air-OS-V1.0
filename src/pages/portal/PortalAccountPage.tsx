@@ -1,23 +1,43 @@
 /**
- * Client app — Account. Company + sign-out. Never desk staff login.
- * Glass panels over Falcon atmosphere (via PortalShell).
+ * Client app — Account. View + edit company desk info. Never desk staff login.
  */
 
+import { useEffect, useState, type FormEvent, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalGuestContinue } from '@/components/PortalGuestContinue'
 import { PortalQuickActions } from '@/components/PortalQuickActions'
+import PhoneInput from '@/components/PhoneInput'
 import { BRAND_EMAIL, BRAND_PHONE } from '@/domain/brand'
 import { usePortalSession } from '@/hooks/usePortalSession'
 import { endPortalSession } from '@/lib/portalAuth'
 import { getPortalClient } from '@/lib/clientOnboardStore'
-import { listClients, subscribeClients } from '@/lib/clientStore'
-import { useSyncExternalStore } from 'react'
+import {
+  getClient,
+  listClients,
+  subscribeClients,
+  updateClient,
+} from '@/lib/clientStore'
 
 export default function PortalAccountPage() {
   useSyncExternalStore(subscribeClients, listClients, listClients)
   const { session, loading, signedIn, setSession } = usePortalSession()
   const client = getPortalClient()
+
+  const [companyName, setCompanyName] = useState('')
+  const [deskPhone, setDeskPhone] = useState('')
+  const [callbackPhone, setCallbackPhone] = useState('')
+  const [invoiceEmail, setInvoiceEmail] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!client) return
+    setCompanyName(client.name ?? '')
+    setDeskPhone(client.profile.front_desk_phone ?? '')
+    setCallbackPhone(client.profile.ops_callback_phone ?? '')
+    setInvoiceEmail(client.invoice_email || client.email || '')
+  }, [client?.id, client?.name, client?.invoice_email, client?.email, client?.profile.front_desk_phone, client?.profile.ops_callback_phone])
 
   if (loading) {
     return (
@@ -35,6 +55,37 @@ export default function PortalAccountPage() {
         nextHref="/portal/account"
       />
     )
+  }
+
+  function onSave(e: FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setSaved(false)
+    if (!client) {
+      setError('No company profile linked to this email yet.')
+      return
+    }
+    const name = companyName.trim()
+    if (!name) {
+      setError('Company name is required.')
+      return
+    }
+    const updated = updateClient(client.id, {
+      name,
+      invoice_email: invoiceEmail.trim(),
+      profile: {
+        ...client.profile,
+        front_desk_phone: deskPhone.trim(),
+        ops_callback_phone: callbackPhone.trim(),
+      },
+    })
+    if (!updated) {
+      setError('Could not save — try again.')
+      return
+    }
+    // Ensure portal client pointer still resolves after edit
+    getClient(client.id)
+    setSaved(true)
   }
 
   return (
@@ -61,29 +112,89 @@ export default function PortalAccountPage() {
             {client?.name?.trim() || 'Your company'}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Signed in with your work email — separate from OnFly dispatch
-            logins.
+            Signed in as{' '}
+            <span className="font-medium text-ink">{session?.email}</span> —
+            edit desk details below. Dispatch logins are separate.
           </p>
         </div>
 
-        <div className="portal-glass-strong grid gap-4 rounded-2xl p-5 sm:grid-cols-2">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-              Work email
-            </div>
-            <div className="mt-1 text-sm font-medium text-ink">
-              {session?.email}
-            </div>
+        <form
+          onSubmit={onSave}
+          className="portal-glass-strong space-y-4 rounded-2xl p-5 sm:p-6"
+        >
+          <h2 className="text-sm font-semibold text-ink">Company profile</h2>
+
+          <label className="block text-xs font-medium text-muted">
+            Company name
+            <input
+              value={companyName}
+              onChange={(e) => {
+                setCompanyName(e.target.value)
+                setSaved(false)
+              }}
+              className="portal-glass-input mt-1 w-full rounded-xl px-3 py-3 text-sm text-ink outline-none"
+              required
+            />
+          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-medium text-muted">
+              Front desk phone
+              <PhoneInput
+                value={deskPhone}
+                onChange={(v) => {
+                  setDeskPhone(v)
+                  setSaved(false)
+                }}
+                className="portal-glass-input mt-1 w-full rounded-xl px-3 py-3 font-mono text-sm text-ink outline-none"
+              />
+            </label>
+            <label className="block text-xs font-medium text-muted">
+              Ops callback phone
+              <PhoneInput
+                value={callbackPhone}
+                onChange={(v) => {
+                  setCallbackPhone(v)
+                  setSaved(false)
+                }}
+                className="portal-glass-input mt-1 w-full rounded-xl px-3 py-3 font-mono text-sm text-ink outline-none"
+              />
+            </label>
           </div>
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-              Your desk
-            </div>
-            <div className="mt-1 text-sm text-ink">
-              {client?.profile.front_desk_phone?.trim() || '—'}
-            </div>
+
+          <label className="block text-xs font-medium text-muted">
+            Invoice email
+            <input
+              type="email"
+              value={invoiceEmail}
+              onChange={(e) => {
+                setInvoiceEmail(e.target.value)
+                setSaved(false)
+              }}
+              className="portal-glass-input mt-1 w-full rounded-xl px-3 py-3 text-sm text-ink outline-none"
+              placeholder="ap@company.com"
+            />
+          </label>
+
+          <div className="rounded-xl border border-ink/10 bg-white/30 px-3 py-2.5 text-xs text-muted">
+            Sign-in email is fixed to{' '}
+            <span className="font-medium text-ink">{session?.email}</span>.
+            Contact OnFly to change portal access emails.
           </div>
-        </div>
+
+          {error ? <p className="text-sm text-[#C0392B]">{error}</p> : null}
+          {saved ? (
+            <p className="text-sm font-medium text-[#2E7D32]">Saved.</p>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={!client}
+            className="inline-flex min-h-11 items-center rounded-xl bg-gold px-5 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50"
+          >
+            Save changes
+          </button>
+        </form>
 
         <PortalQuickActions compact />
 

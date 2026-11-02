@@ -1,6 +1,6 @@
 /**
- * Signed-in client shipments dashboard — glass sidebar (out now + past)
- * + overview map with lit pins + selected FlightAware detail pane.
+ * Signed-in client shipments dashboard — always the map+list chrome
+ * (matches live tracking UI even when empty). Shows cargo/pax, tail, ETAs.
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -43,6 +43,7 @@ export function PortalShipmentsDashboard(props: {
   nowLabel: string
 }) {
   const { shipments } = props
+  const empty = shipments.length === 0
   const [selectedId, setSelectedId] = useState<string | null>(
     () => shipments.find((s) => isOutNow(s.phase))?.id ?? shipments[0]?.id ?? null,
   )
@@ -104,120 +105,126 @@ export function PortalShipmentsDashboard(props: {
             Your trips
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-            {shipments.length === 0 ? 'No shipments yet' : props.summaryLine}
+            {empty ? 'Live tracking' : props.summaryLine}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {shipments.length === 0
-              ? 'Estimate, book, or call — live pins show up once a trip is out.'
-              : 'Select a trip in the sidebar — map pins light up for routes in motion.'}
+            {empty
+              ? 'Map, cargo/pax, tail, and ETAs appear here once a trip is booked.'
+              : 'Select a trip — map pins, cargo/pax, tail, and ETAs update live.'}
           </p>
         </div>
         <span className="avionic text-[11px] text-muted">{props.nowLabel}</span>
       </div>
 
-      {shipments.length === 0 ? (
-        <div className="space-y-3">
-          <PortalGlassPanel
-            strong
-            className="border-dashed px-5 py-5 text-sm text-muted"
-          >
-            After booking you&apos;ll see live and past trips here — map pins
-            light up for anything currently out.
-          </PortalGlassPanel>
-          <PortalQuickActions compact />
-        </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:items-start">
-          <aside className="portal-glass-strong flex min-h-0 flex-col overflow-hidden rounded-2xl">
-            <div className="border-b border-[rgba(201,162,39,0.18)] px-3 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
-                  Trips
-                </h2>
-                <span className="rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10px] font-semibold text-gold">
-                  {outNow.length} out · {past.length} past
-                </span>
-              </div>
-              <label className="mt-2 block">
-                <span className="sr-only">Search shipments</span>
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search PO, lane, tail…"
-                  className="portal-glass-input w-full rounded-xl px-3 py-2 text-sm text-ink outline-none"
-                />
-              </label>
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:items-start">
+        <aside className="portal-glass-strong flex min-h-0 flex-col overflow-hidden rounded-2xl">
+          <div className="border-b border-[rgba(201,162,39,0.18)] px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
+                Trips
+              </h2>
+              <span className="rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10px] font-semibold text-gold">
+                {outNow.length} out · {past.length} past
+              </span>
             </div>
-
-            <div className="max-h-[28rem] space-y-4 overflow-y-auto p-3 lg:max-h-[min(70vh,36rem)]">
-              <SidebarGroup
-                title="Out now"
-                empty="Nothing currently out."
-                items={outNow}
-                selectedId={selected?.id ?? null}
-                onSelect={setSelectedId}
+            <label className="mt-2 block">
+              <span className="sr-only">Search shipments</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search PO, lane, tail, cargo…"
+                disabled={empty}
+                className="portal-glass-input w-full rounded-xl px-3 py-2 text-sm text-ink outline-none disabled:opacity-60"
               />
-              <SidebarGroup
-                title="Past trips"
-                empty="No delivered trips yet."
-                items={past}
-                selectedId={selected?.id ?? null}
-                onSelect={setSelectedId}
-              />
-            </div>
+            </label>
+          </div>
 
-            <div className="grid grid-cols-2 gap-2 border-t border-[rgba(201,162,39,0.18)] p-3">
-              <Link
-                to="/quote"
-                className="portal-glass-row flex min-h-11 items-center justify-center rounded-xl text-[10px] font-semibold uppercase tracking-[0.1em] text-ink"
-              >
-                Estimate
-              </Link>
-              <Link
-                to="/portal/request?mode=book"
-                className="flex min-h-11 items-center justify-center rounded-xl bg-gold text-[10px] font-semibold uppercase tracking-[0.1em] text-ink hover:bg-gold-lt"
-              >
-                Book
-              </Link>
-            </div>
-          </aside>
-
-          <div className="min-h-0 space-y-4">
-            <div className="portal-glass-ink overflow-hidden rounded-2xl">
-              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-cream">
-                <span className="text-gold">
-                  ● {outNow.length} live route{outNow.length === 1 ? '' : 's'} on map
-                </span>
-                <span className="text-cream/55">{props.nowLabel}</span>
-              </div>
-              {mapPins.length === 0 ? (
-                <div className="flex h-56 items-center justify-center px-4 text-center text-sm text-cream/55 sm:h-72">
-                  Trip pins appear when airports or a live tail are on the
-                  shipment.
-                </div>
-              ) : (
-                <PortalOverviewMap
-                  pins={mapPins}
-                  onSelect={setSelectedId}
-                  className="h-56 w-full border-t border-cream/10 bg-[#141414] sm:h-72"
-                />
-              )}
-            </div>
-
-            {selected ? (
-              <PortalShipmentMapPane
-                tripId={selected.id}
-                trackHref={selected.trackHref}
-              />
+          <div className="max-h-[28rem] space-y-4 overflow-y-auto p-3 lg:max-h-[min(70vh,36rem)]">
+            {empty ? (
+              <p className="rounded-xl border border-dashed border-[rgba(201,162,39,0.25)] px-3 py-6 text-center text-xs text-muted">
+                No shipments yet. Book a trip or get a rough estimate — live
+                pins light up here when something is out.
+              </p>
             ) : (
-              <PortalGlassPanel className="flex min-h-[12rem] items-center justify-center border-dashed text-sm text-muted">
-                Select a trip from the sidebar.
-              </PortalGlassPanel>
+              <>
+                <SidebarGroup
+                  title="Out now"
+                  empty="Nothing currently out."
+                  items={outNow}
+                  selectedId={selected?.id ?? null}
+                  onSelect={setSelectedId}
+                />
+                <SidebarGroup
+                  title="Past trips"
+                  empty="No delivered trips yet."
+                  items={past}
+                  selectedId={selected?.id ?? null}
+                  onSelect={setSelectedId}
+                />
+              </>
             )}
           </div>
+
+          <div className="border-t border-[rgba(201,162,39,0.18)] p-3">
+            <PortalQuickActions stacked compact />
+          </div>
+        </aside>
+
+        <div className="min-h-0 space-y-4">
+          {selected ? (
+            <PortalShipmentMapPane
+              tripId={selected.id}
+              trackHref={selected.trackHref}
+            />
+          ) : (
+            <>
+              <div className="portal-glass-ink overflow-hidden rounded-2xl">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-cream">
+                  <span className="text-gold">● Live routes on map</span>
+                  <span className="text-cream/55">{props.nowLabel}</span>
+                </div>
+                {mapPins.length === 0 ? (
+                  <div className="flex h-56 flex-col items-center justify-center gap-2 px-6 text-center sm:h-72">
+                    <p className="text-sm text-cream/70">
+                      Overview map waits for a booked trip with airports or a
+                      live tail.
+                    </p>
+                    <p className="text-xs text-cream/45">
+                      Cargo / pax · tail · ETA show on each shipment once
+                      tracking starts.
+                    </p>
+                  </div>
+                ) : (
+                  <PortalOverviewMap
+                    pins={mapPins}
+                    onSelect={setSelectedId}
+                    className="h-56 w-full border-t border-cream/10 bg-[#141414] sm:h-72"
+                  />
+                )}
+              </div>
+              <PortalGlassPanel className="flex min-h-[10rem] flex-col items-center justify-center gap-2 border-dashed px-5 py-6 text-center text-sm text-muted">
+                <p>Select a trip from the sidebar to open live tracking.</p>
+                <p className="text-xs">
+                  You&apos;ll see cargo/pax, tail number, and ETAs for the
+                  selected flight.
+                </p>
+                <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs">
+                  <Link to="/quote" className="font-semibold text-gold">
+                    Rough estimate →
+                  </Link>
+                  <Link
+                    to="/portal/request?mode=book"
+                    className="font-semibold text-ink hover:text-gold"
+                  >
+                    Book a trip →
+                  </Link>
+                </div>
+              </PortalGlassPanel>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </section>
   )
 }
@@ -253,6 +260,7 @@ function SidebarGroup(props: {
               state={s.state}
               lane={s.lane}
               nextLabel={s.nextLabel}
+              payloadSummary={s.payload_summary}
               selected={props.selectedId === s.id}
               onSelect={props.onSelect}
             />

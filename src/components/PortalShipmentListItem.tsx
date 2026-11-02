@@ -1,6 +1,6 @@
 /**
  * Compact selectable shipment row for the client dashboard sidebar.
- * Glass row — no ADS-B poll; stage labels from the trip spine only.
+ * Shows lane, cargo/pax, tail, and ETA — no ADS-B poll; labels from trip spine.
  */
 
 import {
@@ -17,6 +17,7 @@ export type PortalShipmentListItemProps = {
   state: string
   lane: string
   nextLabel: string | null
+  payloadSummary?: string | null
   selected: boolean
   onSelect: (id: string) => void
 }
@@ -30,11 +31,31 @@ function phaseLabel(phase: PortalShipmentPhase): string {
 }
 
 function phaseBadgeClass(phase: PortalShipmentPhase): string {
-  if (phase === 'in_flight') return 'border-[#C9A227]/50 bg-[#C9A227]/15 text-[#C9A227]'
+  if (phase === 'in_flight')
+    return 'border-[#C9A227]/50 bg-[#C9A227]/15 text-[#C9A227]'
   if (phase === 'on_truck') return 'border-ink/20 bg-ink/5 text-ink'
-  if (phase === 'delivered') return 'border-[#2E7D32]/40 bg-[#2E7D32]/10 text-[#2E7D32]'
+  if (phase === 'delivered')
+    return 'border-[#2E7D32]/40 bg-[#2E7D32]/10 text-[#2E7D32]'
   if (phase === 'booked') return 'border-border text-muted'
   return 'border-border text-muted'
+}
+
+function cargoLabel(view: ReturnType<typeof buildPortalTrackingView> | null, fallback?: string | null): string {
+  if (view?.cargo) {
+    const c = view.cargo
+    if (c.payloadKind === 'pax') {
+      return c.paxCount > 0 ? `${c.paxCount} pax` : 'Passengers'
+    }
+    if (c.payloadKind === 'both') {
+      const bits = [
+        c.paxCount > 0 ? `${c.paxCount} pax` : null,
+        c.cargoLines[0] || null,
+      ].filter(Boolean)
+      return bits.join(' · ') || 'Cargo + pax'
+    }
+    return c.cargoLines[0] || c.summaryLine || 'Cargo'
+  }
+  return (fallback ?? '').trim() || '—'
 }
 
 export function PortalShipmentListItem(props: PortalShipmentListItemProps) {
@@ -55,6 +76,12 @@ export function PortalShipmentListItem(props: PortalShipmentListItemProps) {
   const lane = view?.lane || props.lane || '—'
   const tail = view?.tail || trip?.quick?.tail || null
   const typeName = view?.aircraftType || trip?.quick?.aircraft_type || null
+  const payload = cargoLabel(view, props.payloadSummary)
+  const eta =
+    view?.eteLabel ||
+    view?.projectedDisplay ||
+    view?.promisedDisplay ||
+    null
 
   return (
     <li>
@@ -82,7 +109,13 @@ export function PortalShipmentListItem(props: PortalShipmentListItemProps) {
         </div>
         <div className="avionic mt-1 text-xs font-medium text-gold">{lane}</div>
         <p className="mt-1 truncate text-[11px] text-muted">
-          {[stage, tail ? `Tail ${tail}` : null, typeName]
+          {[
+            payload,
+            tail ? `Tail ${tail}` : null,
+            typeName,
+            eta ? `ETA ${eta}` : null,
+            stage,
+          ]
             .filter(Boolean)
             .join(' · ')}
         </p>
