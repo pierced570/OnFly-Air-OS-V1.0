@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalLanding } from '@/components/PortalLanding'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalShipmentsDashboard } from '@/components/PortalShipmentsDashboard'
@@ -249,8 +248,8 @@ export default function PortalHomePage() {
     </>
   )
 
-  // Black booking gate is the public home — never skip it for guests just
-  // because a tracking token is remembered (that felt like "inside a portal").
+  // Public ofaops home = client landing — never skip for guests just because
+  // a tracking token is remembered (that felt like "inside a portal").
   if (!loadingAuth && !signedIn && !(session && !session.clientId)) {
     return (
       <PortalLanding
@@ -288,8 +287,6 @@ export default function PortalHomePage() {
 
       {signedIn ? (
         <section className="space-y-5">
-          <PortalInstallBanner variant="glass" />
-
           <PortalShipmentsDashboard
             shipments={liveCards.map((t) => ({
               id: t.id,

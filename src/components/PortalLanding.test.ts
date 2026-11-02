@@ -17,7 +17,7 @@ describe('portal two-column stack routes', () => {
       '/portal/c/acme-logistics',
     )
     expect(portalSharePath('login')).toBe('/portal/login')
-    expect(portalSharePath('home')).toBe('/portal')
+    expect(portalSharePath('home')).toBe('/')
     expect(portalSharePath('history')).toBe('/portal/history')
   })
 })

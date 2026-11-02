@@ -5,7 +5,6 @@
 
 import { Link } from 'react-router-dom'
 import { PortalShell } from '@/components/PortalShell'
-import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalGuestContinue } from '@/components/PortalGuestContinue'
 import {
   BRAND_EMAIL,
@@ -91,8 +90,6 @@ export default function PortalAccountPage() {
             </div>
           ) : null}
         </div>
-
-        <PortalInstallBanner variant="glass" />
 
         <div className="grid gap-2">
           <Link

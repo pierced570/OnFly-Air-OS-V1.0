@@ -1,8 +1,7 @@
 /**
- * Unsigned client portal gate — glass over Falcon cargo atmosphere.
- * Features left, verified-email sign-in + request CTAs right.
- * Returning clients: desk-verified work email → company portal.
- * Guests: book/quote with no account.
+ * Public ofaops home — glass client gate.
+ * Client login (work email) + rough estimate / book / call.
+ * Quiet Staff login → scratchpad → desk app.
  */
 
 import { Link } from 'react-router-dom'
@@ -16,24 +15,6 @@ import { PortalAtmosphere, PortalGlassPanel } from '@/components/PortalGlass'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import type { PortalSession } from '@/domain/portalAuth'
-
-const FEATURES = [
-  {
-    n: '1',
-    title: 'Live position & ETA',
-    body: 'Tail number, wheels-up, landing and delta against plan.',
-  },
-  {
-    n: '2',
-    title: 'Door-to-door visibility',
-    body: 'Pickup, FBO handoffs and final delivery on one timeline.',
-  },
-  {
-    n: '3',
-    title: 'Verified work email',
-    body: 'Emails on your company desk open the right portal — no password or magic link.',
-  },
-] as const
 
 export function PortalLanding(props?: {
   onSignedIn?: (session: PortalSession) => void
@@ -58,13 +39,13 @@ export function PortalLanding(props?: {
   const domainHint =
     domains.length > 0
       ? `Use your @${domains[0]} work email — opens ${company || 'this company'} instantly. No password.`
-      : 'Work email on file at the desk — opens your company portal. No password.'
+      : 'Just your work email on file at the desk — opens your company portal. No password.'
 
   if (props?.loginFocus) {
     return (
       <PortalAtmosphere className="portal-atmosphere--landing" detail>
         <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
-          <Link to="/portal" className="portal-glass-ink rounded-2xl px-3 py-2">
+          <Link to="/" className="portal-glass-ink rounded-2xl px-3 py-2">
             <img
               src={BRAND_LOGO_PATH}
               alt="OnFly Air"
@@ -97,11 +78,11 @@ export function PortalLanding(props?: {
             onSignedIn={props.onSignedIn}
             nextHref={props.nextHref ?? undefined}
             expectedClientId={props.expectedClientId}
-            title={company ? `Sign in to ${company}` : 'See your shipments'}
+            title={company ? `Client login · ${company}` : 'Client login'}
             hint={
               company
                 ? domainHint
-                : 'Enter a work email verified on your company desk — we route you to the right portal.'
+                : 'Enter your work email — we open the right company portal.'
             }
           />
           <div className="space-y-2 pt-2 text-center text-sm">
@@ -109,19 +90,13 @@ export function PortalLanding(props?: {
               to="/quote"
               className="block font-semibold text-gold hover:text-gold-lt"
             >
-              Get a rough estimate (historical pricing) →
+              Get a rough estimate →
             </Link>
-            <Link
-              to="/book"
-              className="block text-ink/70 hover:text-gold"
-            >
-              Request a trip (no sign-in) →
+            <Link to="/book" className="block text-ink/70 hover:text-gold">
+              Book a trip (no sign-in) →
             </Link>
-            <Link
-              to="/portal"
-              className="block text-ink/55 hover:text-gold"
-            >
-              ← Back to portal
+            <Link to="/" className="block text-ink/55 hover:text-gold">
+              ← Back home
             </Link>
           </div>
         </main>
@@ -143,14 +118,22 @@ export function PortalLanding(props?: {
             className="h-8 w-auto max-w-[160px] object-contain"
           />
         </div>
-        <a
-          href={`tel:${BRAND_PHONE_E164}`}
-          className="portal-glass inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5 text-[11px] text-ink"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]" aria-hidden />
-          24-hr ops ·{' '}
-          <span className="font-semibold text-gold">{BRAND_PHONE}</span>
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="portal-glass inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5 text-[11px] text-ink"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]" aria-hidden />
+            24-hr ops ·{' '}
+            <span className="font-semibold text-gold">{BRAND_PHONE}</span>
+          </a>
+          <Link
+            to="/login?next=/scratch"
+            className="inline-flex min-h-11 items-center rounded-full border border-ink/15 bg-ink/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-cream backdrop-blur hover:border-gold/40"
+          >
+            Staff login
+          </Link>
+        </div>
       </header>
 
       <main className="mx-auto grid max-w-6xl items-start gap-8 px-4 pb-16 pt-2 sm:px-8 lg:grid-cols-2 lg:gap-10 lg:pt-4">
@@ -165,7 +148,7 @@ export function PortalLanding(props?: {
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0C0E]/55 via-transparent to-transparent" />
               <div className="absolute bottom-3 left-4 right-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
-                  {company ? 'Company portal' : 'Client portal'}
+                  {company ? 'Company portal' : 'OnFly Air · Client portal'}
                 </p>
               </div>
             </div>
@@ -177,26 +160,10 @@ export function PortalLanding(props?: {
               </h1>
               <p className="mt-3 max-w-md text-sm leading-relaxed text-muted sm:text-base">
                 {company
-                  ? 'Request a trip without an account, or open company shipments with a verified work email. Quotes typically come back in 10–15 minutes.'
-                  : 'Request a trip or rough quote without an account — or open live shipments with a verified work email from your company desk. Quotes typically come back in 10–15 minutes.'}
+                  ? 'Log in with your work email, request a trip, or get a rough estimate — quotes typically come back in 10–15 minutes.'
+                  : 'Client login with your work email for live shipments — or book and estimate with no account. Quotes typically come back in 10–15 minutes.'}
               </p>
             </div>
-          </PortalGlassPanel>
-
-          <PortalGlassPanel className="px-5 py-5">
-            <ol className="space-y-4">
-              {FEATURES.map((f) => (
-                <li key={f.n} className="flex gap-4">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-gold/10 text-sm font-semibold text-gold">
-                    {f.n}
-                  </span>
-                  <div>
-                    <div className="font-semibold text-ink">{f.title}</div>
-                    <p className="mt-0.5 text-sm text-muted">{f.body}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
           </PortalGlassPanel>
         </section>
 
@@ -206,11 +173,11 @@ export function PortalLanding(props?: {
             onSignedIn={props?.onSignedIn}
             nextHref={props?.nextHref ?? undefined}
             expectedClientId={props?.expectedClientId}
-            title={company ? `See ${company} shipments` : 'See your shipments'}
+            title={company ? `Client login · ${company}` : 'Client login'}
             hint={
               company
                 ? domainHint
-                : 'Enter your work email to open your company portal — no password or magic link.'
+                : 'Just enter your work email — no password. Opens live tracking, past trips, and booking.'
             }
           />
 
@@ -239,7 +206,7 @@ export function PortalLanding(props?: {
           >
             <div>
               <div className="text-lg font-semibold text-gold">
-                Get a rough estimate
+                Request a rough estimate
               </div>
               <p className="mt-0.5 text-sm text-muted">
                 Soft pricing from our historical trip data — no account, no
@@ -256,7 +223,7 @@ export function PortalLanding(props?: {
             className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink shadow-[0_12px_40px_rgba(201,162,39,0.35)] transition hover:bg-gold-lt"
           >
             <div>
-              <div className="text-lg font-semibold">Request a trip</div>
+              <div className="text-lg font-semibold">Book a trip</div>
               <p className="mt-0.5 text-sm text-ink/75">
                 No account needed — three quick steps, then we ring the desk
                 for a hard quote.
@@ -272,7 +239,7 @@ export function PortalLanding(props?: {
             className="portal-glass-ink flex flex-col gap-0.5 rounded-2xl px-5 py-4 text-sm text-cream transition hover:border-gold/40"
           >
             <span className="font-semibold text-cream">
-              Rather talk to a real person? Call now
+              Rather talk to a real person? Call us
             </span>
             <span className="text-cream/55">
               Dispatchers always on call ·{' '}

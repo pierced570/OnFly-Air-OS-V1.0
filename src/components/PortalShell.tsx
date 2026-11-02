@@ -50,7 +50,7 @@ export function PortalShell(props: {
           ].join(' ')}
         >
           <div className="portal-glass-ink flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 text-cream">
-            <Link to="/portal" className="shrink-0">
+            <Link to="/" className="shrink-0">
               <img
                 src={BRAND_LOGO_PATH}
                 alt="OnFly Air"

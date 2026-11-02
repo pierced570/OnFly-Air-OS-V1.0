@@ -47,7 +47,7 @@ export function PortalOneClickLogin(props: {
       })
       promotePortalGuestToSignedIn()
       props.onSignedIn?.(session)
-      navigate(props.nextHref ?? '/portal', { replace: true })
+      navigate(props.nextHref ?? '/', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -73,13 +73,13 @@ export function PortalOneClickLogin(props: {
     <div className={wrap}>
       <h2 className="text-lg font-semibold text-ink">
         {props.title ??
-          (prefilled ? 'Open your trips' : 'Already have a trip?')}
+          (prefilled ? 'Client login' : 'Client login')}
       </h2>
       <p className="mt-1 text-sm text-muted">
         {props.hint ??
           (prefilled
             ? 'One tap — we use the email from your request. No password.'
-            : 'Verified work email from your company desk — opens the right portal. No password.')}
+            : 'Just enter your work email — opens live shipments and past trips. No password.')}
       </p>
 
       {prefilled ? (

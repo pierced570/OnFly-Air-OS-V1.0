@@ -43,7 +43,7 @@ export default function PortalCompanyPage() {
               rough quote, or open shipments with a verified desk email.
             </p>
             <Link
-              to="/portal"
+              to="/"
               className="mt-5 inline-flex min-h-12 items-center rounded-xl bg-gold px-4 text-sm font-semibold text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)]"
             >
               Go to OnFly portal
@@ -55,7 +55,7 @@ export default function PortalCompanyPage() {
   }
 
   if (signedIn) {
-    return <Navigate to={nextHref ?? '/portal'} replace />
+    return <Navigate to={nextHref ?? '/'} replace />
   }
 
   return (

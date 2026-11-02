@@ -139,7 +139,7 @@ export function portalSharePath(
         next: opts?.next ?? null,
       })
     case 'home':
-      return wrap('/portal')
+      return wrap('/')
     case 'book':
       return wrap('/portal/request?mode=book')
     case 'quote':
