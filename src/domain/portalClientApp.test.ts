@@ -94,7 +94,8 @@ describe('portalClientApp', () => {
     expect(portalAppTabFromPath('/portal/login')).toBeNull()
     expect(portalAppStateLabel('in_progress')).toBe('Live')
     expect(portalAppStateLabel('quoted_hard')).toBe('Quote')
-    expect(portalRequestHelloLabel('PSA Airlines')).toBe('Hello PSA Airlines')
+    expect(portalRequestHelloLabel('PSA Airlines')).toBe('Hello, PSA Airlines')
+    expect(portalRequestHelloLabel('OnFly Air')).toBe('Hello, OnFly Air')
     expect(portalRequestHelloLabel('  ')).toBe('Hello')
   })
 
