@@ -11,9 +11,9 @@ import {
 
 const TABS: Array<{ id: PortalAppTab; label: string; hint: string }> = [
   { id: 'home', label: 'Trips', hint: 'Live & booked' },
-  { id: 'book', label: 'Book', hint: 'Request a trip' },
+  { id: 'book', label: 'Book', hint: 'Estimate or book' },
   { id: 'history', label: 'History', hint: 'POs & invoices' },
-  { id: 'account', label: 'Account', hint: 'Sign out' },
+  { id: 'account', label: 'Account', hint: 'Company & sign out' },
 ]
 
 function TabIcon({ id, active }: { id: PortalAppTab; active: boolean }) {

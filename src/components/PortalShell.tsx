@@ -34,12 +34,18 @@ export function PortalShell(props: {
   appNav?: boolean
 }) {
   const showNav = Boolean(props.appNav)
+  // Signed-in app pages share max-w-5xl so Trips / History / Account feel even.
+  // Dashboard widens for list+map; narrow forms opt into max-w-3xl via wide={false}.
   const widthCls =
     props.wide === 'dashboard'
       ? 'max-w-7xl'
-      : props.wide
+      : props.wide === true
         ? 'max-w-5xl'
-        : 'max-w-3xl'
+        : props.wide === false
+          ? 'max-w-3xl'
+          : showNav
+            ? 'max-w-5xl'
+            : 'max-w-3xl'
   return (
     <PortalAtmosphere>
       <header className="sticky top-0 z-30 pt-[max(0.75rem,env(safe-area-inset-top))]">

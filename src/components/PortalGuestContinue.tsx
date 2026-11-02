@@ -1,13 +1,13 @@
 /**
  * Guest-friendly continue surface when History / Account need a session.
- * Always offers Request another trip — never a login-only dead end.
+ * Same Estimate / Book / Call rhythm as the landing — never a login-only dead end.
  */
 
 import { Link } from 'react-router-dom'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
+import { PortalQuickActions } from '@/components/PortalQuickActions'
 import { usePortalSession } from '@/hooks/usePortalSession'
-import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 
 export function PortalGuestContinue(props: {
   title: string
@@ -17,54 +17,30 @@ export function PortalGuestContinue(props: {
   const { setSession } = usePortalSession()
   return (
     <PortalShell appNav>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
-        Client portal
-      </p>
-      <h1 className="mt-2 text-2xl font-semibold text-ink">{props.title}</h1>
-      <p className="mt-2 text-sm text-muted">{props.hint}</p>
+      <section className="space-y-6">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
+            Client portal
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
+            {props.title}
+          </h1>
+          <p className="mt-2 text-sm text-muted">{props.hint}</p>
+        </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Link
-          to="/portal/request?mode=book"
-          className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gold px-4 text-sm font-semibold text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)] hover:bg-gold-lt"
-        >
-          Request another trip
-        </Link>
-        <Link
-          to="/portal/request?mode=quote"
-          className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
-        >
-          Get a rough estimate
-        </Link>
-      </div>
+        <PortalQuickActions compact />
 
-      <a
-        href={`tel:${BRAND_PHONE_E164}`}
-        className="portal-glass-ink mt-3 flex w-full flex-col gap-0.5 rounded-2xl px-5 py-4 text-left transition hover:border-gold/40"
-      >
-        <span className="text-sm font-semibold text-cream">
-          Rather talk to a real person? Call now
-        </span>
-        <span className="text-xs text-cream/55">
-          Dispatchers always on call ·{' '}
-          <span className="avionic font-semibold text-gold">
-            {BRAND_PHONE}
-          </span>
-        </span>
-      </a>
-
-      <div className="mt-8">
         <PortalOneClickLogin
           onSignedIn={setSession}
           nextHref={props.nextHref}
           title="Sign in for company trips"
           hint="Verified desk work email — opens History, Account, and every shipment."
         />
-      </div>
 
-      <Link to="/portal" className="mt-6 inline-block text-sm font-semibold text-gold">
-        ← Trips home
-      </Link>
+        <Link to="/" className="inline-block text-sm font-semibold text-gold">
+          ← Trips home
+        </Link>
+      </section>
     </PortalShell>
   )
 }

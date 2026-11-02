@@ -19,6 +19,9 @@ const PortalHomePage = lazy(() => import('@/pages/portal/PortalHomePage'))
 const PortalLoginPage = lazy(() => import('@/pages/portal/PortalLoginPage'))
 const PortalCompanyPage = lazy(() => import('@/pages/portal/PortalCompanyPage'))
 const PortalRequestPage = lazy(() => import('@/pages/portal/PortalRequestPage'))
+const PortalFastQuotePage = lazy(
+  () => import('@/pages/portal/PortalFastQuotePage'),
+)
 const PortalHistoryPage = lazy(() => import('@/pages/portal/PortalHistoryPage'))
 const PortalAccountPage = lazy(() => import('@/pages/portal/PortalAccountPage'))
 const PortalTrackPage = lazy(() => import('@/pages/portal/PortalTrackPage'))
@@ -154,11 +157,8 @@ export function App() {
         <Route path="/offer/:token" element={<OfferPublicPage />} />
         <Route path="/accept/:token" element={<AcceptPage />} />
         <Route path="/t/:legToken" element={<OneTapPage />} />
-        {/* Short guest URLs — no account needed for soft/hard quote */}
-        <Route
-          path="/quote"
-          element={<Navigate to="/portal/request?mode=quote" replace />}
-        />
+        {/* Short guest URLs — fast rough estimate vs traditional book form */}
+        <Route path="/quote" element={<PortalFastQuotePage />} />
         <Route
           path="/book"
           element={<Navigate to="/portal/request?mode=book" replace />}

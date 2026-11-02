@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PortalGlassPanel } from '@/components/PortalGlass'
 import { PortalOverviewMap } from '@/components/PortalOverviewMap'
+import { PortalQuickActions } from '@/components/PortalQuickActions'
 import { PortalShipmentListItem } from '@/components/PortalShipmentListItem'
 import { PortalShipmentMapPane } from '@/components/PortalShipmentMapPane'
 import type { PortalShipmentPhase } from '@/domain/portalTracking'
@@ -96,9 +97,9 @@ export function PortalShipmentsDashboard(props: {
   )
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <section className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
             Your trips
           </div>
@@ -106,31 +107,25 @@ export function PortalShipmentsDashboard(props: {
             {shipments.length === 0 ? 'No shipments yet' : props.summaryLine}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Select a trip in the sidebar — map pins light up for routes in motion.
+            {shipments.length === 0
+              ? 'Estimate, book, or call — live pins show up once a trip is out.'
+              : 'Select a trip in the sidebar — map pins light up for routes in motion.'}
           </p>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-          <span className="avionic text-[11px] text-muted">{props.nowLabel}</span>
-          <Link
-            to="/portal/request?mode=book"
-            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-gold px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)] hover:bg-gold-lt sm:flex-none"
-          >
-            Request a trip
-          </Link>
-        </div>
+        <span className="avionic text-[11px] text-muted">{props.nowLabel}</span>
       </div>
 
       {shipments.length === 0 ? (
-        <PortalGlassPanel
-          strong
-          className="border-dashed px-6 py-8 text-sm text-muted"
-        >
-          After booking you&apos;ll see live and past trips here — map pins light
-          up for anything currently out.{' '}
-          <Link to="/portal/request?mode=book" className="font-semibold text-gold">
-            Request a trip
-          </Link>
-        </PortalGlassPanel>
+        <div className="space-y-3">
+          <PortalGlassPanel
+            strong
+            className="border-dashed px-5 py-5 text-sm text-muted"
+          >
+            After booking you&apos;ll see live and past trips here — map pins
+            light up for anything currently out.
+          </PortalGlassPanel>
+          <PortalQuickActions compact />
+        </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:items-start">
           <aside className="portal-glass-strong flex min-h-0 flex-col overflow-hidden rounded-2xl">
@@ -172,12 +167,18 @@ export function PortalShipmentsDashboard(props: {
               />
             </div>
 
-            <div className="border-t border-[rgba(201,162,39,0.18)] p-3">
+            <div className="grid grid-cols-2 gap-2 border-t border-[rgba(201,162,39,0.18)] p-3">
               <Link
-                to="/portal/request?mode=quote"
-                className="portal-glass-row flex min-h-11 items-center justify-center rounded-xl text-xs font-semibold uppercase tracking-[0.12em] text-ink"
+                to="/quote"
+                className="portal-glass-row flex min-h-11 items-center justify-center rounded-xl text-[10px] font-semibold uppercase tracking-[0.1em] text-ink"
               >
-                Rough estimate
+                Estimate
+              </Link>
+              <Link
+                to="/portal/request?mode=book"
+                className="flex min-h-11 items-center justify-center rounded-xl bg-gold text-[10px] font-semibold uppercase tracking-[0.1em] text-ink hover:bg-gold-lt"
+              >
+                Book
               </Link>
             </div>
           </aside>

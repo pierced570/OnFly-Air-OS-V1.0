@@ -271,8 +271,8 @@ export default function PortalHistoryPage() {
               className={[
                 'min-h-11 rounded-xl px-3 text-xs font-semibold uppercase tracking-[0.1em]',
                 kind === id
-                  ? 'bg-[#C9A227] text-[#0C0C0E]'
-                  : 'portal-glass-row text-[#6B6560]',
+                  ? 'bg-gold text-ink'
+                  : 'portal-glass-row text-muted',
               ].join(' ')}
             >
               {label}
@@ -294,8 +294,12 @@ export default function PortalHistoryPage() {
           <div className="portal-glass rounded-2xl border-dashed p-6 text-sm text-muted">
             No past trips yet. After delivery you&apos;ll see POs and invoices
             here.{' '}
-            <Link to="/portal/request" className="text-gold">
-              Book a trip
+            <Link to="/book" className="font-semibold text-gold">
+              Book a trip →
+            </Link>
+            {' · '}
+            <Link to="/quote" className="font-semibold text-gold">
+              Rough estimate →
             </Link>
           </div>
         ) : (
