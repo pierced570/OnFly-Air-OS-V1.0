@@ -1,5 +1,5 @@
 /**
- * Selected-shipment map pane — smaller FlightAware-backed map for the
+ * Selected-shipment map pane — glass FlightAware-backed map for the
  * client dashboard. Polls ADS-B only for the selected in_progress trip.
  */
 
@@ -69,7 +69,7 @@ export function PortalShipmentMapPane(props: {
 
   if (hydrating && !trip) {
     return (
-      <div className="flex h-full min-h-[20rem] items-center justify-center rounded-xl border border-[#E5DFD0] bg-white text-sm text-muted">
+      <div className="portal-glass-strong flex h-full min-h-[20rem] items-center justify-center rounded-2xl text-sm text-muted">
         Loading shipment…
       </div>
     )
@@ -77,7 +77,7 @@ export function PortalShipmentMapPane(props: {
 
   if (!trip || !view) {
     return (
-      <div className="flex h-full min-h-[20rem] items-center justify-center rounded-xl border border-dashed border-border bg-white/70 text-sm text-muted">
+      <div className="portal-glass flex h-full min-h-[20rem] items-center justify-center rounded-2xl border-dashed text-sm text-muted">
         Select a shipment to track.
       </div>
     )
@@ -102,8 +102,8 @@ export function PortalShipmentMapPane(props: {
     view.poNumber?.replace(/^PO\s*#?\s*/i, '') || `T-${view.ref}`
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[#E5DFD0] bg-white">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E5DFD0] px-4 py-3">
+    <div className="portal-glass-strong flex h-full min-h-0 flex-col overflow-hidden rounded-2xl">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[rgba(201,162,39,0.18)] px-4 py-3">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
             Live track
@@ -123,13 +123,13 @@ export function PortalShipmentMapPane(props: {
         </div>
         <Link
           to={props.trackHref}
-          className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-gold/50 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold hover:bg-gold/10"
+          className="inline-flex min-h-10 shrink-0 items-center rounded-xl border border-gold/50 bg-gold/10 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold hover:bg-gold/20"
         >
           Full tracking →
         </Link>
       </div>
 
-      <div className="relative bg-ink text-cream">
+      <div className="relative bg-ink/90 text-cream">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em]">
           <span className="text-gold">
             ●{' '}
@@ -179,7 +179,7 @@ export function PortalShipmentMapPane(props: {
         )}
       </div>
 
-      <div className="grid gap-3 border-t border-[#E5DFD0] px-4 py-3 sm:grid-cols-3">
+      <div className="grid gap-3 border-t border-[rgba(201,162,39,0.18)] px-4 py-3 sm:grid-cols-3">
         <Meta
           label="Aircraft"
           value={`${tail}${view.aircraftType ? ` · ${view.aircraftType}` : ''}`}

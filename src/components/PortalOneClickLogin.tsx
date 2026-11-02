@@ -1,6 +1,6 @@
 /**
  * One-click client portal sign-in — work email only, no password.
- * Used after a quote request (email already known) or as a quiet secondary path.
+ * Glass card variants for landing + in-app surfaces.
  */
 
 import { useState, type FormEvent } from 'react'
@@ -21,8 +21,8 @@ export function PortalOneClickLogin(props: {
    * When set (company portal `/portal/c/:slug`), only that client may sign in.
    */
   expectedClientId?: string | null
-  /** Compact cream card vs dark landing. */
-  variant?: 'cream' | 'dark'
+  /** Compact cream glass vs landing glass. */
+  variant?: 'cream' | 'dark' | 'glass'
   title?: string
   hint?: string
 }) {
@@ -30,7 +30,7 @@ export function PortalOneClickLogin(props: {
   const [email, setEmail] = useState(() => (props.email ?? '').trim().toLowerCase())
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const variant = props.variant ?? 'cream'
+  const variant = props.variant ?? 'glass'
   const prefilled = Boolean((props.email ?? '').trim().includes('@'))
 
   async function signIn(addr: string) {
@@ -60,16 +60,14 @@ export function PortalOneClickLogin(props: {
     await signIn(email)
   }
 
-  const cream = variant === 'cream'
-  const wrap = cream
-    ? 'rounded-xl border border-[#E5DFD0] bg-white p-4 sm:p-5'
-    : 'rounded-2xl bg-white p-5 text-ink shadow-xl sm:p-6'
-  const inputCls = cream
-    ? 'mt-1 w-full rounded-md border border-[#D4CFC0] bg-[#F7F2E3] px-3 py-3 text-sm text-ink outline-none focus:border-[#C9A227]'
-    : 'mt-1 w-full rounded-lg border border-[#e5dfd0] bg-[#F7F2E3] px-3 py-2.5 text-sm text-ink outline-none focus:border-gold'
-  const btnCls = cream
-    ? 'w-full min-h-12 rounded-md bg-[#C9A227] px-4 text-sm font-semibold text-[#0C0C0E] disabled:opacity-50'
-    : 'w-full min-h-12 rounded-lg bg-ink px-4 text-sm font-semibold text-gold disabled:opacity-50'
+  const wrap =
+    variant === 'dark'
+      ? 'portal-glass-strong rounded-2xl p-5 text-ink sm:p-6'
+      : 'portal-glass-strong rounded-2xl p-4 text-ink sm:p-5'
+  const inputCls =
+    'portal-glass-input mt-1 w-full rounded-xl px-3 py-3 text-sm text-ink'
+  const btnCls =
+    'w-full min-h-12 rounded-xl bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50'
 
   return (
     <div className={wrap}>
@@ -86,7 +84,7 @@ export function PortalOneClickLogin(props: {
 
       {prefilled ? (
         <div className="mt-4 space-y-3">
-          <p className="rounded-md bg-[#F7F2E3] px-3 py-2.5 text-sm font-medium text-ink">
+          <p className="portal-glass-input rounded-xl px-3 py-2.5 text-sm font-medium text-ink">
             {email}
           </p>
           {error ? <p className="text-sm text-[#C0392B]">{error}</p> : null}

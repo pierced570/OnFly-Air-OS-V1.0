@@ -1,11 +1,11 @@
 /**
- * Signed-in client shipments dashboard — sidebar list + smaller live map.
- * Composition inspired by modern tracking desks; OnFly cream/gold theme.
+ * Signed-in client shipments dashboard — glass sidebar list + live map.
  * FlightAware polls only the selected in_progress trip.
  */
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { PortalGlassPanel } from '@/components/PortalGlass'
 import { PortalShipmentListItem } from '@/components/PortalShipmentListItem'
 import { PortalShipmentMapPane } from '@/components/PortalShipmentMapPane'
 import type { PortalShipmentPhase } from '@/domain/portalTracking'
@@ -93,7 +93,7 @@ export function PortalShipmentsDashboard(props: {
           <span className="avionic text-[11px] text-muted">{props.nowLabel}</span>
           <Link
             to="/portal/request"
-            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-md bg-gold px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt sm:flex-none"
+            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-gold px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)] hover:bg-gold-lt sm:flex-none"
           >
             Book a trip
           </Link>
@@ -101,19 +101,22 @@ export function PortalShipmentsDashboard(props: {
       </div>
 
       {shipments.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted">
+        <PortalGlassPanel
+          strong
+          className="border-dashed px-6 py-8 text-sm text-muted"
+        >
           After booking you&apos;ll see live shipments here — select one to open
           the FlightAware map.
-        </div>
+        </PortalGlassPanel>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:items-start">
-          <aside className="flex min-h-0 flex-col rounded-xl border border-[#E5DFD0] bg-[#FBF8F0]">
-            <div className="border-b border-[#E5DFD0] px-3 py-3">
+          <aside className="portal-glass-strong flex min-h-0 flex-col overflow-hidden rounded-2xl">
+            <div className="border-b border-[rgba(201,162,39,0.18)] px-3 py-3">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
                   Tracking list
                 </h2>
-                <span className="rounded-full border border-border bg-white px-2 py-0.5 text-[10px] font-semibold text-muted">
+                <span className="rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10px] font-semibold text-gold">
                   {filtered.length}
                 </span>
               </div>
@@ -124,7 +127,7 @@ export function PortalShipmentsDashboard(props: {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search PO, lane, tail…"
-                  className="w-full rounded-md border border-[#D4CFC0] bg-white px-3 py-2 text-sm text-ink outline-none focus:border-gold"
+                  className="portal-glass-input w-full rounded-xl px-3 py-2 text-sm text-ink outline-none"
                 />
               </label>
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -139,7 +142,7 @@ export function PortalShipmentsDashboard(props: {
                         'rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]',
                         on
                           ? 'bg-ink text-gold'
-                          : 'border border-border bg-white text-muted hover:text-ink',
+                          : 'portal-glass-row text-muted hover:text-ink',
                       ].join(' ')}
                     >
                       {f.label}
@@ -151,7 +154,7 @@ export function PortalShipmentsDashboard(props: {
 
             <ul className="max-h-[28rem] space-y-2 overflow-y-auto p-3 lg:max-h-[min(70vh,36rem)]">
               {filtered.length === 0 ? (
-                <li className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted">
+                <li className="rounded-xl border border-dashed border-[rgba(201,162,39,0.25)] px-3 py-6 text-center text-xs text-muted">
                   No shipments in this filter.
                 </li>
               ) : (
@@ -178,9 +181,9 @@ export function PortalShipmentsDashboard(props: {
                 trackHref={selected.trackHref}
               />
             ) : (
-              <div className="flex min-h-[20rem] items-center justify-center rounded-xl border border-dashed border-border bg-white/70 text-sm text-muted">
+              <PortalGlassPanel className="flex min-h-[20rem] items-center justify-center border-dashed text-sm text-muted">
                 Select a shipment from the list.
-              </div>
+              </PortalGlassPanel>
             )}
           </div>
         </div>

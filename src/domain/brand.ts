@@ -27,5 +27,10 @@ export const BRAND_LOGO_PATH = '/brand/onfly-logo.png'
 /** Full wordmark for cream / white backgrounds (dark FL — no white-on-white) */
 export const BRAND_LOGO_LIGHT_PATH = '/brand/onfly-logo-light.png'
 
+/** Client portal atmosphere — Falcon cargo load (hero / glass backgrounds). */
+export const BRAND_FALCON_CARGO_HERO_PATH = '/brand/falcon-cargo-load-hero.jpg'
+/** Client portal detail — Falcon hold loading. */
+export const BRAND_FALCON_CARGO_DETAIL_PATH = '/brand/falcon-cargo-detail.jpg'
+
 /** @deprecated Prefer BRAND_MARK_PATH */
 export const BRAND_MARK_SVG_PATH = BRAND_MARK_PATH

@@ -46,7 +46,7 @@ function KindChip({ kind }: { kind: PortalHistoryRow['kind'] }) {
   const label =
     kind === 'trip' ? 'Trip' : kind === 'po' ? 'PO' : 'Invoice'
   return (
-    <span className="rounded border border-[#D4CFC0] bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#6B6560]">
+    <span className="rounded border border-gold/25 bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#6B6560]">
       {label}
     </span>
   )
@@ -58,7 +58,7 @@ function HistoryRowLink(props: {
 }) {
   const href = props.row.href
   const className =
-    'flex min-h-[4.25rem] items-center justify-between gap-3 rounded-xl border border-[#E5DFD0] bg-white px-4 py-3 active:bg-[#F7F2E3]'
+    'portal-glass-row flex min-h-[4.25rem] items-center justify-between gap-3 rounded-xl px-4 py-3'
   if (href.startsWith('http')) {
     return (
       <a
@@ -235,7 +235,7 @@ export default function PortalHistoryPage() {
                 <li key={r.id}>
                   <Link
                     to={r.href}
-                    className="flex min-h-[4.25rem] items-center justify-between gap-3 rounded-xl border border-gold/30 bg-white px-4 py-3 active:bg-[#F7F2E3]"
+                    className="portal-glass-row flex min-h-[4.25rem] items-center justify-between gap-3 rounded-xl px-4 py-3"
                   >
                     <div className="min-w-0">
                       <div className="avionic text-sm font-semibold text-ink">
@@ -269,10 +269,10 @@ export default function PortalHistoryPage() {
               type="button"
               onClick={() => setKind(id)}
               className={[
-                'min-h-11 rounded-md px-3 text-xs font-semibold uppercase tracking-[0.1em]',
+                'min-h-11 rounded-xl px-3 text-xs font-semibold uppercase tracking-[0.1em]',
                 kind === id
                   ? 'bg-[#C9A227] text-[#0C0C0E]'
-                  : 'border border-[#D4CFC0] bg-white text-[#6B6560]',
+                  : 'portal-glass-row text-[#6B6560]',
               ].join(' ')}
             >
               {label}
@@ -286,12 +286,12 @@ export default function PortalHistoryPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="PO, T-ref, lane…"
-            className="mt-1 w-full rounded-md border border-[#D4CFC0] bg-white px-3 py-3 text-sm text-ink outline-none focus:border-[#C9A227]"
+            className="portal-glass-input mt-1 w-full rounded-xl px-3 py-3 text-sm text-ink outline-none"
           />
         </label>
 
         {filtered.length === 0 ? (
-          <div className="rounded-md border border-dashed border-[#D4CFC0] bg-white/70 p-6 text-sm text-muted">
+          <div className="portal-glass rounded-2xl border-dashed p-6 text-sm text-muted">
             No past trips yet. After delivery you&apos;ll see POs and invoices
             here.{' '}
             <Link to="/portal/request" className="text-gold">

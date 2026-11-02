@@ -1,6 +1,6 @@
 /**
  * Compact selectable shipment row for the client dashboard sidebar.
- * No ADS-B poll — stage labels come from the trip spine only.
+ * Glass row — no ADS-B poll; stage labels from the trip spine only.
  */
 
 import {
@@ -63,10 +63,8 @@ export function PortalShipmentListItem(props: PortalShipmentListItemProps) {
         onClick={() => props.onSelect(props.id)}
         aria-current={props.selected ? 'true' : undefined}
         className={[
-          'w-full rounded-xl border px-3.5 py-3 text-left transition',
-          props.selected
-            ? 'border-gold bg-gold/10 shadow-[inset_3px_0_0_0_#C9A227]'
-            : 'border-[#E5DFD0] bg-white hover:border-gold/40',
+          'portal-glass-row w-full rounded-xl px-3.5 py-3 text-left',
+          props.selected ? 'is-selected' : '',
         ].join(' ')}
       >
         <div className="flex items-start justify-between gap-2">

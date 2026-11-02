@@ -49,7 +49,7 @@ function liveInstallFlags(dismissed: boolean) {
 }
 
 export function PortalInstallBanner(props: {
-  variant?: 'dark' | 'cream'
+  variant?: 'dark' | 'cream' | 'glass'
   /** Open platform steps immediately (first portal page). */
   defaultOpen?: boolean
   /**
@@ -58,7 +58,7 @@ export function PortalInstallBanner(props: {
    */
   density?: 'card' | 'banner'
 }) {
-  const variant = props.variant ?? 'cream'
+  const variant = props.variant ?? 'glass'
   const density = props.density ?? 'card'
   const [dismissed, setDismissed] = useState(false)
   const [ready, setReady] = useState(false)
@@ -104,9 +104,12 @@ export function PortalInstallBanner(props: {
 
   const showChromeInstall = Boolean(deferred)
   const dark = variant === 'dark'
+  const glass = variant === 'glass'
   const shell = dark
     ? 'border-gold/40 bg-gold/10 text-cream'
-    : 'border-[#C9A227] bg-[#C9A227]/12 text-ink'
+    : glass
+      ? 'portal-glass-strong text-ink'
+      : 'border-[#C9A227] bg-[#C9A227]/12 text-ink'
   const muted = dark ? 'text-cream/70' : 'text-[#4A4640]'
   const btn = dark
     ? 'bg-gold text-ink hover:bg-gold-lt'
@@ -183,7 +186,9 @@ export function PortalInstallBanner(props: {
   if (density === 'banner') {
     const bar = dark
       ? 'border-b border-gold/35 bg-gold/10 text-cream'
-      : 'border-b border-[#C9A227]/40 bg-[#C9A227]/12 text-ink'
+      : glass
+        ? 'border-b border-[rgba(201,162,39,0.28)] bg-[rgba(255,253,248,0.55)] text-ink backdrop-blur-xl'
+        : 'border-b border-[#C9A227]/40 bg-[#C9A227]/12 text-ink'
     return (
       <div
         className={bar}
@@ -203,7 +208,7 @@ export function PortalInstallBanner(props: {
               <button
                 type="button"
                 onClick={() => void installChrome()}
-                className={`inline-flex min-h-9 items-center rounded-md px-3 text-xs font-semibold ${btn}`}
+                className={`inline-flex min-h-9 items-center rounded-xl px-3 text-xs font-semibold ${btn}`}
               >
                 Add
               </button>
@@ -211,7 +216,7 @@ export function PortalInstallBanner(props: {
               <button
                 type="button"
                 onClick={() => setStepsOpen((v) => !v)}
-                className={`inline-flex min-h-9 items-center rounded-md px-3 text-xs font-semibold ${btn}`}
+                className={`inline-flex min-h-9 items-center rounded-xl px-3 text-xs font-semibold ${btn}`}
               >
                 {stepsOpen ? 'Hide' : 'How'}
               </button>
@@ -237,7 +242,7 @@ export function PortalInstallBanner(props: {
 
   return (
     <div
-      className={`rounded-2xl border-2 px-4 py-4 ${shell}`}
+      className={`rounded-2xl px-4 py-4 ${glass ? shell : `border-2 ${shell}`}`}
       data-testid="portal-install-banner"
       id="add-to-home-screen"
     >
@@ -266,7 +271,7 @@ export function PortalInstallBanner(props: {
           <button
             type="button"
             onClick={() => void installChrome()}
-            className={`inline-flex min-h-12 items-center rounded-md px-4 text-sm font-semibold ${btn}`}
+            className={`inline-flex min-h-12 items-center rounded-xl px-4 text-sm font-semibold ${btn}`}
           >
             Add to Home Screen
           </button>
@@ -274,7 +279,7 @@ export function PortalInstallBanner(props: {
           <button
             type="button"
             onClick={() => setStepsOpen((v) => !v)}
-            className={`inline-flex min-h-12 items-center rounded-md px-4 text-sm font-semibold ${btn}`}
+            className={`inline-flex min-h-12 items-center rounded-xl px-4 text-sm font-semibold ${btn}`}
           >
             {stepsOpen ? 'Hide steps' : 'Show me how'}
           </button>

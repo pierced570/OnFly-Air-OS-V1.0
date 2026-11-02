@@ -276,8 +276,8 @@ export default function PortalHomePage() {
       ) : null}
 
       {session && !session.clientId ? (
-        <section className="rounded-md border border-[#C0392B]/40 bg-white p-5">
-          <h2 className="font-medium">Email not verified</h2>
+        <section className="portal-glass-strong rounded-2xl border-[#C0392B]/35 p-5">
+          <h2 className="font-medium text-ink">Email not verified</h2>
           <p className="mt-1 text-sm text-muted">
             {session.email} isn&apos;t set up for portal access yet. Verified
             emails will be routed to the correct client portal — contact OnFly
@@ -288,7 +288,7 @@ export default function PortalHomePage() {
 
       {signedIn ? (
         <section className="space-y-5">
-          <PortalInstallBanner variant="cream" />
+          <PortalInstallBanner variant="glass" />
 
           <PortalShipmentsDashboard
             shipments={liveCards.map((t) => ({
@@ -307,7 +307,7 @@ export default function PortalHomePage() {
           />
 
           {client ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-4 text-xs text-muted">
+            <div className="portal-glass flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 text-xs text-muted">
               <span>
                 {client.name}
                 {client.profile.front_desk_phone
@@ -331,7 +331,7 @@ export default function PortalHomePage() {
           ) : null}
 
           {openRequestCards.length > 0 ? (
-            <div className="space-y-3 border-t border-border/60 pt-4">
+            <div className="portal-glass space-y-3 rounded-2xl px-4 py-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
                   Open quotes &amp; requests
@@ -345,7 +345,7 @@ export default function PortalHomePage() {
                   <li key={r.id}>
                     <Link
                       to={r.href}
-                      className="flex min-h-14 items-center justify-between gap-3 rounded-xl border border-[#E5DFD0] bg-white px-4 py-3 active:bg-[#F7F2E3]"
+                      className="portal-glass-row flex min-h-14 items-center justify-between gap-3 rounded-xl px-4 py-3"
                     >
                       <div className="min-w-0">
                         <div className="avionic text-sm font-semibold text-ink">
@@ -365,7 +365,7 @@ export default function PortalHomePage() {
             </div>
           ) : null}
 
-          <div className="flex flex-wrap gap-3 border-t border-border/60 pt-4 text-xs">
+          <div className="flex flex-wrap gap-3 text-xs">
             <Link to="/portal/history" className="font-semibold text-gold">
               Prior trips, POs &amp; invoices →
             </Link>

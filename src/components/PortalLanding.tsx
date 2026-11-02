@@ -1,12 +1,18 @@
 /**
- * Unsigned client portal gate — two-column dark hero matching the existing
- * client portal: features left, verified-email sign-in + request CTAs right.
- * Returning clients: enter desk-verified work email → instant company portal.
+ * Unsigned client portal gate — glass over Falcon cargo atmosphere.
+ * Features left, verified-email sign-in + request CTAs right.
+ * Returning clients: desk-verified work email → company portal.
  * Guests: book/quote with no account.
  */
 
 import { Link } from 'react-router-dom'
-import { BRAND_LOGO_PATH, BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
+import {
+  BRAND_FALCON_CARGO_DETAIL_PATH,
+  BRAND_LOGO_PATH,
+  BRAND_PHONE,
+  BRAND_PHONE_E164,
+} from '@/domain/brand'
+import { PortalAtmosphere, PortalGlassPanel } from '@/components/PortalGlass'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import type { PortalSession } from '@/domain/portalAuth'
@@ -40,7 +46,7 @@ export function PortalLanding(props?: {
   /** After sign-in (from ?next=). */
   nextHref?: string | null
   /**
-   * Optional magic-link resume — keep the black gate as home; don't dump
+   * Optional magic-link resume — keep the landing as home; don't dump
    * guests into a cream "inside portal" screen.
    */
   continueTrackHref?: string | null
@@ -56,12 +62,9 @@ export function PortalLanding(props?: {
 
   if (props?.loginFocus) {
     return (
-      <div
-        className="min-h-screen bg-[#0C0C0E] text-cream"
-        data-theme="client"
-      >
+      <PortalAtmosphere className="portal-atmosphere--landing" detail>
         <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
-          <Link to="/portal">
+          <Link to="/portal" className="portal-glass-ink rounded-2xl px-3 py-2">
             <img
               src={BRAND_LOGO_PATH}
               alt="OnFly Air"
@@ -70,27 +73,27 @@ export function PortalLanding(props?: {
           </Link>
           <a
             href={`tel:${BRAND_PHONE_E164}`}
-            className="text-[11px] font-semibold text-gold"
+            className="portal-glass rounded-full px-3 py-2 text-[11px] font-semibold text-gold"
           >
             {BRAND_PHONE}
           </a>
         </header>
         <main className="mx-auto max-w-lg space-y-4 px-4 pb-16 sm:px-8">
           {company ? (
-            <div>
+            <PortalGlassPanel strong className="px-5 py-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
                 Company portal
               </p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-cream">
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">
                 {company}
               </h1>
-              <p className="mt-2 text-sm text-cream/55">
+              <p className="mt-2 text-sm text-muted">
                 Open trips, tracking, quotes, and history for this company.
               </p>
-            </div>
+            </PortalGlassPanel>
           ) : null}
           <PortalOneClickLogin
-            variant="dark"
+            variant="glass"
             onSignedIn={props.onSignedIn}
             nextHref={props.nextHref ?? undefined}
             expectedClientId={props.expectedClientId}
@@ -110,40 +113,39 @@ export function PortalLanding(props?: {
             </Link>
             <Link
               to="/book"
-              className="block text-cream/70 hover:text-gold"
+              className="block text-ink/70 hover:text-gold"
             >
               Request a trip (no sign-in) →
             </Link>
             <Link
               to="/portal"
-              className="block text-cream/60 hover:text-gold"
+              className="block text-ink/55 hover:text-gold"
             >
               ← Back to portal
             </Link>
           </div>
         </main>
-      </div>
+      </PortalAtmosphere>
     )
   }
 
   return (
-    <div
-      className="min-h-screen bg-[#0C0C0E] text-cream"
-      data-theme="client"
-    >
+    <PortalAtmosphere className="portal-atmosphere--landing">
       <div className="pt-[max(0px,env(safe-area-inset-top))]">
-        <PortalInstallBanner variant="dark" density="banner" />
+        <PortalInstallBanner variant="glass" density="banner" />
       </div>
 
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-8">
-        <img
-          src={BRAND_LOGO_PATH}
-          alt="OnFly Air"
-          className="h-8 w-auto max-w-[160px] object-contain"
-        />
+        <div className="portal-glass-ink rounded-2xl px-3 py-2.5">
+          <img
+            src={BRAND_LOGO_PATH}
+            alt="OnFly Air"
+            className="h-8 w-auto max-w-[160px] object-contain"
+          />
+        </div>
         <a
           href={`tel:${BRAND_PHONE_E164}`}
-          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-cream/15 bg-[#141414] px-3 py-1.5 text-[11px] text-cream/85"
+          className="portal-glass inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5 text-[11px] text-ink"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]" aria-hidden />
           24-hr ops ·{' '}
@@ -151,39 +153,56 @@ export function PortalLanding(props?: {
         </a>
       </header>
 
-      <main className="mx-auto grid max-w-6xl items-start gap-10 px-4 pb-16 pt-2 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:pt-4">
-        <section>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
-            {company ? 'Company portal' : 'Client portal'}
-          </div>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-cream sm:text-5xl">
-            {company
-              ? company
-              : 'Your freight, in the air and on the screen.'}
-          </h1>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-cream/60">
-            {company
-              ? 'Request a trip without an account, or open company shipments with a verified work email. Quotes typically come back in 10–15 minutes.'
-              : 'Request a trip or rough quote without an account — or open live shipments with a verified work email from your company desk. Quotes typically come back in 10–15 minutes.'}
-          </p>
-          <ol className="mt-10 space-y-5">
-            {FEATURES.map((f) => (
-              <li key={f.n} className="flex gap-4">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/40 text-sm font-semibold text-gold">
-                  {f.n}
-                </span>
-                <div>
-                  <div className="font-semibold text-cream">{f.title}</div>
-                  <p className="mt-0.5 text-sm text-cream/55">{f.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+      <main className="mx-auto grid max-w-6xl items-start gap-8 px-4 pb-16 pt-2 sm:px-8 lg:grid-cols-2 lg:gap-10 lg:pt-4">
+        <section className="space-y-5">
+          <PortalGlassPanel strong className="overflow-hidden p-0">
+            <div className="relative">
+              <img
+                src={BRAND_FALCON_CARGO_DETAIL_PATH}
+                alt="Loading cargo into an OnFly Falcon aircraft"
+                className="h-44 w-full object-cover sm:h-52"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0C0E]/55 via-transparent to-transparent" />
+              <div className="absolute bottom-3 left-4 right-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
+                  {company ? 'Company portal' : 'Client portal'}
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-5 sm:px-6">
+              <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+                {company
+                  ? company
+                  : 'Your freight, in the air and on the screen.'}
+              </h1>
+              <p className="mt-3 max-w-md text-sm leading-relaxed text-muted sm:text-base">
+                {company
+                  ? 'Request a trip without an account, or open company shipments with a verified work email. Quotes typically come back in 10–15 minutes.'
+                  : 'Request a trip or rough quote without an account — or open live shipments with a verified work email from your company desk. Quotes typically come back in 10–15 minutes.'}
+              </p>
+            </div>
+          </PortalGlassPanel>
+
+          <PortalGlassPanel className="px-5 py-5">
+            <ol className="space-y-4">
+              {FEATURES.map((f) => (
+                <li key={f.n} className="flex gap-4">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-gold/10 text-sm font-semibold text-gold">
+                    {f.n}
+                  </span>
+                  <div>
+                    <div className="font-semibold text-ink">{f.title}</div>
+                    <p className="mt-0.5 text-sm text-muted">{f.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </PortalGlassPanel>
         </section>
 
         <section className="space-y-4">
           <PortalOneClickLogin
-            variant="dark"
+            variant="glass"
             onSignedIn={props?.onSignedIn}
             nextHref={props?.nextHref ?? undefined}
             expectedClientId={props?.expectedClientId}
@@ -198,13 +217,13 @@ export function PortalLanding(props?: {
           {props?.continueTrackHref ? (
             <Link
               to={props.continueTrackHref}
-              className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-cream/15 bg-[#141414] px-5 py-4 text-cream transition hover:border-gold/40"
+              className="portal-glass flex min-h-14 items-center justify-between gap-4 rounded-2xl px-5 py-4 text-ink transition hover:border-gold/50"
             >
               <div>
-                <div className="text-sm font-semibold text-cream">
+                <div className="text-sm font-semibold">
                   Continue tracking your shipment
                 </div>
-                <p className="mt-0.5 text-xs text-cream/55">
+                <p className="mt-0.5 text-xs text-muted">
                   Opens the trip from your last tracking link — still no account.
                 </p>
               </div>
@@ -216,13 +235,13 @@ export function PortalLanding(props?: {
 
           <Link
             to="/quote"
-            className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl border border-gold/45 bg-[#141414] px-5 py-5 text-cream transition hover:border-gold"
+            className="portal-glass flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl px-5 py-5 text-ink transition hover:border-gold/55"
           >
             <div>
               <div className="text-lg font-semibold text-gold">
                 Get a rough estimate
               </div>
-              <p className="mt-0.5 text-sm text-cream/65">
+              <p className="mt-0.5 text-sm text-muted">
                 Soft pricing from our historical trip data — no account, no
                 commitment. Push to a hard quote if it fits.
               </p>
@@ -234,7 +253,7 @@ export function PortalLanding(props?: {
 
           <Link
             to="/book"
-            className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink transition hover:bg-gold-lt"
+            className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink shadow-[0_12px_40px_rgba(201,162,39,0.35)] transition hover:bg-gold-lt"
           >
             <div>
               <div className="text-lg font-semibold">Request a trip</div>
@@ -250,7 +269,7 @@ export function PortalLanding(props?: {
 
           <a
             href={`tel:${BRAND_PHONE_E164}`}
-            className="flex flex-col gap-0.5 rounded-2xl border border-cream/10 bg-[#141414] px-5 py-4 text-sm text-cream/85 transition hover:border-gold/40"
+            className="portal-glass-ink flex flex-col gap-0.5 rounded-2xl px-5 py-4 text-sm text-cream transition hover:border-gold/40"
           >
             <span className="font-semibold text-cream">
               Rather talk to a real person? Call now
@@ -264,6 +283,6 @@ export function PortalLanding(props?: {
           </a>
         </section>
       </main>
-    </div>
+    </PortalAtmosphere>
   )
 }

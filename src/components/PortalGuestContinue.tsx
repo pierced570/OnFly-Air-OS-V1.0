@@ -26,13 +26,13 @@ export function PortalGuestContinue(props: {
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Link
           to="/portal/request?mode=book"
-          className="inline-flex min-h-12 items-center justify-center rounded-md bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-lt"
+          className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gold px-4 text-sm font-semibold text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)] hover:bg-gold-lt"
         >
           Request another trip
         </Link>
         <Link
           to="/portal/request?mode=quote"
-          className="inline-flex min-h-12 items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-semibold text-ink"
+          className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
         >
           Get a rough estimate
         </Link>
@@ -40,7 +40,7 @@ export function PortalGuestContinue(props: {
 
       <a
         href={`tel:${BRAND_PHONE_E164}`}
-        className="mt-3 flex w-full flex-col gap-0.5 rounded-xl border border-ink/15 bg-[#141414] px-5 py-4 text-left transition hover:border-gold/40"
+        className="portal-glass-ink mt-3 flex w-full flex-col gap-0.5 rounded-2xl px-5 py-4 text-left transition hover:border-gold/40"
       >
         <span className="text-sm font-semibold text-cream">
           Rather talk to a real person? Call now

@@ -1,6 +1,5 @@
 /**
- * Mobile-first bottom tabs for the client portal app.
- * Separate from desk DispatchShell — cream + gold only.
+ * Mobile-first bottom tabs for the client portal app — glass chrome.
  */
 
 import { Link, useLocation } from 'react-router-dom'
@@ -69,9 +68,9 @@ export function PortalAppNav() {
   return (
     <nav
       aria-label="Client app"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E5DFD0] bg-[#F7F2E3]/95 backdrop-blur safe-bottom md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden"
     >
-      <ul className="mx-auto grid max-w-lg grid-cols-4">
+      <ul className="portal-glass-strong mx-auto grid max-w-lg grid-cols-4 rounded-2xl">
         {TABS.map((tab) => {
           const isActive = active === tab.id
           return (
@@ -95,14 +94,14 @@ export function PortalAppNav() {
   )
 }
 
-/** Desktop / tablet secondary nav — same destinations, no fixed chrome. */
+/** Desktop / tablet secondary nav — glass pills. */
 export function PortalAppDesktopNav() {
   const { pathname } = useLocation()
   const active = portalAppTabFromPath(pathname)
   return (
     <nav
       aria-label="Client app sections"
-      className="mb-6 hidden border-b border-[#E5DFD0] md:block"
+      className="portal-glass mb-6 hidden rounded-2xl px-2 py-2 md:block"
     >
       <ul className="flex flex-wrap gap-1">
         {TABS.map((tab) => {
@@ -112,10 +111,10 @@ export function PortalAppDesktopNav() {
               <Link
                 to={portalAppTabPath(tab.id)}
                 className={[
-                  'inline-flex min-h-11 items-center rounded-md px-3 text-xs font-semibold uppercase tracking-[0.12em]',
+                  'inline-flex min-h-11 items-center rounded-xl px-3 text-xs font-semibold uppercase tracking-[0.12em]',
                   isActive
-                    ? 'bg-[#C9A227]/15 text-[#C9A227]'
-                    : 'text-[#6B6560] hover:text-ink',
+                    ? 'bg-gold/20 text-gold'
+                    : 'text-muted hover:bg-white/40 hover:text-ink',
                 ].join(' ')}
               >
                 {tab.label}
