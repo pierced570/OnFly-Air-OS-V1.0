@@ -69,14 +69,14 @@ export default function ScratchPadPage() {
             onClick={goOps}
             className="rounded-md border border-border px-3 py-2 text-xs font-medium text-cream hover:border-gold/50"
           >
-            {session ? 'Dispatch center' : 'Login'}
+            {session ? 'Operations' : 'Operations Login'}
           </button>
           <button
             type="button"
             onClick={goParse}
             className="rounded-md bg-gold px-3 py-2 text-xs font-semibold text-ink hover:bg-gold-lt"
           >
-            {session ? 'Parse & shortlist → desk' : 'Login & parse'}
+            {session ? 'Parse & shortlist → desk' : 'Sign in & parse'}
           </button>
         </div>
       </header>

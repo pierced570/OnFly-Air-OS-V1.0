@@ -48,7 +48,7 @@ export function PortalLanding(props?: {
             to="/login?next=/dispatch"
             className="inline-flex min-h-9 items-center rounded-full border border-white/50 bg-white/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink backdrop-blur hover:bg-white/65"
           >
-            Staff login
+            Operations
           </Link>
         </header>
         <main className="mx-auto max-w-lg space-y-5 px-4 pb-16 sm:px-8">
@@ -110,7 +110,7 @@ export function PortalLanding(props?: {
             to="/login?next=/dispatch"
             className="inline-flex min-h-9 items-center rounded-full border border-white/55 bg-white/50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink backdrop-blur-md hover:bg-white/70"
           >
-            Staff login
+            Operations
           </Link>
         </div>
       </header>
