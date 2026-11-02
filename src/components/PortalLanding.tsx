@@ -1,6 +1,6 @@
 /**
  * Public ofaops home — glass client gate.
- * Even layout: brand hero → equal Estimate / Book / Call → client login.
+ * One composition: brand + headline + even Estimate / Book / Call, then login.
  * Quiet Staff login → scratchpad → desk app.
  */
 
@@ -14,6 +14,7 @@ import {
 import { PortalAtmosphere, PortalGlassPanel } from '@/components/PortalGlass'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
+import { PortalQuickActions } from '@/components/PortalQuickActions'
 import type { PortalSession } from '@/domain/portalAuth'
 
 export function PortalLanding(props?: {
@@ -85,17 +86,9 @@ export function PortalLanding(props?: {
                 : 'Enter your work email — we open the right company portal.'
             }
           />
-          <div className="space-y-2 pt-2 text-center text-sm">
-            <Link
-              to="/quote"
-              className="block font-semibold text-gold hover:text-gold-lt"
-            >
-              Get a rough estimate →
-            </Link>
-            <Link to="/book" className="block text-ink/70 hover:text-gold">
-              Book a trip (no sign-in) →
-            </Link>
-            <Link to="/" className="block text-ink/55 hover:text-gold">
+          <PortalQuickActions compact className="pt-1" />
+          <div className="pt-1 text-center text-sm">
+            <Link to="/" className="text-ink/55 hover:text-gold">
               ← Back home
             </Link>
           </div>
@@ -118,51 +111,38 @@ export function PortalLanding(props?: {
             className="h-8 w-auto max-w-[160px] object-contain"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={`tel:${BRAND_PHONE_E164}`}
-            className="portal-glass inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5 text-[11px] text-ink"
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]" aria-hidden />
-            24-hr ops ·{' '}
-            <span className="font-semibold text-gold">{BRAND_PHONE}</span>
-          </a>
-          <Link
-            to="/login?next=/scratch"
-            className="inline-flex min-h-11 items-center rounded-full border border-ink/15 bg-ink/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-cream backdrop-blur hover:border-gold/40"
-          >
-            Staff login
-          </Link>
-        </div>
+        <Link
+          to="/login?next=/scratch"
+          className="inline-flex min-h-11 items-center rounded-full border border-ink/15 bg-ink/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-cream backdrop-blur hover:border-gold/40"
+        >
+          Staff login
+        </Link>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-6 px-4 pb-16 pt-1 sm:px-8 sm:space-y-8">
-        {/* One composition: brand + headline over Falcon */}
-        <PortalGlassPanel strong className="overflow-hidden p-0">
-          <div className="relative">
-            <img
-              src={BRAND_FALCON_CARGO_DETAIL_PATH}
-              alt="Loading cargo into an OnFly Falcon aircraft"
-              className="h-48 w-full object-cover sm:h-56 lg:h-64"
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0C0E]/75 via-[#0C0C0E]/25 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 px-5 pb-5 pt-16 sm:px-8 sm:pb-7">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
-                {company ? 'Company portal' : 'OnFly Air · Client portal'}
-              </p>
-              <h1 className="mt-2 max-w-xl text-3xl font-semibold tracking-tight text-cream sm:text-4xl">
-                {company
-                  ? company
-                  : 'Your freight, in the air and on the screen.'}
-              </h1>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-cream/75 sm:text-base">
-                {company
-                  ? 'Estimate, book, or call — then sign in with your work email for live trips.'
-                  : 'Fast rough estimate, full booking form, or call ops. Sign in for live shipments.'}
-              </p>
-            </div>
+      <main className="mx-auto max-w-5xl space-y-8 px-4 pb-16 pt-1 sm:px-8">
+        {/* Full-bleed visual + copy underneath (no overlays on the image) */}
+        <section>
+          <img
+            src={BRAND_FALCON_CARGO_DETAIL_PATH}
+            alt="Loading cargo into an OnFly Falcon aircraft"
+            className="h-48 w-full rounded-2xl object-cover sm:h-56 lg:h-64"
+          />
+          <div className="mt-5 max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
+              {company ? 'Company portal' : 'OnFly Air'}
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+              {company
+                ? company
+                : 'Your freight, in the air and on the screen.'}
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-muted sm:text-base">
+              {company
+                ? 'Estimate, book, or call — then sign in with your work email for live trips.'
+                : 'Fast rough estimate, full booking form, or call ops. Sign in for live shipments.'}
+            </p>
           </div>
-        </PortalGlassPanel>
+        </section>
 
         {props?.continueTrackHref ? (
           <Link
@@ -183,66 +163,8 @@ export function PortalLanding(props?: {
           </Link>
         ) : null}
 
-        {/* Even primary actions */}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Link
-            to="/quote"
-            className="portal-glass flex min-h-[7.5rem] flex-col justify-between rounded-2xl px-5 py-5 text-ink transition hover:border-gold/55"
-          >
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
-                Rough estimate
-              </div>
-              <div className="mt-2 text-lg font-semibold">One fast page</div>
-              <p className="mt-1 text-sm text-muted">
-                Airports in, ballpark out — then call or book.
-              </p>
-            </div>
-            <span className="mt-3 text-sm font-semibold text-gold">
-              Get estimate →
-            </span>
-          </Link>
+        <PortalQuickActions />
 
-          <Link
-            to="/book"
-            className="flex min-h-[7.5rem] flex-col justify-between rounded-2xl bg-gold px-5 py-5 text-ink shadow-[0_12px_40px_rgba(201,162,39,0.35)] transition hover:bg-gold-lt"
-          >
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink/70">
-                Book a trip
-              </div>
-              <div className="mt-2 text-lg font-semibold">
-                Traditional form
-              </div>
-              <p className="mt-1 text-sm text-ink/75">
-                Dims, timing, contacts — hard quote in 10–15 min.
-              </p>
-            </div>
-            <span className="mt-3 text-sm font-semibold">Start booking →</span>
-          </Link>
-
-          <a
-            href={`tel:${BRAND_PHONE_E164}`}
-            className="portal-glass-ink flex min-h-[7.5rem] flex-col justify-between rounded-2xl px-5 py-5 text-cream transition hover:border-gold/40"
-          >
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
-                Call ops
-              </div>
-              <div className="mt-2 text-lg font-semibold text-cream">
-                Talk to a person
-              </div>
-              <p className="mt-1 text-sm text-cream/55">
-                Dispatchers always on call.
-              </p>
-            </div>
-            <span className="avionic mt-3 text-sm font-semibold text-gold">
-              {BRAND_PHONE} →
-            </span>
-          </a>
-        </div>
-
-        {/* Client login — same width rhythm */}
         <section>
           <PortalOneClickLogin
             variant="glass"

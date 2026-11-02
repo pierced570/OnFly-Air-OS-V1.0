@@ -6,12 +6,8 @@
 import { Link } from 'react-router-dom'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalGuestContinue } from '@/components/PortalGuestContinue'
-import {
-  BRAND_EMAIL,
-  BRAND_PHONE,
-  BRAND_PHONE_E164,
-  dialBrandOps,
-} from '@/domain/brand'
+import { PortalQuickActions } from '@/components/PortalQuickActions'
+import { BRAND_EMAIL, BRAND_PHONE } from '@/domain/brand'
 import { usePortalSession } from '@/hooks/usePortalSession'
 import { endPortalSession } from '@/lib/portalAuth'
 import { getPortalClient } from '@/lib/clientOnboardStore'
@@ -56,7 +52,7 @@ export default function PortalAccountPage() {
         </button>
       }
     >
-      <section className="space-y-5">
+      <section className="space-y-6">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
             Account
@@ -70,58 +66,39 @@ export default function PortalAccountPage() {
           </p>
         </div>
 
-        <div className="portal-glass-strong space-y-3 rounded-2xl p-4">
+        <div className="portal-glass-strong grid gap-4 rounded-2xl p-5 sm:grid-cols-2">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8A8680]">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
               Work email
             </div>
             <div className="mt-1 text-sm font-medium text-ink">
               {session?.email}
             </div>
           </div>
-          {client?.profile.front_desk_phone ? (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8A8680]">
-                Your desk
-              </div>
-              <div className="mt-1 text-sm text-ink">
-                {client.profile.front_desk_phone}
-              </div>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+              Your desk
             </div>
-          ) : null}
+            <div className="mt-1 text-sm text-ink">
+              {client?.profile.front_desk_phone?.trim() || '—'}
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-2">
-          <Link
-            to="/portal/request"
-            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#C9A227] px-4 text-sm font-semibold text-[#0C0C0E] shadow-[0_10px_28px_rgba(201,162,39,0.28)]"
-          >
-            Book a trip
-          </Link>
+        <PortalQuickActions compact />
+
+        <div className="grid gap-3 sm:grid-cols-2">
           <Link
             to="/portal/history"
             className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
           >
             Trips, POs &amp; invoices
           </Link>
-          <button
-            type="button"
-            onClick={() => dialBrandOps()}
-            className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
-          >
-            Call 24-hr ops · {BRAND_PHONE}
-          </button>
           <a
             href={`mailto:${BRAND_EMAIL}`}
             className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
           >
             Email {BRAND_EMAIL}
-          </a>
-          <a
-            href={`tel:${BRAND_PHONE_E164}`}
-            className="sr-only"
-          >
-            {BRAND_PHONE}
           </a>
         </div>
 
@@ -134,6 +111,10 @@ export default function PortalAccountPage() {
         >
           Sign out
         </button>
+
+        <p className="text-center text-xs text-muted">
+          24-hr ops · <span className="avionic text-gold">{BRAND_PHONE}</span>
+        </p>
       </section>
     </PortalShell>
   )

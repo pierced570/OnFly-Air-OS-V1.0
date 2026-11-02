@@ -214,9 +214,6 @@ export default function PortalHomePage() {
   const headerActions = session ? (
     <>
       <span className="hidden text-cream/60 md:inline">{session.email}</span>
-      <Link to="/portal/request" className="text-gold hover:text-gold-lt">
-        Request a trip
-      </Link>
       <button
         type="button"
         className="text-gold hover:text-gold-lt"
@@ -231,19 +228,7 @@ export default function PortalHomePage() {
         Sign out
       </button>
     </>
-  ) : (
-    <>
-      <Link
-        to="/portal/request?mode=book"
-        className="text-gold hover:text-gold-lt"
-      >
-        Book
-      </Link>
-      <Link to="/quote" className="text-gold hover:text-gold-lt">
-        Rough quote
-      </Link>
-    </>
-  )
+  ) : null
 
   // Public ofaops home = client landing — never skip for guests just because
   // a tracking token is remembered (that felt like "inside a portal").
@@ -283,11 +268,11 @@ export default function PortalHomePage() {
       ) : null}
 
       {signedIn ? (
-        <section className="space-y-5">
+        <section className="space-y-6">
           {client ? (
-            <div className="portal-glass flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 text-xs text-muted">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
               <span>
-                {client.name}
+                <span className="font-semibold text-ink">{client.name}</span>
                 {client.profile.front_desk_phone
                   ? ` · Desk ${client.profile.front_desk_phone}`
                   : ''}
@@ -325,22 +310,14 @@ export default function PortalHomePage() {
           />
 
           {openRequestCards.length > 0 ? (
-            <div className="portal-glass space-y-3 rounded-2xl px-4 py-4">
+            <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
                   Open quotes &amp; requests
                 </h2>
-                <div className="flex flex-wrap gap-3 text-xs">
-                  <Link to="/quote" className="font-semibold text-gold">
-                    New estimate
-                  </Link>
-                  <Link
-                    to="/portal/request?mode=book"
-                    className="text-muted hover:text-ink"
-                  >
-                    Book
-                  </Link>
-                </div>
+                <Link to="/quote" className="text-xs font-semibold text-gold">
+                  New estimate →
+                </Link>
               </div>
               <ul className="space-y-2">
                 {openRequestCards.map((r) => (
@@ -366,21 +343,6 @@ export default function PortalHomePage() {
               </ul>
             </div>
           ) : null}
-
-          <div className="grid gap-2 text-xs sm:grid-cols-2">
-            <Link
-              to="/portal/history"
-              className="portal-glass-row inline-flex min-h-11 items-center justify-center rounded-xl font-semibold text-ink"
-            >
-              Prior trips, POs &amp; invoices
-            </Link>
-            <Link
-              to="/portal/account"
-              className="portal-glass-row inline-flex min-h-11 items-center justify-center rounded-xl text-muted hover:text-ink"
-            >
-              Account
-            </Link>
-          </div>
         </section>
       ) : null}
     </PortalShell>
