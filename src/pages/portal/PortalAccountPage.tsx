@@ -1,5 +1,6 @@
 /**
  * Client app — Account. Company + sign-out. Never desk staff login.
+ * Glass panels over Falcon atmosphere (via PortalShell).
  */
 
 import { Link } from 'react-router-dom'
@@ -70,7 +71,7 @@ export default function PortalAccountPage() {
           </p>
         </div>
 
-        <div className="space-y-3 rounded-xl border border-[#E5DFD0] bg-white p-4">
+        <div className="portal-glass-strong space-y-3 rounded-2xl p-4">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8A8680]">
               Work email
@@ -91,31 +92,31 @@ export default function PortalAccountPage() {
           ) : null}
         </div>
 
-        <PortalInstallBanner variant="cream" />
+        <PortalInstallBanner variant="glass" />
 
         <div className="grid gap-2">
           <Link
             to="/portal/request"
-            className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#C9A227] px-4 text-sm font-semibold text-[#0C0C0E]"
+            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#C9A227] px-4 text-sm font-semibold text-[#0C0C0E] shadow-[0_10px_28px_rgba(201,162,39,0.28)]"
           >
             Book a trip
           </Link>
           <Link
             to="/portal/history"
-            className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#D4CFC0] bg-white px-4 text-sm font-semibold text-ink"
+            className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
           >
             Trips, POs &amp; invoices
           </Link>
           <button
             type="button"
             onClick={() => dialBrandOps()}
-            className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#D4CFC0] bg-white px-4 text-sm font-semibold text-ink"
+            className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
           >
             Call 24-hr ops · {BRAND_PHONE}
           </button>
           <a
             href={`mailto:${BRAND_EMAIL}`}
-            className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#D4CFC0] bg-white px-4 text-sm font-semibold text-ink"
+            className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
           >
             Email {BRAND_EMAIL}
           </a>
@@ -129,7 +130,7 @@ export default function PortalAccountPage() {
 
         <button
           type="button"
-          className="w-full min-h-12 rounded-md text-sm font-semibold text-[#C0392B]"
+          className="w-full min-h-12 rounded-xl text-sm font-semibold text-[#C0392B]"
           onClick={() => {
             void endPortalSession().then(() => setSession(null))
           }}

@@ -146,7 +146,7 @@ export function SoftPricingPackageView(props: {
       </section>
 
       {/* Disclaimer banner */}
-      <aside className="rounded-xl border border-gold/35 bg-[#F5E6A8]/55 px-4 py-4 text-sm leading-relaxed text-ink sm:px-5">
+      <aside className="portal-glass-strong rounded-2xl border-gold/35 px-4 py-4 text-sm leading-relaxed text-ink sm:px-5">
         <p>
           <span className="font-semibold">This is not the actual price.</span>{' '}
           It’s an estimate based on what we believe will fit and what historical
@@ -163,7 +163,7 @@ export function SoftPricingPackageView(props: {
           {pkg.math_cards.map((card) => (
             <article
               key={card.title}
-              className="rounded-xl border border-border bg-[#F0E8D4]/70 px-4 py-4"
+              className="portal-glass rounded-2xl px-4 py-4"
             >
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gold">
                 {card.title}
@@ -175,7 +175,7 @@ export function SoftPricingPackageView(props: {
       </section>
 
       {/* CTA */}
-      <section className="flex flex-col gap-4 rounded-2xl bg-[#141414] px-5 py-6 text-cream sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <section className="portal-glass-ink flex flex-col gap-4 rounded-2xl px-5 py-6 text-cream sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="max-w-xl text-sm leading-relaxed text-cream/80">
           Want the real number? Our team checks actual aircraft positions and
           quotes hard in 10–15 minutes. This estimate is not the actual price —
@@ -207,7 +207,7 @@ function SoftClassCard({ quote }: { quote: SoftClassQuote }) {
   const eta = formatHoursMinutes(destinationFromGoMinutes(quote.timing))
   const examples = quote.example_types.slice(0, 2).join(', ')
   return (
-    <article className="flex aspect-[2/1.5] flex-col justify-between rounded-xl border border-border bg-white p-3 sm:aspect-auto sm:min-h-[9.5rem] sm:rounded-2xl sm:p-4 lg:min-h-[10.5rem]">
+    <article className="portal-glass-strong flex aspect-[2/1.5] flex-col justify-between rounded-2xl p-3 sm:aspect-auto sm:min-h-[9.5rem] sm:p-4 lg:min-h-[10.5rem]">
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-ink sm:text-base">

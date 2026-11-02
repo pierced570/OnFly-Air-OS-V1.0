@@ -230,10 +230,10 @@ export function PortalTrackingBody({
               type="button"
               onClick={() => setSection(s.id)}
               className={[
-                'inline-flex min-h-10 shrink-0 items-center rounded-md px-3 text-[11px] font-semibold uppercase tracking-[0.12em]',
+                'inline-flex min-h-10 shrink-0 items-center rounded-xl px-3 text-[11px] font-semibold uppercase tracking-[0.12em]',
                 active
                   ? 'bg-gold text-ink'
-                  : 'border border-border bg-white text-muted',
+                  : 'portal-glass-row text-muted',
               ].join(' ')}
             >
               {s.label}
@@ -357,7 +357,7 @@ export function PortalTrackingBody({
                 : 'Stages appear once the trip is live.'}
             </p>
           ) : (
-            <ol className="divide-y divide-border overflow-hidden rounded-md border border-border bg-white">
+            <ol className="portal-glass-strong divide-y divide-[rgba(201,162,39,0.15)] overflow-hidden rounded-2xl">
               {opsRows.map((row) => {
                 const done = row.status === 'done'
                 const active = row.status === 'active'
@@ -441,13 +441,13 @@ export function PortalTrackingBody({
       <div className="mt-8 space-y-3 border-t border-border/60 pt-5">
         <Link
           to="/portal/request?mode=book"
-          className="flex w-full min-h-12 items-center justify-center rounded-md bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-lt"
+          className="flex w-full min-h-12 items-center justify-center rounded-xl bg-gold px-4 text-sm font-semibold text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)] hover:bg-gold-lt"
         >
           Request another trip
         </Link>
         <a
           href={`tel:${BRAND_PHONE_E164}`}
-          className="flex w-full flex-col gap-0.5 rounded-xl border border-ink/15 bg-[#141414] px-5 py-4 text-left transition hover:border-gold/40"
+          className="portal-glass-ink flex w-full flex-col gap-0.5 rounded-2xl px-5 py-4 text-left transition hover:border-gold/40"
         >
           <span className="text-sm font-semibold text-cream">
             Rather talk to a real person? Call now
@@ -474,7 +474,7 @@ export function PortalTrackingBody({
 
 function InfoCard(props: { title: string; body: string; sub?: string }) {
   return (
-    <div className="rounded-md border border-border bg-white p-4">
+    <div className="portal-glass-strong rounded-2xl p-4">
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
         {props.title}
       </div>

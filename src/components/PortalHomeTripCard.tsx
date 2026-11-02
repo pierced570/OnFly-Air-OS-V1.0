@@ -102,10 +102,10 @@ export function PortalHomeTripCard(props: PortalHomeTripCardProps) {
   return (
     <li
       className={[
-        'overflow-hidden rounded-md border',
+        'overflow-hidden rounded-2xl',
         dark
-          ? 'border-ink bg-ink text-cream'
-          : 'border-border/80 bg-white text-ink',
+          ? 'portal-glass-ink text-cream'
+          : 'portal-glass-strong text-ink',
       ].join(' ')}
     >
       <div className="px-4 pb-3 pt-4 sm:px-5">

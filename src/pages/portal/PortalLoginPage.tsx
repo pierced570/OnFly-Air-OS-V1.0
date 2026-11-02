@@ -21,8 +21,13 @@ export default function PortalLoginPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0C0C0E] text-sm text-cream/60">
-        Checking session…
+      <div
+        className="portal-atmosphere flex min-h-screen items-center justify-center text-sm text-muted"
+        data-theme="client"
+      >
+        <div className="portal-glass-strong rounded-2xl px-5 py-4">
+          Checking session…
+        </div>
       </div>
     )
   }

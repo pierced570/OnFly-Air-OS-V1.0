@@ -262,3 +262,132 @@ button {
     transform: translate(-50%, 0);
   }
 }
+
+/* ── Client glass system (cream + gold, never navy) ───────── */
+[data-theme="client"] {
+  --glass-bg: rgba(247, 242, 227, 0.58);
+  --glass-bg-strong: rgba(255, 253, 248, 0.78);
+  --glass-border: rgba(201, 162, 39, 0.28);
+  --glass-border-soft: rgba(229, 223, 208, 0.65);
+  --glass-shadow: 0 18px 50px rgba(12, 12, 14, 0.12);
+  --glass-ink: rgba(12, 12, 14, 0.72);
+  --glass-ink-border: rgba(247, 242, 227, 0.16);
+}
+
+.portal-glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border-soft);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(22px) saturate(1.15);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+}
+
+.portal-glass-strong {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(28px) saturate(1.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+}
+
+.portal-glass-ink {
+  background: var(--glass-ink);
+  border: 1px solid var(--glass-ink-border);
+  box-shadow: 0 18px 50px rgba(12, 12, 14, 0.28);
+  backdrop-filter: blur(24px) saturate(1.1);
+  -webkit-backdrop-filter: blur(24px) saturate(1.1);
+}
+
+.portal-atmosphere {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 55% at 12% 18%, rgba(201, 162, 39, 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 88% 8%, rgba(247, 242, 227, 0.55), transparent 50%),
+    linear-gradient(165deg, #efe8d6 0%, #f7f2e3 42%, #e8e0ce 100%);
+}
+
+.portal-atmosphere::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: var(--portal-atmosphere-image);
+  background-size: cover;
+  background-position: center 35%;
+  opacity: 0.38;
+  filter: blur(0.5px);
+  pointer-events: none;
+}
+
+.portal-atmosphere::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(247, 242, 227, 0.48) 0%,
+      rgba(247, 242, 227, 0.72) 45%,
+      rgba(247, 242, 227, 0.9) 100%
+    );
+  pointer-events: none;
+}
+
+/* Landing / login — Falcon cargo more visible under glass */
+.portal-atmosphere--landing::before {
+  opacity: 0.52;
+  filter: none;
+  background-position: center 40%;
+}
+
+.portal-atmosphere--landing::after {
+  background:
+    radial-gradient(ellipse 90% 60% at 70% 20%, rgba(201, 162, 39, 0.18), transparent 55%),
+    linear-gradient(
+      165deg,
+      rgba(247, 242, 227, 0.35) 0%,
+      rgba(247, 242, 227, 0.62) 40%,
+      rgba(247, 242, 227, 0.88) 100%
+    );
+}
+
+.portal-atmosphere > * {
+  position: relative;
+  z-index: 1;
+}
+
+.portal-glass-input {
+  background: rgba(255, 253, 248, 0.72);
+  border: 1px solid rgba(212, 207, 192, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.portal-glass-input:focus {
+  border-color: #c9a227;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.18);
+}
+
+.portal-glass-row {
+  background: rgba(255, 253, 248, 0.55);
+  border: 1px solid rgba(229, 223, 208, 0.75);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.portal-glass-row:hover {
+  border-color: rgba(201, 162, 39, 0.45);
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.portal-glass-row[aria-current='true'],
+.portal-glass-row.is-selected {
+  border-color: rgba(201, 162, 39, 0.65);
+  background: rgba(201, 162, 39, 0.14);
+  box-shadow: inset 3px 0 0 0 #c9a227;
+}

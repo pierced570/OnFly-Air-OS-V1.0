@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PortalAppNav } from '@/components/PortalAppNav'
+import { PortalAtmosphere } from '@/components/PortalGlass'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { SoftPricingPackageView } from '@/components/SoftPricingPackageView'
 import { usePortalSession } from '@/hooks/usePortalSession'
@@ -249,8 +250,8 @@ export default function PortalRequestPage() {
       : `/portal/login?next=${encodeURIComponent('/portal')}`
     return (
       <WizardShell appNav>
-        <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-          <header className="bg-ink px-5 py-5 text-cream sm:px-6">
+        <div className="portal-glass-strong overflow-hidden rounded-2xl">
+          <header className="portal-glass-ink rounded-none border-0 px-5 py-5 text-cream sm:px-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
               Hard quote
             </p>
@@ -362,12 +363,12 @@ export default function PortalRequestPage() {
     return (
       <WizardShell wide flushTop appNav>
         {estimating && (
-          <div className="mt-6 rounded-2xl bg-white px-5 py-8 text-sm text-muted">
+          <div className="portal-glass-strong mt-6 rounded-2xl px-5 py-8 text-sm text-muted">
             Building soft pricing across aircraft classes…
           </div>
         )}
         {!estimating && softPackage?.error && (
-          <div className="mt-6 space-y-3 rounded-2xl bg-white p-5 text-ink sm:p-6">
+          <div className="portal-glass-strong mt-6 space-y-3 rounded-2xl p-5 text-ink sm:p-6">
             <h1 className="text-2xl font-semibold">Soft estimate</h1>
             <p className="text-sm text-late">{softPackage.error}</p>
             <p className="text-xs text-muted">
@@ -417,7 +418,7 @@ export default function PortalRequestPage() {
           <div className="mt-4 px-1 sm:px-0">
             <Link
               to={afterQuoteHref}
-              className="flex w-full items-center justify-center rounded-lg border border-[#E5DFD0] bg-white px-4 py-3 text-sm font-semibold text-ink"
+              className="portal-glass-row flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-ink"
             >
               Open on My trips / tracking →
             </Link>
@@ -474,8 +475,8 @@ export default function PortalRequestPage() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-        <header className="flex flex-wrap items-start justify-between gap-3 bg-ink px-5 py-5 text-cream sm:px-6">
+      <div className="portal-glass-strong overflow-hidden rounded-2xl">
+        <header className="portal-glass-ink flex flex-wrap items-start justify-between gap-3 rounded-none border-0 px-5 py-5 text-cream sm:px-6">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               {signedIn && client?.name?.trim()
@@ -500,7 +501,7 @@ export default function PortalRequestPage() {
           </div>
           <a
             href={`tel:${BRAND_PHONE_E164}`}
-            className="inline-flex items-center gap-2 rounded-full border border-cream/15 bg-[#141414] px-3 py-1.5 text-[11px] text-cream/85"
+            className="inline-flex items-center gap-2 rounded-full border border-cream/15 bg-cream/5 px-3 py-1.5 text-[11px] text-cream/85 backdrop-blur"
           >
             <span
               className="h-1.5 w-1.5 rounded-full bg-[#2E7D32]"
@@ -536,10 +537,7 @@ function WizardShell(props: {
   appNav?: boolean
 }) {
   return (
-    <div
-      className="min-h-screen bg-[#F9F7F2] text-ink"
-      data-theme="client"
-    >
+    <PortalAtmosphere>
       <div
         className={[
           'mx-auto px-4 sm:px-6',
@@ -551,6 +549,6 @@ function WizardShell(props: {
         {props.children}
       </div>
       {props.appNav ? <PortalAppNav /> : null}
-    </div>
+    </PortalAtmosphere>
   )
 }
