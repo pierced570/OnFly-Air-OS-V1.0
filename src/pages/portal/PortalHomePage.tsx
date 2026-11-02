@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalLanding } from '@/components/PortalLanding'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalShipmentsDashboard } from '@/components/PortalShipmentsDashboard'
@@ -288,8 +287,6 @@ export default function PortalHomePage() {
 
       {signedIn ? (
         <section className="space-y-5">
-          <PortalInstallBanner variant="glass" />
-
           <PortalShipmentsDashboard
             shipments={liveCards.map((t) => ({
               id: t.id,

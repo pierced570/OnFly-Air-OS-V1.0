@@ -1,15 +1,24 @@
 /**
- * In-app Add to Home Screen control for the client portal.
- * Always visible on /portal until installed (standalone) or dismissed this tab.
+ * Add to Home Screen — client portal landing only (`/` / `/portal` / company gate).
+ * Never on desk, scratchpad, or signed-in portal chrome.
  * iOS: Safari Share steps. Chromium: beforeinstallprompt when offered.
  */
 
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   PORTAL_INSTALL_DISMISS_KEY,
   buildPortalInstallState,
   type PortalInstallPlatform,
 } from '@/domain/portalPwa'
+
+/** Public client gate only — not request/history/account/track/desk. */
+function isPortalLandingPath(pathname: string): boolean {
+  if (pathname === '/' || pathname === '/portal' || pathname === '/portal/')
+    return true
+  if (pathname.startsWith('/portal/c/')) return true
+  return false
+}
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
@@ -52,14 +61,13 @@ export function PortalInstallBanner(props: {
   variant?: 'dark' | 'cream' | 'glass'
   /** Open platform steps immediately (first portal page). */
   defaultOpen?: boolean
-  /**
-   * Slim top-of-page strip (portal landing). Default = full card used on
-   * signed-in Trips / Account.
-   */
+  /** Slim top-of-page strip on the public portal landing. */
   density?: 'card' | 'banner'
 }) {
+  const { pathname } = useLocation()
+  const onPortalLanding = isPortalLandingPath(pathname)
   const variant = props.variant ?? 'glass'
-  const density = props.density ?? 'card'
+  const density = props.density ?? 'banner'
   const [dismissed, setDismissed] = useState(false)
   const [ready, setReady] = useState(false)
   const [platform, setPlatform] = useState<PortalInstallPlatform>('unknown')
@@ -99,6 +107,8 @@ export function PortalInstallBanner(props: {
     setPlatform(state.platform)
   }, [dismissed, ready])
 
+  // Portal landing only — never desk / scratch / in-app tabs.
+  if (!onPortalLanding) return null
   // Hide only after we know we're standalone / dismissed — never flash-hide forever.
   if (ready && !offer) return null
 
