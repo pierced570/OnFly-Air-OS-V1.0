@@ -354,6 +354,23 @@ button {
     );
 }
 
+/* Frost split landing — stronger photo, cooler translucent wash for glass UI */
+.portal-atmosphere--frost::before {
+  opacity: 0.62;
+  filter: none;
+  background-position: center 42%;
+}
+
+.portal-atmosphere--frost::after {
+  background:
+    linear-gradient(
+      115deg,
+      rgba(247, 242, 227, 0.55) 0%,
+      rgba(236, 232, 224, 0.42) 42%,
+      rgba(210, 210, 214, 0.38) 100%
+    );
+}
+
 .portal-atmosphere > * {
   position: relative;
   z-index: 1;
