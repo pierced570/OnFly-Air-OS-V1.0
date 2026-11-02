@@ -179,12 +179,43 @@ export function PortalShipmentMapPane(props: {
         )}
       </div>
 
-      <div className="grid gap-3 border-t border-[rgba(201,162,39,0.18)] px-4 py-3 sm:grid-cols-3">
+      <div className="grid gap-3 border-t border-[rgba(201,162,39,0.18)] px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
         <Meta
           label="Aircraft"
           value={`${tail}${view.aircraftType ? ` · ${view.aircraftType}` : ''}`}
         />
-        <Meta label="Carrier" value={view.carrierLabel} />
+        <Meta
+          label="Cargo / pax"
+          value={
+            view.cargo.payloadKind === 'pax'
+              ? view.cargo.paxCount > 0
+                ? `${view.cargo.paxCount} pax`
+                : 'Passengers'
+              : view.cargo.payloadKind === 'both'
+                ? [
+                    view.cargo.paxCount > 0
+                      ? `${view.cargo.paxCount} pax`
+                      : null,
+                    view.cargo.cargoLines[0] || 'Cargo',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                : view.cargo.cargoLines[0] ||
+                  view.cargo.summaryLine ||
+                  view.payloadSummary ||
+                  'Cargo'
+          }
+        />
+        <Meta
+          label="ETA"
+          value={
+            view.eteLabel ||
+            view.projectedDisplay ||
+            view.promisedDisplay ||
+            view.nextMilestoneLabel ||
+            '—'
+          }
+        />
         <Meta
           label="Source"
           value={
