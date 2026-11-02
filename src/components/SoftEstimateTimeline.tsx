@@ -10,11 +10,7 @@ import {
   type SoftClassQuote,
 } from '@/domain/softPricing'
 
-export function SoftEstimateTimeline(props: {
-  classes: SoftClassQuote[]
-  /** Narrow frost panel on the fast-quote result page. */
-  compact?: boolean
-}) {
+export function SoftEstimateTimeline(props: { classes: SoftClassQuote[] }) {
   const panelId = useId()
   const [open, setOpen] = useState(false)
   const stages = softFixedTimelineStages()

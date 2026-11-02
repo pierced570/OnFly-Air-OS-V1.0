@@ -181,7 +181,7 @@ export function PortalFastQuote(props: {
           })}
         </ul>
 
-        <SoftEstimateTimeline classes={pkg.classes} compact />
+        <SoftEstimateTimeline classes={pkg.classes} />
 
         <p className="text-xs leading-relaxed text-muted">{pkg.disclaimer}</p>
 
