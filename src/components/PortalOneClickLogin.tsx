@@ -25,6 +25,8 @@ export function PortalOneClickLogin(props: {
   variant?: 'cream' | 'dark' | 'glass' | 'frost'
   title?: string
   hint?: string
+  /** Extra classes on the outer glass wrap (e.g. h-full for aligned landing panels). */
+  className?: string
 }) {
   const navigate = useNavigate()
   const [email, setEmail] = useState(() => (props.email ?? '').trim().toLowerCase())
@@ -62,7 +64,7 @@ export function PortalOneClickLogin(props: {
   }
 
   const wrap = frost
-    ? 'rounded-3xl border border-white/50 bg-white/40 p-6 text-ink shadow-[0_20px_60px_rgba(12,12,14,0.12)] backdrop-blur-2xl sm:p-7'
+    ? 'flex h-full flex-col rounded-3xl border border-white/50 bg-white/40 p-6 text-ink shadow-[0_20px_60px_rgba(12,12,14,0.12)] backdrop-blur-2xl sm:p-7'
     : variant === 'dark'
       ? 'portal-glass-strong rounded-2xl p-5 text-ink sm:p-6'
       : 'portal-glass-strong rounded-2xl p-4 text-ink sm:p-5'
@@ -74,7 +76,7 @@ export function PortalOneClickLogin(props: {
     : 'w-full min-h-12 rounded-xl bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-lt disabled:opacity-50'
 
   return (
-    <div className={wrap}>
+    <div className={[wrap, props.className ?? ''].filter(Boolean).join(' ')}>
       <h2 className={frost ? 'text-2xl font-semibold tracking-tight text-ink' : 'text-lg font-semibold text-ink'}>
         {props.title ?? 'Client login'}
       </h2>
@@ -86,7 +88,7 @@ export function PortalOneClickLogin(props: {
       </p>
 
       {prefilled ? (
-        <div className="mt-6 space-y-4">
+        <div className={frost ? 'mt-6 flex flex-1 flex-col justify-end space-y-4' : 'mt-6 space-y-4'}>
           <p className={frost ? 'border-b border-ink/25 py-2.5 text-sm font-medium text-ink' : 'portal-glass-input rounded-xl px-3 py-2.5 text-sm font-medium text-ink'}>
             {email}
           </p>
@@ -102,7 +104,12 @@ export function PortalOneClickLogin(props: {
           </button>
         </div>
       ) : (
-        <form onSubmit={onSubmit} className={frost ? 'mt-6 space-y-5' : 'mt-4 space-y-3'}>
+        <form
+          onSubmit={onSubmit}
+          className={
+            frost ? 'mt-6 flex flex-1 flex-col justify-end space-y-5' : 'mt-4 space-y-3'
+          }
+        >
           <label className={frost ? 'block text-[11px] font-medium uppercase tracking-[0.14em] text-ink/45' : 'block text-xs font-medium text-muted'}>
             Work email
             <input

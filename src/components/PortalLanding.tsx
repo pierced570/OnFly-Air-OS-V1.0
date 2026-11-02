@@ -115,22 +115,33 @@ export function PortalLanding(props?: {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 pb-16 pt-3 sm:px-8 sm:pt-6">
-        <div className="grid items-start gap-5 lg:grid-cols-2 lg:items-center lg:gap-7">
-          {/* Left — frosted client login */}
-          <section className="flex flex-col justify-center space-y-4">
-            <div className="px-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink/45">
-                {company ? 'Company portal' : 'Client portal'}
-              </p>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-[1.85rem] sm:leading-snug">
-                {company
-                  ? company
-                  : 'Your freight, in the air and on the screen.'}
-              </h1>
-            </div>
+        {/*
+          Shared header row + equal-height frost panels on lg:
+          eyebrows sit above both glass boxes so tops/bottoms line up.
+        */}
+        <div className="grid gap-x-5 gap-y-3 sm:gap-x-7 lg:grid-cols-2 lg:items-stretch">
+          <div className="flex flex-col justify-end px-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink/45">
+              {company ? 'Company portal' : 'Client portal'}
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-[1.85rem] sm:leading-snug">
+              {company
+                ? company
+                : 'Your freight, in the air and on the screen.'}
+            </h1>
+          </div>
 
+          <div className="hidden flex-col justify-end px-1 lg:flex">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45">
+              No account needed
+            </h2>
+          </div>
+
+          {/* Left — frosted client login */}
+          <section className="flex h-full min-h-0 flex-col">
             <PortalOneClickLogin
               variant="frost"
+              className="h-full flex-1"
               onSignedIn={props?.onSignedIn}
               nextHref={props?.nextHref ?? undefined}
               expectedClientId={props?.expectedClientId}
@@ -139,12 +150,12 @@ export function PortalLanding(props?: {
             />
           </section>
 
-          {/* Right — glass-gray stacked options (hug content, larger hits) */}
-          <section className="flex h-fit flex-col rounded-3xl border border-white/40 bg-white/25 p-4 shadow-[0_20px_60px_rgba(12,12,14,0.1)] backdrop-blur-2xl sm:p-5">
-            <h2 className="mb-3 px-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45">
+          {/* Right — glass-gray stacked options (fills panel height) */}
+          <section className="flex h-full min-h-0 flex-col rounded-3xl border border-white/40 bg-white/25 p-4 shadow-[0_20px_60px_rgba(12,12,14,0.1)] backdrop-blur-2xl sm:p-5">
+            <h2 className="mb-3 px-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45 lg:hidden">
               No account needed
             </h2>
-            <PortalQuickActions stacked />
+            <PortalQuickActions stacked className="min-h-0 flex-1" />
           </section>
         </div>
 
