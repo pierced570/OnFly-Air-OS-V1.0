@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   SOFT_HOME_EXTRA_HOURS,
+  SOFT_LOAD_FUEL_HOURS,
+  SOFT_PILOT_CALLOUT_HOURS,
+  SOFT_POSITION_HOURS,
   SOFT_PRICING_DISCLAIMER,
   SOFT_REPO_HOURS,
   buildSoftLegTiming,
@@ -11,6 +14,7 @@ import {
   flightMinutesFromNmGs,
   roughDoorOpeningLabel,
   roughPayloadLabel,
+  softFixedTimelineStages,
   verticalToSoftClass,
   mockSoftPricingGuidelines,
 } from '@/domain/softPricing'
@@ -53,13 +57,33 @@ describe('softPricing', () => {
     )
   })
 
-  it('builds timing: 2.5hr repo, live=nm/gs, return=live+1hr', () => {
+  it('builds timing: 2hr call-out + 1hr position + 1hr load/fuel, live=nm/gs, return=live+1hr', () => {
     const t = buildSoftLegTiming(270, 270)
+    expect(t.callout_min).toBe(Math.round(SOFT_PILOT_CALLOUT_HOURS * 60))
+    expect(t.position_min).toBe(Math.round(SOFT_POSITION_HOURS * 60))
+    expect(t.load_fuel_min).toBe(Math.round(SOFT_LOAD_FUEL_HOURS * 60))
     expect(t.repo_min).toBe(Math.round(SOFT_REPO_HOURS * 60))
+    expect(t.repo_min).toBe(t.callout_min + t.position_min + t.load_fuel_min)
     expect(t.live_min).toBe(60)
     expect(t.home_min).toBe(60 + Math.round(SOFT_HOME_EXTRA_HOURS * 60))
-    expect(destinationFromGoMinutes(t)).toBe(t.repo_min + t.live_min)
+    expect(destinationFromGoMinutes(t)).toBe(
+      t.callout_min + t.position_min + t.load_fuel_min + t.live_min,
+    )
     expect(flightMinutesFromNmGs(360, 130)).toBe(166)
+  })
+
+  it('exposes fixed timeline stages for the expandable UI', () => {
+    const stages = softFixedTimelineStages()
+    expect(stages.map((s) => s.key)).toEqual([
+      'callout',
+      'position',
+      'load_fuel',
+      'flight',
+    ])
+    expect(stages[0]!.minutes).toBe(120)
+    expect(stages[1]!.minutes).toBe(60)
+    expect(stages[2]!.minutes).toBe(60)
+    expect(stages[3]!.minutes).toBeNull()
   })
 
   it('fits door with ~2 in spare on two smallest sides', () => {
@@ -104,7 +128,10 @@ describe('softPricing', () => {
     expect(tp.fit.fit).toBe('fits')
     expect(tp.price_low).toBeGreaterThan(0)
     expect(tp.price_high).toBeGreaterThan(tp.price_low)
-    expect(tp.timing.repo_min).toBe(150)
+    expect(tp.timing.repo_min).toBe(240)
+    expect(tp.timing.callout_min).toBe(120)
+    expect(tp.timing.position_min).toBe(60)
+    expect(tp.timing.load_fuel_min).toBe(60)
 
     const se = pkg.classes.find((c) => c.class_id === 'single_engine')!
     expect(se.fit.fit).toBe('no_fit')
