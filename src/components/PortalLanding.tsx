@@ -1,17 +1,18 @@
 /**
- * Public ofaops home — glass client gate.
- * One composition: brand + headline + even Estimate / Book / Call, then login.
- * Quiet Staff login → scratchpad → desk app.
+ * Public ofaops home — clean single composition.
+ * Large brand → Falcon band → headline → even Estimate / Book / Call → login.
+ * Staff login is a quiet footer link (desk gate is separate).
  */
 
 import { Link } from 'react-router-dom'
 import {
   BRAND_FALCON_CARGO_DETAIL_PATH,
-  BRAND_LOGO_PATH,
+  BRAND_LOGO_LIGHT_PATH,
   BRAND_PHONE,
   BRAND_PHONE_E164,
+  BRAND_TAGLINE,
 } from '@/domain/brand'
-import { PortalAtmosphere, PortalGlassPanel } from '@/components/PortalGlass'
+import { PortalAtmosphere } from '@/components/PortalGlass'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { PortalQuickActions } from '@/components/PortalQuickActions'
@@ -19,18 +20,11 @@ import type { PortalSession } from '@/domain/portalAuth'
 
 export function PortalLanding(props?: {
   onSignedIn?: (session: PortalSession) => void
-  /** Login-only page (quiet secondary). Default = full gate. */
   loginFocus?: boolean
-  /** Company portal — show company name + lock login to that client. */
   companyName?: string | null
   companyDomains?: string[] | null
   expectedClientId?: string | null
-  /** After sign-in (from ?next=). */
   nextHref?: string | null
-  /**
-   * Optional magic-link resume — keep the landing as home; don't dump
-   * guests into a cream "inside portal" screen.
-   */
   continueTrackHref?: string | null
 }) {
   const company = (props?.companyName ?? '').trim()
@@ -40,39 +34,36 @@ export function PortalLanding(props?: {
   const domainHint =
     domains.length > 0
       ? `Use your @${domains[0]} work email — opens ${company || 'this company'} instantly. No password.`
-      : 'Just your work email on file at the desk — opens your company portal. No password.'
+      : 'Work email on file at the desk — opens your company portal. No password.'
 
   if (props?.loginFocus) {
     return (
       <PortalAtmosphere className="portal-atmosphere--landing" detail>
-        <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
-          <Link to="/" className="portal-glass-ink rounded-2xl px-3 py-2">
+        <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-6 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
+          <Link to="/">
             <img
-              src={BRAND_LOGO_PATH}
+              src={BRAND_LOGO_LIGHT_PATH}
               alt="OnFly Air"
-              className="h-8 w-auto max-w-[160px] object-contain"
+              className="h-11 w-auto max-w-[220px] object-contain object-left sm:h-12"
             />
           </Link>
           <a
             href={`tel:${BRAND_PHONE_E164}`}
-            className="portal-glass rounded-full px-3 py-2 text-[11px] font-semibold text-gold"
+            className="avionic text-sm font-semibold text-ink"
           >
             {BRAND_PHONE}
           </a>
         </header>
-        <main className="mx-auto max-w-lg space-y-4 px-4 pb-16 sm:px-8">
+        <main className="mx-auto max-w-lg space-y-5 px-4 pb-16 sm:px-8">
           {company ? (
-            <PortalGlassPanel strong className="px-5 py-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
                 Company portal
               </p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">
                 {company}
               </h1>
-              <p className="mt-2 text-sm text-muted">
-                Open trips, tracking, quotes, and history for this company.
-              </p>
-            </PortalGlassPanel>
+            </div>
           ) : null}
           <PortalOneClickLogin
             variant="glass"
@@ -86,12 +77,12 @@ export function PortalLanding(props?: {
                 : 'Enter your work email — we open the right company portal.'
             }
           />
-          <PortalQuickActions compact className="pt-1" />
-          <div className="pt-1 text-center text-sm">
-            <Link to="/" className="text-ink/55 hover:text-gold">
+          <PortalQuickActions compact />
+          <p className="text-center text-sm">
+            <Link to="/" className="font-semibold text-ink hover:text-gold">
               ← Back home
             </Link>
-          </div>
+          </p>
         </main>
       </PortalAtmosphere>
     )
@@ -103,82 +94,112 @@ export function PortalLanding(props?: {
         <PortalInstallBanner variant="glass" density="banner" />
       </div>
 
-      <header className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-5 sm:px-8">
-        <div className="portal-glass-ink rounded-2xl px-3 py-2.5">
+      {/* Brand-first header — large light wordmark, quiet utilities */}
+      <header className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-6 sm:px-8">
+        <div className="min-w-0">
           <img
-            src={BRAND_LOGO_PATH}
+            src={BRAND_LOGO_LIGHT_PATH}
             alt="OnFly Air"
-            className="h-8 w-auto max-w-[160px] object-contain"
+            className="h-12 w-auto max-w-[min(100%,280px)] object-contain object-left sm:h-14"
           />
+          <p className="mt-1.5 hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-muted sm:block">
+            {BRAND_TAGLINE}
+          </p>
         </div>
-        <Link
-          to="/login?next=/scratch"
-          className="inline-flex min-h-11 items-center rounded-full border border-ink/15 bg-ink/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-cream backdrop-blur hover:border-gold/40"
-        >
-          Staff login
-        </Link>
+        <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="avionic text-sm font-semibold text-ink hover:text-gold"
+          >
+            {BRAND_PHONE}
+          </a>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+            24-hr ops
+          </span>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-8 px-4 pb-16 pt-1 sm:px-8">
-        {/* Full-bleed visual + copy underneath (no overlays on the image) */}
-        <section>
-          <img
-            src={BRAND_FALCON_CARGO_DETAIL_PATH}
-            alt="Loading cargo into an OnFly Falcon aircraft"
-            className="h-48 w-full rounded-2xl object-cover sm:h-56 lg:h-64"
-          />
-          <div className="mt-5 max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
-              {company ? 'Company portal' : 'OnFly Air'}
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-              {company
-                ? company
-                : 'Your freight, in the air and on the screen.'}
-            </h1>
-            <p className="mt-3 text-sm leading-relaxed text-muted sm:text-base">
-              {company
-                ? 'Estimate, book, or call — then sign in with your work email for live trips.'
-                : 'Fast rough estimate, full booking form, or call ops. Sign in for live shipments.'}
-            </p>
-          </div>
+      <main className="mx-auto max-w-4xl space-y-8 px-4 pb-20 sm:px-8">
+        {/* Visual band — product photo, not a stacked card column */}
+        <img
+          src={BRAND_FALCON_CARGO_DETAIL_PATH}
+          alt="Loading cargo into an OnFly Falcon aircraft"
+          className="h-52 w-full rounded-3xl object-cover shadow-[0_20px_50px_rgba(12,12,14,0.18)] sm:h-64"
+        />
+
+        <section className="max-w-2xl">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
+            {company ? 'Company portal' : 'Client portal'}
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-[2.5rem] sm:leading-tight">
+            {company
+              ? company
+              : 'Your freight, in the air and on the screen.'}
+          </h1>
+          <p className="mt-3 max-w-xl text-base leading-relaxed text-muted">
+            {company
+              ? 'Get a rough estimate, send a booking request, or call ops — then sign in for live trips.'
+              : 'Rough estimate in seconds, full booking form when you are ready, or call the desk. Sign in for live shipments.'}
+          </p>
         </section>
 
         {props?.continueTrackHref ? (
           <Link
             to={props.continueTrackHref}
-            className="portal-glass flex min-h-14 items-center justify-between gap-4 rounded-2xl px-5 py-4 text-ink transition hover:border-gold/50"
+            className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-ink/15 bg-[#FFFDFA] px-5 py-4 text-ink transition hover:border-ink/35"
           >
             <div>
               <div className="text-sm font-semibold">
                 Continue tracking your shipment
               </div>
               <p className="mt-0.5 text-xs text-muted">
-                Opens the trip from your last tracking link — still no account.
+                From your last tracking link — no account needed.
               </p>
             </div>
-            <span className="text-xl font-light text-gold" aria-hidden>
+            <span className="text-lg font-semibold text-ink" aria-hidden>
               →
             </span>
           </Link>
         ) : null}
 
-        <PortalQuickActions />
+        {/* One even action row — ink / gold / black, all readable */}
+        <section className="space-y-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+            How do you want to start?
+          </h2>
+          <PortalQuickActions />
+        </section>
 
-        <section>
+        {/* Login — same width rhythm, clear ink heading */}
+        <section className="space-y-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+            Returning client
+          </h2>
           <PortalOneClickLogin
             variant="glass"
             onSignedIn={props?.onSignedIn}
             nextHref={props?.nextHref ?? undefined}
             expectedClientId={props?.expectedClientId}
-            title={company ? `Client login · ${company}` : 'Client login'}
+            title={company ? `Sign in · ${company}` : 'Sign in with work email'}
             hint={
               company
                 ? domainHint
-                : 'Work email on file — opens live tracking, past trips, and booking. No password.'
+                : 'No password. Opens live tracking, past trips, and booking.'
             }
           />
         </section>
+
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-6 text-xs text-muted">
+          <a href="https://onflyair.com" className="hover:text-ink">
+            onflyair.com
+          </a>
+          <Link
+            to="/login?next=/scratch"
+            className="font-semibold uppercase tracking-[0.12em] text-muted hover:text-ink"
+          >
+            Staff login
+          </Link>
+        </footer>
       </main>
     </PortalAtmosphere>
   )

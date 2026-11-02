@@ -60,7 +60,7 @@ export function PortalShell(props: {
               <img
                 src={BRAND_LOGO_PATH}
                 alt="OnFly Air"
-                className="h-8 w-auto max-w-[160px] object-contain"
+                className="h-9 w-auto max-w-[180px] object-contain sm:h-10"
               />
             </Link>
             <div className="flex flex-wrap items-center gap-3 text-xs">

@@ -1,6 +1,5 @@
 /**
- * Even Estimate / Book / Call strip — shared across landing, guest continue,
- * empty dashboard, and account so the portal rhythm stays consistent.
+ * Even Estimate / Book / Call strip — high-contrast ink titles (never gold-on-cream).
  */
 
 import { Link } from 'react-router-dom'
@@ -12,37 +11,33 @@ export function PortalQuickActions(props?: {
   className?: string
 }) {
   const compact = Boolean(props?.compact)
-  const tile = compact
-    ? 'flex min-h-[4.5rem] flex-col justify-between rounded-2xl px-4 py-3'
-    : 'flex min-h-[7rem] flex-col justify-between rounded-2xl px-5 py-5'
+  const pad = compact ? 'px-4 py-4' : 'px-5 py-5'
+  const title = compact ? 'text-base font-semibold' : 'text-lg font-semibold'
+  const body = 'mt-1 text-sm leading-snug'
 
   return (
     <div
-      className={['grid gap-3 sm:grid-cols-3', props?.className ?? ''].join(
-        ' ',
-      )}
+      className={[
+        'grid gap-3 sm:grid-cols-3',
+        props?.className ?? '',
+      ].join(' ')}
     >
       <Link
         to="/quote"
         className={[
-          tile,
-          'portal-glass text-ink transition hover:border-gold/55',
+          pad,
+          'flex min-h-[5.5rem] flex-col justify-between rounded-2xl border border-ink/15 bg-[#FFFDFA] text-ink shadow-[0_8px_28px_rgba(12,12,14,0.06)] transition hover:border-ink/35',
         ].join(' ')}
       >
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
-            Rough estimate
-          </div>
-          <div className={compact ? 'mt-1 text-sm font-semibold' : 'mt-2 text-lg font-semibold'}>
-            One fast page
-          </div>
-          {!compact ? (
-            <p className="mt-1 text-sm text-muted">
-              Airports in, ballpark out — then call or book.
-            </p>
-          ) : null}
+          <div className={title}>Rough estimate</div>
+          <p className={[body, 'text-muted'].join(' ')}>
+            {compact
+              ? 'One page · ballpark in seconds'
+              : 'One fast page — airports in, ballpark out.'}
+          </p>
         </div>
-        <span className="mt-2 text-sm font-semibold text-gold">
+        <span className="mt-3 text-sm font-semibold text-ink">
           Get estimate →
         </span>
       </Link>
@@ -50,52 +45,37 @@ export function PortalQuickActions(props?: {
       <Link
         to="/book"
         className={[
-          tile,
-          'bg-gold text-ink shadow-[0_12px_40px_rgba(201,162,39,0.35)] transition hover:bg-gold-lt',
+          pad,
+          'flex min-h-[5.5rem] flex-col justify-between rounded-2xl bg-gold text-ink shadow-[0_12px_36px_rgba(201,162,39,0.32)] transition hover:bg-gold-lt',
         ].join(' ')}
       >
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink/70">
-            Book a trip
-          </div>
-          <div className={compact ? 'mt-1 text-sm font-semibold' : 'mt-2 text-lg font-semibold'}>
-            Traditional form
-          </div>
-          {!compact ? (
-            <p className="mt-1 text-sm text-ink/75">
-              Dims, timing, contacts — hard quote in 10–15 min.
-            </p>
-          ) : null}
+          <div className={title}>Book a trip</div>
+          <p className={[body, 'text-ink/75'].join(' ')}>
+            {compact
+              ? 'Full form · hard quote in 10–15 min'
+              : 'Traditional form — dims, timing, contacts.'}
+          </p>
         </div>
-        <span className="mt-2 text-sm font-semibold">Start booking →</span>
+        <span className="mt-3 text-sm font-semibold">Start booking →</span>
       </Link>
 
       <a
         href={`tel:${BRAND_PHONE_E164}`}
         className={[
-          tile,
-          'portal-glass-ink text-cream transition hover:border-gold/40',
+          pad,
+          'flex min-h-[5.5rem] flex-col justify-between rounded-2xl bg-[#0C0C0E] text-cream transition hover:bg-[#1a1a1c]',
         ].join(' ')}
       >
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
-            Call ops
-          </div>
-          <div
-            className={[
-              compact ? 'mt-1 text-sm font-semibold' : 'mt-2 text-lg font-semibold',
-              'text-cream',
-            ].join(' ')}
-          >
-            Talk to a person
-          </div>
-          {!compact ? (
-            <p className="mt-1 text-sm text-cream/55">
-              Dispatchers always on call.
-            </p>
-          ) : null}
+          <div className={title}>Call ops</div>
+          <p className={[body, 'text-cream/65'].join(' ')}>
+            {compact
+              ? `24-hr desk · ${BRAND_PHONE}`
+              : 'Dispatchers always on call — talk to a person.'}
+          </p>
         </div>
-        <span className="avionic mt-2 text-sm font-semibold text-gold">
+        <span className="avionic mt-3 text-sm font-semibold text-gold">
           {BRAND_PHONE} →
         </span>
       </a>
