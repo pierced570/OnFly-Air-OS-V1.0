@@ -47,20 +47,18 @@ export function PortalStopPicker({
   const dark = tone === 'dark'
   const input = dark
     ? 'mt-1 w-full rounded-md border border-border bg-ink px-3 py-2 text-sm text-cream outline-none focus:border-gold'
-    : 'mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-ink outline-none focus:border-gold'
+    : 'portal-glass-input mt-1 w-full rounded-xl px-3 py-2 text-sm text-ink outline-none'
   const labelCls = dark
     ? 'block text-xs font-medium uppercase tracking-wider text-muted'
     : 'block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted'
   const chip = (on: boolean) =>
     [
-      'rounded-md px-2.5 py-1.5 text-xs font-medium',
+      'rounded-xl px-2.5 py-1.5 text-xs font-medium',
       on
-        ? dark
-          ? 'bg-gold text-ink'
-          : 'bg-gold text-ink'
+        ? 'bg-gold text-ink'
         : dark
           ? 'bg-surface-2 text-muted hover:text-cream'
-          : 'bg-[#F7F2E3] text-muted hover:text-ink',
+          : 'portal-glass-row text-muted hover:text-ink',
     ].join(' ')
 
   function setKind(kind: PortalStopKind) {

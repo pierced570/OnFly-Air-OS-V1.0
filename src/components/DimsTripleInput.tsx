@@ -7,8 +7,10 @@ import {
   type DimsTripleRow,
 } from '@/domain/dimsParser'
 
-const box =
+const deskBox =
   'min-h-11 w-full rounded-md border border-border bg-surface-2 px-2 py-2.5 text-center avionic text-sm text-[var(--text)] outline-none focus:border-gold sm:min-h-0 sm:py-2'
+const portalBox =
+  'portal-glass-input min-h-11 w-full rounded-xl px-2 py-2.5 text-center avionic text-sm text-ink outline-none sm:min-h-0 sm:py-2'
 
 const xSep =
   'shrink-0 px-1 text-lg font-semibold text-gold select-none sm:px-1.5'
@@ -21,6 +23,8 @@ type Props = {
   className?: string
   /** Show qty + weight helpers around the L×W×H triple. */
   showQtyWeight?: boolean
+  /** Client portal glass inputs vs desk surface. */
+  tone?: 'portal' | 'desk'
   /** Override dim/weight placeholders (desk standard cargo uses 12 / 75). */
   placeholders?: {
     l?: string
@@ -52,9 +56,11 @@ export function DimsTripleInput({
   unit,
   className = '',
   showQtyWeight = true,
+  tone = 'desk',
   placeholders,
 }: Props) {
   const [rows, setRows] = useState<DimsTripleRow[]>(() => parseDimsLines(value))
+  const box = tone === 'portal' ? portalBox : deskBox
   const phL = placeholders?.l ?? (unit === 'ft' ? '4' : '48')
   const phW = placeholders?.w ?? (unit === 'ft' ? '3.5' : '40')
   const phH = placeholders?.h ?? (unit === 'ft' ? '5' : '60')
@@ -127,7 +133,11 @@ export function DimsTripleInput({
         {rows.map((row, index) => (
           <div
             key={index}
-            className="space-y-1.5 rounded-lg border border-border/60 bg-surface-2/30 p-2.5 sm:p-3"
+            className={
+              tone === 'portal'
+                ? 'space-y-1.5 portal-glass rounded-xl p-2.5 sm:p-3'
+                : 'space-y-1.5 rounded-lg border border-border/60 bg-surface-2/30 p-2.5 sm:p-3'
+            }
           >
             <div className="flex items-center justify-between gap-2">
               <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gold">

@@ -305,7 +305,7 @@ export function PortalAircraftMap({
       ref={containerRef}
       className={
         className ??
-        'h-48 w-full overflow-hidden rounded-md border border-[#ddd6c4] bg-[#141414] sm:h-56'
+        'h-48 w-full overflow-hidden rounded-2xl border border-cream/10 bg-[#141414] sm:h-56'
       }
     />
   )

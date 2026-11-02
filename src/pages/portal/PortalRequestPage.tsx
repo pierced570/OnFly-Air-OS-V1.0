@@ -338,7 +338,7 @@ export default function PortalRequestPage() {
               <button
                 type="button"
                 onClick={editTripRequest}
-                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-border bg-white px-4 text-sm font-semibold text-ink hover:border-gold/40"
+                className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
               >
                 Back to request page
               </button>
