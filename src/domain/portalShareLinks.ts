@@ -143,7 +143,7 @@ export function portalSharePath(
     case 'book':
       return wrap('/portal/request?mode=book')
     case 'quote':
-      return wrap('/portal/request?mode=quote')
+      return wrap('/quote')
     case 'history':
       return wrap('/portal/history')
     case 'account':

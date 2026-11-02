@@ -109,13 +109,19 @@ export function PortalShipmentsDashboard(props: {
             Select a trip in the sidebar — map pins light up for routes in motion.
           </p>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-          <span className="avionic text-[11px] text-muted">{props.nowLabel}</span>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <span className="avionic mr-1 text-[11px] text-muted">{props.nowLabel}</span>
+          <Link
+            to="/quote"
+            className="portal-glass-row inline-flex min-h-12 flex-1 items-center justify-center rounded-xl px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink sm:flex-none"
+          >
+            Rough estimate
+          </Link>
           <Link
             to="/portal/request?mode=book"
             className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-gold px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)] hover:bg-gold-lt sm:flex-none"
           >
-            Request a trip
+            Book a trip
           </Link>
         </div>
       </div>
@@ -125,11 +131,24 @@ export function PortalShipmentsDashboard(props: {
           strong
           className="border-dashed px-6 py-8 text-sm text-muted"
         >
-          After booking you&apos;ll see live and past trips here — map pins light
-          up for anything currently out.{' '}
-          <Link to="/portal/request?mode=book" className="font-semibold text-gold">
-            Request a trip
-          </Link>
+          <p>
+            After booking you&apos;ll see live and past trips here — map pins
+            light up for anything currently out.
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Link
+              to="/quote"
+              className="portal-glass-row inline-flex min-h-11 items-center justify-center rounded-xl text-xs font-semibold uppercase tracking-[0.12em] text-ink"
+            >
+              Rough estimate
+            </Link>
+            <Link
+              to="/portal/request?mode=book"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-gold text-xs font-semibold uppercase tracking-[0.12em] text-ink hover:bg-gold-lt"
+            >
+              Book a trip
+            </Link>
+          </div>
         </PortalGlassPanel>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:items-start">
@@ -172,12 +191,18 @@ export function PortalShipmentsDashboard(props: {
               />
             </div>
 
-            <div className="border-t border-[rgba(201,162,39,0.18)] p-3">
+            <div className="grid grid-cols-2 gap-2 border-t border-[rgba(201,162,39,0.18)] p-3">
               <Link
-                to="/portal/request?mode=quote"
-                className="portal-glass-row flex min-h-11 items-center justify-center rounded-xl text-xs font-semibold uppercase tracking-[0.12em] text-ink"
+                to="/quote"
+                className="portal-glass-row flex min-h-11 items-center justify-center rounded-xl text-[10px] font-semibold uppercase tracking-[0.1em] text-ink"
               >
-                Rough estimate
+                Estimate
+              </Link>
+              <Link
+                to="/portal/request?mode=book"
+                className="flex min-h-11 items-center justify-center rounded-xl bg-gold text-[10px] font-semibold uppercase tracking-[0.1em] text-ink hover:bg-gold-lt"
+              >
+                Book
               </Link>
             </div>
           </aside>

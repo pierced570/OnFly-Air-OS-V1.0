@@ -239,10 +239,7 @@ export default function PortalHomePage() {
       >
         Book
       </Link>
-      <Link
-        to="/portal/request?mode=quote"
-        className="text-gold hover:text-gold-lt"
-      >
+      <Link to="/quote" className="text-gold hover:text-gold-lt">
         Rough quote
       </Link>
     </>
@@ -287,22 +284,6 @@ export default function PortalHomePage() {
 
       {signedIn ? (
         <section className="space-y-5">
-          <PortalShipmentsDashboard
-            shipments={liveCards.map((t) => ({
-              id: t.id,
-              ref: t.ref,
-              state: t.state,
-              lane: t.lane,
-              ready_label: t.ready_label,
-              payload_summary: t.payload_summary,
-              trackHref: t.trackHref,
-              nextLabel: t.nextLabel,
-              phase: t.phase,
-            }))}
-            summaryLine={summaryLine}
-            nowLabel={nowLabel}
-          />
-
           {client ? (
             <div className="portal-glass flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 text-xs text-muted">
               <span>
@@ -327,15 +308,39 @@ export default function PortalHomePage() {
             </div>
           ) : null}
 
+          <PortalShipmentsDashboard
+            shipments={liveCards.map((t) => ({
+              id: t.id,
+              ref: t.ref,
+              state: t.state,
+              lane: t.lane,
+              ready_label: t.ready_label,
+              payload_summary: t.payload_summary,
+              trackHref: t.trackHref,
+              nextLabel: t.nextLabel,
+              phase: t.phase,
+            }))}
+            summaryLine={summaryLine}
+            nowLabel={nowLabel}
+          />
+
           {openRequestCards.length > 0 ? (
             <div className="portal-glass space-y-3 rounded-2xl px-4 py-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
                   Open quotes &amp; requests
                 </h2>
-                <Link to="/portal/request?mode=quote" className="text-xs text-gold">
-                  New rough quote
-                </Link>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <Link to="/quote" className="font-semibold text-gold">
+                    New estimate
+                  </Link>
+                  <Link
+                    to="/portal/request?mode=book"
+                    className="text-muted hover:text-ink"
+                  >
+                    Book
+                  </Link>
+                </div>
               </div>
               <ul className="space-y-2">
                 {openRequestCards.map((r) => (
@@ -362,11 +367,17 @@ export default function PortalHomePage() {
             </div>
           ) : null}
 
-          <div className="flex flex-wrap gap-3 text-xs">
-            <Link to="/portal/history" className="font-semibold text-gold">
-              Prior trips, POs &amp; invoices →
+          <div className="grid gap-2 text-xs sm:grid-cols-2">
+            <Link
+              to="/portal/history"
+              className="portal-glass-row inline-flex min-h-11 items-center justify-center rounded-xl font-semibold text-ink"
+            >
+              Prior trips, POs &amp; invoices
             </Link>
-            <Link to="/portal/account" className="text-muted hover:text-ink">
+            <Link
+              to="/portal/account"
+              className="portal-glass-row inline-flex min-h-11 items-center justify-center rounded-xl text-muted hover:text-ink"
+            >
               Account
             </Link>
           </div>

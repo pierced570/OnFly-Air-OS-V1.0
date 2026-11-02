@@ -276,7 +276,7 @@ export function PortalTripTrackPage() {
             Request another trip
           </Link>
           <Link
-            to="/portal/request?mode=quote"
+            to="/quote"
             className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
           >
             Get a rough estimate

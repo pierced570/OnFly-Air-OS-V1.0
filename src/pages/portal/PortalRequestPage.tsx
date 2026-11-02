@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import {
+  clearFastQuoteDraft,
+  readFastQuoteDraft,
+} from '@/components/PortalFastQuote'
 import { PortalAppNav } from '@/components/PortalAppNav'
 import { PortalAtmosphere } from '@/components/PortalGlass'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
@@ -74,6 +78,7 @@ export default function PortalRequestPage() {
   const entryMode: 'quote' | 'book' =
     searchParams.get('mode') === 'book' ? 'book' : 'quote'
   const restoreId = searchParams.get('requestId')?.trim() || null
+  const fromFastQuote = searchParams.get('from') === 'fast-quote'
   const [done, setDone] = useState<TripRequestRecord | null>(null)
   const [intent, setIntent] = useState<PortalSubmitIntent | null>(null)
   const [softPackage, setSoftPackage] =
@@ -97,7 +102,7 @@ export default function PortalRequestPage() {
   const client = onboardClient ?? sessionClient
   const companyHello = portalRequestHelloLabel(client?.name)
   const loginNext = encodeURIComponent(
-    `/portal/request${entryMode === 'book' ? '?mode=book' : '?mode=quote'}`,
+    entryMode === 'book' ? '/portal/request?mode=book' : '/quote',
   )
 
   useEffect(() => {
@@ -130,6 +135,25 @@ export default function PortalRequestPage() {
 
   const initial = useMemo(() => {
     if (editDraft) return editDraft
+    const fast = fromFastQuote ? readFastQuoteDraft() : null
+    if (fast) {
+      clearFastQuoteDraft()
+      if (client) {
+        return {
+          ...fast,
+          email:
+            fast.email ||
+            client.email ||
+            client.contacts.find((c) => c.role === 'requester')?.email ||
+            '',
+          client_id: client.id,
+          client_name: client.name,
+          urgent_phone:
+            fast.urgent_phone || client.profile.front_desk_phone || '',
+        }
+      }
+      return fast
+    }
     const base = emptyTripRequestDraft()
     if (!client) return base
     const lane = client.profile.frequent_lanes?.[0]
@@ -157,7 +181,12 @@ export default function PortalRequestPage() {
             client.rules.hazmat_notes),
       ),
     }
-  }, [client, editDraft])
+  }, [client, editDraft, fromFastQuote])
+
+  /** Fresh rough estimates live on /quote — history restore stays here. */
+  if (entryMode === 'quote' && !restoreId && !done && !estimating && !softPackage) {
+    return <Navigate to="/quote" replace />
+  }
 
   function editTripRequest() {
     if (done) {

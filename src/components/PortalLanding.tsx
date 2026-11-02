@@ -1,6 +1,6 @@
 /**
  * Public ofaops home — glass client gate.
- * Client login (work email) + rough estimate / book / call.
+ * Even layout: brand hero → equal Estimate / Book / Call → client login.
  * Quiet Staff login → scratchpad → desk app.
  */
 
@@ -18,7 +18,7 @@ import type { PortalSession } from '@/domain/portalAuth'
 
 export function PortalLanding(props?: {
   onSignedIn?: (session: PortalSession) => void
-  /** Login-only page (quiet secondary). Default = full two-column gate. */
+  /** Login-only page (quiet secondary). Default = full gate. */
   loginFocus?: boolean
   /** Company portal — show company name + lock login to that client. */
   companyName?: string | null
@@ -110,7 +110,7 @@ export function PortalLanding(props?: {
         <PortalInstallBanner variant="glass" density="banner" />
       </div>
 
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-8">
+      <header className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-5 sm:px-8">
         <div className="portal-glass-ink rounded-2xl px-3 py-2.5">
           <img
             src={BRAND_LOGO_PATH}
@@ -136,38 +136,114 @@ export function PortalLanding(props?: {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl items-start gap-8 px-4 pb-16 pt-2 sm:px-8 lg:grid-cols-2 lg:gap-10 lg:pt-4">
-        <section className="space-y-5">
-          <PortalGlassPanel strong className="overflow-hidden p-0">
-            <div className="relative">
-              <img
-                src={BRAND_FALCON_CARGO_DETAIL_PATH}
-                alt="Loading cargo into an OnFly Falcon aircraft"
-                className="h-44 w-full object-cover sm:h-52"
-              />
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0C0E]/55 via-transparent to-transparent" />
-              <div className="absolute bottom-3 left-4 right-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
-                  {company ? 'Company portal' : 'OnFly Air · Client portal'}
-                </p>
-              </div>
-            </div>
-            <div className="px-5 py-5 sm:px-6">
-              <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+      <main className="mx-auto max-w-5xl space-y-6 px-4 pb-16 pt-1 sm:px-8 sm:space-y-8">
+        {/* One composition: brand + headline over Falcon */}
+        <PortalGlassPanel strong className="overflow-hidden p-0">
+          <div className="relative">
+            <img
+              src={BRAND_FALCON_CARGO_DETAIL_PATH}
+              alt="Loading cargo into an OnFly Falcon aircraft"
+              className="h-48 w-full object-cover sm:h-56 lg:h-64"
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0C0E]/75 via-[#0C0C0E]/25 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 px-5 pb-5 pt-16 sm:px-8 sm:pb-7">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
+                {company ? 'Company portal' : 'OnFly Air · Client portal'}
+              </p>
+              <h1 className="mt-2 max-w-xl text-3xl font-semibold tracking-tight text-cream sm:text-4xl">
                 {company
                   ? company
                   : 'Your freight, in the air and on the screen.'}
               </h1>
-              <p className="mt-3 max-w-md text-sm leading-relaxed text-muted sm:text-base">
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-cream/75 sm:text-base">
                 {company
-                  ? 'Log in with your work email, request a trip, or get a rough estimate — quotes typically come back in 10–15 minutes.'
-                  : 'Client login with your work email for live shipments — or book and estimate with no account. Quotes typically come back in 10–15 minutes.'}
+                  ? 'Estimate, book, or call — then sign in with your work email for live trips.'
+                  : 'Fast rough estimate, full booking form, or call ops. Sign in for live shipments.'}
               </p>
             </div>
-          </PortalGlassPanel>
-        </section>
+          </div>
+        </PortalGlassPanel>
 
-        <section className="space-y-4">
+        {props?.continueTrackHref ? (
+          <Link
+            to={props.continueTrackHref}
+            className="portal-glass flex min-h-14 items-center justify-between gap-4 rounded-2xl px-5 py-4 text-ink transition hover:border-gold/50"
+          >
+            <div>
+              <div className="text-sm font-semibold">
+                Continue tracking your shipment
+              </div>
+              <p className="mt-0.5 text-xs text-muted">
+                Opens the trip from your last tracking link — still no account.
+              </p>
+            </div>
+            <span className="text-xl font-light text-gold" aria-hidden>
+              →
+            </span>
+          </Link>
+        ) : null}
+
+        {/* Even primary actions */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Link
+            to="/quote"
+            className="portal-glass flex min-h-[7.5rem] flex-col justify-between rounded-2xl px-5 py-5 text-ink transition hover:border-gold/55"
+          >
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
+                Rough estimate
+              </div>
+              <div className="mt-2 text-lg font-semibold">One fast page</div>
+              <p className="mt-1 text-sm text-muted">
+                Airports in, ballpark out — then call or book.
+              </p>
+            </div>
+            <span className="mt-3 text-sm font-semibold text-gold">
+              Get estimate →
+            </span>
+          </Link>
+
+          <Link
+            to="/book"
+            className="flex min-h-[7.5rem] flex-col justify-between rounded-2xl bg-gold px-5 py-5 text-ink shadow-[0_12px_40px_rgba(201,162,39,0.35)] transition hover:bg-gold-lt"
+          >
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink/70">
+                Book a trip
+              </div>
+              <div className="mt-2 text-lg font-semibold">
+                Traditional form
+              </div>
+              <p className="mt-1 text-sm text-ink/75">
+                Dims, timing, contacts — hard quote in 10–15 min.
+              </p>
+            </div>
+            <span className="mt-3 text-sm font-semibold">Start booking →</span>
+          </Link>
+
+          <a
+            href={`tel:${BRAND_PHONE_E164}`}
+            className="portal-glass-ink flex min-h-[7.5rem] flex-col justify-between rounded-2xl px-5 py-5 text-cream transition hover:border-gold/40"
+          >
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
+                Call ops
+              </div>
+              <div className="mt-2 text-lg font-semibold text-cream">
+                Talk to a person
+              </div>
+              <p className="mt-1 text-sm text-cream/55">
+                Dispatchers always on call.
+              </p>
+            </div>
+            <span className="avionic mt-3 text-sm font-semibold text-gold">
+              {BRAND_PHONE} →
+            </span>
+          </a>
+        </div>
+
+        {/* Client login — same width rhythm */}
+        <section>
           <PortalOneClickLogin
             variant="glass"
             onSignedIn={props?.onSignedIn}
@@ -177,77 +253,9 @@ export function PortalLanding(props?: {
             hint={
               company
                 ? domainHint
-                : 'Just enter your work email — no password. Opens live tracking, past trips, and booking.'
+                : 'Work email on file — opens live tracking, past trips, and booking. No password.'
             }
           />
-
-          {props?.continueTrackHref ? (
-            <Link
-              to={props.continueTrackHref}
-              className="portal-glass flex min-h-14 items-center justify-between gap-4 rounded-2xl px-5 py-4 text-ink transition hover:border-gold/50"
-            >
-              <div>
-                <div className="text-sm font-semibold">
-                  Continue tracking your shipment
-                </div>
-                <p className="mt-0.5 text-xs text-muted">
-                  Opens the trip from your last tracking link — still no account.
-                </p>
-              </div>
-              <span className="text-xl font-light text-gold" aria-hidden>
-                →
-              </span>
-            </Link>
-          ) : null}
-
-          <Link
-            to="/quote"
-            className="portal-glass flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl px-5 py-5 text-ink transition hover:border-gold/55"
-          >
-            <div>
-              <div className="text-lg font-semibold text-gold">
-                Request a rough estimate
-              </div>
-              <p className="mt-0.5 text-sm text-muted">
-                Soft pricing from our historical trip data — no account, no
-                commitment. Push to a hard quote if it fits.
-              </p>
-            </div>
-            <span className="text-2xl font-light text-gold" aria-hidden>
-              →
-            </span>
-          </Link>
-
-          <Link
-            to="/book"
-            className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-2xl bg-gold px-5 py-5 text-ink shadow-[0_12px_40px_rgba(201,162,39,0.35)] transition hover:bg-gold-lt"
-          >
-            <div>
-              <div className="text-lg font-semibold">Book a trip</div>
-              <p className="mt-0.5 text-sm text-ink/75">
-                No account needed — three quick steps, then we ring the desk
-                for a hard quote.
-              </p>
-            </div>
-            <span className="text-2xl font-light" aria-hidden>
-              →
-            </span>
-          </Link>
-
-          <a
-            href={`tel:${BRAND_PHONE_E164}`}
-            className="portal-glass-ink flex flex-col gap-0.5 rounded-2xl px-5 py-4 text-sm text-cream transition hover:border-gold/40"
-          >
-            <span className="font-semibold text-cream">
-              Rather talk to a real person? Call us
-            </span>
-            <span className="text-cream/55">
-              Dispatchers always on call ·{' '}
-              <span className="avionic font-semibold text-gold">
-                {BRAND_PHONE}
-              </span>
-            </span>
-          </a>
         </section>
       </main>
     </PortalAtmosphere>
