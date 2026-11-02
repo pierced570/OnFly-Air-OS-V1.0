@@ -62,8 +62,8 @@ function TabIcon({ id, active }: { id: PortalAppTab; active: boolean }) {
 }
 
 export function PortalAppNav() {
-  const { pathname } = useLocation()
-  const active = portalAppTabFromPath(pathname)
+  const { pathname, search } = useLocation()
+  const active = portalAppTabFromPath(pathname, search)
 
   return (
     <nav
@@ -96,8 +96,8 @@ export function PortalAppNav() {
 
 /** Desktop / tablet secondary nav — glass pills. */
 export function PortalAppDesktopNav() {
-  const { pathname } = useLocation()
-  const active = portalAppTabFromPath(pathname)
+  const { pathname, search } = useLocation()
+  const active = portalAppTabFromPath(pathname, search)
   return (
     <nav
       aria-label="Client app sections"

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { Link } from 'react-router-dom'
 import { PortalLanding } from '@/components/PortalLanding'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalShipmentsDashboard } from '@/components/PortalShipmentsDashboard'
@@ -270,55 +269,35 @@ export default function PortalHomePage() {
           ) : null}
 
           <PortalShipmentsDashboard
-            shipments={liveCards.map((t) => ({
-              id: t.id,
-              ref: t.ref,
-              state: t.state,
-              lane: t.lane,
-              ready_label: t.ready_label,
-              payload_summary: t.payload_summary,
-              trackHref: t.trackHref,
-              nextLabel: t.nextLabel,
-              phase: t.phase,
+            shipments={liveCards.map((t) => {
+              const trip = getTrip(t.id)
+              return {
+                id: t.id,
+                ref: t.ref,
+                state: t.state,
+                lane: t.lane,
+                ready_label: t.ready_label,
+                payload_summary: t.payload_summary,
+                trackHref: t.trackHref,
+                nextLabel: t.nextLabel,
+                phase: t.phase,
+                requestedAt: trip?.created_at ?? null,
+                poNumber: trip?.po_number ?? trip?.quick?.po ?? null,
+              }
+            })}
+            pending={openRequestCards.map((r) => ({
+              id: r.id,
+              ref: r.ref,
+              lane: r.lane,
+              statusLabel: r.statusLabel,
+              summary: r.summary,
+              href: r.href,
+              at: r.created_at ?? null,
             }))}
             summaryLine={summaryLine}
             nowLabel={nowLabel}
+            email={session?.email}
           />
-
-          {openRequestCards.length > 0 ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
-                  Open quotes &amp; requests
-                </h2>
-                <Link to="/quote" className="text-xs font-semibold text-gold">
-                  New estimate →
-                </Link>
-              </div>
-              <ul className="space-y-2">
-                {openRequestCards.map((r) => (
-                  <li key={r.id}>
-                    <Link
-                      to={r.href}
-                      className="portal-glass-row flex min-h-14 items-center justify-between gap-3 rounded-xl px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="avionic text-sm font-semibold text-ink">
-                          R-{r.ref} · {r.lane}
-                        </div>
-                        <p className="truncate text-xs text-muted">
-                          {r.statusLabel} · {r.summary}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-gold" aria-hidden>
-                        →
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
         </section>
       ) : null}
     </PortalShell>
