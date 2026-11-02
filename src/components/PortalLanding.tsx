@@ -194,7 +194,7 @@ export function PortalLanding(props?: {
             onflyair.com
           </a>
           <Link
-            to="/login?next=/scratch"
+            to="/login?next=/dispatch"
             className="font-semibold uppercase tracking-[0.12em] text-muted hover:text-ink"
           >
             Staff login
