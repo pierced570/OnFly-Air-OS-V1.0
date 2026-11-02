@@ -22,7 +22,6 @@ export function PortalLanding(props?: {
   companyDomains?: string[] | null
   expectedClientId?: string | null
   nextHref?: string | null
-  continueTrackHref?: string | null
 }) {
   const company = (props?.companyName ?? '').trim()
   const domains = (props?.companyDomains ?? [])
@@ -129,23 +128,6 @@ export function PortalLanding(props?: {
                   : 'Your freight, in the air and on the screen.'}
               </h1>
             </div>
-
-            {props?.continueTrackHref ? (
-              <Link
-                to={props.continueTrackHref}
-                className="flex min-h-12 items-center justify-between gap-4 rounded-2xl border border-white/50 bg-white/35 px-4 py-3 text-ink backdrop-blur-xl transition hover:bg-white/50"
-              >
-                <div>
-                  <div className="text-sm font-semibold">Continue tracking</div>
-                  <p className="text-xs text-ink/55">
-                    Last tracking link — no account needed.
-                  </p>
-                </div>
-                <span className="text-ink/45" aria-hidden>
-                  →
-                </span>
-              </Link>
-            ) : null}
 
             <PortalOneClickLogin
               variant="frost"
