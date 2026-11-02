@@ -1,12 +1,10 @@
 /**
- * Public ofaops home — clean single composition.
- * Large brand → Falcon band → headline → even Estimate / Book / Call → login.
+ * Public ofaops home — brand + client login first, then Estimate / Book / Call.
  * Staff login is a quiet footer link (desk gate is separate).
  */
 
 import { Link } from 'react-router-dom'
 import {
-  BRAND_FALCON_CARGO_DETAIL_PATH,
   BRAND_LOGO_LIGHT_PATH,
   BRAND_PHONE,
   BRAND_PHONE_E164,
@@ -94,7 +92,6 @@ export function PortalLanding(props?: {
         <PortalInstallBanner variant="glass" density="banner" />
       </div>
 
-      {/* Brand-first header — large light wordmark, quiet utilities */}
       <header className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-6 sm:px-8">
         <div className="min-w-0">
           <img
@@ -120,13 +117,6 @@ export function PortalLanding(props?: {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-4 pb-20 sm:px-8">
-        {/* Visual band — product photo, not a stacked card column */}
-        <img
-          src={BRAND_FALCON_CARGO_DETAIL_PATH}
-          alt="Loading cargo into an OnFly Falcon aircraft"
-          className="h-52 w-full rounded-3xl object-cover shadow-[0_20px_50px_rgba(12,12,14,0.18)] sm:h-64"
-        />
-
         <section className="max-w-2xl">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
             {company ? 'Company portal' : 'Client portal'}
@@ -138,8 +128,8 @@ export function PortalLanding(props?: {
           </h1>
           <p className="mt-3 max-w-xl text-base leading-relaxed text-muted">
             {company
-              ? 'Get a rough estimate, send a booking request, or call ops — then sign in for live trips.'
-              : 'Rough estimate in seconds, full booking form when you are ready, or call the desk. Sign in for live shipments.'}
+              ? 'Sign in for live trips — or estimate, book, or call without an account.'
+              : 'Sign in for live shipments — or get a rough estimate, book a trip, or call ops.'}
           </p>
         </section>
 
@@ -162,31 +152,27 @@ export function PortalLanding(props?: {
           </Link>
         ) : null}
 
-        {/* One even action row — ink / gold / black, all readable */}
-        <section className="space-y-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-            How do you want to start?
-          </h2>
-          <PortalQuickActions />
-        </section>
-
-        {/* Login — same width rhythm, clear ink heading */}
-        <section className="space-y-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-            Returning client
-          </h2>
+        {/* Client login takes the former hero slot */}
+        <section>
           <PortalOneClickLogin
             variant="glass"
             onSignedIn={props?.onSignedIn}
             nextHref={props?.nextHref ?? undefined}
             expectedClientId={props?.expectedClientId}
-            title={company ? `Sign in · ${company}` : 'Sign in with work email'}
+            title={company ? `Client login · ${company}` : 'Client login'}
             hint={
               company
                 ? domainHint
-                : 'No password. Opens live tracking, past trips, and booking.'
+                : 'Work email on file — opens live tracking, past trips, and booking. No password.'
             }
           />
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+            No account needed
+          </h2>
+          <PortalQuickActions />
         </section>
 
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-6 text-xs text-muted">
