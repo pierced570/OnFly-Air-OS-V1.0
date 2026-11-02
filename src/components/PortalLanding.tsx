@@ -115,7 +115,7 @@ export function PortalLanding(props?: {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 pb-16 pt-3 sm:px-8 sm:pt-6">
-        <div className="grid items-stretch gap-5 lg:grid-cols-2 lg:gap-7">
+        <div className="grid items-start gap-5 lg:grid-cols-2 lg:items-center lg:gap-7">
           {/* Left — frosted client login */}
           <section className="flex flex-col justify-center space-y-4">
             <div className="px-1">
@@ -139,9 +139,9 @@ export function PortalLanding(props?: {
             />
           </section>
 
-          {/* Right — glass-gray stacked options */}
-          <section className="flex flex-col justify-center rounded-3xl border border-white/40 bg-white/25 p-5 shadow-[0_20px_60px_rgba(12,12,14,0.1)] backdrop-blur-2xl sm:p-6 lg:min-h-[22rem]">
-            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45">
+          {/* Right — glass-gray stacked options (hug content, no empty stretch) */}
+          <section className="flex h-fit flex-col rounded-3xl border border-white/40 bg-white/25 p-3.5 shadow-[0_20px_60px_rgba(12,12,14,0.1)] backdrop-blur-2xl sm:p-4">
+            <h2 className="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45">
               No account needed
             </h2>
             <PortalQuickActions stacked />

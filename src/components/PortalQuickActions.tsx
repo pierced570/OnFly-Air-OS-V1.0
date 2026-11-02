@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { BRAND_PHONE, BRAND_PHONE_E164 } from '@/domain/brand'
 
 const glassTile =
-  'flex min-h-[4.25rem] flex-col justify-center rounded-2xl border border-white/45 bg-white/35 text-ink shadow-[0_8px_32px_rgba(12,12,14,0.08)] backdrop-blur-xl transition hover:border-white/70 hover:bg-white/50'
+  'flex flex-col justify-center rounded-2xl border border-white/45 bg-white/40 text-ink shadow-[0_8px_32px_rgba(12,12,14,0.08)] backdrop-blur-xl transition hover:border-white/70 hover:bg-white/55'
 
 export function PortalQuickActions(props?: {
   compact?: boolean
@@ -16,14 +16,21 @@ export function PortalQuickActions(props?: {
 }) {
   const compact = Boolean(props?.compact)
   const stacked = Boolean(props?.stacked)
-  const pad = compact ? 'px-4 py-3.5' : 'px-5 py-4'
-  const title = 'text-base font-semibold tracking-tight'
+  // Stacked landing rail: taller tiles so they fill the glass outline.
+  const pad = compact
+    ? 'px-4 py-3.5 min-h-[4.25rem]'
+    : stacked
+      ? 'px-5 py-5 min-h-[4.85rem]'
+      : 'px-5 py-4 min-h-[4.25rem]'
+  const title = stacked
+    ? 'text-[1.05rem] font-semibold tracking-tight'
+    : 'text-base font-semibold tracking-tight'
   const body = 'mt-0.5 text-sm leading-snug text-ink/55'
 
   return (
     <div
       className={[
-        stacked ? 'grid gap-3' : 'grid gap-3 sm:grid-cols-3',
+        stacked ? 'grid gap-2.5' : 'grid gap-3 sm:grid-cols-3',
         props?.className ?? '',
       ].join(' ')}
     >
