@@ -162,13 +162,13 @@ export default function PortalTrackPage() {
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
             to="/portal/request?mode=book"
-            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
+            className="inline-flex rounded-xl bg-gold px-4 py-2 text-sm font-semibold text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)]"
           >
             Request a trip
           </Link>
           <Link
             to="/portal"
-            className="inline-flex rounded-md border border-border px-4 py-2 text-sm font-semibold text-ink"
+            className="portal-glass-row inline-flex rounded-xl px-4 py-2 text-sm font-semibold text-ink"
           >
             Portal home
           </Link>
@@ -188,7 +188,7 @@ export default function PortalTrackPage() {
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
             to="/portal/request?mode=book"
-            className="inline-flex rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink"
+            className="inline-flex rounded-xl bg-gold px-4 py-2 text-sm font-semibold text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)]"
           >
             Request a trip
           </Link>
@@ -271,13 +271,13 @@ export function PortalTripTrackPage() {
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <Link
             to="/portal/request?mode=book"
-            className="inline-flex min-h-12 items-center justify-center rounded-md bg-gold px-4 text-sm font-semibold text-ink"
+            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gold px-4 text-sm font-semibold text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)]"
           >
             Request another trip
           </Link>
           <Link
             to="/portal/request?mode=quote"
-            className="inline-flex min-h-12 items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-semibold text-ink"
+            className="portal-glass-row inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink"
           >
             Get a rough estimate
           </Link>

@@ -29,7 +29,7 @@ export function SoftPricingPackageView(props: {
 
   return (
     <div className="space-y-6 text-ink">
-      <div className="sticky top-0 z-40 -mx-4 border-b border-gold/35 bg-[#0C0C0E] px-4 py-3 text-cream shadow-[0_8px_24px_rgba(0,0,0,0.35)] sm:-mx-6 sm:px-6">
+      <div className="portal-glass-ink sticky top-0 z-40 -mx-4 rounded-none border-x-0 border-t-0 px-4 py-3 text-cream sm:-mx-6 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           {props.hardQuoteDone ? (
             <p className="text-sm font-semibold text-gold">
@@ -65,8 +65,8 @@ export function SoftPricingPackageView(props: {
         </div>
       </div>
 
-      {/* Dark hero */}
-      <header className="overflow-hidden rounded-2xl bg-[#141414] text-cream">
+      {/* Glass ink hero */}
+      <header className="portal-glass-ink overflow-hidden rounded-2xl text-cream">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cream/10 px-4 py-3 text-xs sm:px-6">
           {props.onEditTrip ? (
             <button
@@ -109,7 +109,7 @@ export function SoftPricingPackageView(props: {
               {pkg.cargo_badges.map((b) => (
                 <span
                   key={b}
-                  className="avionic rounded-full border border-cream/15 bg-[#0C0C0E] px-3 py-1.5 text-[10px] tracking-wide text-cream/85"
+                  className="avionic rounded-full border border-cream/15 bg-cream/5 px-3 py-1.5 text-[10px] tracking-wide text-cream/85 backdrop-blur"
                 >
                   {b}
                 </span>
@@ -121,7 +121,7 @@ export function SoftPricingPackageView(props: {
               ) : null}
             </div>
           </div>
-          <aside className="rounded-xl border border-cream/15 bg-[#0C0C0E]/80 px-4 py-4">
+          <aside className="rounded-xl border border-cream/15 bg-cream/5 px-4 py-4 backdrop-blur">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold">
               How we estimate
             </h2>

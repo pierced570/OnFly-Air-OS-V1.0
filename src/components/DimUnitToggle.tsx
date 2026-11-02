@@ -12,15 +12,15 @@ export function DimUnitToggle({
   onChange: (u: DimLengthUnit) => void
   className?: string
   hideLabel?: boolean
-  /** Cream/white portal chrome (vs dispatch gold). */
+  /** Cream glass portal chrome (vs dispatch gold). */
   light?: boolean
 }) {
   const seg = (on: boolean) =>
     [
-      'flex-1 min-h-10 rounded-md px-3 py-2.5 text-xs font-medium transition-colors sm:min-h-0 sm:py-1.5',
+      'flex-1 min-h-10 rounded-xl px-3 py-2.5 text-xs font-medium transition-colors sm:min-h-0 sm:py-1.5',
       light
         ? on
-          ? 'bg-white font-semibold text-ink shadow-sm'
+          ? 'bg-gold/20 font-semibold text-ink'
           : 'text-muted hover:text-ink'
         : on
           ? 'bg-gold text-ink'
@@ -36,10 +36,10 @@ export function DimUnitToggle({
       )}
       <div
         className={[
-          'flex rounded-lg border p-0.5',
+          'flex rounded-xl border p-0.5',
           hideLabel ? '' : 'mt-1',
           light
-            ? 'max-w-[14rem] border-[#e5dfd0] bg-[#F3EEE4]'
+            ? 'portal-glass max-w-[14rem]'
             : 'border-border bg-surface-2',
         ].join(' ')}
       >

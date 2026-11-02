@@ -72,14 +72,25 @@ type Props = {
   ) => void | Promise<void>
 }
 
-const inputCls =
+const DESK_INPUT =
   'mt-1 w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-gold'
+const PORTAL_INPUT =
+  'portal-glass-input mt-1 w-full rounded-xl px-3 py-2.5 text-sm text-ink outline-none'
 const labelCls = 'block text-xs font-medium text-muted'
-const segBtn = (on: boolean) =>
+const deskSegBtn = (on: boolean) =>
   [
     'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
     on ? 'bg-gold text-ink' : 'bg-surface-2 text-muted hover:text-[var(--text)]',
   ].join(' ')
+const portalSegBtn = (on: boolean) =>
+  [
+    'flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
+    on
+      ? 'bg-gold text-ink'
+      : 'portal-glass-row text-muted hover:text-ink',
+  ].join(' ')
+const portalChoiceOff = 'portal-glass-row text-ink hover:border-gold/50'
+const portalCard = 'portal-glass-strong rounded-2xl'
 
 function updateLeg(
   legs: TripLegDraft[],
@@ -156,6 +167,9 @@ export function TripRequestForm({
   const dualActions = portalDualActions || wizard
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1)
   const showStep = (s: 1 | 2 | 3) => !wizard || wizardStep === s
+  const isPortal = variant === 'portal'
+  const inputCls = isPortal ? PORTAL_INPUT : DESK_INPUT
+  const segBtn = isPortal ? portalSegBtn : deskSegBtn
 
   const needsAddresses =
     draft.service_mode === 'd2d' || draft.service_mode === 'mixed'
@@ -434,7 +448,11 @@ export function TripRequestForm({
                 }
                 placeholder="(555) 555-5555"
                 className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-sm text-[var(--text)] outline-none"
-                rowClassName="mt-1 flex min-w-0 overflow-hidden rounded-md border border-border bg-surface-2 focus-within:border-gold"
+                rowClassName={
+                  isPortal
+                    ? 'portal-glass-input mt-1 flex min-w-0 overflow-hidden rounded-xl focus-within:border-gold'
+                    : 'mt-1 flex min-w-0 overflow-hidden rounded-md border border-border bg-surface-2 focus-within:border-gold'
+                }
                 selectClassName="shrink-0 border-0 border-r border-border bg-transparent px-2 py-2.5 text-sm text-[var(--text)] outline-none"
                 autoComplete="tel"
               />
@@ -480,7 +498,11 @@ export function TripRequestForm({
             <button
               type="button"
               onClick={() => setShowNewClient((v) => !v)}
-              className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-gold hover:border-gold"
+              className={
+                isPortal
+                  ? 'portal-glass-row rounded-xl px-3 py-2 text-sm text-gold'
+                  : 'rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-gold hover:border-gold'
+              }
             >
               + New
             </button>
@@ -580,7 +602,9 @@ export function TripRequestForm({
                 'rounded-xl border px-3 py-3 text-left transition-colors',
                 draft.service_mode === id
                   ? 'border-gold bg-gold/15 text-ink'
-                  : 'border-border bg-white text-ink hover:border-gold/50',
+                  : isPortal
+                    ? portalChoiceOff
+                    : 'border-border bg-white text-ink hover:border-gold/50',
               ].join(' ')}
             >
               <div className="text-sm font-semibold">{label}</div>
@@ -628,7 +652,7 @@ export function TripRequestForm({
                 'rounded-full border px-5 py-2.5 text-sm font-semibold',
                 draft.timing === 'asap'
                   ? 'border-gold bg-gold/15 text-ink'
-                  : 'border-border bg-white text-ink',
+                  : portalChoiceOff,
               ].join(' ')}
               onClick={() => setDraft((d) => ({ ...d, timing: 'asap' }))}
             >
@@ -640,7 +664,7 @@ export function TripRequestForm({
                 'rounded-full border px-5 py-2.5 text-sm font-semibold',
                 draft.timing === 'scheduled'
                   ? 'border-gold bg-gold/15 text-ink'
-                  : 'border-border bg-white text-ink',
+                  : portalChoiceOff,
               ].join(' ')}
               onClick={() => setDraft((d) => ({ ...d, timing: 'scheduled' }))}
             >
@@ -720,7 +744,7 @@ export function TripRequestForm({
               className={[
                 'relative rounded-xl border p-4',
                 wizard
-                  ? 'border-[#e5dfd0] bg-white'
+                  ? portalCard
                   : 'border-border bg-surface-2',
               ].join(' ')}
             >
@@ -792,12 +816,22 @@ export function TripRequestForm({
                   <div className="flex justify-center text-gold" aria-hidden>
                     ↓
                   </div>
-                  <div className="rounded-lg border border-border bg-ink/5 p-3">
+                  <div
+                    className={
+                      isPortal
+                        ? 'portal-glass rounded-xl p-3'
+                        : 'rounded-lg border border-border bg-ink/5 p-3'
+                    }
+                  >
                     <AirportSelect
                       label="Preferred departure airport (optional)"
                       optional
                       value={leg.origin_icao}
-                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      inputClassName={
+                        isPortal
+                          ? 'portal-glass-input text-ink'
+                          : 'bg-surface-2 text-[var(--text)]'
+                      }
                       onChange={(icao) =>
                         setDraft((d) =>
                           withOutboundLegs(
@@ -811,12 +845,22 @@ export function TripRequestForm({
                   <div className="flex justify-center text-gold" aria-hidden>
                     ↓
                   </div>
-                  <div className="rounded-lg border border-border bg-ink/5 p-3">
+                  <div
+                    className={
+                      isPortal
+                        ? 'portal-glass rounded-xl p-3'
+                        : 'rounded-lg border border-border bg-ink/5 p-3'
+                    }
+                  >
                     <AirportSelect
                       label="Preferred destination airport (optional)"
                       optional
                       value={leg.dest_icao}
-                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      inputClassName={
+                        isPortal
+                          ? 'portal-glass-input text-ink'
+                          : 'bg-surface-2 text-[var(--text)]'
+                      }
                       onChange={(icao) =>
                         setDraft((d) =>
                           withOutboundLegs(
@@ -910,7 +954,11 @@ export function TripRequestForm({
                       label="Origin"
                       value={leg.origin_icao}
                       required
-                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      inputClassName={
+                        isPortal
+                          ? 'portal-glass-input text-ink'
+                          : 'bg-surface-2 text-[var(--text)]'
+                      }
                       onChange={(icao) =>
                         setDraft((d) =>
                           withOutboundLegs(
@@ -924,7 +972,11 @@ export function TripRequestForm({
                       label="Destination"
                       value={leg.dest_icao}
                       required
-                      inputClassName="bg-surface-2 text-[var(--text)]"
+                      inputClassName={
+                        isPortal
+                          ? 'portal-glass-input text-ink'
+                          : 'bg-surface-2 text-[var(--text)]'
+                      }
                       onChange={(icao) =>
                         setDraft((d) =>
                           withOutboundLegs(
@@ -1222,7 +1274,9 @@ export function TripRequestForm({
                       'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm',
                       draft.cargo_only
                         ? 'border-gold bg-gold/15 text-ink'
-                        : 'border-border bg-white text-[var(--text)]',
+                        : isPortal
+                          ? portalChoiceOff
+                          : 'border-border bg-white text-[var(--text)]',
                     ].join(' ')}
                   >
                     <input
@@ -1454,7 +1508,13 @@ export function TripRequestForm({
         ) : null}
 
         {draftIncludesPax(draft) && (
-          <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
+          <div
+            className={
+              isPortal
+                ? 'space-y-3 rounded-2xl portal-glass-strong p-4'
+                : 'space-y-3 rounded-lg border border-border bg-surface-2 p-4'
+            }
+          >
             <label className={`${labelCls} max-w-[8rem]`}>
               Pax count
               <NumericDraftInput
@@ -1474,7 +1534,9 @@ export function TripRequestForm({
                 'flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm',
                 draft.pax_details_deferred
                   ? 'border-gold bg-gold/10 text-ink'
-                  : 'border-border bg-white text-[var(--text)]',
+                  : isPortal
+                    ? portalChoiceOff
+                    : 'border-border bg-white text-[var(--text)]',
               ].join(' ')}
             >
               <input
@@ -1567,7 +1629,13 @@ export function TripRequestForm({
 
         {/* Accompanying cargo — tools / equipment that ride with pax */}
         {!draft.cargo_only && (
-          <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
+          <div
+            className={
+              isPortal
+                ? 'space-y-3 rounded-2xl portal-glass-strong p-4'
+                : 'space-y-3 rounded-lg border border-border bg-surface-2 p-4'
+            }
+          >
             <div>
               <h2
                 className={
@@ -1587,7 +1655,9 @@ export function TripRequestForm({
                 'flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm',
                 isStandardToolingPieces(draft.cargo_notes)
                   ? 'border-gold bg-gold/10 text-ink'
-                  : 'border-border bg-white text-[var(--text)]',
+                  : isPortal
+                    ? portalChoiceOff
+                    : 'border-border bg-white text-[var(--text)]',
               ].join(' ')}
             >
               <input
@@ -1640,6 +1710,7 @@ export function TripRequestForm({
                   light={wizard}
                 />
                 <DimsTripleInput
+                    tone={isPortal ? 'portal' : 'desk'}
                   value={draft.cargo_notes}
                   unit={draft.dim_unit ?? 'in'}
                   onChange={(cargo_notes) =>
@@ -1714,7 +1785,7 @@ export function TripRequestForm({
                   className={[
                     'mt-2 grid gap-1 p-1 sm:grid-cols-3',
                     wizard
-                      ? 'rounded-xl bg-[#F3EEE4]'
+                      ? 'portal-glass rounded-xl'
                       : 'gap-2 rounded-lg border border-border bg-surface-2',
                   ].join(' ')}
                 >
@@ -1732,9 +1803,9 @@ export function TripRequestForm({
                       className={
                         wizard
                           ? [
-                              'rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                              'rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
                               draft.cargo_dims_status === id
-                                ? 'bg-white font-semibold text-ink shadow-sm'
+                                ? 'bg-gold/20 font-semibold text-ink'
                                 : 'text-muted hover:text-ink',
                             ].join(' ')
                           : segBtn(draft.cargo_dims_status === id)
@@ -1769,7 +1840,7 @@ export function TripRequestForm({
                 <div
                   className={
                     wizard
-                      ? 'space-y-3 rounded-xl border border-[#e5dfd0] bg-white p-4'
+                      ? 'space-y-3 portal-glass-strong rounded-2xl p-4'
                       : 'space-y-3'
                   }
                 >
@@ -1782,6 +1853,7 @@ export function TripRequestForm({
                     light={wizard}
                   />
                   <DimsTripleInput
+                    tone={isPortal ? 'portal' : 'desk'}
                     value={draft.cargo_notes}
                     unit={draft.dim_unit ?? 'in'}
                     onChange={(cargo_notes) =>
@@ -1878,7 +1950,7 @@ export function TripRequestForm({
                   onClick={(e) => {
                     void handleSubmit(e, 'hard_quote')
                   }}
-                  className="w-full rounded-xl border-2 border-ink bg-white px-4 py-4 text-sm font-semibold text-ink hover:bg-ink/5 disabled:opacity-50"
+                  className="portal-glass-row w-full rounded-xl border-2 border-ink/30 px-4 py-4 text-sm font-semibold text-ink hover:border-gold/50 disabled:opacity-50"
                 >
                   {busy && pendingIntent === 'hard_quote'
                     ? 'Submitting…'
@@ -1921,7 +1993,7 @@ export function TripRequestForm({
                   type="button"
                   disabled={busy}
                   onClick={(e) => void handleSubmit(e, 'estimate')}
-                  className="w-full rounded-xl border-2 border-gold bg-white px-4 py-4 text-sm font-semibold text-ink hover:bg-gold/10 disabled:opacity-50"
+                  className="portal-glass-row w-full rounded-xl border-2 border-gold/50 px-4 py-4 text-sm font-semibold text-ink hover:border-gold disabled:opacity-50"
                 >
                   {busy && pendingIntent === 'estimate'
                     ? 'Estimating…'
@@ -1959,7 +2031,7 @@ export function TripRequestForm({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <button
             type="button"
-            className="rounded-lg border border-border bg-white px-5 py-2.5 text-sm disabled:opacity-40"
+            className="portal-glass-row rounded-xl px-5 py-2.5 text-sm disabled:opacity-40"
             disabled={wizardStep === 1}
             onClick={() =>
               setWizardStep((s) => (s === 3 ? 2 : 1) as 1 | 2 | 3)
@@ -1981,7 +2053,7 @@ export function TripRequestForm({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-2">
           <button
             type="button"
-            className="rounded-lg border border-border bg-white px-5 py-2.5 text-sm"
+            className="portal-glass-row rounded-xl px-5 py-2.5 text-sm"
             onClick={() => setWizardStep(2)}
           >
             Back

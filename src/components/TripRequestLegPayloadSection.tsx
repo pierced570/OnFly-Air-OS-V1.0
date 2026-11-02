@@ -19,13 +19,20 @@ import {
   type TripLegDraft,
 } from '@/domain/tripRequest'
 
-const inputCls =
+const deskInput =
   'mt-1 w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-gold'
+const portalInput =
+  'portal-glass-input mt-1 w-full rounded-xl px-3 py-2.5 text-sm text-ink outline-none'
 const labelCls = 'block text-xs font-medium text-muted'
-const segBtn = (on: boolean) =>
+const deskSegBtn = (on: boolean) =>
   [
     'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
     on ? 'bg-gold text-ink' : 'bg-surface-2 text-muted hover:text-[var(--text)]',
+  ].join(' ')
+const portalSegBtn = (on: boolean) =>
+  [
+    'flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
+    on ? 'bg-gold text-ink' : 'portal-glass-row text-muted hover:text-ink',
   ].join(' ')
 
 type Props = {
@@ -51,6 +58,9 @@ export function TripRequestLegPayloadSection({
 }: Props) {
   const lane = legLaneLabel(leg)
   const pax = leg.pax
+  const isPortal = variant === 'portal'
+  const inputCls = isPortal ? portalInput : deskInput
+  const segBtn = isPortal ? portalSegBtn : deskSegBtn
 
   function setPaxCount(n: number) {
     const count = Math.max(1, Math.min(20, n))
@@ -83,7 +93,13 @@ export function TripRequestLegPayloadSection({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-surface-2 p-4">
+    <div
+      className={
+        isPortal
+          ? 'space-y-3 portal-glass-strong rounded-2xl p-4'
+          : 'space-y-3 rounded-lg border border-border bg-surface-2 p-4'
+      }
+    >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2
           className={
@@ -120,7 +136,13 @@ export function TripRequestLegPayloadSection({
       </div>
 
       {legHasPax(leg) ? (
-        <div className="space-y-3 rounded-lg border border-border bg-white p-3">
+        <div
+          className={
+            isPortal
+              ? 'space-y-3 portal-glass rounded-xl p-3'
+              : 'space-y-3 rounded-lg border border-border bg-white p-3'
+          }
+        >
           <label className={`${labelCls} max-w-[8rem]`}>
             Pax count
             <NumericDraftInput
@@ -188,7 +210,13 @@ export function TripRequestLegPayloadSection({
       ) : null}
 
       {legHasCargo(leg) ? (
-        <div className="space-y-3 rounded-lg border border-border bg-white p-3">
+        <div
+          className={
+            isPortal
+              ? 'space-y-3 portal-glass rounded-xl p-3'
+              : 'space-y-3 rounded-lg border border-border bg-white p-3'
+          }
+        >
           {variant === 'portal' ? (
             <div>
               <div className="text-xs font-medium text-muted">
@@ -198,7 +226,7 @@ export function TripRequestLegPayloadSection({
                 className={[
                   'mt-2 grid gap-1 p-1 sm:grid-cols-3',
                   wizard
-                    ? 'rounded-xl bg-[#F3EEE4]'
+                    ? 'portal-glass rounded-xl'
                     : 'gap-2 rounded-lg border border-border bg-surface-2',
                 ].join(' ')}
               >
@@ -216,9 +244,9 @@ export function TripRequestLegPayloadSection({
                     className={
                       wizard
                         ? [
-                            'rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                            'rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
                             leg.cargo_dims_status === id
-                              ? 'bg-white font-semibold text-ink shadow-sm'
+                              ? 'bg-gold/20 font-semibold text-ink'
                               : 'text-muted hover:text-ink',
                           ].join(' ')
                         : segBtn(leg.cargo_dims_status === id)
@@ -256,6 +284,7 @@ export function TripRequestLegPayloadSection({
                 light={wizard}
               />
               <DimsTripleInput
+                tone={isPortal ? 'portal' : 'desk'}
                 value={leg.cargo_notes}
                 unit={dimUnit}
                 onChange={(cargo_notes) => {

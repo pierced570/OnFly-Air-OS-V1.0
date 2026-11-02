@@ -1,5 +1,5 @@
 /**
- * Running client ↔ OnFly chat on the trip portal (cream) and desk (dark).
+ * Running client ↔ OnFly chat on the trip portal (glass) and desk (dark).
  * Separate from the ops SMS thread (crew / FBO / dispatch).
  */
 
@@ -84,7 +84,7 @@ export function PortalTripChat({ tripId, variant, token = null }: Props) {
   }
 
   const wrapCls = isPortal
-    ? 'mt-6 space-y-3 rounded-xl border border-[#E5DFD0] bg-white p-4 sm:p-5'
+    ? 'portal-glass-strong mt-6 space-y-3 rounded-2xl p-4 sm:p-5'
     : 'flex min-h-0 flex-col rounded-lg border border-border bg-surface p-4'
   const titleCls = isPortal
     ? 'text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C9A227]'
@@ -94,10 +94,10 @@ export function PortalTripChat({ tripId, variant, token = null }: Props) {
     ? 'max-h-64 space-y-2 overflow-y-auto'
     : 'mt-3 max-h-48 space-y-2 overflow-y-auto'
   const inputCls = isPortal
-    ? 'min-w-0 flex-1 rounded-md border border-[#D4CFC0] bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-[#C9A227]'
+    ? 'portal-glass-input min-w-0 flex-1 rounded-xl px-3 py-2.5 text-sm text-ink outline-none'
     : 'min-w-0 flex-1 rounded border border-border bg-ink px-3 py-2 text-sm text-cream'
   const sendCls = isPortal
-    ? 'rounded-md bg-[#C9A227] px-3 py-2 text-xs font-semibold text-[#0C0C0E] disabled:opacity-50'
+    ? 'rounded-xl bg-[#C9A227] px-3 py-2 text-xs font-semibold text-[#0C0C0E] disabled:opacity-50'
     : 'rounded bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-40'
   const emptyCls = isPortal ? 'text-sm text-[#6B6560]' : 'text-sm text-muted'
   const errCls = isPortal ? 'text-xs text-[#C0392B]' : 'text-xs text-late'
@@ -132,8 +132,8 @@ export function PortalTripChat({ tripId, variant, token = null }: Props) {
                 : m.from_label || 'Client'
             const bubble = isPortal
               ? mine
-                ? 'ml-8 border-[#E5DFD0] bg-[#F7F2E3]'
-                : 'mr-8 border-[#E5DFD0] bg-white'
+                ? 'ml-8 border-gold/25 bg-gold/10'
+                : 'mr-8 portal-glass-row'
               : mine
                 ? 'ml-4 border-gold/30 bg-gold/5'
                 : 'mr-4 border-border bg-ink/40'
@@ -147,7 +147,7 @@ export function PortalTripChat({ tripId, variant, token = null }: Props) {
             return (
               <li
                 key={m.id}
-                className={`rounded-md border px-3 py-2 ${bubble}`}
+                className={`rounded-xl border px-3 py-2 ${bubble}`}
               >
                 <div className="flex flex-wrap gap-2 text-[10px]">
                   <span className={timeCls}>

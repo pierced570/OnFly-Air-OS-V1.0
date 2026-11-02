@@ -210,7 +210,7 @@ export function PortalTrackingBody({
           <button
             type="button"
             onClick={shareTracking}
-            className="inline-flex min-h-11 items-center rounded-md border border-gold/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold hover:bg-gold/10"
+            className="inline-flex min-h-11 items-center rounded-xl border border-gold/60 bg-gold/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold hover:bg-gold/20"
           >
             Share tracking
           </button>
@@ -247,7 +247,7 @@ export function PortalTrackingBody({
           section === 'live' ? 'mt-4 block' : 'mt-4 hidden md:block'
         }
       >
-      <section className="overflow-hidden rounded-md border border-ink/20 bg-ink text-cream">
+      <section className="portal-glass-ink overflow-hidden rounded-2xl text-cream">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[10px] uppercase tracking-[0.14em]">
           <span className="text-gold">
             ●{' '}

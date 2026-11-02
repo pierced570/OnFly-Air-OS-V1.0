@@ -1,10 +1,11 @@
 /**
  * Company-designated portal gate — /portal/c/:slug
- * Same two-column client portal stack as /portal, scoped to the company.
+ * Same glass client portal stack as /portal, scoped to the company.
  * Guests book/quote without account; returning clients enter a verified desk email.
  */
 
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { PortalAtmosphere, PortalGlassPanel } from '@/components/PortalGlass'
 import { PortalLanding } from '@/components/PortalLanding'
 import { usePortalSession } from '@/hooks/usePortalSession'
 import {
@@ -21,32 +22,35 @@ export default function PortalCompanyPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0C0C0E] text-sm text-cream/60">
-        Checking session…
-      </div>
+      <PortalAtmosphere className="portal-atmosphere--landing flex items-center justify-center">
+        <div className="portal-glass-strong rounded-2xl px-5 py-4 text-sm text-muted">
+          Checking session…
+        </div>
+      </PortalAtmosphere>
     )
   }
 
   if (!client) {
     return (
-      <div
-        className="min-h-screen bg-[#0C0C0E] text-cream"
-        data-theme="client"
-      >
+      <PortalAtmosphere className="portal-atmosphere--landing" detail>
         <main className="mx-auto max-w-lg space-y-4 px-4 py-16 sm:px-8">
-          <h1 className="text-2xl font-semibold">Company portal not found</h1>
-          <p className="text-sm text-cream/60">
-            This company link isn&apos;t set up yet. You can still book or get a
-            rough quote, or open shipments with a verified desk email.
-          </p>
-          <Link
-            to="/portal"
-            className="inline-flex min-h-12 items-center rounded-lg bg-gold px-4 text-sm font-semibold text-ink"
-          >
-            Go to OnFly portal
-          </Link>
+          <PortalGlassPanel strong className="px-5 py-6">
+            <h1 className="text-2xl font-semibold text-ink">
+              Company portal not found
+            </h1>
+            <p className="mt-2 text-sm text-muted">
+              This company link isn&apos;t set up yet. You can still book or get a
+              rough quote, or open shipments with a verified desk email.
+            </p>
+            <Link
+              to="/portal"
+              className="mt-5 inline-flex min-h-12 items-center rounded-xl bg-gold px-4 text-sm font-semibold text-ink shadow-[0_10px_28px_rgba(201,162,39,0.28)]"
+            >
+              Go to OnFly portal
+            </Link>
+          </PortalGlassPanel>
         </main>
-      </div>
+      </PortalAtmosphere>
     )
   }
 
