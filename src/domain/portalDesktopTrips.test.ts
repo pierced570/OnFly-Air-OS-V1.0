@@ -9,7 +9,9 @@ import {
   portalDesktopStatusMeta,
   portalDesktopStepLabels,
   portalDesktopTripSummary,
+  formatPortalAirportResolved,
   resolveAirportText,
+  resolveSoftQuoteMapPick,
   type PortalDesktopTrip,
 } from './portalDesktopTrips'
 
@@ -48,6 +50,17 @@ describe('portalDesktopTrips', () => {
     expect(resolveAirportText('KSAN')?.icao).toBe('KSAN')
     expect(resolveAirportText('SAN')?.icao).toBe('KSAN')
     expect(resolveAirportText('San Diego')?.icao).toBe('KSAN')
+    expect(resolveAirportText('KSAN')?.name).toMatch(/San Diego/i)
+    expect(formatPortalAirportResolved(resolveAirportText('KSAN'))).toMatch(
+      /San Diego/,
+    )
+  })
+
+  it('snaps map clicks without a hub to the nearest catalog airport', () => {
+    const pick = resolveSoftQuoteMapPick({ lat: 32.7, lon: -117.2 })
+    expect(pick.code).toBe('KSAN')
+    expect(pick.label).toMatch(/KSAN/)
+    expect(pick.city).toMatch(/San Diego/)
   })
 
   it('parses lane endpoints into airports', () => {

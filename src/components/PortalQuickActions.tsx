@@ -46,8 +46,8 @@ export function PortalQuickActions(props?: {
             <div className={title}>Rough estimate</div>
             <p className={body}>
               {compact || stacked
-                ? 'One page · ballpark in seconds'
-                : 'One fast page — airports in, ballpark out.'}
+                ? 'Get an idea of costs'
+                : 'Get an idea of costs — airports in, ballpark out.'}
             </p>
           </div>
           <span className="shrink-0 text-sm font-semibold text-ink/45">→</span>

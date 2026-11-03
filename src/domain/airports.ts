@@ -4,6 +4,7 @@
  */
 
 import catalog from '../data/airports_catalog.json'
+import { haversineNm } from './geo'
 
 export type AirportInfo = {
   icao: string
@@ -99,6 +100,56 @@ export function lookupAirport(code: string): AirportInfo | null {
 
 export function lookupTz(icao: string): string | null {
   return lookupAirport(icao)?.tz ?? null
+}
+
+const MILITARY_OR_STRIP =
+  /Naval|NAS\b|Air Force|AFB\b|Army|Marine Corps|Coast Guard|Heliport|Seaplane|Gliderport|Outlying Field|Auxiliary/i
+
+function softQuoteAirportScore(a: AirportInfo, nm: number, preferIata: boolean): number {
+  // Distance-first, then nudge toward civil fields clients mean by "local airport".
+  let score = nm
+  if (MILITARY_OR_STRIP.test(a.name)) score += 40
+  if (preferIata && a.iata) score -= 5
+  if (preferIata && a.iata && a.icao === `K${a.iata}`) score -= 5
+  if (/International/i.test(a.name)) score -= 15
+  else if (/Regional|Municipal/i.test(a.name)) score -= 8
+  return score
+}
+
+/**
+ * Nearest catalog airport to a lat/lon (soft-quote map clicks).
+ * Prefers civil / IATA fields near the click over tiny strips and military bases
+ * (e.g. KSAN over KNZY for a San Diego waterfront click).
+ */
+export function nearestAirport(
+  lat: number,
+  lon: number,
+  opts?: { maxNm?: number; preferIata?: boolean },
+): AirportInfo | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  const maxNm = opts?.maxNm ?? 150
+  const preferIata = opts?.preferIata !== false
+  // Coarse lat band (~60 nm per degree) to skip far rows quickly.
+  const maxDegLat = maxNm / 55
+  const cos = Math.max(0.2, Math.cos((lat * Math.PI) / 180))
+  const maxDegLon = maxNm / (55 * cos)
+
+  let best: AirportInfo | null = null
+  let bestScore = Number.POSITIVE_INFINITY
+
+  for (const a of SORTED) {
+    if (Math.abs(a.lat - lat) > maxDegLat) continue
+    if (Math.abs(a.lon - lon) > maxDegLon) continue
+    const nm = haversineNm(lat, lon, a.lat, a.lon)
+    if (nm > maxNm) continue
+    const score = softQuoteAirportScore(a, nm, preferIata)
+    if (score < bestScore) {
+      bestScore = score
+      best = a
+    }
+  }
+
+  return best
 }
 
 /** Search ICAO, IATA, city, state, or airport name. */

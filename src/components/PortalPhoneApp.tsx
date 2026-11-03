@@ -27,14 +27,18 @@ import {
 } from '@/domain/portalDesktopBuild'
 import {
   collectPortalDesktopDocs,
+  formatPortalAirportField,
+  formatPortalAirportResolved,
   portalDesktopBucket,
   portalDesktopCta,
   portalDesktopStatusMeta,
   portalDesktopTripSummary,
   resolveAirportText,
+  resolveSoftQuoteMapPick,
   type PortalDesktopBucket,
   type PortalDesktopTrip,
 } from '@/domain/portalDesktopTrips'
+import { lookupAirport } from '@/domain/airports'
 import {
   PORTAL_SOFT_QUOTE_FINE_PRINT,
   softQuoteFor,
@@ -543,29 +547,38 @@ export function PortalPhoneApp(props: {
       applySnap('peek')
       return
     }
+    const pick = resolveSoftQuoteMapPick(p)
     const point: QuotePick = {
-      lat: p.lat,
-      lon: p.lon,
-      code: p.icao ?? null,
-      city: p.icao ? resolveAirportText(p.icao)?.city : 'Custom point',
-      label: p.icao || softQuotePointLabel({ lat: p.lat, lon: p.lon }),
+      lat: pick.lat,
+      lon: pick.lon,
+      code: pick.code ?? null,
+      city: pick.city ?? null,
+      label: pick.label,
     }
-    const label = point.code || softQuotePointLabel(point)
+    const field = pick.code
+      ? formatPortalAirportField({
+          icao: pick.code,
+          city: pick.city ?? '',
+          name: pick.name ?? undefined,
+          lat: pick.lat,
+          lon: pick.lon,
+        })
+      : pick.label
     if (panel === 'request' || panel === 'quote') {
       if (!qa || qb) {
         setQa(point)
         setQb(null)
-        setQaText(label)
+        setQaText(field)
         setQbText('')
         setSel(null)
-        setFromText(point.code || label)
+        setFromText(field)
         setToText('')
         if (panel === 'quote') applySnap('peek')
       } else {
         setQb(point)
-        setQbText(label)
+        setQbText(field)
         setSel(null)
-        setToText(point.code || label)
+        setToText(field)
         if (panel === 'quote') applySnap('peek')
       }
     }
@@ -574,8 +587,26 @@ export function PortalPhoneApp(props: {
   function quoteToDesk() {
     if (!qa || !qb) return
     goPanel('request')
-    setFromText(qa.code || softQuotePointLabel(qa))
-    setToText(qb.code || softQuotePointLabel(qb))
+    setFromText(
+      qa.code
+        ? formatPortalAirportField({
+            icao: qa.code,
+            city: qa.city ?? '',
+            lat: qa.lat,
+            lon: qa.lon,
+          })
+        : softQuotePointLabel(qa),
+    )
+    setToText(
+      qb.code
+        ? formatPortalAirportField({
+            icao: qb.code,
+            city: qb.city ?? '',
+            lat: qb.lat,
+            lon: qb.lon,
+          })
+        : softQuotePointLabel(qb),
+    )
     setNotes(softQuoteHardNotes(qa, qb))
   }
 
@@ -894,7 +925,7 @@ export function PortalPhoneApp(props: {
       </div>
 
       {panel === 'quote' ? (
-        <div className="m-hint">Tap any two points for a soft quote</div>
+        <div className="m-hint">Tap two airports for a soft quote</div>
       ) : null}
 
       <header className="m-top">
@@ -1325,16 +1356,30 @@ export function PortalPhoneApp(props: {
                         <input
                           id="m-from"
                           value={fromText}
-                          onChange={(e) => setFromText(e.target.value)}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            const ap = resolveAirportText(v)
+                            const tok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                            const exact = lookupAirport(tok)
+                            setFromText(
+                              ap && (exact || /^[A-Za-z]{3,4}$/.test(tok))
+                                ? formatPortalAirportField(ap)
+                                : v,
+                            )
+                          }}
                           placeholder="ICAO or city"
                           autoCapitalize="characters"
                           autoComplete="off"
                           inputMode="text"
                         />
                       </div>
-                      <small className={fromAp ? undefined : 'g-field-hint is-pending'} style={{ color: fromAp ? undefined : 'var(--ofa-mute)' }}>
+                      <small
+                        className={
+                          fromAp ? 'g-field-hint' : 'g-field-hint is-pending'
+                        }
+                      >
                         {fromAp
-                          ? `${fromAp.icao} · ${fromAp.city}`
+                          ? formatPortalAirportResolved(fromAp)
                           : 'Desk will confirm airport'}
                       </small>
                     </div>
@@ -1344,16 +1389,30 @@ export function PortalPhoneApp(props: {
                         <input
                           id="m-to"
                           value={toText}
-                          onChange={(e) => setToText(e.target.value)}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            const ap = resolveAirportText(v)
+                            const tok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                            const exact = lookupAirport(tok)
+                            setToText(
+                              ap && (exact || /^[A-Za-z]{3,4}$/.test(tok))
+                                ? formatPortalAirportField(ap)
+                                : v,
+                            )
+                          }}
                           placeholder="ICAO or city"
                           autoCapitalize="characters"
                           autoComplete="off"
                           inputMode="text"
                         />
                       </div>
-                      <small style={{ color: toAp ? undefined : 'var(--ofa-mute)' }}>
+                      <small
+                        className={
+                          toAp ? 'g-field-hint' : 'g-field-hint is-pending'
+                        }
+                      >
                         {toAp
-                          ? `${toAp.icao} · ${toAp.city}`
+                          ? formatPortalAirportResolved(toAp)
                           : 'Desk will confirm airport'}
                       </small>
                     </div>
@@ -1505,21 +1564,47 @@ export function PortalPhoneApp(props: {
                         value={qaText}
                         onChange={(e) => {
                           const v = e.target.value
-                          setQaText(v)
                           const ap = resolveAirportText(v)
+                          const tok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                          const exact = lookupAirport(tok)
                           if (ap) {
                             setQa({
                               lat: ap.lat,
                               lon: ap.lon,
                               code: ap.icao,
-                              city: ap.city,
+                              city: ap.state
+                                ? `${ap.city}, ${ap.state}`
+                                : ap.city,
+                              label: formatPortalAirportField(ap),
                             })
+                            setQaText(
+                              exact || /^[A-Za-z]{3,4}$/.test(tok)
+                                ? formatPortalAirportField(ap)
+                                : v,
+                            )
+                          } else {
+                            setQa(null)
+                            setQaText(v)
                           }
                         }}
-                        placeholder="Tap map"
+                        placeholder="ICAO, city, or map"
                         autoCapitalize="characters"
+                        autoComplete="off"
                       />
                     </div>
+                    <small
+                      className={
+                        qa?.code ? 'g-field-hint' : 'g-field-hint is-pending'
+                      }
+                    >
+                      {qa?.code
+                        ? formatPortalAirportResolved(
+                            resolveAirportText(qa.code),
+                          )
+                        : qaText
+                          ? 'Keep typing an ICAO, IATA, or city'
+                          : ''}
+                    </small>
                   </div>
                   <div>
                     <label htmlFor="m-qb">Destination</label>
@@ -1529,21 +1614,47 @@ export function PortalPhoneApp(props: {
                         value={qbText}
                         onChange={(e) => {
                           const v = e.target.value
-                          setQbText(v)
                           const ap = resolveAirportText(v)
+                          const tok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                          const exact = lookupAirport(tok)
                           if (ap) {
                             setQb({
                               lat: ap.lat,
                               lon: ap.lon,
                               code: ap.icao,
-                              city: ap.city,
+                              city: ap.state
+                                ? `${ap.city}, ${ap.state}`
+                                : ap.city,
+                              label: formatPortalAirportField(ap),
                             })
+                            setQbText(
+                              exact || /^[A-Za-z]{3,4}$/.test(tok)
+                                ? formatPortalAirportField(ap)
+                                : v,
+                            )
+                          } else {
+                            setQb(null)
+                            setQbText(v)
                           }
                         }}
-                        placeholder="Tap map"
+                        placeholder="ICAO, city, or map"
                         autoCapitalize="characters"
+                        autoComplete="off"
                       />
                     </div>
+                    <small
+                      className={
+                        qb?.code ? 'g-field-hint' : 'g-field-hint is-pending'
+                      }
+                    >
+                      {qb?.code
+                        ? formatPortalAirportResolved(
+                            resolveAirportText(qb.code),
+                          )
+                        : qbText
+                          ? 'Keep typing an ICAO, IATA, or city'
+                          : ''}
+                    </small>
                   </div>
                 </div>
               )}
@@ -1579,8 +1690,8 @@ export function PortalPhoneApp(props: {
                 </>
               ) : (
                 <p className="g-body" style={{ padding: '8px 0' }}>
-                  Tap two points on the map — or drag the sheet up to type
-                  airports.
+                  Tap two airports on the map — we snap to the nearest field —
+                  or drag the sheet up to type.
                 </p>
               )}
             </div>

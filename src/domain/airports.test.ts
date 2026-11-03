@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatAirportShort,
   lookupAirport,
+  nearestAirport,
   searchAirports,
 } from './airports'
 
@@ -16,6 +17,13 @@ describe('airports catalog', () => {
   it('searches by city name', () => {
     const hits = searchAirports('memphis')
     expect(hits.some((h) => h.icao === 'KMEM')).toBe(true)
+  })
+
+  it('finds nearest airport for a map click near San Diego', () => {
+    // Slightly offshore of KSAN
+    const near = nearestAirport(32.7, -117.2, { preferIata: true, maxNm: 80 })
+    expect(near?.icao).toBe('KSAN')
+    expect(near?.city).toBe('San Diego')
   })
 
   it('prefers exact ICAO match', () => {
