@@ -9,8 +9,11 @@ import {
   bezierTangent,
   clampLabelX,
   formatClickLabel,
+  easeOutCubic,
   formatNmLabel,
+  frameMapViewBox,
   greatCircleNm,
+  lerpViewBox,
   nextQuotePoints,
   nmToStatute,
   projectLonLat,
@@ -164,5 +167,47 @@ describe('portalMap framing', () => {
     expect(MAP_VIEWBOX.loginWide).toBe('455 170 960 600')
     expect(MAP_VIEWBOX.loginPhone).toBe('965 110 415 898')
     expect(MAP_VIEWBOX.portalDesktop).toBe('0 0 1440 900')
+  })
+
+  it('frames points into the phone band above the sheet (doc 05)', () => {
+    const vb = frameMapViewBox({
+      points: [
+        { x: 1189.5, y: 396.3 },
+        { x: 1316.5, y: 367.9 },
+      ],
+      screenW: 390,
+      screenH: 844,
+      bandTop: 110,
+      bandBottom: 270,
+      pad: 65,
+    })
+    const [x, y, w, h] = vb.split(/\s+/).map(Number)
+    expect(w).toBeGreaterThan(0)
+    expect(h).toBeGreaterThan(0)
+    expect(Number.isFinite(x)).toBe(true)
+    expect(Number.isFinite(y)).toBe(true)
+    // Scale so the route fits the band width/height
+    expect(w / 390).toBeCloseTo(h / 844, 5)
+  })
+
+  it('falls back to portal desktop viewBox with no points', () => {
+    expect(
+      frameMapViewBox({
+        points: [],
+        screenW: 390,
+        screenH: 844,
+        bandTop: 110,
+        bandBottom: 370,
+      }),
+    ).toBe(MAP_VIEWBOX.portalDesktop)
+  })
+
+  it('lerps viewBox numbers and eases out', () => {
+    expect(lerpViewBox('0 0 100 100', '100 50 200 200', 0.5)).toBe(
+      '50 25 150 150',
+    )
+    expect(easeOutCubic(0)).toBe(0)
+    expect(easeOutCubic(1)).toBe(1)
+    expect(easeOutCubic(0.5)).toBeGreaterThan(0.5)
   })
 })

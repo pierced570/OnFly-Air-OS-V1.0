@@ -3,6 +3,7 @@ import {
   PortalDesktopApp,
   usePortalDesktopMedia,
 } from '@/components/PortalDesktopApp'
+import { PortalPhoneApp } from '@/components/PortalPhoneApp'
 import { PortalLanding } from '@/components/PortalLanding'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalShipmentsDashboard } from '@/components/PortalShipmentsDashboard'
@@ -266,11 +267,22 @@ export default function PortalHomePage() {
     hardQuote: r.hardQuote,
   }))
 
-  // Doc 04: glass desktop portal at ≥900px. Phone (<900) keeps the existing
-  // command shell until doc 05.
-  if (signedIn && isDesktop && session?.clientId) {
+  // Doc 04 / 05: glass portal — desktop ≥900px, phone <900px.
+  if (signedIn && session?.clientId) {
+    if (isDesktop) {
+      return (
+        <PortalDesktopApp
+          email={session.email}
+          client={client}
+          shipments={shipmentRows}
+          pending={pendingRows}
+          onSignOut={signOut}
+          onSwitchCompany={signOut}
+        />
+      )
+    }
     return (
-      <PortalDesktopApp
+      <PortalPhoneApp
         email={session.email}
         client={client}
         shipments={shipmentRows}

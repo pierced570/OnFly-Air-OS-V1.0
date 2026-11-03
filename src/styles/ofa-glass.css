@@ -402,6 +402,7 @@
 .m-det-t > span:first-child{font:500 21px/1 var(--ofa-font);letter-spacing:-.02em;color:var(--ofa-ink)}
 .m-det-t .m-route{font-size:15px}
 .m-det-s{font-size:12px;color:var(--ofa-mute);margin-top:6px}
+.ofa-portal-phone .gold{color:var(--ofa-gold-2)}
 .m-tele{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
 .m-tele span{
   font:400 11px/1 var(--ofa-mono);padding:6px 8px;border-radius:7px;
