@@ -155,7 +155,9 @@
 .ofa-login-hero h1{font:500 50px/1.06 var(--ofa-font);letter-spacing:-.03em;margin:16px 0 0;color:var(--ofa-ink);text-shadow:0 2px 30px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.6)}
 .ofa-login-sub{font:400 15.5px/1.5 var(--ofa-font);color:#A8A8AE;margin-top:14px;text-shadow:0 1px 16px rgba(0,0,0,.95)}
 .ofa-login-card{width:100%;max-width:940px;margin:36px auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:hidden}
-.ofa-login-col{padding:30px 30px 26px}.ofa-login-col+.ofa-login-col{border-left:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.015)}
+/* Slightly denser than default .g-panel so login copy stays readable over the map */
+.ofa-login-card.g-panel{background:linear-gradient(165deg,rgba(44,44,50,.48),rgba(8,8,10,.68));backdrop-filter:blur(10px) saturate(140%);-webkit-backdrop-filter:blur(10px) saturate(140%)}
+.ofa-login-col{padding:30px 30px 26px}.ofa-login-col+.ofa-login-col{border-left:1px solid rgba(255,255,255,.07);background:rgba(0,0,0,.12)}
 .ofa-login-col-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px}
 .ofa-login-col-h h2{font:500 24px/1.1 var(--ofa-font);letter-spacing:-.02em;margin:0;color:var(--ofa-ink)}
 .ofa-login-col-h h3{font:500 15px/1.1 var(--ofa-font);letter-spacing:-.01em;margin:0;color:var(--ofa-ink)}
@@ -179,7 +181,7 @@
   .ofa-login-hero{text-align:left;margin:30px 12px 0}.ofa-login-hero h1{font-size:32px;line-height:1.08}.ofa-login-sub{display:none}
   .ofa-login-card{display:flex;flex-direction:column;gap:8px;margin-top:auto;padding-top:0;background:none;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;overflow:visible}
   .ofa-login-col{padding:18px 16px 16px}.ofa-login-col+.ofa-login-col{border-left:0;padding:10px}
-  .ofa-login-card .ofa-login-col{background:linear-gradient(165deg,rgba(44,44,50,.26),rgba(12,12,14,.34));backdrop-filter:blur(7px) saturate(140%);-webkit-backdrop-filter:blur(7px) saturate(140%);border:1px solid rgba(255,255,255,.11);box-shadow:0 30px 80px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.09);border-radius:20px}
+  .ofa-login-card .ofa-login-col{background:linear-gradient(165deg,rgba(44,44,50,.48),rgba(8,8,10,.68));backdrop-filter:blur(10px) saturate(140%);-webkit-backdrop-filter:blur(10px) saturate(140%);border:1px solid rgba(255,255,255,.11);box-shadow:0 30px 80px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.09);border-radius:20px}
   .ofa-login-col-h{margin-bottom:14px}.ofa-login-col-h h2{font-size:19px}.ofa-login-col+.ofa-login-col .ofa-login-col-h{display:none}
   .ofa-login-legal,.ofa-login-ticker{display:none}
   .ofa-login-card .g-row{padding:10px}.ofa-login-card .g-ico{width:34px;height:34px}
