@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* OFA glass redesign foundation (doc 01 / 01b-tokens) — additive; screens adopt .g-* next */
+@import "./styles/ofa-glass.css";
 
 /* ── Brand tokens ─────────────────────────────────────────── */
 /* Dispatcher dark (default). --ink / --cream are semantic page/text so

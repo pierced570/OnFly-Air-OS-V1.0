@@ -1,0 +1,141 @@
+/* ==========================================================
+   OnFly Air — Glass UI tokens + components (v2, Nov 2026)
+   Dark, gold, calm. Never navy. Gold = primary action/attention.
+   ========================================================== */
+:root{
+  --ofa-bg:#08080A;            /* page base */
+  --ofa-ink:#F4F2EC;           /* primary text */
+  --ofa-mute:#8E8E93;          /* secondary text */
+  --ofa-dim:#5E5E63;           /* tertiary / legal */
+  --ofa-gold:#C9A227;          /* brand gold */
+  --ofa-gold-2:#E3B341;        /* highlight gold (glows, arrows) */
+  --ofa-gold-3:#F2CF6B;        /* flight trails */
+  --ofa-green:#3F7D51;         /* on plan / live ops */
+  --ofa-green-2:#5FA36F;       /* status text on dark */
+  --ofa-red:#C24634;           /* exception / late */
+  --ofa-land:#1D1D22;          /* map land fill */
+  --ofa-font:'Inter','SF Pro Display',-apple-system,'Helvetica Neue',Arial,sans-serif;
+  --ofa-mono:'SF Mono','JetBrains Mono',Consolas,'Liberation Mono',monospace; /* ICAO, tails, times, money only */
+}
+@keyframes ofaBlink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes ofaTw{0%,100%{opacity:.15}45%{opacity:1}55%{opacity:1}}                 /* map twinkles */
+@keyframes ofaTail{from{stroke-dashoffset:170}to{stroke-dashoffset:-830}}          /* flight trail; path uses pathLength="1000" + dasharray "170 3000" */
+
+/* Glass panel — see-through so the live map reads behind it */
+.g-panel{background:linear-gradient(165deg,rgba(44,44,50,.26),rgba(12,12,14,.34));backdrop-filter:blur(7px) saturate(140%);-webkit-backdrop-filter:blur(7px) saturate(140%);border:1px solid rgba(255,255,255,.11);box-shadow:0 30px 80px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.09);border-radius:22px}
+/* Dense-content variant used in the portal (side panels, detail card) */
+.g-panel--dense{background:linear-gradient(165deg,rgba(44,44,50,.34),rgba(10,10,12,.5));backdrop-filter:blur(10px) saturate(140%);-webkit-backdrop-filter:blur(10px) saturate(140%);border-radius:18px}
+
+/* Primary glass button: gold-tinted frosted pill + dark arrow dot */
+.g-btn{position:relative;display:flex;align-items:center;justify-content:center;height:52px;padding:0 52px;border-radius:14px;background:linear-gradient(90deg,rgba(227,179,65,.26),rgba(255,255,255,.09) 58%,rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(0,0,0,.15),0 10px 26px rgba(0,0,0,.25);font:500 14.5px/1 var(--ofa-font);color:var(--ofa-ink);letter-spacing:-.005em;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-sizing:border-box;white-space:nowrap;transition:background .2s}
+.g-btn:hover{background:linear-gradient(90deg,rgba(227,179,65,.38),rgba(255,255,255,.12) 58%,rgba(255,255,255,.05))}
+.g-btn::after{content:"\2192";position:absolute;right:8px;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(10,10,12,.88);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:var(--ofa-gold-2);font:500 15px/1 var(--ofa-font);box-sizing:border-box}
+.g-btn--sm{height:38px;padding:0 42px 0 14px;font-size:12.5px;border-radius:11px}.g-btn--sm::after{width:26px;height:26px;right:5px;font-size:13px}
+
+/* Secondary glass button / small pill */
+.g-ghost,.g-pill{display:inline-flex;align-items:center;justify-content:center;gap:7px;font:500 12.5px/1 var(--ofa-font);color:var(--ofa-ink);background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.1);cursor:pointer;box-sizing:border-box;white-space:nowrap;text-decoration:none;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.g-ghost{height:38px;padding:0 14px;border-radius:11px}
+.g-pill{padding:9px 13px;border-radius:9px}
+.g-pill--gold{background:linear-gradient(90deg,rgba(227,179,65,.3),rgba(255,255,255,.08));padding:7px 12px}
+
+/* Field */
+.g-field{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.01));border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);box-sizing:border-box;color:var(--ofa-mute)}
+.g-field input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--ofa-ink);font:400 14.5px/1 var(--ofa-font)}
+.g-field input::placeholder{color:#6A6A70}
+.g-field.is-active,.g-field:focus-within{border-color:rgba(227,179,65,.55);box-shadow:0 0 0 3px rgba(201,162,39,.08),0 0 22px rgba(201,162,39,.14),inset 0 1px 0 rgba(255,255,255,.08)}
+
+/* Action row (icon · title/sub · arrow dot) */
+.g-row{display:flex;align-items:center;gap:13px;padding:14px 12px 14px 14px;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.008));border:1px solid rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.07);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);cursor:pointer;text-decoration:none;color:inherit}
+.g-row:hover{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02))}
+.g-ico{width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--ofa-gold-2);background:linear-gradient(180deg,rgba(227,179,65,.18),rgba(227,179,65,.05));border:1px solid rgba(227,179,65,.3)}
+.g-row-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.g-row-t{font:500 15px/1.2 var(--ofa-font);letter-spacing:-.01em;color:var(--ofa-ink)}
+.g-row-s{font:400 12.5px/1.3 var(--ofa-font);color:var(--ofa-mute)}
+.g-dot{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(10,10,12,.85);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.08);color:var(--ofa-gold-2);font:500 14px/1 var(--ofa-font)}
+
+/* Segmented control */
+.g-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:3px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08)}
+.g-seg > *{padding:9px 4px;border-radius:9px;text-align:center;font:500 12.5px/1 var(--ofa-font);color:var(--ofa-mute);cursor:pointer}
+.g-seg > .is-on{color:var(--ofa-ink);background:linear-gradient(90deg,rgba(227,179,65,.3),rgba(255,255,255,.1))}
+
+/* Status chip — color = meaning (gold attention, green on plan, red late) */
+.g-chip{display:inline-flex;align-items:center;font:500 11px/1 var(--ofa-font);padding:4px 8px;border-radius:20px;border:1px solid currentColor;background:rgba(255,255,255,.03)}
+
+/* ── Design-system supplements (doc 01 prose not in 01b-tokens.css) ── */
+
+/* Portal primary CTA height (login stays 52px; portal lists/forms use 48px) */
+.g-btn--portal{height:48px}
+
+/* Chip meaning colors — border = status color at 40% alpha (#RRGGBB66) */
+.g-chip--gold{color:var(--ofa-gold-2);border-color:#E3B34166}
+.g-chip--attn{color:var(--ofa-gold);border-color:#C9A22766}
+.g-chip--green{color:var(--ofa-green-2);border-color:#5FA36F66}
+.g-chip--red{color:var(--ofa-red);border-color:#C2463466}
+
+/* Segment count (mono, muted) */
+.g-seg .g-count{font-family:var(--ofa-mono);letter-spacing:.03em;opacity:.6}
+
+/* Field: airport mono + resolved/unresolved hint */
+.g-field--icao input{font-family:var(--ofa-mono);letter-spacing:.03em;text-transform:uppercase}
+.g-field-hint{margin-top:6px;font:400 12px/1.3 var(--ofa-font);color:var(--ofa-green-2)}
+.g-field-hint.is-pending{color:var(--ofa-mute)}
+
+@media (max-width:899px){
+  .g-field{height:44px}
+}
+
+/* Checkbox tile — gold when on */
+.g-check{display:flex;align-items:center;gap:10px;padding:12px;border-radius:11px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);cursor:pointer;font:400 13px/1.3 var(--ofa-font);color:var(--ofa-ink);box-sizing:border-box}
+.g-check.is-on{border-color:rgba(201,162,39,.55);background:rgba(201,162,39,.1)}
+.g-check-box{width:14px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(255,255,255,.22);background:transparent;box-sizing:border-box}
+.g-check.is-on .g-check-box{background:var(--ofa-gold);border-color:var(--ofa-gold)}
+
+/* Toggle — 30×16 gold track, dark knob */
+.g-toggle{position:relative;width:30px;height:16px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);cursor:pointer;flex-shrink:0;padding:0;box-sizing:border-box}
+.g-toggle::after{content:"";position:absolute;top:1px;left:1px;width:12px;height:12px;border-radius:50%;background:rgba(10,10,12,.92);transition:transform .18s ease,background .18s ease}
+.g-toggle.is-on{background:var(--ofa-gold);border-color:rgba(227,179,65,.55)}
+.g-toggle.is-on::after{transform:translateX(14px);background:rgba(10,10,12,.88)}
+
+/* Close — 28px circle */
+.g-close{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--ofa-ink);font:500 16px/1 var(--ofa-font);cursor:pointer;padding:0;box-sizing:border-box}
+
+/* Live dots — gold = live trip, green = ops online */
+.g-live{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--ofa-gold-2);box-shadow:0 0 8px var(--ofa-gold-2);animation:ofaBlink 1.8s ease-in-out infinite}
+.g-live--ops{background:var(--ofa-green-2);box-shadow:0 0 8px var(--ofa-green-2);animation-duration:2s}
+.g-kicker-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--ofa-gold);box-shadow:0 0 10px rgba(201,162,39,.85)}
+
+/* Type roles (sentence case — never uppercase) */
+.g-headline{font:500 50px/1.06 var(--ofa-font);letter-spacing:-.03em;color:var(--ofa-ink);text-shadow:0 2px 30px rgba(0,0,0,.9)}
+.g-title{font:500 20px/1.2 var(--ofa-font);letter-spacing:-.02em;color:var(--ofa-ink)}
+.g-kicker{font:500 13px/1.2 var(--ofa-font);color:var(--ofa-gold);letter-spacing:-.005em}
+.g-label{font:400 12px/1.2 var(--ofa-font);color:var(--ofa-mute)}
+.g-body{font:400 12.5px/1.4 var(--ofa-font);color:var(--ofa-mute)}
+.g-detail{font:400 13px/1.35 var(--ofa-font);color:var(--ofa-ink)}
+.g-mono{font-family:var(--ofa-mono);letter-spacing:.03em;font-size:13px}
+
+@media (max-width:899px){
+  .g-headline{font-size:32px}
+}
+
+/* Soft-quote arc dash + panel enter */
+@keyframes ofaDash{to{stroke-dashoffset:-24}}
+@keyframes ofaRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.g-rise{animation:ofaRise .28s ease-out both}
+
+/* Client portal surfaces — Inter + tight body tracking */
+[data-theme="client"],
+.ofa-glass{
+  font-family:var(--ofa-font);
+  letter-spacing:-.005em;
+}
+.ofa-glass{
+  background:var(--ofa-bg);
+  color:var(--ofa-ink);
+}
+
+@media (prefers-reduced-motion:reduce){
+  .g-live,.g-live--ops{animation:none}
+  .g-rise{animation:none}
+  .g-btn{transition:none}
+  .g-toggle::after{transition:none}
+}
