@@ -29,14 +29,18 @@ export function PortalQuickActions(props?: {
     ? 'mt-1 text-[0.95rem] leading-snug text-ink/55'
     : 'mt-0.5 text-sm leading-snug text-ink/55'
 
+  const tile = stacked ? [pad, glassTile, 'h-full min-h-0'].join(' ') : [pad, glassTile].join(' ')
+
   return (
     <div
       className={[
-        stacked ? 'grid gap-3.5' : 'grid gap-3 sm:grid-cols-3',
+        stacked
+          ? 'grid h-full grid-rows-3 gap-3.5'
+          : 'grid gap-3 sm:grid-cols-3',
         props?.className ?? '',
       ].join(' ')}
     >
-      <Link to="/quote" className={[pad, glassTile].join(' ')}>
+      <Link to="/quote" className={tile}>
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className={title}>Rough estimate</div>
@@ -50,7 +54,7 @@ export function PortalQuickActions(props?: {
         </div>
       </Link>
 
-      <Link to="/book" className={[pad, glassTile].join(' ')}>
+      <Link to="/book" className={tile}>
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className={title}>Book a trip</div>
@@ -64,7 +68,7 @@ export function PortalQuickActions(props?: {
         </div>
       </Link>
 
-      <a href={`tel:${BRAND_PHONE_E164}`} className={[pad, glassTile].join(' ')}>
+      <a href={`tel:${BRAND_PHONE_E164}`} className={tile}>
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className={title}>Call ops</div>
