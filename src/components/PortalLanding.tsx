@@ -269,13 +269,6 @@ export function PortalLanding(props?: {
             </div>
             <LoginActions />
           </div>
-
-          <div className="ofa-login-ticker" style={{ justifyContent: 'flex-end' }}>
-            {/* Live missions half omitted until a public in-air count exists. */}
-            <span>
-              <b>500+</b> vetted operators · <b>400+</b> time-critical missions
-            </span>
-          </div>
         </section>
 
         <footer className="ofa-login-foot">
