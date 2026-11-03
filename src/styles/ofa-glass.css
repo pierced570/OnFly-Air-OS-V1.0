@@ -39,10 +39,21 @@
 .g-pill--gold{background:linear-gradient(90deg,rgba(227,179,65,.3),rgba(255,255,255,.08));padding:7px 12px}
 
 /* Field */
-.g-field{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.01));border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);box-sizing:border-box;color:var(--ofa-mute)}
-.g-field input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--ofa-ink);font:400 14.5px/1 var(--ofa-font)}
-.g-field input::placeholder{color:#6A6A70}
-.g-field.is-active,.g-field:focus-within{border-color:rgba(227,179,65,.55);box-shadow:0 0 0 3px rgba(201,162,39,.08),0 0 22px rgba(201,162,39,.14),inset 0 1px 0 rgba(255,255,255,.08)}
+.g-field{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border-radius:12px;background:linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,.28));border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.05);box-sizing:border-box;color:var(--ofa-mute)}
+.g-field input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--ofa-ink);caret-color:var(--ofa-ink);font:400 14.5px/1 var(--ofa-font);-webkit-text-fill-color:var(--ofa-ink)}
+.g-field input::placeholder{color:#6A6A70;-webkit-text-fill-color:#6A6A70}
+/* Kill browser autofill paint (blue/yellow wash + black text) */
+.g-field input:-webkit-autofill,
+.g-field input:-webkit-autofill:hover,
+.g-field input:-webkit-autofill:focus,
+.g-field input:-webkit-autofill:active{
+  -webkit-text-fill-color:var(--ofa-ink) !important;
+  caret-color:var(--ofa-ink);
+  box-shadow:0 0 0 1000px #121216 inset !important;
+  transition:background-color 99999s ease-out 0s;
+  border-radius:8px;
+}
+.g-field.is-active,.g-field:focus-within{border-color:rgba(227,179,65,.55);box-shadow:0 0 0 3px rgba(201,162,39,.08),0 0 22px rgba(201,162,39,.14),inset 0 1px 0 rgba(255,255,255,.05)}
 
 /* Action row (icon · title/sub · arrow dot) */
 .g-row{display:flex;align-items:center;gap:13px;padding:14px 12px 14px 14px;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.008));border:1px solid rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.07);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);cursor:pointer;text-decoration:none;color:inherit}
