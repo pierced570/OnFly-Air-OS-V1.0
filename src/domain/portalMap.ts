@@ -273,3 +273,67 @@ export function clampLabelX(x: number, min = 440, max = 1425): number {
 export function telemetryFlipLeft(x: number, edge = 1425): boolean {
   return x + 14 > edge
 }
+
+/** Design-space points used to frame the phone map band (doc 05). */
+export type MapFramePoint = { x: number; y: number }
+
+/**
+ * Fit design-space points into the visible band above the phone sheet.
+ * `band = [top, bottom]` and `W,H` are screen px; pad is design-units.
+ * Returns a viewBox string `minX minY width height`.
+ */
+export function frameMapViewBox(input: {
+  points: readonly MapFramePoint[]
+  screenW: number
+  screenH: number
+  bandTop: number
+  bandBottom: number
+  pad?: number
+}): string {
+  const W = Math.max(1, input.screenW)
+  const H = Math.max(1, input.screenH)
+  const top = input.bandTop
+  const bottom = Math.max(top + 1, input.bandBottom)
+  const pad = input.pad ?? 65
+  const pts = input.points
+  if (!pts.length) {
+    return MAP_VIEWBOX.portalDesktop
+  }
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  const s = Math.max(
+    (maxX - minX + 2 * pad) / W,
+    (maxY - minY + 2 * pad) / (bottom - top),
+  )
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  const midY = top + (bottom - top) / 2
+  const vbX = cx - (W * s) / 2
+  const vbY = cy - midY * s
+  return `${vbX} ${vbY} ${W * s} ${H * s}`
+}
+
+/** Interpolate four viewBox numbers over t ∈ [0,1]. */
+export function lerpViewBox(from: string, to: string, t: number): string {
+  const a = from.trim().split(/\s+/).map(Number)
+  const b = to.trim().split(/\s+/).map(Number)
+  if (a.length !== 4 || b.length !== 4 || a.some((n) => !Number.isFinite(n))) {
+    return t < 1 ? from : to
+  }
+  const u = Math.min(1, Math.max(0, t))
+  return a.map((n, i) => n + ((b[i] ?? n) - n) * u).join(' ')
+}
+
+/** Ease-out for 450ms viewBox transitions (doc 05). */
+export function easeOutCubic(t: number): number {
+  const u = Math.min(1, Math.max(0, t))
+  return 1 - (1 - u) ** 3
+}

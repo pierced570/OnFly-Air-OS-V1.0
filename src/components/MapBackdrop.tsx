@@ -76,6 +76,10 @@ export type MapBackdropProps = {
   planeScale?: number
   /** Show soft-quote hint chip (interactive). Default true. */
   showQuoteHint?: boolean
+  /** Hub city labels (interactive). Phone portal turns these off. Default true. */
+  showHubLabels?: boolean
+  /** Pause SMIL/CSS map motion while a sheet is dragged or tab is hidden. */
+  animationsPaused?: boolean
   className?: string
   style?: CSSProperties
 }
@@ -637,13 +641,23 @@ export function MapBackdrop(props: MapBackdropProps) {
     onMapClick,
     planeScale: planeScaleProp,
     showQuoteHint = true,
+    showHubLabels = true,
+    animationsPaused = false,
     className,
     style,
   } = props
 
   const uid = useId().replace(/:/g, '')
   const svgRef = useRef<SVGSVGElement>(null)
-  const reducedMotion = usePrefersReducedMotion()
+  const prefersReduced = usePrefersReducedMotion()
+  const [docHidden, setDocHidden] = useState(false)
+  useEffect(() => {
+    const apply = () => setDocHidden(document.hidden)
+    apply()
+    document.addEventListener('visibilitychange', apply)
+    return () => document.removeEventListener('visibilitychange', apply)
+  }, [])
+  const reducedMotion = prefersReduced || animationsPaused || docHidden
   const compact = useCompactMap()
   const ambientAutoVb = useAmbientLoginViewBox(
     mode === 'ambient' && viewBoxProp === undefined,
@@ -672,7 +686,7 @@ export function MapBackdrop(props: MapBackdropProps) {
 
   const twinkles = compact ? twinklePoints.slice(0, 80) : twinklePoints
   const flights = compact ? demoFlights.slice(0, 5) : demoFlights
-  const showHubs = mode === 'interactive'
+  const showHubs = mode === 'interactive' && showHubLabels
   const showLoginEndpoints = mode === 'ambient'
 
   const handleClick = (e: ReactMouseEvent<SVGSVGElement>) => {

@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  PortalDesktopApp,
+  usePortalDesktopMedia,
+} from '@/components/PortalDesktopApp'
 import { PortalLanding } from '@/components/PortalLanding'
 import { PortalShell } from '@/components/PortalShell'
 import { PortalShipmentsDashboard } from '@/components/PortalShipmentsDashboard'
@@ -81,6 +85,7 @@ export default function PortalHomePage() {
   } = usePortalSession()
   const [remoteTrips, setRemoteTrips] = useState<PortalTripCard[]>([])
   const [nowLabel, setNowLabel] = useState(() => clockLabel())
+  const isDesktop = usePortalDesktopMedia()
 
   useEffect(() => {
     const id = window.setInterval(() => setNowLabel(clockLabel()), 30_000)
@@ -195,18 +200,21 @@ export default function PortalHomePage() {
 
   const summaryLine = `${counts.inMotion} in motion · ${counts.onGround} on the ground · ${counts.delivered} delivered`
 
+  function signOut() {
+    void endPortalSession().then(() => {
+      setSession(null)
+      setRemoteTrips([])
+      clearPortalClient()
+    })
+  }
+
   const headerActions = session ? (
     <>
       <span className="hidden text-cream/60 md:inline">{session.email}</span>
       <button
         type="button"
         className="text-gold hover:text-gold-lt"
-        onClick={() => {
-          void endPortalSession().then(() => {
-            setSession(null)
-            setRemoteTrips([])
-          })
-        }}
+        onClick={signOut}
       >
         Sign out
       </button>
@@ -220,6 +228,55 @@ export default function PortalHomePage() {
         onSignedIn={(s) => {
           setSession(s)
         }}
+      />
+    )
+  }
+
+  const shipmentRows = liveCards.map((t) => {
+    const trip = getTrip(t.id)
+    return {
+      id: t.id,
+      ref: t.ref,
+      state: t.state,
+      lane: t.lane,
+      ready_label: t.ready_label,
+      payload_summary: t.payload_summary,
+      trackHref: t.trackHref,
+      nextLabel: t.nextLabel,
+      phase: t.phase,
+      requestedAt: trip
+        ? [...trip.events].sort((a, b) => a.at.localeCompare(b.at))[0]?.at ??
+          trip.hard_quote?.sent_at ??
+          trip.invoice?.created_at ??
+          null
+        : null,
+      poNumber: trip?.po_number ?? trip?.quick?.po ?? null,
+      code: trip?.code ?? t.code ?? null,
+    }
+  })
+
+  const pendingRows = openRequestCards.map((r) => ({
+    id: r.id,
+    ref: r.ref,
+    lane: r.lane,
+    statusLabel: r.statusLabel,
+    summary: r.summary,
+    href: r.href,
+    at: r.created_at ?? null,
+    hardQuote: r.hardQuote,
+  }))
+
+  // Doc 04: glass desktop portal at ≥900px. Phone (<900) keeps the existing
+  // command shell until doc 05.
+  if (signedIn && isDesktop && session?.clientId) {
+    return (
+      <PortalDesktopApp
+        email={session.email}
+        client={client}
+        shipments={shipmentRows}
+        pending={pendingRows}
+        onSignOut={signOut}
+        onSwitchCompany={signOut}
       />
     )
   }
@@ -256,13 +313,7 @@ export default function PortalHomePage() {
               <button
                 type="button"
                 className="text-sm text-cream/50 hover:text-gold"
-                onClick={() => {
-                  void endPortalSession().then(() => {
-                    setSession(null)
-                    setRemoteTrips([])
-                    clearPortalClient()
-                  })
-                }}
+                onClick={signOut}
               >
                 Switch company
               </button>
@@ -270,38 +321,8 @@ export default function PortalHomePage() {
           ) : null}
 
           <PortalShipmentsDashboard
-            shipments={liveCards.map((t) => {
-              const trip = getTrip(t.id)
-              return {
-                id: t.id,
-                ref: t.ref,
-                state: t.state,
-                lane: t.lane,
-                ready_label: t.ready_label,
-                payload_summary: t.payload_summary,
-                trackHref: t.trackHref,
-                nextLabel: t.nextLabel,
-                phase: t.phase,
-                requestedAt:
-                  trip
-                    ? [...trip.events]
-                        .sort((a, b) => a.at.localeCompare(b.at))[0]?.at ??
-                      trip.hard_quote?.sent_at ??
-                      trip.invoice?.created_at ??
-                      null
-                    : null,
-                poNumber: trip?.po_number ?? trip?.quick?.po ?? null,
-              }
-            })}
-            pending={openRequestCards.map((r) => ({
-              id: r.id,
-              ref: r.ref,
-              lane: r.lane,
-              statusLabel: r.statusLabel,
-              summary: r.summary,
-              href: r.href,
-              at: r.created_at ?? null,
-            }))}
+            shipments={shipmentRows}
+            pending={pendingRows}
             summaryLine={summaryLine}
             nowLabel={nowLabel}
             email={session?.email}
