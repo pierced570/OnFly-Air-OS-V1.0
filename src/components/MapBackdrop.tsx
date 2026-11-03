@@ -127,6 +127,22 @@ function useCompactMap(): boolean {
   return compact
 }
 
+/** Login framing: tall/narrow (< 0.9) → East Coast; else coast-to-coast. */
+function useAmbientLoginViewBox(enabled: boolean): string {
+  const [vb, setVb] = useState<string>(MAP_VIEWBOX.loginWide)
+  useEffect(() => {
+    if (!enabled) return
+    const frame = () => {
+      const tall = window.innerWidth / window.innerHeight < 0.9
+      setVb(tall ? MAP_VIEWBOX.loginPhone : MAP_VIEWBOX.loginWide)
+    }
+    frame()
+    window.addEventListener('resize', frame)
+    return () => window.removeEventListener('resize', frame)
+  }, [enabled])
+  return vb
+}
+
 function resolveEndpoint(
   ref: string | MapAirport,
 ): MapAirport | null {
@@ -613,9 +629,7 @@ function QuoteOverlay(props: {
 export function MapBackdrop(props: MapBackdropProps) {
   const {
     mode,
-    viewBox = mode === 'interactive'
-      ? MAP_VIEWBOX.portalDesktop
-      : MAP_VIEWBOX.loginWide,
+    viewBox: viewBoxProp,
     ambientOpacity = 1,
     selectedRoute,
     quotePoints: quotePointsProp,
@@ -631,6 +645,12 @@ export function MapBackdrop(props: MapBackdropProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const reducedMotion = usePrefersReducedMotion()
   const compact = useCompactMap()
+  const ambientAutoVb = useAmbientLoginViewBox(
+    mode === 'ambient' && viewBoxProp === undefined,
+  )
+  const viewBox =
+    viewBoxProp ??
+    (mode === 'interactive' ? MAP_VIEWBOX.portalDesktop : ambientAutoVb)
   const planeScale =
     planeScaleProp ??
     (compact ? 1 : mode === 'interactive' ? 0.75 : 0.9)
