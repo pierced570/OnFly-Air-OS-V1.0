@@ -133,9 +133,18 @@
   color:var(--ofa-ink);
 }
 
+/* MapBackdrop (doc 02) — hint chip sits in the SVG host */
+.ofa-map-backdrop{isolation:isolate}
+
 @media (prefers-reduced-motion:reduce){
   .g-live,.g-live--ops{animation:none}
   .g-rise{animation:none}
   .g-btn{transition:none}
   .g-toggle::after{transition:none}
+  /* Map: kill twinkles, comet tails, quote dash, blink pulses */
+  .ofa-map-twinkles g,
+  .ofa-map-flight path,
+  .ofa-map-quote path{
+    animation:none !important;
+  }
 }

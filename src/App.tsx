@@ -44,6 +44,9 @@ const DeskParsePage = lazy(() => import('@/pages/DeskParsePage'))
 const DispatchCenterPage = lazy(() => import('@/pages/DispatchCenterPage'))
 const OperatorPacketPage = lazy(() => import('@/pages/OperatorPacketPage'))
 const StaffLoginPage = lazy(() => import('@/pages/StaffLoginPage'))
+const MapBackdropDemoPage = lazy(
+  () => import('@/pages/dev/MapBackdropDemoPage'),
+)
 
 function Fallback() {
   return (
@@ -72,7 +75,8 @@ function isPublic(pathname: string) {
     pathname.startsWith('/onboard/') ||
     pathname.startsWith('/join/') ||
     pathname === '/vendor' ||
-    pathname.startsWith('/vendor/')
+    pathname.startsWith('/vendor/') ||
+    pathname.startsWith('/dev/')
   )
 }
 
@@ -90,7 +94,8 @@ function isClientThemePath(pathname: string) {
     pathname.startsWith('/onboard/') ||
     pathname.startsWith('/join/') ||
     pathname === '/vendor' ||
-    pathname.startsWith('/vendor/')
+    pathname.startsWith('/vendor/') ||
+    pathname.startsWith('/dev/')
   )
 }
 
@@ -193,6 +198,8 @@ export function App() {
         <Route path="/onboard" element={<OnboardPage />} />
         <Route path="/join/:token" element={<OperatorPacketPage />} />
         <Route path="/vendor" element={<VendorPacketPage />} />
+        {/* Isolated glass redesign previews (docs 02+) — not portal UX */}
+        <Route path="/dev/map-backdrop" element={<MapBackdropDemoPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
