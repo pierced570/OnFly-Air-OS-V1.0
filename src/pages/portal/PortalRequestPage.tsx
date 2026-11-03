@@ -4,8 +4,7 @@ import {
   clearFastQuoteDraft,
   readFastQuoteDraft,
 } from '@/components/PortalFastQuote'
-import { PortalAppNav } from '@/components/PortalAppNav'
-import { PortalAtmosphere } from '@/components/PortalGlass'
+import { PortalGlassGuestShell } from '@/components/PortalGlassGuestShell'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { SoftPricingPackageView } from '@/components/SoftPricingPackageView'
 import { usePortalSession } from '@/hooks/usePortalSession'
@@ -79,6 +78,16 @@ export default function PortalRequestPage() {
     searchParams.get('mode') === 'book' ? 'book' : 'quote'
   const restoreId = searchParams.get('requestId')?.trim() || null
   const fromFastQuote = searchParams.get('from') === 'fast-quote'
+
+  // Signed-in clients stay inside the glass portal (Request / Quote tabs).
+  if (!authLoading && signedIn && !restoreId && !fromFastQuote) {
+    return (
+      <Navigate
+        to={entryMode === 'book' ? '/?panel=book' : '/?panel=quote'}
+        replace
+      />
+    )
+  }
   const [done, setDone] = useState<TripRequestRecord | null>(null)
   const [intent, setIntent] = useState<PortalSubmitIntent | null>(null)
   const [softPackage, setSoftPackage] =
@@ -566,18 +575,29 @@ function WizardShell(props: {
   appNav?: boolean
 }) {
   return (
-    <PortalAtmosphere>
+    <PortalGlassGuestShell
+      kicker={props.wide ? 'Soft estimate' : 'Book a trip'}
+      title={
+        props.wide
+          ? 'Your rough numbers'
+          : "Let's get your freight moving"
+      }
+      subtitle={
+        props.wide
+          ? 'Same glass portal as login — send to the desk when you’re ready.'
+          : 'Full form · hard quote in 10–15 min. Matches the signed-in Request tab.'
+      }
+    >
       <div
         className={[
-          'mx-auto px-4 sm:px-6',
-          props.flushTop ? 'pb-6 pt-0 sm:pb-8' : 'py-6 sm:py-8',
-          props.wide ? 'max-w-6xl' : 'max-w-3xl sm:max-w-4xl',
-          props.appNav ? 'pb-28 md:pb-8' : '',
-        ].join(' ')}
+          props.flushTop ? 'pt-0' : '',
+          props.wide ? 'max-w-none' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
       >
         {props.children}
       </div>
-      {props.appNav ? <PortalAppNav /> : null}
-    </PortalAtmosphere>
+    </PortalGlassGuestShell>
   )
 }

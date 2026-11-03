@@ -75,7 +75,7 @@ function LoginActions() {
         </span>
         <span className="g-row-txt">
           <span className="g-row-t">Rough estimate</span>
-          <span className="g-row-s">One page · ballpark in seconds</span>
+          <span className="g-row-s">Get an idea of costs</span>
         </span>
         <span className="g-dot" aria-hidden="true">
           →
