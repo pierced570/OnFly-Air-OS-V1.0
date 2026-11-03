@@ -1,6 +1,10 @@
 /**
  * Shared glass primitives for the client portal.
  * Brand: cream + gold + Falcon cargo atmosphere — never navy.
+ *
+ * Glass redesign foundation (doc 01): CSS tokens/components live in
+ * `src/styles/ofa-glass.css` (`.g-panel`, `.g-btn`, `.g-field`, …). Prefer those
+ * class names for new portal surfaces; these helpers remain for the current cream shell.
  */
 
 import type { ReactNode } from 'react'

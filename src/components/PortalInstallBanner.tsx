@@ -62,7 +62,7 @@ export function PortalInstallBanner(props: {
   /** Open platform steps immediately (first portal page). */
   defaultOpen?: boolean
   /** Slim top-of-page strip on the public portal landing. */
-  density?: 'card' | 'banner'
+  density?: 'card' | 'banner' | 'a2hs'
 }) {
   const { pathname } = useLocation()
   const onPortalLanding = isPortalLandingPath(pathname)
@@ -142,8 +142,10 @@ export function PortalInstallBanner(props: {
     setDeferred(null)
   }
 
+  const a2hs = density === 'a2hs'
+  const stepsMuted = a2hs ? 'text-[var(--ofa-mute)]' : muted
   const steps = (
-    <ol className={`list-decimal space-y-1.5 pl-5 text-sm ${muted}`}>
+    <ol className={`list-decimal space-y-1.5 pl-5 text-sm ${stepsMuted}`}>
       {showIosHint || platform === 'ios' ? (
         <>
           <li>
@@ -192,6 +194,61 @@ export function PortalInstallBanner(props: {
       )}
     </ol>
   )
+
+  if (density === 'a2hs') {
+    return (
+      <div
+        className="ofa-a2hs"
+        data-testid="portal-install-banner"
+        id="add-to-home-screen"
+        role="region"
+        aria-label="Install"
+      >
+        <span className="ofa-a2hs-txt">
+          <b>Add to Home Screen</b>
+          <span className="sep"> — </span>
+          <span className="rest">
+            full-screen OnFly on this phone: book, quote, track.
+          </span>
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {showChromeInstall ? (
+            <button
+              type="button"
+              className="g-pill g-pill--gold"
+              onClick={() => void installChrome()}
+            >
+              Add
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="g-pill g-pill--gold"
+              onClick={() => setStepsOpen((v) => !v)}
+            >
+              {stepsOpen ? 'Hide' : 'How'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="ofa-a2hs-later"
+            onClick={dismiss}
+            aria-label="Dismiss Add to Home Screen"
+          >
+            Not now
+          </button>
+        </span>
+        {stepsOpen && !showChromeInstall ? (
+          <div
+            className="w-full basis-full border-t border-white/10 px-1 pt-2"
+            style={{ flexBasis: '100%' }}
+          >
+            {steps}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
   if (density === 'banner') {
     const bar = dark

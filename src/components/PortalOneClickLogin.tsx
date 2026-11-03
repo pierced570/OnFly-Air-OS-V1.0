@@ -11,6 +11,23 @@ import {
   signInPortalByWorkEmail,
 } from '@/lib/portalAuth'
 
+const MailIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+    <path d="M4 7l8 6 8-6" />
+  </svg>
+)
+
 export function PortalOneClickLogin(props: {
   /** Prefill from the trip request — enables true one-tap. */
   email?: string | null
@@ -21,12 +38,16 @@ export function PortalOneClickLogin(props: {
    * When set (company portal `/portal/c/:slug`), only that client may sign in.
    */
   expectedClientId?: string | null
-  /** Compact cream glass vs landing frost glass. */
-  variant?: 'cream' | 'dark' | 'glass' | 'frost'
+  /** Compact cream glass vs landing frost / ofa dark glass. */
+  variant?: 'cream' | 'dark' | 'glass' | 'frost' | 'ofa'
   title?: string
   hint?: string
   /** Extra classes on the outer glass wrap (e.g. h-full for aligned landing panels). */
   className?: string
+  /** Hide outer chrome when embedded inside a parent `.ofa-login-col`. */
+  bare?: boolean
+  /** Show Terms / Privacy legal line (login home desktop). */
+  showLegal?: boolean
 }) {
   const navigate = useNavigate()
   const [email, setEmail] = useState(() => (props.email ?? '').trim().toLowerCase())
@@ -35,6 +56,8 @@ export function PortalOneClickLogin(props: {
   const variant = props.variant ?? 'glass'
   const prefilled = Boolean((props.email ?? '').trim().includes('@'))
   const frost = variant === 'frost'
+  const ofa = variant === 'ofa'
+  const showLegal = props.showLegal ?? ofa
 
   async function signIn(addr: string) {
     setError(null)
@@ -61,6 +84,84 @@ export function PortalOneClickLogin(props: {
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     await signIn(email)
+  }
+
+  if (ofa) {
+    const controls = (
+      <>
+        <label className="g-field is-active">
+          <MailIcon />
+          <span className="sr-only">Work email</span>
+          <input
+            type="email"
+            name="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              setError(null)
+            }}
+            placeholder="Work email"
+            autoComplete="email"
+            required
+            readOnly={prefilled}
+          />
+        </label>
+        {error ? <p className="ofa-login-err">{error}</p> : null}
+        <button
+          className="g-btn"
+          type={prefilled ? 'button' : 'submit'}
+          disabled={busy}
+          style={{ width: '100%', marginTop: 10 }}
+          onClick={prefilled ? () => void signIn(email) : undefined}
+        >
+          {busy ? 'Opening…' : 'Continue'}
+        </button>
+        {showLegal ? (
+          <p className="ofa-login-legal">
+            We email a one-tap sign-in link — no password. By continuing you
+            agree to OnFly Air&apos;s{' '}
+            <a href="https://onflyair.com/terms" target="_blank" rel="noreferrer">
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a
+              href="https://onflyair.com/privacy"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Privacy Policy
+            </a>
+            .
+          </p>
+        ) : null}
+      </>
+    )
+
+    const body = prefilled ? (
+      <div>{controls}</div>
+    ) : (
+      <form onSubmit={onSubmit} noValidate>
+        {controls}
+      </form>
+    )
+
+    if (props.bare) {
+      return <div className={props.className}>{body}</div>
+    }
+
+    return (
+      <div
+        className={['ofa-login-col', props.className ?? '']
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <div className="ofa-login-col-h">
+          <h2>{props.title ?? 'Client login'}</h2>
+          <span>{props.hint ?? 'Work email on file'}</span>
+        </div>
+        {body}
+      </div>
+    )
   }
 
   const wrap = frost

@@ -1,19 +1,132 @@
 /**
- * Public ofaops home — Pinterest-style glass split:
- * compact logo + light Staff pill · login left · glass-gray actions right.
+ * Public ofaops home — glass login over MapBackdrop (doc 03).
+ * Auth stays work-email one-tap via PortalOneClickLogin; ops login is /login.
  */
 
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  BRAND_LOGO_LIGHT_PATH,
+  BRAND_EMAIL,
+  BRAND_LOGO_PATH,
   BRAND_PHONE,
   BRAND_PHONE_E164,
 } from '@/domain/brand'
-import { PortalAtmosphere } from '@/components/PortalGlass'
+import { MapBackdrop } from '@/components/MapBackdrop'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
-import { PortalQuickActions } from '@/components/PortalQuickActions'
 import type { PortalSession } from '@/domain/portalAuth'
+
+const EstimateIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="5" cy="18" r="2.5" />
+    <circle cx="19" cy="6" r="2.5" />
+    <path d="M7 16.5C10 12 14 12 17 7.5" strokeDasharray="2.5 2.5" />
+  </svg>
+)
+
+const BookIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 8v8M8 12h8" />
+  </svg>
+)
+
+const CallIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />
+  </svg>
+)
+
+function LoginActions() {
+  return (
+    <div className="ofa-login-rows">
+      <Link className="g-row" to="/quote">
+        <span className="g-ico">
+          <EstimateIcon />
+        </span>
+        <span className="g-row-txt">
+          <span className="g-row-t">Rough estimate</span>
+          <span className="g-row-s">One page · ballpark in seconds</span>
+        </span>
+        <span className="g-dot" aria-hidden="true">
+          →
+        </span>
+      </Link>
+      <Link className="g-row" to="/book">
+        <span className="g-ico">
+          <BookIcon />
+        </span>
+        <span className="g-row-txt">
+          <span className="g-row-t">Book a trip</span>
+          <span className="g-row-s">Full form · hard quote in 10–15 min</span>
+        </span>
+        <span className="g-dot" aria-hidden="true">
+          →
+        </span>
+      </Link>
+      <a className="g-row" href={`tel:${BRAND_PHONE_E164}`}>
+        <span className="g-ico">
+          <CallIcon />
+        </span>
+        <span className="g-row-txt">
+          <span className="g-row-t">Call ops</span>
+          <span className="g-row-s">24-hr desk · {BRAND_PHONE}</span>
+        </span>
+        <span className="g-dot" aria-hidden="true">
+          →
+        </span>
+      </a>
+    </div>
+  )
+}
+
+function LoginShell(props: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={['ofa-glass', props.className].filter(Boolean).join(' ')}
+      data-theme="client"
+      style={{ position: 'relative', minHeight: '100dvh', background: 'var(--ofa-bg)' }}
+    >
+      <div className="ofa-login-map" aria-hidden="true">
+        <MapBackdrop mode="ambient" planeScale={0.9} />
+      </div>
+      <div className="ofa-login-scrim" aria-hidden="true" />
+      {props.children}
+    </div>
+  )
+}
 
 export function PortalLanding(props?: {
   onSignedIn?: (session: PortalSession) => void
@@ -29,148 +142,152 @@ export function PortalLanding(props?: {
     .filter(Boolean)
   const domainHint =
     domains.length > 0
-      ? `Use your @${domains[0]} work email — opens ${company || 'this company'} instantly. No password.`
-      : 'Work email on file — live tracking, past trips, booking. No password.'
+      ? `Use your @${domains[0]} work email`
+      : 'Work email on file'
 
   if (props?.loginFocus) {
     return (
-      <PortalAtmosphere className="portal-atmosphere--landing" detail>
-        <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 py-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
-          <Link to="/">
-            <img
-              src={BRAND_LOGO_LIGHT_PATH}
-              alt="OnFly Air"
-              className="h-7 w-auto max-w-[140px] object-contain object-left"
-            />
-          </Link>
-          <Link
-            to="/login?next=/dispatch"
-            className="inline-flex min-h-9 items-center rounded-full border border-white/50 bg-white/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink backdrop-blur hover:bg-white/65"
-          >
-            Operations
-          </Link>
-        </header>
-        <main className="mx-auto max-w-lg space-y-5 px-4 pb-16 sm:px-8">
-          {company ? (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink/50">
-                Company portal
-              </p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">
-                {company}
-              </h1>
+      <LoginShell>
+        <main className="ofa-login">
+          <header className="ofa-login-top">
+            <Link to="/">
+              <img src={BRAND_LOGO_PATH} alt="OnFly Air" />
+            </Link>
+            <div className="ofa-login-top-r">
+              <Link to="/login?next=/dispatch" className="g-pill">
+                <span>
+                  Operations<span className="ofa-hide-phone"> login</span>
+                </span>
+              </Link>
             </div>
-          ) : null}
-          <PortalOneClickLogin
-            variant="frost"
-            onSignedIn={props.onSignedIn}
-            nextHref={props.nextHref ?? undefined}
-            expectedClientId={props.expectedClientId}
-            title={company ? `Client login · ${company}` : 'Client login'}
-            hint={
-              company
-                ? domainHint
-                : 'Enter your work email — we open the right company portal.'
-            }
-          />
-          <PortalQuickActions stacked compact />
-          <p className="text-center text-sm">
-            <Link to="/" className="font-semibold text-ink hover:text-gold">
+          </header>
+
+          <section className="ofa-login-hero" style={{ textAlign: 'left', marginLeft: 0 }}>
+            <div className="ofa-login-kicker">
+              <i aria-hidden="true" />
+              {company ? 'Company portal' : 'Client portal'}
+            </div>
+            <h1>{company || 'Client login'}</h1>
+            {domains.length > 0 ? (
+              <div className="ofa-login-sub">
+                Sign in with your @{domains[0]} work email — no password.
+              </div>
+            ) : null}
+          </section>
+
+          <section
+            className="ofa-login-card g-panel"
+            style={{
+              maxWidth: 480,
+              marginLeft: 0,
+              display: 'block',
+              gridTemplateColumns: undefined,
+            }}
+          >
+            <PortalOneClickLogin
+              variant="ofa"
+              onSignedIn={props.onSignedIn}
+              nextHref={props.nextHref ?? undefined}
+              expectedClientId={props.expectedClientId}
+              title={company ? `Client login · ${company}` : 'Client login'}
+              hint={domainHint}
+              showLegal
+            />
+          </section>
+
+          <p className="ofa-login-foot" style={{ textAlign: 'left' }}>
+            <Link to="/" style={{ color: 'var(--ofa-mute)' }}>
               ← Back home
             </Link>
           </p>
         </main>
-      </PortalAtmosphere>
+      </LoginShell>
     )
   }
 
   return (
-    <PortalAtmosphere className="portal-atmosphere--landing portal-atmosphere--frost">
-      <div className="pt-[max(0px,env(safe-area-inset-top))]">
-        <PortalInstallBanner variant="glass" density="banner" />
-      </div>
+    <LoginShell>
+      <main className="ofa-login">
+        <PortalInstallBanner density="a2hs" variant="glass" />
 
-      <header className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-8">
-        <Link to="/" className="min-w-0 shrink">
-          <img
-            src={BRAND_LOGO_LIGHT_PATH}
-            alt="OnFly Air"
-            className="h-7 w-auto max-w-[140px] object-contain object-left sm:h-8 sm:max-w-[155px]"
-          />
-        </Link>
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <a
-            href={`tel:${BRAND_PHONE_E164}`}
-            className="hidden avionic text-xs font-semibold text-ink/70 hover:text-ink sm:inline"
-          >
-            {BRAND_PHONE}
-          </a>
-          <Link
-            to="/login?next=/dispatch"
-            className="inline-flex min-h-9 items-center rounded-full border border-white/55 bg-white/50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink backdrop-blur-md hover:bg-white/70"
-          >
-            Operations
+        <header className="ofa-login-top">
+          <Link to="/">
+            <img src={BRAND_LOGO_PATH} alt="OnFly Air" />
           </Link>
-        </div>
-      </header>
+          <div className="ofa-login-top-r">
+            <a className="ofa-login-ops" href={`tel:${BRAND_PHONE_E164}`}>
+              <span className="ofa-login-live" aria-hidden="true" />
+              24-hr ops{' '}
+              <span className="num">{BRAND_PHONE}</span>
+            </a>
+            <Link to="/login?next=/dispatch" className="g-pill">
+              <span>
+                Operations<span className="ofa-hide-phone"> login</span>
+              </span>
+            </Link>
+          </div>
+        </header>
 
-      <main className="mx-auto max-w-5xl px-4 pb-16 pt-3 sm:px-8 sm:pt-6">
-        {/*
-          Shared header row + equal-height frost panels on lg:
-          eyebrows sit above both glass boxes so tops/bottoms line up.
-        */}
-        <div className="grid gap-x-5 gap-y-3 sm:gap-x-7 lg:grid-cols-2 lg:items-stretch">
-          <div className="flex flex-col justify-end px-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink/45">
-              {company ? 'Company portal' : 'Client portal'}
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-[1.85rem] sm:leading-snug">
-              {company
-                ? company
-                : 'Your freight, in the air and on the screen.'}
-            </h1>
+        <section className="ofa-login-hero">
+          <div className="ofa-login-kicker">
+            <i aria-hidden="true" />
+            {company ? 'Company portal' : 'Client portal'}
+          </div>
+          <h1>
+            {company ? (
+              company
+            ) : (
+              <>
+                Your freight, in the air
+                <br />
+                and on the screen.
+              </>
+            )}
+          </h1>
+          <div className="ofa-login-sub">
+            {company
+              ? `${domainHint} — live tracking, past trips, rebooking and soft quotes.`
+              : 'Live tracking, past trips, rebooking and soft quotes — one sign-in.'}
+          </div>
+        </section>
+
+        <section className="ofa-login-card g-panel">
+          <PortalOneClickLogin
+            variant="ofa"
+            onSignedIn={props?.onSignedIn}
+            nextHref={props?.nextHref ?? undefined}
+            expectedClientId={props?.expectedClientId}
+            title={company ? `Client login · ${company}` : 'Client login'}
+            hint={domainHint}
+            showLegal
+          />
+
+          <div className="ofa-login-col">
+            <div className="ofa-login-col-h">
+              <h3>No account needed</h3>
+              <span>24/7/365</span>
+            </div>
+            <LoginActions />
           </div>
 
-          <div className="hidden flex-col justify-end px-1 lg:flex">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45">
-              No account needed
-            </h2>
+          <div className="ofa-login-ticker" style={{ justifyContent: 'flex-end' }}>
+            {/* Live missions half omitted until a public in-air count exists. */}
+            <span>
+              <b>500+</b> vetted operators · <b>400+</b> time-critical missions
+            </span>
           </div>
+        </section>
 
-          {/* Left — frosted client login */}
-          <section className="flex h-full min-h-0 flex-col">
-            <PortalOneClickLogin
-              variant="frost"
-              className="h-full flex-1"
-              onSignedIn={props?.onSignedIn}
-              nextHref={props?.nextHref ?? undefined}
-              expectedClientId={props?.expectedClientId}
-              title={company ? `Client login · ${company}` : 'Client login'}
-              hint={domainHint}
-            />
-          </section>
-
-          {/* Right — glass-gray stacked options (fills panel height) */}
-          <section className="flex h-full min-h-0 flex-col rounded-3xl border border-white/40 bg-white/25 p-4 shadow-[0_20px_60px_rgba(12,12,14,0.1)] backdrop-blur-2xl sm:p-5">
-            <h2 className="mb-3 px-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/45 lg:hidden">
-              No account needed
-            </h2>
-            <PortalQuickActions stacked className="min-h-0 flex-1" />
-          </section>
-        </div>
-
-        <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 text-xs text-ink/45">
-          <a href="https://onflyair.com" className="hover:text-ink">
-            onflyair.com
-          </a>
-          <a
-            href={`tel:${BRAND_PHONE_E164}`}
-            className="avionic hover:text-ink sm:hidden"
-          >
-            {BRAND_PHONE}
-          </a>
+        <footer className="ofa-login-foot">
+          <a href="https://onflyair.com">onflyair.com</a>
+          {' · '}
+          <a href={`tel:${BRAND_PHONE_E164}`}>{BRAND_PHONE}</a>
+          <span className="email">
+            {' · '}
+            <a href={`mailto:${BRAND_EMAIL}`}>{BRAND_EMAIL}</a>
+          </span>
         </footer>
       </main>
-    </PortalAtmosphere>
+    </LoginShell>
   )
 }
