@@ -251,7 +251,7 @@ export function nextQuotePoints(
 }
 
 export type QuoteHint =
-  | 'Click any two points for a soft quote'
+  | 'Click two airports for a soft quote'
   | 'Now click the destination'
   | 'Soft quote ready · click again to start over'
 
@@ -259,7 +259,7 @@ export function quoteHint(points: {
   a?: unknown
   b?: unknown
 }): QuoteHint {
-  if (!points.a) return 'Click any two points for a soft quote'
+  if (!points.a) return 'Click two airports for a soft quote'
   if (!points.b) return 'Now click the destination'
   return 'Soft quote ready · click again to start over'
 }

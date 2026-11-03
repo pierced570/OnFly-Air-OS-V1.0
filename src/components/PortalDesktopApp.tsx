@@ -30,14 +30,18 @@ import {
 } from '@/domain/portalDesktopBuild'
 import {
   collectPortalDesktopDocs,
+  formatPortalAirportField,
+  formatPortalAirportResolved,
   portalDesktopBucket,
   portalDesktopCta,
   portalDesktopStatusMeta,
   portalDesktopTripSummary,
   resolveAirportText,
+  resolveSoftQuoteMapPick,
   type PortalDesktopBucket,
   type PortalDesktopTrip,
 } from '@/domain/portalDesktopTrips'
+import { lookupAirport } from '@/domain/airports'
 import {
   PORTAL_SOFT_QUOTE_FINE_PRINT,
   softQuoteFor,
@@ -444,27 +448,36 @@ export function PortalDesktopApp(props: {
   }
 
   function onMapClick(p: { lat: number; lon: number; icao?: string }) {
+    const pick = resolveSoftQuoteMapPick(p)
     const point: QuotePick = {
-      lat: p.lat,
-      lon: p.lon,
-      code: p.icao ?? null,
-      city: p.icao ? resolveAirportText(p.icao)?.city : 'Custom point',
-      label: p.icao || softQuotePointLabel({ lat: p.lat, lon: p.lon }),
+      lat: pick.lat,
+      lon: pick.lon,
+      code: pick.code ?? null,
+      city: pick.city ?? null,
+      label: pick.label,
     }
-    const label = point.code || softQuotePointLabel(point)
+    const field = pick.code
+      ? formatPortalAirportField({
+          icao: pick.code,
+          city: pick.city ?? '',
+          name: pick.name ?? undefined,
+          lat: pick.lat,
+          lon: pick.lon,
+        })
+      : pick.label
     if (!qa || qb) {
       setQa(point)
       setQb(null)
-      setQaText(label)
+      setQaText(field)
       setQbText('')
       setSel(null)
-      setFromText(point.code || label)
+      setFromText(field)
       setToText('')
     } else {
       setQb(point)
-      setQbText(label)
+      setQbText(field)
       setSel(null)
-      setToText(point.code || label)
+      setToText(field)
     }
   }
 
@@ -472,8 +485,26 @@ export function PortalDesktopApp(props: {
     if (!qa || !qb) return
     setPanel('request')
     setSent(false)
-    setFromText(qa.code || softQuotePointLabel(qa))
-    setToText(qb.code || softQuotePointLabel(qb))
+    setFromText(
+      qa.code
+        ? formatPortalAirportField({
+            icao: qa.code,
+            city: qa.city ?? '',
+            lat: qa.lat,
+            lon: qa.lon,
+          })
+        : softQuotePointLabel(qa),
+    )
+    setToText(
+      qb.code
+        ? formatPortalAirportField({
+            icao: qb.code,
+            city: qb.city ?? '',
+            lat: qb.lat,
+            lon: qb.lon,
+          })
+        : softQuotePointLabel(qb),
+    )
     setNotes(softQuoteHardNotes(qa, qb))
   }
 
@@ -870,8 +901,26 @@ export function PortalDesktopApp(props: {
             sending={sending}
             sendError={sendError}
             onEditAcct={() => goPanel('account')}
-            onFrom={setFromText}
-            onTo={setToText}
+            onFrom={(v) => {
+              const ap = resolveAirportText(v)
+              const tok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+              const exact = lookupAirport(tok)
+              setFromText(
+                ap && (exact || /^[A-Za-z]{3,4}$/.test(tok))
+                  ? formatPortalAirportField(ap)
+                  : v,
+              )
+            }}
+            onTo={(v) => {
+              const ap = resolveAirportText(v)
+              const tok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+              const exact = lookupAirport(tok)
+              setToText(
+                ap && (exact || /^[A-Za-z]{3,4}$/.test(tok))
+                  ? formatPortalAirportField(ap)
+                  : v,
+              )
+            }}
             onMoving={setMoving}
             onLoad={setLoadText}
             onPo={setPoText}
@@ -911,33 +960,50 @@ export function PortalDesktopApp(props: {
             qa={qa}
             qb={qb}
             onQa={(v) => {
-              setQaText(v)
               const ap = resolveAirportText(v)
-              setQa(
-                ap
-                  ? {
-                      code: ap.icao,
-                      city: ap.city,
-                      lat: ap.lat,
-                      lon: ap.lon,
-                    }
-                  : null,
-              )
+              const exactTok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+              const exact = lookupAirport(exactTok)
+              if (ap) {
+                setQa({
+                  code: ap.icao,
+                  city: ap.state ? `${ap.city}, ${ap.state}` : ap.city,
+                  lat: ap.lat,
+                  lon: ap.lon,
+                  label: formatPortalAirportField(ap),
+                })
+                // Exact ICAO/IATA → fill city + airport name into the field.
+                setQaText(
+                  exact || /^[A-Za-z]{3,4}$/.test(exactTok)
+                    ? formatPortalAirportField(ap)
+                    : v,
+                )
+              } else {
+                setQa(null)
+                setQaText(v)
+              }
               setSel(null)
             }}
             onQb={(v) => {
-              setQbText(v)
               const ap = resolveAirportText(v)
-              setQb(
-                ap
-                  ? {
-                      code: ap.icao,
-                      city: ap.city,
-                      lat: ap.lat,
-                      lon: ap.lon,
-                    }
-                  : null,
-              )
+              const exactTok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+              const exact = lookupAirport(exactTok)
+              if (ap) {
+                setQb({
+                  code: ap.icao,
+                  city: ap.state ? `${ap.city}, ${ap.state}` : ap.city,
+                  lat: ap.lat,
+                  lon: ap.lon,
+                  label: formatPortalAirportField(ap),
+                })
+                setQbText(
+                  exact || /^[A-Za-z]{3,4}$/.test(exactTok)
+                    ? formatPortalAirportField(ap)
+                    : v,
+                )
+              } else {
+                setQb(null)
+                setQbText(v)
+              }
               setSel(null)
             }}
             onHard={quoteToDesk}
@@ -1392,7 +1458,11 @@ function RequestPanel(props: {
   }
 
   const hint = (txt: string, ap: typeof props.fromAp) =>
-    !txt ? '' : ap ? `${ap.icao} · ${ap.city}` : 'Desk will confirm airport'
+    !txt
+      ? ''
+      : ap
+        ? formatPortalAirportResolved(ap)
+        : 'Desk will confirm airport'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -1504,7 +1574,7 @@ function RequestPanel(props: {
           </label>
         </div>
         <div style={{ fontSize: 10.5, color: '#6F6F74', marginTop: 2 }}>
-          Or click two points on the map — they fill in here.
+          Or click two airports on the map — we snap to the nearest field.
         </div>
 
         <div className="g-label" style={{ margin: '14px 0 6px' }}>
@@ -1666,10 +1736,17 @@ function QuotePanel(props: {
   onClear: () => void
 }) {
   const prompt = !props.qa
-    ? 'Click your origin on the map to start. Hub airports snap; anywhere else works too.'
+    ? 'Click your origin on the map — we snap to the nearest airport.'
     : !props.qb
-      ? `Origin set: ${props.qa.code || softQuotePointLabel(props.qa)}. Now click the destination.`
+      ? `Origin set: ${props.qa.label || softQuotePointLabel(props.qa)}. Now click the destination.`
       : ''
+
+  const resolvedHint = (txt: string, pick: QuotePick | null) => {
+    if (!txt.trim()) return ''
+    if (!pick?.code) return 'Keep typing an ICAO, IATA, or city'
+    const ap = resolveAirportText(pick.code)
+    return formatPortalAirportResolved(ap) || softQuotePointLabel(pick)
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -1685,7 +1762,7 @@ function QuotePanel(props: {
             lineHeight: 1.25,
           }}
         >
-          Click two points on the map, or type them.
+          Click two airports on the map, or type them.
         </div>
         <div className="g-body" style={{ marginTop: 6, lineHeight: 1.5 }}>
           Rough numbers in seconds. Send it to the desk for a hard quote from a
@@ -1708,8 +1785,19 @@ function QuotePanel(props: {
               className="ofa-portal-input ofa-portal-input--mono"
               value={props.qaText}
               onChange={(e) => props.onQa(e.target.value)}
-              placeholder="Click map"
+              placeholder="ICAO, city, or map"
+              autoComplete="off"
             />
+            <div
+              style={{
+                fontSize: 10.5,
+                color: props.qa?.code ? '#5FA36F' : '#9A9A9A',
+                marginTop: 5,
+                minHeight: 13,
+              }}
+            >
+              {resolvedHint(props.qaText, props.qa)}
+            </div>
           </label>
           <label>
             <div className="g-label" style={{ marginBottom: 6 }}>
@@ -1719,8 +1807,19 @@ function QuotePanel(props: {
               className="ofa-portal-input ofa-portal-input--mono"
               value={props.qbText}
               onChange={(e) => props.onQb(e.target.value)}
-              placeholder="Click map"
+              placeholder="ICAO, city, or map"
+              autoComplete="off"
             />
+            <div
+              style={{
+                fontSize: 10.5,
+                color: props.qb?.code ? '#5FA36F' : '#9A9A9A',
+                marginTop: 5,
+                minHeight: 13,
+              }}
+            >
+              {resolvedHint(props.qbText, props.qb)}
+            </div>
           </label>
         </div>
       </div>

@@ -729,7 +729,7 @@ export function MapBackdrop(props: MapBackdropProps) {
         role={mode === 'interactive' ? 'img' : 'presentation'}
         aria-label={
           mode === 'interactive'
-            ? 'United States map — click two points for a soft quote'
+            ? 'United States map — click two airports for a soft quote'
             : undefined
         }
         onClick={mode === 'interactive' ? handleClick : undefined}

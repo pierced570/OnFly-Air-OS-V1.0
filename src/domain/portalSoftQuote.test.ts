@@ -62,4 +62,15 @@ describe('portalSoftQuote', () => {
       "33.4°, 79.6°W",
     )
   })
+
+  it('includes city when labeling a resolved airport', () => {
+    expect(
+      softQuotePointLabel({
+        lat: 32.73,
+        lon: -117.19,
+        code: 'KSAN',
+        city: 'San Diego, CA',
+      }),
+    ).toBe('KSAN · San Diego, CA')
+  })
 })

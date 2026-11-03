@@ -4,10 +4,17 @@
  * Pure TypeScript — no React / Supabase.
  */
 
-import { lookupAirport, searchAirports } from '@/domain/airports'
+import {
+  formatAirportShort,
+  lookupAirport,
+  nearestAirport,
+  searchAirports,
+  type AirportInfo,
+} from '@/domain/airports'
 import { parseLaneAirports } from '@/domain/offerMissionDisplay'
 import portalMapData from '@/data/portalMapData.json'
 import type { PortalShipmentPhase } from '@/domain/portalTracking'
+import type { SoftQuotePoint } from '@/domain/portalSoftQuote'
 
 const PORTAL_MAP_ICAOS = new Set(
   (portalMapData.airports as Array<{ icao: string }>).map((a) => a.icao),
@@ -27,6 +34,9 @@ export type PortalDesktopBucket = 'live' | 'pending' | 'history'
 export type PortalDesktopAirport = {
   icao: string
   city: string
+  /** Catalog airport name when known. */
+  name?: string
+  state?: string
   lat: number
   lon: number
 }
@@ -149,20 +159,45 @@ export function mapPortalDesktopStatus(input: {
   return 'requested'
 }
 
+function fromAirportInfo(ap: AirportInfo): PortalDesktopAirport {
+  return {
+    icao: ap.icao,
+    city: ap.city,
+    name: ap.name,
+    state: ap.state,
+    lat: ap.lat,
+    lon: ap.lon,
+  }
+}
+
+/** "San Diego, CA · San Diego International Airport" under inputs. */
+export function formatPortalAirportResolved(
+  ap: PortalDesktopAirport | null | undefined,
+): string {
+  if (!ap?.icao) return ''
+  const place = ap.state ? `${ap.city}, ${ap.state}` : ap.city
+  if (ap.name) return `${place} · ${ap.name}`
+  return place || ap.icao
+}
+
+/** Compact field value after a clear resolve: "KSAN (SAN) — San Diego, CA". */
+export function formatPortalAirportField(
+  ap: PortalDesktopAirport | null | undefined,
+): string {
+  if (!ap?.icao) return ''
+  const info = lookupAirport(ap.icao)
+  if (info) return formatAirportShort(info)
+  const place = ap.state ? `${ap.city}, ${ap.state}` : ap.city
+  return place ? `${ap.icao} — ${place}` : ap.icao
+}
+
 export function resolvePortalDesktopAirport(
   icaoRaw: string | null | undefined,
   fallbackCity = 'Desk to confirm',
 ): PortalDesktopAirport {
   const icao = (icaoRaw || 'TBD').trim().toUpperCase() || 'TBD'
   const ap = lookupAirport(icao)
-  if (ap) {
-    return {
-      icao: ap.icao,
-      city: ap.city || fallbackCity,
-      lat: ap.lat,
-      lon: ap.lon,
-    }
-  }
+  if (ap) return fromAirportInfo(ap)
   return {
     icao,
     city: fallbackCity,
@@ -175,25 +210,13 @@ export function resolvePortalDesktopAirport(
 export function resolveAirportText(text: string): PortalDesktopAirport | null {
   const t = text.trim()
   if (!t) return null
-  const byCode = lookupAirport(t)
-  if (byCode) {
-    return {
-      icao: byCode.icao,
-      city: byCode.city,
-      lat: byCode.lat,
-      lon: byCode.lon,
-    }
-  }
+  // Strip "KSAN (SAN) — City…" paste / autofilled labels back to a code.
+  const codeToken = t.split(/[\s—–\-·(,]/)[0]?.trim() ?? t
+  const byCode = lookupAirport(codeToken) ?? lookupAirport(t)
+  if (byCode) return fromAirportInfo(byCode)
   if (/^[A-Za-z]{3,4}$/.test(t)) {
     const withK = lookupAirport(`K${t.toUpperCase()}`)
-    if (withK) {
-      return {
-        icao: withK.icao,
-        city: withK.city,
-        lat: withK.lat,
-        lon: withK.lon,
-      }
-    }
+    if (withK) return fromAirportInfo(withK)
   }
   const q = t.toLowerCase()
   const hits = searchAirports(t, 12)
@@ -212,11 +235,46 @@ export function resolveAirportText(text: string): PortalDesktopAirport | null {
     cityHits[0] ??
     hits[0]
   if (!primary) return null
+  return fromAirportInfo(primary)
+}
+
+export type SoftQuoteMapPick = SoftQuotePoint & {
+  label: string
+  name?: string | null
+}
+
+/**
+ * Map click → airport: hub ICAO when present, else nearest catalog airport
+ * (city + name), never a bare lat/lon "custom point" when a field is nearby.
+ */
+export function resolveSoftQuoteMapPick(p: {
+  lat: number
+  lon: number
+  icao?: string
+}): SoftQuoteMapPick {
+  const fromCode = p.icao ? lookupAirport(p.icao) : null
+  const near =
+    fromCode ??
+    nearestAirport(p.lat, p.lon, { preferIata: true, maxNm: 150 })
+  if (near) {
+    const place = near.state ? `${near.city}, ${near.state}` : near.city
+    return {
+      lat: near.lat,
+      lon: near.lon,
+      code: near.icao,
+      city: place,
+      name: near.name,
+      label: formatAirportShort(near),
+    }
+  }
+  const lat = Number.isFinite(p.lat) ? p.lat.toFixed(1) : '?'
+  const lonAbs = Number.isFinite(p.lon) ? Math.abs(p.lon).toFixed(1) : '?'
   return {
-    icao: primary.icao,
-    city: primary.city,
-    lat: primary.lat,
-    lon: primary.lon,
+    lat: p.lat,
+    lon: p.lon,
+    code: null,
+    city: 'Custom point',
+    label: `${lat}°, ${lonAbs}°W`,
   }
 }
 

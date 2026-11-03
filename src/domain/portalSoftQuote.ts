@@ -133,7 +133,10 @@ export function softQuoteFor(
 
 /** Display label for a soft-quote / map pick point. */
 export function softQuotePointLabel(p: SoftQuotePoint): string {
-  if (p.code?.trim()) return p.code.trim().toUpperCase()
+  const code = p.code?.trim().toUpperCase()
+  const city = p.city?.trim()
+  if (code && city) return `${code} · ${city}`
+  if (code) return code
   const lat = Number.isFinite(p.lat) ? p.lat.toFixed(1) : '?'
   const lonAbs = Number.isFinite(p.lon) ? Math.abs(p.lon).toFixed(1) : '?'
   return `${lat}°, ${lonAbs}°W`
