@@ -282,7 +282,14 @@ export default function PortalHomePage() {
                 trackHref: t.trackHref,
                 nextLabel: t.nextLabel,
                 phase: t.phase,
-                requestedAt: trip?.created_at ?? null,
+                requestedAt:
+                  trip
+                    ? [...trip.events]
+                        .sort((a, b) => a.at.localeCompare(b.at))[0]?.at ??
+                      trip.hard_quote?.sent_at ??
+                      trip.invoice?.created_at ??
+                      null
+                    : null,
                 poNumber: trip?.po_number ?? trip?.quick?.po ?? null,
               }
             })}
