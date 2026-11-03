@@ -64,6 +64,8 @@ import {
   tripToTrackingInput,
   type PortalShipmentPhase,
 } from '@/domain/portalTracking'
+import { buildPortalTripQuoteBundle } from '@/domain/portalTripQuotes'
+import { PortalTripQuotePanel } from '@/components/PortalTripQuotePanel'
 
 export type PortalDesktopShipmentIn = {
   id: string
@@ -2249,6 +2251,8 @@ function DetailCard(props: {
   const t = props.trip
   const st = portalDesktopStatusMeta(t.status)
   const cta = portalDesktopCta(t.status)
+  const quoteBundle =
+    t.status === 'quoted' ? buildPortalTripQuoteBundle(getTrip(t.id)) : null
   const facts = [
     {
       k: t.status === 'live' ? 'Wheels up' : 'Timing',
@@ -2458,6 +2462,12 @@ function DetailCard(props: {
           })}
         </div>
       </div>
+
+      {quoteBundle?.hasOptions ? (
+        <div style={{ padding: '14px 16px 0' }}>
+          <PortalTripQuotePanel bundle={quoteBundle} compact />
+        </div>
+      ) : null}
 
       {props.approveGap ? (
         <p

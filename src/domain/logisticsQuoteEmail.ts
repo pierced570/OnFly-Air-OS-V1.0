@@ -110,7 +110,7 @@ export function renderLogisticsQuoteEmailHtml(
 
   const logoBlock = input.logoUrl?.trim()
     ? `<img src="${escapeAttr(input.logoUrl.trim())}" alt="OnFly Air" width="140" style="display:block;max-width:140px;height:auto;border:0" />`
-    : `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:0.16em;font-weight:700;font-size:12px"><span style="color:#c9a227">ON</span><span style="color:#f7f2e3">FLY</span> <span style="color:#c9a227">AIR</span></div>`
+    : `<div style="font-family:'Inter','SF Pro Display',-apple-system,'Helvetica Neue',Arial,sans-serif;letter-spacing:0.16em;font-weight:600;font-size:12px"><span style="color:#c9a227">ON</span><span style="color:#f4f2ec">FLY</span> <span style="color:#c9a227">AIR</span></div>`
 
   const refBadge = input.refLabel?.trim()
     ? `<div style="display:inline-block;border:1px solid #c9a227;color:#c9a227;border-radius:999px;padding:4px 10px;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase">Quote · ${escapeHtml(input.refLabel.trim())}</div>`
@@ -139,10 +139,13 @@ export function renderLogisticsQuoteEmailHtml(
       </p>`
     : ''
 
+  // Match client portal glass: Inter, near-black + gold, sentence-case.
+  const font =
+    "'Inter','SF Pro Display',-apple-system,'Helvetica Neue',Arial,sans-serif"
   return `<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background:#0c0c0e;font-family:Georgia,'Times New Roman',serif;color:#f7f2e3">
+<html><body style="margin:0;padding:0;background:#08080a;font-family:${font};color:#f4f2ec;letter-spacing:-0.005em">
   <div style="max-width:680px;margin:0 auto;padding:20px 12px">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#141414;border:1px solid #2a2a2e;border-radius:12px;overflow:hidden">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:linear-gradient(165deg,#2c2c32,#0a0a0c);border:1px solid rgba(255,255,255,0.11);border-radius:18px;overflow:hidden">
       <tr>
         <td bgcolor="#0c0c0e" style="background:#0c0c0e;padding:18px 20px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#0c0c0e">
@@ -151,21 +154,21 @@ export function renderLogisticsQuoteEmailHtml(
               <td bgcolor="#0c0c0e" style="vertical-align:middle;text-align:right;background:#0c0c0e">${refBadge}</td>
             </tr>
           </table>
-          <h1 style="margin:14px 0 8px;font-size:24px;line-height:1.2;font-weight:700;color:#f7f2e3;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:-0.02em">
+          <h1 style="margin:14px 0 8px;font-size:24px;line-height:1.2;font-weight:500;color:#f4f2ec;font-family:${font};letter-spacing:-0.02em">
             ${escapeHtml(input.originLabel)} → ${escapeHtml(input.destLabel)}
           </h1>
           ${chips ? `<div style="margin:0 0 8px">${chips}</div>` : ''}
-          <p style="margin:0;font-size:12px;line-height:1.4;color:#b8b2a6;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+          <p style="margin:0;font-size:13px;line-height:1.45;color:#8e8e93;font-family:${font}">
             ${escapeHtml(intro)}
           </p>
         </td>
       </tr>
 
       <tr>
-        <td bgcolor="#141414" style="background:#141414;padding:16px 16px 8px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
-          ${optionCards || `<p style="margin:0;font-size:13px;color:#8a8680">Options will follow shortly.</p>`}
+        <td bgcolor="#121216" style="background:#121216;padding:16px 16px 8px;font-family:${font}">
+          ${optionCards || `<p style="margin:0;font-size:13px;color:#8e8e93">Options will follow shortly.</p>`}
 
-          <p style="margin:10px 4px 0;font-size:10px;line-height:1.4;color:#8a8680">
+          <p style="margin:10px 4px 0;font-size:11px;line-height:1.45;color:#8e8e93">
             All-in includes repositioning, crew, fuel, FET &amp; segment fees where applicable. On accept: confirmation, ETA sheet, live tracking. ${escapeHtml(validity)}
           </p>
         </td>
@@ -173,12 +176,12 @@ export function renderLogisticsQuoteEmailHtml(
 
       <tr>
         <td bgcolor="#0c0c0e" style="background:#0c0c0e;padding:14px 18px">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:${font}">
             <tr>
-              <td style="vertical-align:top;font-size:11px;line-height:1.45;color:#f7f2e3">
+              <td style="vertical-align:top;font-size:12px;line-height:1.45;color:#f4f2ec">
                 Questions? <strong style="color:#c9a227">24-hr ops · ${escapeHtml(BRAND_PHONE)}</strong>
               </td>
-              <td style="vertical-align:top;text-align:right;font-size:11px;line-height:1.45;color:#b8b2a6">
+              <td style="vertical-align:top;text-align:right;font-size:12px;line-height:1.45;color:#8e8e93">
                 ${escapeHtml(dispatcher)}
               </td>
             </tr>
@@ -208,7 +211,7 @@ function portalCtaButton(href: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-left:auto">
   <tr>
     <td bgcolor="#c9a227" style="background:#c9a227;border:1px solid #e3b341;border-radius:8px;text-align:center">
-      <a href="${escapeAttr(href)}" style="display:inline-block;padding:10px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:12px;font-weight:700;line-height:1.25;letter-spacing:0.01em;color:#0c0c0e !important;text-decoration:none;white-space:normal">
+      <a href="${escapeAttr(href)}" style="display:inline-block;padding:10px 16px;font-family:'Inter','SF Pro Display',-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:12px;font-weight:600;line-height:1.25;letter-spacing:0.01em;color:#0c0c0e !important;text-decoration:none;white-space:normal">
         ${escapeHtml(PORTAL_ACCEPT_CTA)}
       </a>
     </td>

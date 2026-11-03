@@ -90,9 +90,11 @@ export function renderQuoteEmailText(input: QuoteEmailInput): string {
   return lines.join('\n')
 }
 
-/** Branded HTML: cream/client family, ETA table, no carrier name. */
+/** Branded HTML: glass portal family (Inter + dark gold), ETA table, no carrier name. */
 export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
   const rows = etaRowsFromChain(input.chain)
+  const font =
+    "'Inter','SF Pro Display',-apple-system,'Helvetica Neue',Arial,sans-serif"
   const kind =
     input.kind === 'hard'
       ? `Logistics Quote Request (${input.originLabel} → ${input.destLabel})`
@@ -102,10 +104,10 @@ export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
     .map(
       (t) => `
       <tr>
-        <td style="padding:6px 0;color:#6b6560;font-size:13px">${escapeHtml(t.code)}${
-          t.note ? ` <span style="color:#9a948a">(${escapeHtml(t.note)})</span>` : ''
+        <td style="padding:6px 0;color:#8e8e93;font-size:13px">${escapeHtml(t.code)}${
+          t.note ? ` <span style="color:#6f6f74">(${escapeHtml(t.note)})</span>` : ''
         }</td>
-        <td style="padding:6px 0;text-align:right;font-family:ui-monospace,monospace;font-size:13px">$${t.amount.toFixed(2)}</td>
+        <td style="padding:6px 0;text-align:right;font-family:ui-monospace,monospace;font-size:13px;color:#f4f2ec">$${t.amount.toFixed(2)}</td>
       </tr>`,
     )
     .join('')
@@ -114,10 +116,10 @@ export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
     .map(
       (r) => `
       <tr>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5dfd0;font-weight:600;font-size:13px">${escapeHtml(r.label)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5dfd0;font-family:ui-monospace,monospace;font-size:12px;color:#6b6560">${escapeHtml(r.fromIcao || '—')} → ${escapeHtml(r.toIcao || '—')}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5dfd0;font-family:ui-monospace,monospace;font-size:12px">${escapeHtml(r.startLocal)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5dfd0;font-family:ui-monospace,monospace;font-size:12px">${escapeHtml(r.endLocal)} <span style="color:#9a948a">(${escapeHtml(r.endZulu)})</span></td>
+        <td style="padding:8px 10px;border-bottom:1px solid #2a2a2e;font-weight:500;font-size:13px;color:#f4f2ec">${escapeHtml(r.label)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #2a2a2e;font-family:ui-monospace,monospace;font-size:12px;color:#8e8e93">${escapeHtml(r.fromIcao || '—')} → ${escapeHtml(r.toIcao || '—')}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #2a2a2e;font-family:ui-monospace,monospace;font-size:12px;color:#f4f2ec">${escapeHtml(r.startLocal)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #2a2a2e;font-family:ui-monospace,monospace;font-size:12px;color:#f4f2ec">${escapeHtml(r.endLocal)} <span style="color:#8e8e93">(${escapeHtml(r.endZulu)})</span></td>
       </tr>`,
     )
     .join('')
@@ -125,54 +127,54 @@ export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
   const acceptBlock = input.acceptUrl
     ? `<p style="margin:20px 0 0 0">
         <a href="${escapeAttr(input.acceptUrl)}"
-           style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;font-size:14px">
+           style="display:inline-block;background:#c9a227;color:#0c0c0e;text-decoration:none;padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;font-family:${font}">
           Review — Accept / Deny / Change request
         </a>
       </p>
-      <p style="margin:8px 0 0 0;font-size:12px;color:#6b6560">${escapeHtml(input.acceptUrl)}</p>`
+      <p style="margin:8px 0 0 0;font-size:12px;color:#8e8e93">${escapeHtml(input.acceptUrl)}</p>`
     : ''
 
   const logoBlock = input.logoUrl?.trim()
-    ? `<img src="${escapeAttr(input.logoUrl.trim())}" alt="OnFly Air" width="220" style="display:block;margin:0 auto;max-width:220px;height:auto;border:0" />`
-    : `<div style="color:#c9a227;letter-spacing:0.14em;font-weight:700;font-size:12px">ONFLY AIR</div>`
+    ? `<img src="${escapeAttr(input.logoUrl.trim())}" alt="OnFly Air" width="180" style="display:block;margin:0 auto;max-width:180px;height:auto;border:0" />`
+    : `<div style="color:#c9a227;letter-spacing:0.14em;font-weight:600;font-size:12px;font-family:${font}">ONFLY AIR</div>`
 
   return `<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background:#f7f2e3;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0c0c0e">
+<html><body style="margin:0;padding:0;background:#08080a;font-family:${font};color:#f4f2ec;letter-spacing:-0.005em">
   <div style="max-width:640px;margin:0 auto;padding:24px 16px">
-    <div style="background:#fff;border:1px solid #e5dfd0;border-radius:8px;overflow:hidden">
+    <div style="background:#121216;border:1px solid rgba(255,255,255,0.11);border-radius:18px;overflow:hidden">
       <div style="background:#0c0c0e;padding:20px;text-align:center">
         ${logoBlock}
       </div>
       <div style="padding:24px">
-        <h1 style="margin:0 0 6px;font-size:22px">${escapeHtml(kind)}</h1>
+        <h1 style="margin:0 0 6px;font-size:22px;font-weight:500;letter-spacing:-0.02em;color:#f4f2ec">${escapeHtml(kind)}</h1>
         ${
           input.kind === 'hard'
             ? ''
-            : `<p style="margin:0 0 4px;font-size:15px">
+            : `<p style="margin:0 0 4px;font-size:15px;color:#f4f2ec">
           ${escapeHtml(input.originLabel)} → ${escapeHtml(input.destLabel)}
         </p>`
         }
-        <p style="margin:0 0 16px;font-size:13px;color:#6b6560">
+        <p style="margin:0 0 16px;font-size:13px;color:#8e8e93">
           Operated by a vetted Part 135 carrier
         </p>
-        <p style="margin:0 0 4px;font-family:ui-monospace,monospace;font-size:28px;font-weight:600">
+        <p style="margin:0 0 4px;font-family:ui-monospace,monospace;font-size:28px;font-weight:600;color:#f4f2ec">
           $${input.total.toFixed(2)}
         </p>
-        <p style="margin:0 0 20px;font-size:12px;color:#6b6560">
+        <p style="margin:0 0 20px;font-size:12px;color:#3f7d51">
           All taxes and fees included
         </p>
         <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
           <tr>
-            <td style="padding:6px 0;color:#6b6560;font-size:13px">Air transportation</td>
-            <td style="padding:6px 0;text-align:right;font-family:ui-monospace,monospace;font-size:13px">$${input.airSubtotal.toFixed(2)}</td>
+            <td style="padding:6px 0;color:#8e8e93;font-size:13px">Air transportation</td>
+            <td style="padding:6px 0;text-align:right;font-family:ui-monospace,monospace;font-size:13px;color:#f4f2ec">$${input.airSubtotal.toFixed(2)}</td>
           </tr>
           ${taxRows}
           <tr>
-            <td style="padding:10px 0 0;border-top:1px solid #e5dfd0;font-weight:600">Total</td>
-            <td style="padding:10px 0 0;border-top:1px solid #e5dfd0;text-align:right;font-family:ui-monospace,monospace;font-weight:600">$${input.total.toFixed(2)}</td>
+            <td style="padding:10px 0 0;border-top:1px solid #2a2a2e;font-weight:500;color:#f4f2ec">Total</td>
+            <td style="padding:10px 0 0;border-top:1px solid #2a2a2e;text-align:right;font-family:ui-monospace,monospace;font-weight:600;color:#f4f2ec">$${input.total.toFixed(2)}</td>
           </tr>
         </table>
-        <h2 style="margin:28px 0 10px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#6b6560">
+        <h2 style="margin:28px 0 10px;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:#c9a227;font-weight:500">
           Estimated timeline
         </h2>
         ${
@@ -180,18 +182,18 @@ export function renderQuoteEmailHtml(input: QuoteEmailInput): string {
             ? `<table style="width:100%;border-collapse:collapse">
           <thead>
             <tr>
-              <th style="text-align:left;padding:6px 10px;border-bottom:1px solid #e5dfd0;font-size:11px;color:#6b6560;text-transform:uppercase">Leg</th>
-              <th style="text-align:left;padding:6px 10px;border-bottom:1px solid #e5dfd0;font-size:11px;color:#6b6560;text-transform:uppercase">Route</th>
-              <th style="text-align:left;padding:6px 10px;border-bottom:1px solid #e5dfd0;font-size:11px;color:#6b6560;text-transform:uppercase">Start (local)</th>
-              <th style="text-align:left;padding:6px 10px;border-bottom:1px solid #e5dfd0;font-size:11px;color:#6b6560;text-transform:uppercase">End (local / Z)</th>
+              <th style="text-align:left;padding:6px 10px;border-bottom:1px solid #2a2a2e;font-size:11px;color:#8e8e93;text-transform:uppercase;font-weight:500">Leg</th>
+              <th style="text-align:left;padding:6px 10px;border-bottom:1px solid #2a2a2e;font-size:11px;color:#8e8e93;text-transform:uppercase;font-weight:500">Route</th>
+              <th style="text-align:left;padding:6px 10px;border-bottom:1px solid #2a2a2e;font-size:11px;color:#8e8e93;text-transform:uppercase;font-weight:500">Start (local)</th>
+              <th style="text-align:left;padding:6px 10px;border-bottom:1px solid #2a2a2e;font-size:11px;color:#8e8e93;text-transform:uppercase;font-weight:500">End (local / Z)</th>
             </tr>
           </thead>
           <tbody>${etaRows}</tbody>
         </table>`
-            : `<p style="margin:0;font-size:13px;color:#6b6560">Timeline will follow once routing is locked.</p>`
+            : `<p style="margin:0;font-size:13px;color:#8e8e93">Timeline will follow once routing is locked.</p>`
         }
         ${acceptBlock}
-        <p style="margin:24px 0 0;font-size:12px;color:#9a948a;line-height:1.5">
+        <p style="margin:24px 0 0;font-size:12px;color:#8e8e93;line-height:1.5">
           Times are estimated and may shift. Local times use the stop airport zone; Zulu shown for ops coordination.
           Questions? Reply or call 24/7 dispatch 858-529-7860.
         </p>
