@@ -91,6 +91,7 @@ describe('logisticsQuoteEmail', () => {
     expect(html).not.toContain('background:#f7f2e3')
     expect(html).toContain('background:#0c0c0e')
     expect(html).toContain('background:#1c1c1f')
+    expect(html).toContain('Inter')
     expect(html).toContain('All-in includes')
     expect(html).toContain('On accept:')
     expect(html).toContain('24-hr ops')

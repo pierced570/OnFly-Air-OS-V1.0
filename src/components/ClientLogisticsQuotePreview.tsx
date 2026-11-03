@@ -88,9 +88,14 @@ export function ClientLogisticsQuotePreview({
   return (
     <div
       className={[
-        'overflow-hidden rounded-xl border border-[#2A2A2E] bg-[#141414] text-[#F7F2E3] shadow-sm',
+        'ofa-quote-glass overflow-hidden rounded-[18px] border border-white/10 bg-[#121216] text-[var(--ofa-ink,#F4F2EC)] shadow-sm',
         className ?? '',
       ].join(' ')}
+      style={{
+        fontFamily:
+          "var(--ofa-font, 'Inter','SF Pro Display',-apple-system,'Helvetica Neue',Arial,sans-serif)",
+        letterSpacing: '-0.005em',
+      }}
       data-theme="dispatcher"
       data-appearance="dark"
     >

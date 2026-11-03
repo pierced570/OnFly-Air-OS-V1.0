@@ -66,6 +66,8 @@ import {
   buildPortalTrackingView,
   tripToTrackingInput,
 } from '@/domain/portalTracking'
+import { buildPortalTripQuoteBundle } from '@/domain/portalTripQuotes'
+import { PortalTripQuotePanel } from '@/components/PortalTripQuotePanel'
 import type {
   PortalDesktopPanel,
   PortalDesktopPendingIn,
@@ -1232,6 +1234,18 @@ export function PortalPhoneApp(props: {
                   )
                 })}
               </div>
+              {selected.status === 'quoted' ? (
+                (() => {
+                  const quoteBundle = buildPortalTripQuoteBundle(
+                    getTrip(selected.id),
+                  )
+                  return quoteBundle?.hasOptions ? (
+                    <div style={{ marginTop: 14 }}>
+                      <PortalTripQuotePanel bundle={quoteBundle} compact />
+                    </div>
+                  ) : null
+                })()
+              ) : null}
               <div className="m-docs">
                 {(['Quote', 'Invoice', 'POD'] as const).map((kind) => {
                   const on = selected.docs.includes(kind)
