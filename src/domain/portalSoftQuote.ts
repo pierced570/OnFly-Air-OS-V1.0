@@ -139,7 +139,8 @@ export function softQuotePointLabel(p: SoftQuotePoint): string {
   if (code) return code
   const lat = Number.isFinite(p.lat) ? p.lat.toFixed(1) : '?'
   const lonAbs = Number.isFinite(p.lon) ? Math.abs(p.lon).toFixed(1) : '?'
-  return `${lat}°, ${lonAbs}°W`
+  const lonHem = Number.isFinite(p.lon) && p.lon >= 0 ? 'E' : 'W'
+  return `${lat}°, ${lonAbs}°${lonHem}`
 }
 
 /** Prefill notes when sending a soft quote to the desk for a hard quote. */
