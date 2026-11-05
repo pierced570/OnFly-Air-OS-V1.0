@@ -4,6 +4,7 @@
  * `src/data/portalMapData.json` (doc 02 / 02b).
  */
 
+import { nearestAirport } from '@/domain/airports'
 import { haversineNm } from '@/domain/geo'
 
 /** Statute miles per nautical mile (doc 02). */
@@ -226,6 +227,19 @@ export function resolveMapClick(
     }
   }
   const { lat, lon } = unprojectXY(pt.x, pt.y, projection)
+  // Full catalog snap — hub list is sparse; soft quotes need civil fields.
+  const near = nearestAirport(lat, lon, { preferIata: true, maxNm: 200 })
+  if (near) {
+    const pinned = projectLonLat(near.lon, near.lat, projection)
+    return {
+      x: pinned.x,
+      y: pinned.y,
+      lat: near.lat,
+      lon: near.lon,
+      icao: near.icao,
+      label: near.icao,
+    }
+  }
   return {
     x: pt.x,
     y: pt.y,

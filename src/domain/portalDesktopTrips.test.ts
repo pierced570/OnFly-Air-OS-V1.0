@@ -61,6 +61,15 @@ describe('portalDesktopTrips', () => {
     expect(pick.code).toBe('KSAN')
     expect(pick.label).toMatch(/KSAN/)
     expect(pick.city).toMatch(/San Diego/)
+    expect(pick.nearby?.length).toBeGreaterThan(0)
+    expect(pick.nearby?.[0]?.code).toBe('KSAN')
+  })
+
+  it('snaps central-coast clicks to KPRB with nearby alternatives', () => {
+    const pick = resolveSoftQuoteMapPick({ lat: 35.6, lon: -120.8 })
+    expect(pick.code).toBe('KPRB')
+    expect(pick.label).not.toMatch(/°/)
+    expect(pick.nearby!.length).toBeGreaterThan(1)
   })
 
   it('parses lane endpoints into airports', () => {
