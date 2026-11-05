@@ -1,4 +1,12 @@
-import { useMemo, useState, useSyncExternalStore, type FormEvent } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from 'react'
 import { AirportSelect } from '@/components/AirportSelect'
 import { DimUnitToggle } from '@/components/DimUnitToggle'
 import { DimsTripleInput } from '@/components/DimsTripleInput'
@@ -66,10 +74,21 @@ type Props = {
    * Both still support soft → hard like existing portal tech.
    */
   portalEntryMode?: 'quote' | 'book'
+  /** Live draft for guest hard-quote "What dispatch sees" rail. */
+  onDraftChange?: (draft: TripRequestDraft) => void
+  /** Hide notes + dual CTAs when the glass chrome owns those. */
+  hidePortalActions?: boolean
+  /** Busy state for an external CTA (guest hard-quote rail). */
+  onBusyChange?: (busy: boolean) => void
   onSubmit: (
     draft: TripRequestDraft,
     intent?: PortalSubmitIntent,
   ) => void | Promise<void>
+}
+
+export type TripRequestFormHandle = {
+  submitIntent: (intent: PortalSubmitIntent) => void
+  getDraft: () => TripRequestDraft
 }
 
 const DESK_INPUT =
@@ -112,15 +131,22 @@ function withOutboundLegs(
   return next
 }
 
-export function TripRequestForm({
+export const TripRequestForm = forwardRef<TripRequestFormHandle, Props>(
+  function TripRequestForm(
+  {
   variant,
   initial,
   submitLabel,
   portalDualActions = false,
   portalWizard = false,
   portalEntryMode = 'quote',
+  onDraftChange,
+  hidePortalActions = false,
+  onBusyChange,
   onSubmit,
-}: Props) {
+},
+  ref,
+) {
   const [draft, setDraft] = useState<TripRequestDraft>(() => {
     const base = emptyTripRequestDraft()
     const cargoOnly = initial?.cargo_only ?? base.cargo_only
@@ -170,6 +196,30 @@ export function TripRequestForm({
   const isPortal = variant === 'portal'
   const inputCls = isPortal ? PORTAL_INPUT : DESK_INPUT
   const segBtn = isPortal ? portalSegBtn : deskSegBtn
+
+  useEffect(() => {
+    onDraftChange?.(draft)
+  }, [draft, onDraftChange])
+
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      submitIntent: (intent) => {
+        void handleSubmit(
+          { preventDefault() {} } as FormEvent,
+          intent,
+        )
+      },
+      getDraft: () => draft,
+    }),
+    // handleSubmit closes over latest draft via the function declaration below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft],
+  )
 
   const needsAddresses =
     draft.service_mode === 'd2d' || draft.service_mode === 'mixed'
@@ -1909,7 +1959,8 @@ export function TripRequestForm({
         )}
       </section>
 
-      {/* Notes */}
+      {/* Notes — guest hard-quote chrome owns the notes field */}
+      {!hidePortalActions ? (
       <section>
         <label className={labelCls}>
           Notes
@@ -1922,8 +1973,9 @@ export function TripRequestForm({
           />
         </label>
       </section>
+      ) : null}
 
-      {dualActions ? (
+      {!hidePortalActions && dualActions ? (
         <div className="space-y-5">
           {portalEntryMode === 'quote' ? (
             <>
@@ -2007,7 +2059,7 @@ export function TripRequestForm({
             </>
           )}
         </div>
-      ) : (
+      ) : !hidePortalActions ? (
         <button
           type="submit"
           disabled={busy}
@@ -2015,7 +2067,7 @@ export function TripRequestForm({
         >
           {busy ? 'Submitting…' : (submitLabel ?? 'Submit trip request')}
         </button>
-      )}
+      ) : null}
       </>
       ) : null}
 
@@ -2065,4 +2117,7 @@ export function TripRequestForm({
       ) : null}
     </form>
   )
-}
+},
+)
+
+TripRequestForm.displayName = 'TripRequestForm'
