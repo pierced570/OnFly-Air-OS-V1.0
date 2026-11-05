@@ -121,35 +121,62 @@ function softQuoteAirportScore(a: AirportInfo, nm: number, preferIata: boolean):
  * Prefers civil / IATA fields near the click over tiny strips and military bases
  * (e.g. KSAN over KNZY for a San Diego waterfront click).
  */
+export type NearbyAirport = AirportInfo & {
+  /** Great-circle distance from the click, nm. */
+  nm: number
+  /** Soft-quote ranking score (lower is better). */
+  score: number
+}
+
+/**
+ * Soft-quote map click: nearest catalog airport.
+ * Prefers civil / IATA fields near the click over tiny strips and military bases
+ * (e.g. KSAN over KNZY for a San Diego waterfront click).
+ */
 export function nearestAirport(
   lat: number,
   lon: number,
   opts?: { maxNm?: number; preferIata?: boolean },
 ): AirportInfo | null {
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
-  const maxNm = opts?.maxNm ?? 150
+  return nearbyAirports(lat, lon, { ...opts, limit: 1 })[0] ?? null
+}
+
+/**
+ * Popular / civil airports near a map click for soft-quote pickers.
+ * Ranked by soft-quote score (distance + civil/IATA preference).
+ */
+export function nearbyAirports(
+  lat: number,
+  lon: number,
+  opts?: { maxNm?: number; preferIata?: boolean; limit?: number },
+): NearbyAirport[] {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+  const maxNm = opts?.maxNm ?? 200
   const preferIata = opts?.preferIata !== false
+  const limit = Math.max(1, opts?.limit ?? 5)
   // Coarse lat band (~60 nm per degree) to skip far rows quickly.
   const maxDegLat = maxNm / 55
   const cos = Math.max(0.2, Math.cos((lat * Math.PI) / 180))
   const maxDegLon = maxNm / (55 * cos)
 
-  let best: AirportInfo | null = null
-  let bestScore = Number.POSITIVE_INFINITY
-
+  const scored: NearbyAirport[] = []
   for (const a of SORTED) {
     if (Math.abs(a.lat - lat) > maxDegLat) continue
     if (Math.abs(a.lon - lon) > maxDegLon) continue
     const nm = haversineNm(lat, lon, a.lat, a.lon)
     if (nm > maxNm) continue
     const score = softQuoteAirportScore(a, nm, preferIata)
-    if (score < bestScore) {
-      bestScore = score
-      best = a
-    }
+    scored.push({ ...a, nm, score })
   }
 
-  return best
+  return scored
+    .sort(
+      (x, y) =>
+        x.score - y.score ||
+        x.nm - y.nm ||
+        x.icao.localeCompare(y.icao),
+    )
+    .slice(0, limit)
 }
 
 /** Search ICAO, IATA, city, state, or airport name. */
