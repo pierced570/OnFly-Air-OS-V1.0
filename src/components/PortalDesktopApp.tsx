@@ -12,6 +12,8 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { MapBackdrop } from '@/components/MapBackdrop'
+import { PortalRequestReceivedDesktop } from '@/components/PortalRequestReceivedDesktop'
+import type { PortalRequestReceivedSummaryInput } from '@/domain/portalRequestReceived'
 import portalMapData from '@/data/portalMapData.json'
 import {
   BRAND_LOGO_PATH,
@@ -289,6 +291,9 @@ export function PortalDesktopApp(props: {
   const [notes, setNotes] = useState('')
   const [sent, setSent] = useState(false)
   const [sentTrip, setSentTrip] = useState<PortalDesktopTrip | null>(null)
+  const [sentAt, setSentAt] = useState<Date | null>(null)
+  const [receivedSummary, setReceivedSummary] =
+    useState<PortalRequestReceivedSummaryInput | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [approveGap, setApproveGap] = useState<string | null>(null)
@@ -621,14 +626,58 @@ export function PortalDesktopApp(props: {
         href: `/portal/request?requestId=${row.id}&mode=book`,
       })
       setSentTrip(card)
-      setSel(card.id)
+      setSel(null)
+      setSentAt(new Date())
       setSent(true)
-      clearQuote()
+      const softNow =
+        qa && qb ? softQuoteFor(qa, qb) : soft
+      const preferred =
+        softNow?.classes.find((c) => c.name === 'Light jet' && !c.overRange) ??
+        softNow?.classes.find((c) => !c.overRange) ??
+        softNow?.classes[0] ??
+        null
+      setReceivedSummary({
+        aircraftClass: preferred?.name ?? null,
+        fromCode: card.from.icao,
+        toCode: card.to.icao,
+        need: need === 'asap' ? 'ASAP' : need,
+        estimateLow: preferred?.costLow ?? null,
+        estimateHigh: preferred?.costHigh ?? null,
+      })
+      const a = lookupAirport(card.from.icao)
+      const b = lookupAirport(card.to.icao)
+      if (a) {
+        setQa({
+          lat: a.lat,
+          lon: a.lon,
+          code: a.icao,
+          city: a.state ? `${a.city}, ${a.state}` : a.city,
+          label: a.icao,
+        })
+      }
+      if (b) {
+        setQb({
+          lat: b.lat,
+          lon: b.lon,
+          code: b.icao,
+          city: b.state ? `${b.city}, ${b.state}` : b.city,
+          label: b.icao,
+        })
+      }
+      // Map + floating card (reference) — close the request form panel.
+      setPanel('trips')
     } catch (e) {
       setSendError(e instanceof Error ? e.message : 'Could not send request')
     } finally {
       setSending(false)
     }
+  }
+
+  function dismissReceived() {
+    setSent(false)
+    setSentTrip(null)
+    setSentAt(null)
+    setReceivedSummary(null)
   }
 
   function onApprove(t: PortalDesktopTrip) {
@@ -924,9 +973,6 @@ export function PortalDesktopApp(props: {
             companyName={companyName}
             opsPhone={acctOps || acctDesk || '—'}
             invEmail={acctInv || props.email}
-            sent={sent}
-            sentTrip={sentTrip}
-            clocksLocal={clocks.local}
             fromText={fromText}
             toText={toText}
             fromAp={fromAp}
@@ -971,25 +1017,6 @@ export function PortalDesktopApp(props: {
             onNeed={setNeed}
             onNotes={setNotes}
             onSend={() => void sendRequest()}
-            onTrack={() => {
-              setPanel('trips')
-              setTab('pending')
-              setSent(false)
-              if (sentTrip) setSel(sentTrip.id)
-            }}
-            onAnother={() => {
-              setSent(false)
-              setFromText('')
-              setToText('')
-              setNotes('')
-              setLoadText('')
-              setPoText('')
-              setPickup(false)
-              setDeliver(false)
-              setCourierAddr('')
-              setSel(null)
-              setSentTrip(null)
-            }}
           />
         ) : null}
 
@@ -1130,12 +1157,33 @@ export function PortalDesktopApp(props: {
       ) : null}
 
       {/* Soft-quote card when not on Quote panel */}
-      {soft && panel !== 'quote' ? (
+      {soft && panel !== 'quote' && !sent ? (
         <SoftQuoteCard
           soft={soft}
           route={`${softQuotePointLabel(qa!)} → ${softQuotePointLabel(qb!)}`}
           onClose={clearQuote}
           onHard={quoteToDesk}
+        />
+      ) : null}
+
+      {sent && sentTrip ? (
+        <PortalRequestReceivedDesktop
+          displayId={sentTrip.displayId}
+          sentAt={sentAt ?? undefined}
+          summary={
+            receivedSummary ?? {
+              fromCode: sentTrip.from.icao,
+              toCode: sentTrip.to.icao,
+              need: 'ASAP',
+            }
+          }
+          onTrack={() => {
+            setPanel('trips')
+            setTab('pending')
+            setSel(sentTrip.id)
+            dismissReceived()
+          }}
+          onClose={dismissReceived}
         />
       ) : null}
 
@@ -1387,9 +1435,6 @@ function RequestPanel(props: {
   companyName: string
   opsPhone: string
   invEmail: string
-  sent: boolean
-  sentTrip: PortalDesktopTrip | null
-  clocksLocal: string
   fromText: string
   toText: string
   fromAp: ReturnType<typeof resolveAirportText>
@@ -1416,103 +1461,7 @@ function RequestPanel(props: {
   onNeed: (v: 'asap' | 'today' | 'tomorrow') => void
   onNotes: (v: string) => void
   onSend: () => void
-  onTrack: () => void
-  onAnother: () => void
 }) {
-  if (props.sent && props.sentTrip) {
-    const t = props.sentTrip
-    return (
-      <div
-        className="g-rise"
-        style={{
-          padding: '18px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: '50%',
-              background: '#C9A227',
-              boxShadow: '0 0 12px #C9A227',
-              animation: 'ofaBlink 1.2s infinite',
-            }}
-          />
-          <div className="g-kicker">Request received</div>
-        </div>
-        <div
-          style={{
-            fontSize: 24,
-            fontWeight: 500,
-            letterSpacing: '-.025em',
-            color: '#F4F2EC',
-            marginTop: 14,
-            lineHeight: 1.15,
-          }}
-        >
-          Our desk phones are ringing now.
-        </div>
-        <div
-          className="g-body"
-          style={{ marginTop: 10, lineHeight: 1.5 }}
-        >
-          Expect a call from dispatch within 10 minutes and a hard quote in
-          10–15. Your request is in Pending with trip number{' '}
-          <span className="g-mono" style={{ color: '#E3B341' }}>
-            {t.displayId}
-          </span>
-          .
-        </div>
-        <div
-          className="g-mono"
-          style={{
-            marginTop: 16,
-            border: '1px solid rgba(255,255,255,.1)',
-            borderRadius: 10,
-            padding: 12,
-            fontSize: 12,
-            color: '#F7F2E3',
-            letterSpacing: '.04em',
-            lineHeight: 1.7,
-          }}
-        >
-          <div>
-            <span style={{ color: '#6F6F74' }}>ROUTE </span>
-            {t.from.icao} → {t.to.icao}
-          </div>
-          <div>
-            <span style={{ color: '#6F6F74' }}>LOAD </span>
-            {t.load}
-          </div>
-          <div>
-            <span style={{ color: '#6F6F74' }}>NEED </span>
-            {t.nextEvent}
-          </div>
-          <div>
-            <span style={{ color: '#6F6F74' }}>TIME </span>
-            {props.clocksLocal} local
-          </div>
-        </div>
-        <div style={{ flex: 1 }} />
-        <button type="button" className="g-btn g-btn--portal" onClick={props.onTrack}>
-          Track it in Pending
-        </button>
-        <button
-          type="button"
-          className="ofa-link"
-          style={{ textAlign: 'center', padding: 14 }}
-          onClick={props.onAnother}
-        >
-          Send another
-        </button>
-      </div>
-    )
-  }
-
   const hint = (txt: string, ap: typeof props.fromAp) =>
     !txt
       ? ''
