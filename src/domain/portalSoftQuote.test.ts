@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   PORTAL_SOFT_QUOTE_CLASSES,
+  formatSoftQuotePriceShort,
+  softQuoteBookCta,
   softQuoteClassAtNm,
   softQuoteFor,
   softQuoteHardNotes,
@@ -8,15 +10,17 @@ import {
 } from './portalSoftQuote'
 
 describe('portalSoftQuote', () => {
-  it('keeps three tunable classes with doc 04 rates', () => {
+  it('keeps three tunable classes with badges + payload', () => {
     expect(PORTAL_SOFT_QUOTE_CLASSES).toHaveLength(3)
     expect(PORTAL_SOFT_QUOTE_CLASSES[0]).toMatchObject({
       name: 'Turboprop',
+      badge: 'Best value',
+      payload: '≤ 1,000 lb',
       kts: 270,
       rate: 2400,
       maxNm: 1300,
     })
-    expect(PORTAL_SOFT_QUOTE_CLASSES[1]?.name).toBe('Light jet')
+    expect(PORTAL_SOFT_QUOTE_CLASSES[1]?.badge).toBe('Fastest for parts')
     expect(PORTAL_SOFT_QUOTE_CLASSES[2]?.name).toBe('Mid-size jet')
   })
 
@@ -28,6 +32,14 @@ describe('portalSoftQuote', () => {
     expect(light.block).toMatch(/2h 54m block/)
     expect(light.opacity).toBe(1)
     expect(light.price).toMatch(/^\$[\d,]+ – \$[\d,]+$/)
+    expect(light.priceShort).toMatch(/^\$[\d.]+k–\$[\d.]+k$/)
+    expect(softQuoteBookCta(light)).toMatch(/^Book light jet · \$/)
+  })
+
+  it('formats short CTA bands', () => {
+    expect(formatSoftQuotePriceShort(8300, 10400)).toBe('$8.3k–$10.4k')
+    expect(formatSoftQuotePriceShort(22000, 27800)).toBe('$22k–$27.8k')
+    expect(formatSoftQuotePriceShort(31000, 31000)).toBe('$31k–$31k')
   })
 
   it('flags fuel-stop / dim opacity past maxNm', () => {
@@ -52,14 +64,15 @@ describe('portalSoftQuote', () => {
     const notes = softQuoteHardNotes(
       { lat: 33.94, lon: -118.4, code: 'KLAX' },
       { lat: 39.86, lon: -104.67, code: 'KDEN' },
+      'Light jet',
     )
-    expect(notes).toMatch(/^Soft quote KLAX → KDEN \([\d,]+ nm\)/)
+    expect(notes).toMatch(/^Soft quote KLAX → KDEN \([\d,]+ nm\) · prefer Light jet/)
     expect(notes).toMatch(/please send hard quote$/)
   })
 
   it('labels custom points without ICAO', () => {
     expect(softQuotePointLabel({ lat: 33.4, lon: -79.6 })).toBe(
-      "33.4°, 79.6°W",
+      '33.4°, 79.6°W',
     )
   })
 

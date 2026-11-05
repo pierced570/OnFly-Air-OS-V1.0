@@ -10,7 +10,14 @@ import { NM_TO_STATUTE } from '@/domain/portalMap'
 /** Aircraft class band for map soft quotes (doc 04). */
 export type SoftQuoteClassConfig = {
   name: string
+  /** Supporting line under the class (fallback when over range). */
   sub: string
+  /** Gold pill on the rough-estimate card e.g. "Fastest for parts". */
+  badge: string
+  /** Example types shown under the card e.g. "CJ3 · Phenom 300". */
+  examples: string
+  /** Payload band e.g. "≤ 1,200 lb". */
+  payload: string
   kts: number
   /** $/hr market rate used in the soft model. */
   rate: number
@@ -26,6 +33,9 @@ export const PORTAL_SOFT_QUOTE_CLASSES: readonly SoftQuoteClassConfig[] = [
   {
     name: 'Turboprop',
     sub: 'King Air · PC-12 · up to ~1,000 lb',
+    badge: 'Best value',
+    examples: 'King Air · PC-12',
+    payload: '≤ 1,000 lb',
     kts: 270,
     rate: 2400,
     maxNm: 1300,
@@ -33,6 +43,9 @@ export const PORTAL_SOFT_QUOTE_CLASSES: readonly SoftQuoteClassConfig[] = [
   {
     name: 'Light jet',
     sub: 'CJ3 · Phenom 300 · fastest for parts',
+    badge: 'Fastest for parts',
+    examples: 'CJ3 · Phenom 300',
+    payload: '≤ 1,200 lb',
     kts: 400,
     rate: 3600,
     maxNm: 1900,
@@ -40,6 +53,9 @@ export const PORTAL_SOFT_QUOTE_CLASSES: readonly SoftQuoteClassConfig[] = [
   {
     name: 'Mid-size jet',
     sub: 'XLS · Lear 60 · heavier loads, more range',
+    badge: 'More range',
+    examples: 'XLS · Lear 60',
+    payload: '≤ 2,000 lb',
     kts: 430,
     rate: 5200,
     maxNm: 2600,
@@ -47,13 +63,18 @@ export const PORTAL_SOFT_QUOTE_CLASSES: readonly SoftQuoteClassConfig[] = [
 ] as const
 
 export const PORTAL_SOFT_QUOTE_FINE_PRINT =
-  'Soft quote only — one-way, typical market rates incl. repositioning. Not a firm offer. Weather, crew duty and aircraft availability move the number.'
+  'Rough estimate, not a firm offer.'
 
 export type SoftQuoteClassResult = {
   name: string
   sub: string
+  badge: string
+  examples: string
+  payload: string
   /** e.g. "$12,400 – $15,400" */
   price: string
+  /** Compact CTA band e.g. "$8.3k–$10.4k" */
+  priceShort: string
   /** e.g. "3h 45m block" */
   block: string
   /** 1 normally; 0.45 when over maxNm. */
@@ -87,6 +108,25 @@ function money(v: number): string {
   return `$${round100(v).toLocaleString('en-US')}`
 }
 
+/** Compact money for CTA: $8.3k–$10.4k */
+export function formatSoftQuotePriceShort(low: number, high: number): string {
+  const fmt = (n: number) => {
+    if (n >= 1000) {
+      const k = n / 1000
+      // One decimal under $100k so $10.4k stays distinct from $10k.
+      const s =
+        k >= 100
+          ? k.toFixed(0)
+          : Number.isInteger(k)
+            ? String(k)
+            : k.toFixed(1)
+      return `$${s}k`
+    }
+    return `$${n}`
+  }
+  return `${fmt(low)}–${fmt(high)}`
+}
+
 function formatBlock(hrs: number): string {
   const h = Math.floor(hrs)
   const m = Math.round((hrs - h) * 60)
@@ -101,16 +141,22 @@ export function softQuoteClassAtNm(
   const hrs = Math.max(nm / cls.kts + 0.4, 1.5)
   const cost = hrs * cls.rate * 1.2
   const over = nm > cls.maxNm
+  const costLow = round100(cost * 0.9)
+  const costHigh = round100(cost * 1.12)
   return {
     name: cls.name,
     sub: over ? 'Fuel stop likely at this distance' : cls.sub,
-    price: `${money(cost * 0.9)} – ${money(cost * 1.12)}`,
+    badge: cls.badge,
+    examples: cls.examples,
+    payload: cls.payload,
+    price: `${money(costLow)} – ${money(costHigh)}`,
+    priceShort: formatSoftQuotePriceShort(costLow, costHigh),
     block: formatBlock(hrs),
     opacity: over ? 0.45 : 1,
     overRange: over,
     hrs,
-    costLow: round100(cost * 0.9),
-    costHigh: round100(cost * 1.12),
+    costLow,
+    costHigh,
   }
 }
 
@@ -139,11 +185,30 @@ export function softQuotePointLabel(p: SoftQuotePoint): string {
   if (code) return code
   const lat = Number.isFinite(p.lat) ? p.lat.toFixed(1) : '?'
   const lonAbs = Number.isFinite(p.lon) ? Math.abs(p.lon).toFixed(1) : '?'
-  return `${lat}°, ${lonAbs}°W`
+  const lonHem = Number.isFinite(p.lon) && p.lon >= 0 ? 'E' : 'W'
+  return `${lat}°, ${lonAbs}°${lonHem}`
+}
+
+/** Short ICAO (or city) for rough-estimate headers. */
+export function softQuotePointCode(p: SoftQuotePoint): string {
+  const code = p.code?.trim().toUpperCase()
+  if (code) return code
+  return softQuotePointLabel(p)
 }
 
 /** Prefill notes when sending a soft quote to the desk for a hard quote. */
-export function softQuoteHardNotes(a: SoftQuotePoint, b: SoftQuotePoint): string {
+export function softQuoteHardNotes(
+  a: SoftQuotePoint,
+  b: SoftQuotePoint,
+  preferredClass?: string | null,
+): string {
   const q = softQuoteFor(a, b)
-  return `Soft quote ${softQuotePointLabel(a)} → ${softQuotePointLabel(b)} (${q.nmLabel} nm) — please send hard quote`
+  const cls = preferredClass?.trim()
+  const classBit = cls ? ` · prefer ${cls}` : ''
+  return `Soft quote ${softQuotePointLabel(a)} → ${softQuotePointLabel(b)} (${q.nmLabel} nm)${classBit} — please send hard quote`
+}
+
+/** CTA label for the selected rough-estimate class. */
+export function softQuoteBookCta(cls: SoftQuoteClassResult): string {
+  return `Book ${cls.name.toLowerCase()} · ${cls.priceShort}`
 }

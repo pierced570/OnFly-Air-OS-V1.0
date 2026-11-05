@@ -16,6 +16,7 @@ import {
 import { Link } from 'react-router-dom'
 import { MapBackdrop } from '@/components/MapBackdrop'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
+import { SoftQuoteRoughEstimate } from '@/components/SoftQuoteRoughEstimate'
 import {
   BRAND_LOGO_PATH,
   BRAND_PHONE_E164,
@@ -40,10 +41,10 @@ import {
 } from '@/domain/portalDesktopTrips'
 import { lookupAirport } from '@/domain/airports'
 import {
-  PORTAL_SOFT_QUOTE_FINE_PRINT,
   softQuoteFor,
   softQuoteHardNotes,
   softQuotePointLabel,
+  type SoftQuoteClassResult,
   type SoftQuotePoint,
 } from '@/domain/portalSoftQuote'
 import {
@@ -313,6 +314,7 @@ export function PortalPhoneApp(props: {
   const [qb, setQb] = useState<QuotePick | null>(null)
   const [qaText, setQaText] = useState('')
   const [qbText, setQbText] = useState('')
+  const [roughEditing, setRoughEditing] = useState(false)
   const [fromText, setFromText] = useState('')
   const [toText, setToText] = useState('')
   const [moving, setMoving] = useState<'cargo' | 'pax'>('cargo')
@@ -540,6 +542,33 @@ export function PortalPhoneApp(props: {
     setQb(null)
     setQaText('')
     setQbText('')
+    setRoughEditing(false)
+  }
+
+  function quoteToDesk(preferred?: SoftQuoteClassResult | null) {
+    if (!qa || !qb) return
+    goPanel('request')
+    setFromText(
+      qa.code
+        ? formatPortalAirportField({
+            icao: qa.code,
+            city: qa.city ?? '',
+            lat: qa.lat,
+            lon: qa.lon,
+          })
+        : softQuotePointLabel(qa),
+    )
+    setToText(
+      qb.code
+        ? formatPortalAirportField({
+            icao: qb.code,
+            city: qb.city ?? '',
+            lat: qb.lat,
+            lon: qb.lon,
+          })
+        : softQuotePointLabel(qb),
+    )
+    setNotes(softQuoteHardNotes(qa, qb, preferred?.name))
   }
 
   function onMapClick(p: { lat: number; lon: number; icao?: string }) {
@@ -579,35 +608,9 @@ export function PortalPhoneApp(props: {
         setQbText(field)
         setSel(null)
         setToText(field)
-        if (panel === 'quote') applySnap('peek')
+        if (panel === 'quote') applySnap('half')
       }
     }
-  }
-
-  function quoteToDesk() {
-    if (!qa || !qb) return
-    goPanel('request')
-    setFromText(
-      qa.code
-        ? formatPortalAirportField({
-            icao: qa.code,
-            city: qa.city ?? '',
-            lat: qa.lat,
-            lon: qa.lon,
-          })
-        : softQuotePointLabel(qa),
-    )
-    setToText(
-      qb.code
-        ? formatPortalAirportField({
-            icao: qb.code,
-            city: qb.city ?? '',
-            lat: qb.lat,
-            lon: qb.lon,
-          })
-        : softQuotePointLabel(qb),
-    )
-    setNotes(softQuoteHardNotes(qa, qb))
   }
 
   function bookAgain(t: PortalDesktopTrip) {
@@ -925,7 +928,11 @@ export function PortalPhoneApp(props: {
       </div>
 
       {panel === 'quote' ? (
-        <div className="m-hint">Tap two airports for a soft quote</div>
+        <div className="m-hint">
+          {soft
+            ? 'Tap any two points to re-estimate'
+            : 'Tap any two points to estimate'}
+        </div>
       ) : null}
 
       <header className="m-top">
@@ -1545,166 +1552,200 @@ export function PortalPhoneApp(props: {
 
         {panel === 'quote' ? (
           <>
-            <div className="m-sh-h">
-              <span className="m-kick">Soft quote</span>
-              {soft ? (
-                <span className="m-sum">
-                  {soft.nmLabel} nm · {soft.smLabel} sm
-                </span>
-              ) : null}
-            </div>
+            {soft && qa && qb ? null : (
+              <div className="m-sh-h">
+                <span className="m-kick">Rough estimate</span>
+              </div>
+            )}
             <div className="m-body">
-              {(snap === 'half' || snap === 'detail' || snap === 'full') && (
-                <div className="m-2" style={{ marginBottom: 8 }}>
-                  <div>
-                    <label htmlFor="m-qa">Origin</label>
-                    <div className="g-field g-field--icao">
-                      <input
-                        id="m-qa"
-                        value={qaText}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          const ap = resolveAirportText(v)
-                          const tok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
-                          const exact = lookupAirport(tok)
-                          if (ap) {
-                            setQa({
-                              lat: ap.lat,
-                              lon: ap.lon,
-                              code: ap.icao,
-                              city: ap.state
-                                ? `${ap.city}, ${ap.state}`
-                                : ap.city,
-                              label: formatPortalAirportField(ap),
-                            })
-                            setQaText(
-                              exact || /^[A-Za-z]{3,4}$/.test(tok)
-                                ? formatPortalAirportField(ap)
-                                : v,
-                            )
-                          } else {
-                            setQa(null)
-                            setQaText(v)
-                          }
-                        }}
-                        placeholder="ICAO, city, or map"
-                        autoCapitalize="characters"
-                        autoComplete="off"
-                      />
-                    </div>
-                    <small
-                      className={
-                        qa?.code ? 'g-field-hint' : 'g-field-hint is-pending'
-                      }
-                    >
-                      {qa?.code
-                        ? formatPortalAirportResolved(
-                            resolveAirportText(qa.code),
-                          )
-                        : qaText
-                          ? 'Keep typing an ICAO, IATA, or city'
-                          : ''}
-                    </small>
-                  </div>
-                  <div>
-                    <label htmlFor="m-qb">Destination</label>
-                    <div className="g-field g-field--icao">
-                      <input
-                        id="m-qb"
-                        value={qbText}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          const ap = resolveAirportText(v)
-                          const tok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
-                          const exact = lookupAirport(tok)
-                          if (ap) {
-                            setQb({
-                              lat: ap.lat,
-                              lon: ap.lon,
-                              code: ap.icao,
-                              city: ap.state
-                                ? `${ap.city}, ${ap.state}`
-                                : ap.city,
-                              label: formatPortalAirportField(ap),
-                            })
-                            setQbText(
-                              exact || /^[A-Za-z]{3,4}$/.test(tok)
-                                ? formatPortalAirportField(ap)
-                                : v,
-                            )
-                          } else {
-                            setQb(null)
-                            setQbText(v)
-                          }
-                        }}
-                        placeholder="ICAO, city, or map"
-                        autoCapitalize="characters"
-                        autoComplete="off"
-                      />
-                    </div>
-                    <small
-                      className={
-                        qb?.code ? 'g-field-hint' : 'g-field-hint is-pending'
-                      }
-                    >
-                      {qb?.code
-                        ? formatPortalAirportResolved(
-                            resolveAirportText(qb.code),
-                          )
-                        : qbText
-                          ? 'Keep typing an ICAO, IATA, or city'
-                          : ''}
-                    </small>
-                  </div>
-                </div>
-              )}
               {soft && qa && qb ? (
-                <>
-                  <div className="m-qroute">
-                    <span className="mono">
-                      {softQuotePointLabel(qa)} → {softQuotePointLabel(qb)}
-                    </span>
-                    <button type="button" onClick={clearQuote}>
-                      Clear
-                    </button>
-                  </div>
-                  {soft.classes.map((c) => (
-                    <div
-                      key={c.name}
-                      className="m-cls"
-                      style={{ opacity: c.opacity }}
-                    >
+                <SoftQuoteRoughEstimate
+                  soft={soft}
+                  from={qa}
+                  to={qb}
+                  editing={roughEditing}
+                  onEdit={() => setRoughEditing((v) => !v)}
+                  onBook={(cls) => quoteToDesk(cls)}
+                  onAskDesk={() => quoteToDesk(null)}
+                  editors={
+                    <div className="m-2">
                       <div>
-                        <b>{c.name}</b>
-                        <span>{c.sub}</span>
+                        <label htmlFor="m-qa">Origin</label>
+                        <div className="g-field g-field--icao">
+                          <input
+                            id="m-qa"
+                            value={qaText}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              const ap = resolveAirportText(v)
+                              const tok =
+                                v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                              const exact = lookupAirport(tok)
+                              if (ap) {
+                                setQa({
+                                  lat: ap.lat,
+                                  lon: ap.lon,
+                                  code: ap.icao,
+                                  city: ap.state
+                                    ? `${ap.city}, ${ap.state}`
+                                    : ap.city,
+                                  label: formatPortalAirportField(ap),
+                                })
+                                setQaText(
+                                  exact || /^[A-Za-z]{3,4}$/.test(tok)
+                                    ? formatPortalAirportField(ap)
+                                    : v,
+                                )
+                              } else {
+                                setQa(null)
+                                setQaText(v)
+                              }
+                            }}
+                            placeholder="ICAO, city, or map"
+                            autoCapitalize="characters"
+                            autoComplete="off"
+                          />
+                        </div>
                       </div>
                       <div>
-                        <b className="mono">{c.price}</b>
-                        <span>{c.block}</span>
+                        <label htmlFor="m-qb">Destination</label>
+                        <div className="g-field g-field--icao">
+                          <input
+                            id="m-qb"
+                            value={qbText}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              const ap = resolveAirportText(v)
+                              const tok =
+                                v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                              const exact = lookupAirport(tok)
+                              if (ap) {
+                                setQb({
+                                  lat: ap.lat,
+                                  lon: ap.lon,
+                                  code: ap.icao,
+                                  city: ap.state
+                                    ? `${ap.city}, ${ap.state}`
+                                    : ap.city,
+                                  label: formatPortalAirportField(ap),
+                                })
+                                setQbText(
+                                  exact || /^[A-Za-z]{3,4}$/.test(tok)
+                                    ? formatPortalAirportField(ap)
+                                    : v,
+                                )
+                              } else {
+                                setQb(null)
+                                setQbText(v)
+                              }
+                            }}
+                            placeholder="ICAO, city, or map"
+                            autoCapitalize="characters"
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="g-ghost"
+                        style={{ marginTop: 8 }}
+                        onClick={clearQuote}
+                      >
+                        Clear route
+                      </button>
+                    </div>
+                  }
+                />
+              ) : (
+                <>
+                  {(snap === 'half' ||
+                    snap === 'detail' ||
+                    snap === 'full') && (
+                    <div className="m-2" style={{ marginBottom: 8 }}>
+                      <div>
+                        <label htmlFor="m-qa">Origin</label>
+                        <div className="g-field g-field--icao">
+                          <input
+                            id="m-qa"
+                            value={qaText}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              const ap = resolveAirportText(v)
+                              const tok =
+                                v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                              const exact = lookupAirport(tok)
+                              if (ap) {
+                                setQa({
+                                  lat: ap.lat,
+                                  lon: ap.lon,
+                                  code: ap.icao,
+                                  city: ap.state
+                                    ? `${ap.city}, ${ap.state}`
+                                    : ap.city,
+                                  label: formatPortalAirportField(ap),
+                                })
+                                setQaText(
+                                  exact || /^[A-Za-z]{3,4}$/.test(tok)
+                                    ? formatPortalAirportField(ap)
+                                    : v,
+                                )
+                              } else {
+                                setQa(null)
+                                setQaText(v)
+                              }
+                            }}
+                            placeholder="ICAO, city, or map"
+                            autoCapitalize="characters"
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label htmlFor="m-qb">Destination</label>
+                        <div className="g-field g-field--icao">
+                          <input
+                            id="m-qb"
+                            value={qbText}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              const ap = resolveAirportText(v)
+                              const tok =
+                                v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                              const exact = lookupAirport(tok)
+                              if (ap) {
+                                setQb({
+                                  lat: ap.lat,
+                                  lon: ap.lon,
+                                  code: ap.icao,
+                                  city: ap.state
+                                    ? `${ap.city}, ${ap.state}`
+                                    : ap.city,
+                                  label: formatPortalAirportField(ap),
+                                })
+                                setQbText(
+                                  exact || /^[A-Za-z]{3,4}$/.test(tok)
+                                    ? formatPortalAirportField(ap)
+                                    : v,
+                                )
+                              } else {
+                                setQb(null)
+                                setQbText(v)
+                              }
+                            }}
+                            placeholder="ICAO, city, or map"
+                            autoCapitalize="characters"
+                            autoComplete="off"
+                          />
+                        </div>
                       </div>
                     </div>
-                  ))}
-                  <p className="g-body" style={{ marginTop: 10 }}>
-                    {PORTAL_SOFT_QUOTE_FINE_PRINT}
+                  )}
+                  <p className="g-body" style={{ padding: '8px 0' }}>
+                    Tap any two points to estimate — swipe between aircraft
+                    classes once the route is set.
                   </p>
                 </>
-              ) : (
-                <p className="g-body" style={{ padding: '8px 0' }}>
-                  Tap two airports on the map — we snap to the nearest field —
-                  or drag the sheet up to type.
-                </p>
               )}
-            </div>
-            <div className="m-sticky">
-              <button
-                type="button"
-                className="g-btn"
-                style={{ width: '100%' }}
-                disabled={!soft}
-                onClick={quoteToDesk}
-              >
-                Get a hard quote
-              </button>
             </div>
           </>
         ) : null}
