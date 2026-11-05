@@ -38,7 +38,9 @@ import {
   resolveSoftQuoteMapPick,
   type PortalDesktopBucket,
   type PortalDesktopTrip,
+  type SoftQuoteNearbyOption,
 } from '@/domain/portalDesktopTrips'
+import { SoftQuoteNearbyPicker } from '@/components/SoftQuoteNearbyPicker'
 import { lookupAirport } from '@/domain/airports'
 import {
   softQuoteFor,
@@ -312,6 +314,10 @@ export function PortalPhoneApp(props: {
   const [dragging, setDragging] = useState(false)
   const [qa, setQa] = useState<QuotePick | null>(null)
   const [qb, setQb] = useState<QuotePick | null>(null)
+  const [nearbyPick, setNearbyPick] = useState<{
+    slot: 'origin' | 'destination'
+    options: SoftQuoteNearbyOption[]
+  } | null>(null)
   const [qaText, setQaText] = useState('')
   const [qbText, setQbText] = useState('')
   const [roughEditing, setRoughEditing] = useState(false)
@@ -543,6 +549,7 @@ export function PortalPhoneApp(props: {
     setQaText('')
     setQbText('')
     setRoughEditing(false)
+    setNearbyPick(null)
   }
 
   function quoteToDesk(preferred?: SoftQuoteClassResult | null) {
@@ -571,12 +578,18 @@ export function PortalPhoneApp(props: {
     setNotes(softQuoteHardNotes(qa, qb, preferred?.name))
   }
 
-  function onMapClick(p: { lat: number; lon: number; icao?: string }) {
-    if (panel === 'trips' || panel === 'docs' || panel === 'account') {
-      applySnap('peek')
-      return
-    }
-    const pick = resolveSoftQuoteMapPick(p)
+  function applySoftQuotePoint(
+    slot: 'origin' | 'destination',
+    pick: {
+      lat: number
+      lon: number
+      code?: string | null
+      city?: string | null
+      name?: string | null
+      label: string
+      nearby?: SoftQuoteNearbyOption[]
+    },
+  ) {
     const point: QuotePick = {
       lat: pick.lat,
       lon: pick.lon,
@@ -593,24 +606,52 @@ export function PortalPhoneApp(props: {
           lon: pick.lon,
         })
       : pick.label
-    if (panel === 'request' || panel === 'quote') {
-      if (!qa || qb) {
-        setQa(point)
-        setQb(null)
-        setQaText(field)
-        setQbText('')
-        setSel(null)
-        setFromText(field)
-        setToText('')
-        if (panel === 'quote') applySnap('peek')
-      } else {
-        setQb(point)
-        setQbText(field)
-        setSel(null)
-        setToText(field)
-        if (panel === 'quote') applySnap('half')
-      }
+    if (slot === 'origin') {
+      setQa(point)
+      setQb(null)
+      setQaText(field)
+      setQbText('')
+      setSel(null)
+      setFromText(field)
+      setToText('')
+      if (panel === 'quote') applySnap('peek')
+    } else {
+      setQb(point)
+      setQbText(field)
+      setSel(null)
+      setToText(field)
+      if (panel === 'quote') applySnap('half')
     }
+    setNearbyPick(
+      pick.nearby && pick.nearby.length > 1
+        ? { slot, options: pick.nearby }
+        : null,
+    )
+  }
+
+  function onMapClick(p: { lat: number; lon: number; icao?: string }) {
+    if (panel === 'trips' || panel === 'docs' || panel === 'account') {
+      applySnap('peek')
+      return
+    }
+    if (panel !== 'request' && panel !== 'quote') return
+    const pick = resolveSoftQuoteMapPick(p)
+    const slot: 'origin' | 'destination' = !qa || qb ? 'origin' : 'destination'
+    applySoftQuotePoint(slot, pick)
+    if (panel === 'quote') applySnap('half')
+  }
+
+  function onNearbyAirport(opt: SoftQuoteNearbyOption) {
+    if (!nearbyPick) return
+    applySoftQuotePoint(nearbyPick.slot, {
+      lat: opt.lat,
+      lon: opt.lon,
+      code: opt.code,
+      city: opt.city,
+      name: opt.name,
+      label: opt.label,
+      nearby: nearbyPick.options,
+    })
   }
 
   function bookAgain(t: PortalDesktopTrip) {
@@ -1558,6 +1599,20 @@ export function PortalPhoneApp(props: {
               </div>
             )}
             <div className="m-body">
+              {nearbyPick ? (
+                <SoftQuoteNearbyPicker
+                  variant="inline"
+                  slot={nearbyPick.slot}
+                  options={nearbyPick.options}
+                  selectedCode={
+                    nearbyPick.slot === 'origin'
+                      ? (qa?.code ?? null)
+                      : (qb?.code ?? null)
+                  }
+                  onSelect={onNearbyAirport}
+                  onDismiss={() => setNearbyPick(null)}
+                />
+              ) : null}
               {soft && qa && qb ? (
                 <SoftQuoteRoughEstimate
                   soft={soft}
@@ -1741,8 +1796,9 @@ export function PortalPhoneApp(props: {
                     </div>
                   )}
                   <p className="g-body" style={{ padding: '8px 0' }}>
-                    Tap any two points to estimate — swipe between aircraft
-                    classes once the route is set.
+                    Tap two airports on the map — we snap to the nearest field
+                    and show popular options nearby — or drag the sheet up to
+                    type. Swipe between aircraft classes once the route is set.
                   </p>
                 </>
               )}
