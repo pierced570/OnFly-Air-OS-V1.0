@@ -18,6 +18,8 @@ export type SoftQuoteClassConfig = {
   examples: string
   /** Payload band e.g. "≤ 1,200 lb". */
   payload: string
+  /** Ready-to-launch band e.g. "~2–3 h". */
+  ready: string
   kts: number
   /** $/hr market rate used in the soft model. */
   rate: number
@@ -34,8 +36,9 @@ export const PORTAL_SOFT_QUOTE_CLASSES: readonly SoftQuoteClassConfig[] = [
     name: 'Turboprop',
     sub: 'King Air · PC-12 · up to ~1,000 lb',
     badge: 'Best value',
-    examples: 'King Air · PC-12',
+    examples: 'King Air 350 · PC-12',
     payload: '≤ 1,000 lb',
+    ready: '~2–3 h',
     kts: 270,
     rate: 2400,
     maxNm: 1300,
@@ -46,6 +49,7 @@ export const PORTAL_SOFT_QUOTE_CLASSES: readonly SoftQuoteClassConfig[] = [
     badge: 'Fastest for parts',
     examples: 'CJ3 · Phenom 300',
     payload: '≤ 1,200 lb',
+    ready: '~2–3 h',
     kts: 400,
     rate: 3600,
     maxNm: 1900,
@@ -54,8 +58,9 @@ export const PORTAL_SOFT_QUOTE_CLASSES: readonly SoftQuoteClassConfig[] = [
     name: 'Mid-size jet',
     sub: 'XLS · Lear 60 · heavier loads, more range',
     badge: 'More range',
-    examples: 'XLS · Lear 60',
+    examples: 'XLS · Learjet 60',
     payload: '≤ 2,000 lb',
+    ready: '~3–4 h',
     kts: 430,
     rate: 5200,
     maxNm: 2600,
@@ -63,7 +68,7 @@ export const PORTAL_SOFT_QUOTE_CLASSES: readonly SoftQuoteClassConfig[] = [
 ] as const
 
 export const PORTAL_SOFT_QUOTE_FINE_PRINT =
-  'Rough estimate, not a firm offer.'
+  'Rough, typical market rates — not a firm offer. You approve the hard quote from a vetted Part 135 carrier before anything is booked.'
 
 export type SoftQuoteClassResult = {
   name: string
@@ -71,12 +76,16 @@ export type SoftQuoteClassResult = {
   badge: string
   examples: string
   payload: string
+  ready: string
+  kts: number
   /** e.g. "$12,400 – $15,400" */
   price: string
   /** Compact CTA band e.g. "$8.3k–$10.4k" */
   priceShort: string
   /** e.g. "3h 45m block" */
   block: string
+  /** Block duration without the word "block" e.g. "2h 08m". */
+  blockShort: string
   /** 1 normally; 0.45 when over maxNm. */
   opacity: number
   overRange: boolean
@@ -127,10 +136,38 @@ export function formatSoftQuotePriceShort(low: number, high: number): string {
   return `${fmt(low)}–${fmt(high)}`
 }
 
-function formatBlock(hrs: number): string {
+function formatBlockShort(hrs: number): string {
   const h = Math.floor(hrs)
   const m = Math.round((hrs - h) * 60)
-  return `${h}h ${m < 10 ? '0' : ''}${m}m block`
+  return `${h}h ${m < 10 ? '0' : ''}${m}m`
+}
+
+function formatBlock(hrs: number): string {
+  return `${formatBlockShort(hrs)} block`
+}
+
+/** Scale one-way soft band for round-trip display (~1.85×). */
+export function softQuoteRoundTripCosts(
+  oneWay: SoftQuoteClassResult,
+): { costLow: number; costHigh: number; price: string } {
+  const costLow = round100(oneWay.costLow * 1.85)
+  const costHigh = round100(oneWay.costHigh * 1.85)
+  return {
+    costLow,
+    costHigh,
+    price: `${money(costLow)} – ${money(costHigh)}`,
+  }
+}
+
+/** Footer summary under the desktop rough-estimate cards. */
+export function softQuoteSelectionSummary(
+  cls: SoftQuoteClassResult,
+  opts?: { roundTrip?: boolean },
+): string {
+  const band = opts?.roundTrip
+    ? softQuoteRoundTripCosts(cls).price
+    : cls.price.replace(' – ', ' – ')
+  return `${cls.name} ${band} · wheels up ${cls.ready} · lands ~${cls.blockShort} later`
 }
 
 /** Block time + soft price band for one class at `nm`. */
@@ -149,9 +186,12 @@ export function softQuoteClassAtNm(
     badge: cls.badge,
     examples: cls.examples,
     payload: cls.payload,
+    ready: cls.ready,
+    kts: cls.kts,
     price: `${money(costLow)} – ${money(costHigh)}`,
     priceShort: formatSoftQuotePriceShort(costLow, costHigh),
     block: formatBlock(hrs),
+    blockShort: formatBlockShort(hrs),
     opacity: over ? 0.45 : 1,
     overRange: over,
     hrs,

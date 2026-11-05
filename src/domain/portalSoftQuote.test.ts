@@ -7,6 +7,7 @@ import {
   softQuoteFor,
   softQuoteHardNotes,
   softQuotePointLabel,
+  softQuoteSelectionSummary,
 } from './portalSoftQuote'
 
 describe('portalSoftQuote', () => {
@@ -16,12 +17,20 @@ describe('portalSoftQuote', () => {
       name: 'Turboprop',
       badge: 'Best value',
       payload: '≤ 1,000 lb',
+      ready: '~2–3 h',
       kts: 270,
       rate: 2400,
       maxNm: 1300,
     })
     expect(PORTAL_SOFT_QUOTE_CLASSES[1]?.badge).toBe('Fastest for parts')
     expect(PORTAL_SOFT_QUOTE_CLASSES[2]?.name).toBe('Mid-size jet')
+  })
+
+  it('builds a desktop selection summary line', () => {
+    const light = softQuoteClassAtNm(PORTAL_SOFT_QUOTE_CLASSES[1]!, 700)
+    expect(softQuoteSelectionSummary(light)).toMatch(
+      /^Light jet \$[\d,]+ – \$[\d,]+ · wheels up ~2–3 h · lands ~/,
+    )
   })
 
   it('computes block time and ± band from nm', () => {
