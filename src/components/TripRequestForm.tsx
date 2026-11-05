@@ -80,6 +80,13 @@ type Props = {
   hidePortalActions?: boolean
   /** Busy state for an external CTA (guest hard-quote rail). */
   onBusyChange?: (busy: boolean) => void
+  /** Guest hard-quote mobile sheet progress (1–3). */
+  onWizardStepChange?: (step: 1 | 2 | 3) => void
+  /**
+   * Mobile book sheet: bar progress lives in layout; form uses g-btn CTAs
+   * and a single hard-quote action on the last step.
+   */
+  compactWizard?: boolean
   onSubmit: (
     draft: TripRequestDraft,
     intent?: PortalSubmitIntent,
@@ -143,6 +150,8 @@ export const TripRequestForm = forwardRef<TripRequestFormHandle, Props>(
   onDraftChange,
   hidePortalActions = false,
   onBusyChange,
+  onWizardStepChange,
+  compactWizard = false,
   onSubmit,
 },
   ref,
@@ -204,6 +213,10 @@ export const TripRequestForm = forwardRef<TripRequestFormHandle, Props>(
   useEffect(() => {
     onBusyChange?.(busy)
   }, [busy, onBusyChange])
+
+  useEffect(() => {
+    if (wizard) onWizardStepChange?.(wizardStep)
+  }, [wizard, wizardStep, onWizardStepChange])
 
   useImperativeHandle(
     ref,
@@ -394,7 +407,7 @@ export const TripRequestForm = forwardRef<TripRequestFormHandle, Props>(
       }
       className="space-y-6"
     >
-      {wizard ? (
+      {wizard && !compactWizard ? (
         <nav className="flex flex-wrap gap-0 border-b border-border pb-3">
           {(
             [
@@ -438,6 +451,26 @@ export const TripRequestForm = forwardRef<TripRequestFormHandle, Props>(
             )
           })}
         </nav>
+      ) : null}
+
+      {wizard && compactWizard && wizardStep === 2 ? (
+        <button
+          type="button"
+          onClick={() => setWizardStep(1)}
+          className="mb-1 text-left text-sm font-medium text-gold"
+        >
+          ← Contact &amp; service
+        </button>
+      ) : null}
+
+      {wizard && compactWizard && wizardStep === 3 ? (
+        <button
+          type="button"
+          onClick={() => setWizardStep(2)}
+          className="mb-1 text-left text-sm font-medium text-gold"
+        >
+          ← Route &amp; timing
+        </button>
       ) : null}
 
       {/* Client / email */}
@@ -2017,6 +2050,24 @@ export const TripRequestForm = forwardRef<TripRequestFormHandle, Props>(
                 </p>
               </div>
             </>
+          ) : compactWizard ? (
+            <div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={(e) => {
+                  void handleSubmit(e, 'hard_quote')
+                }}
+                className="g-btn w-full disabled:opacity-50"
+              >
+                {busy && pendingIntent === 'hard_quote'
+                  ? 'Submitting…'
+                  : 'Request this flight NOW'}
+              </button>
+              <p className="mt-2 text-center text-xs text-muted">
+                Our phones ring the moment you send
+              </p>
+            </div>
           ) : (
             <>
               <div>
@@ -2080,28 +2131,40 @@ export const TripRequestForm = forwardRef<TripRequestFormHandle, Props>(
       ) : null}
 
       {wizard && wizardStep < 3 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-          <button
-            type="button"
-            className="portal-glass-row rounded-xl px-5 py-2.5 text-sm disabled:opacity-40"
-            disabled={wizardStep === 1}
-            onClick={() =>
-              setWizardStep((s) => (s === 3 ? 2 : 1) as 1 | 2 | 3)
-            }
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            className="rounded-full bg-ink px-8 py-2.5 text-sm font-semibold text-gold hover:bg-[#1a1a1a]"
-            onClick={goNextWizard}
-          >
-            Continue
-          </button>
-        </div>
+        compactWizard ? (
+          <div className="pt-2">
+            <button
+              type="button"
+              className="g-btn w-full"
+              onClick={goNextWizard}
+            >
+              Continue
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <button
+              type="button"
+              className="portal-glass-row rounded-xl px-5 py-2.5 text-sm disabled:opacity-40"
+              disabled={wizardStep === 1}
+              onClick={() =>
+                setWizardStep((s) => (s === 3 ? 2 : 1) as 1 | 2 | 3)
+              }
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              className="rounded-full bg-ink px-8 py-2.5 text-sm font-semibold text-gold hover:bg-[#1a1a1a]"
+              onClick={goNextWizard}
+            >
+              Continue
+            </button>
+          </div>
+        )
       ) : null}
 
-      {wizard && wizardStep === 3 ? (
+      {wizard && wizardStep === 3 && !compactWizard ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-2">
           <button
             type="button"

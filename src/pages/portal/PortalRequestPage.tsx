@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import {
   clearFastQuoteDraft,
   readFastQuoteDraft,
@@ -81,6 +82,8 @@ export default function PortalRequestPage() {
     searchParams.get('mode') === 'book' ? 'book' : 'quote'
   const restoreId = searchParams.get('requestId')?.trim() || null
   const fromFastQuote = searchParams.get('from') === 'fast-quote'
+  const isNarrow = useMediaQuery('(max-width: 960px)')
+  const bookSheet = entryMode === 'book' && isNarrow
 
   // Signed-in clients stay inside the glass portal (Request / Quote tabs).
   if (!authLoading && signedIn && !restoreId && !fromFastQuote) {
@@ -115,6 +118,7 @@ export default function PortalRequestPage() {
   )
   const [panelNotes, setPanelNotes] = useState('')
   const [formBusy, setFormBusy] = useState(false)
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1)
   const formRef = useRef<TripRequestFormHandle>(null)
   const onboardClient = getPortalClient()
   const client = onboardClient ?? sessionClient
@@ -500,20 +504,25 @@ export default function PortalRequestPage() {
 
   const form = (
     <TripRequestForm
-      key={`${client?.id ?? 'anon'}-${formKey}-${entryMode}`}
+      key={`${client?.id ?? 'anon'}-${formKey}-${entryMode}-${bookSheet ? 'sheet' : 'desk'}`}
       ref={formRef}
       variant="portal"
       initial={initial}
-      portalWizard={entryMode !== 'book'}
+      portalWizard={entryMode !== 'book' || bookSheet}
       portalEntryMode={entryMode}
-      hidePortalActions={entryMode === 'book'}
+      hidePortalActions={entryMode === 'book' && !bookSheet}
+      compactWizard={bookSheet}
       onDraftChange={setLiveDraft}
       onBusyChange={setFormBusy}
+      onWizardStepChange={setWizardStep}
       onSubmit={(draft, submitIntent) => {
         void onSubmit(
           {
             ...draft,
-            notes: panelNotes.trim() || draft.notes,
+            notes:
+              entryMode === 'book' && !bookSheet
+                ? panelNotes.trim() || draft.notes
+                : draft.notes,
           },
           submitIntent,
         )
@@ -526,6 +535,8 @@ export default function PortalRequestPage() {
       <PortalGuestHardQuoteLayout
         signedIn={signedIn}
         loginHref={`/portal/login?next=${loginNext}`}
+        sheet={bookSheet}
+        wizardStep={wizardStep}
         dispatch={dispatchSees}
         notes={panelNotes}
         onNotes={setPanelNotes}
