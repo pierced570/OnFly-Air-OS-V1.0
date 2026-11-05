@@ -908,7 +908,6 @@ export function PortalDesktopApp(props: {
             sent={sent}
             sentTrip={sentTrip}
             sentAt={sentAt}
-            clocksLocal={clocks.local}
             fromText={fromText}
             toText={toText}
             fromAp={fromAp}
@@ -1359,7 +1358,6 @@ function RequestPanel(props: {
   sent: boolean
   sentTrip: PortalDesktopTrip | null
   sentAt: Date | null
-  clocksLocal: string
   fromText: string
   toText: string
   fromAp: ReturnType<typeof resolveAirportText>
