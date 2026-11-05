@@ -12,7 +12,8 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { MapBackdrop } from '@/components/MapBackdrop'
-import { PortalRequestReceived } from '@/components/PortalRequestReceived'
+import { PortalRequestReceivedDesktop } from '@/components/PortalRequestReceivedDesktop'
+import type { PortalRequestReceivedSummaryInput } from '@/domain/portalRequestReceived'
 import portalMapData from '@/data/portalMapData.json'
 import {
   BRAND_LOGO_PATH,
@@ -285,6 +286,8 @@ export function PortalDesktopApp(props: {
   const [sent, setSent] = useState(false)
   const [sentTrip, setSentTrip] = useState<PortalDesktopTrip | null>(null)
   const [sentAt, setSentAt] = useState<Date | null>(null)
+  const [receivedSummary, setReceivedSummary] =
+    useState<PortalRequestReceivedSummaryInput | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [approveGap, setApproveGap] = useState<string | null>(null)
@@ -582,9 +585,24 @@ export function PortalDesktopApp(props: {
         href: `/portal/request?requestId=${row.id}&mode=book`,
       })
       setSentTrip(card)
-      setSel(card.id)
+      setSel(null)
       setSentAt(new Date())
       setSent(true)
+      const softNow =
+        qa && qb ? softQuoteFor(qa, qb) : soft
+      const preferred =
+        softNow?.classes.find((c) => c.name === 'Light jet' && !c.overRange) ??
+        softNow?.classes.find((c) => !c.overRange) ??
+        softNow?.classes[0] ??
+        null
+      setReceivedSummary({
+        aircraftClass: preferred?.name ?? null,
+        fromCode: card.from.icao,
+        toCode: card.to.icao,
+        need: need === 'asap' ? 'ASAP' : need,
+        estimateLow: preferred?.costLow ?? null,
+        estimateHigh: preferred?.costHigh ?? null,
+      })
       const a = lookupAirport(card.from.icao)
       const b = lookupAirport(card.to.icao)
       if (a) {
@@ -605,11 +623,20 @@ export function PortalDesktopApp(props: {
           label: b.icao,
         })
       }
+      // Map + floating card (reference) — close the request form panel.
+      setPanel('trips')
     } catch (e) {
       setSendError(e instanceof Error ? e.message : 'Could not send request')
     } finally {
       setSending(false)
     }
+  }
+
+  function dismissReceived() {
+    setSent(false)
+    setSentTrip(null)
+    setSentAt(null)
+    setReceivedSummary(null)
   }
 
   function onApprove(t: PortalDesktopTrip) {
@@ -905,9 +932,6 @@ export function PortalDesktopApp(props: {
             companyName={companyName}
             opsPhone={acctOps || acctDesk || '—'}
             invEmail={acctInv || props.email}
-            sent={sent}
-            sentTrip={sentTrip}
-            sentAt={sentAt}
             fromText={fromText}
             toText={toText}
             fromAp={fromAp}
@@ -952,27 +976,6 @@ export function PortalDesktopApp(props: {
             onNeed={setNeed}
             onNotes={setNotes}
             onSend={() => void sendRequest()}
-            onTrack={() => {
-              setPanel('trips')
-              setTab('pending')
-              setSent(false)
-              if (sentTrip) setSel(sentTrip.id)
-            }}
-            onAnother={() => {
-              setSent(false)
-              setSentAt(null)
-              setFromText('')
-              setToText('')
-              setNotes('')
-              setLoadText('')
-              setPoText('')
-              setPickup(false)
-              setDeliver(false)
-              setCourierAddr('')
-              setSel(null)
-              setSentTrip(null)
-              clearQuote()
-            }}
           />
         ) : null}
 
@@ -1113,12 +1116,33 @@ export function PortalDesktopApp(props: {
       ) : null}
 
       {/* Soft-quote card when not on Quote panel */}
-      {soft && panel !== 'quote' ? (
+      {soft && panel !== 'quote' && !sent ? (
         <SoftQuoteCard
           soft={soft}
           route={`${softQuotePointLabel(qa!)} → ${softQuotePointLabel(qb!)}`}
           onClose={clearQuote}
           onHard={quoteToDesk}
+        />
+      ) : null}
+
+      {sent && sentTrip ? (
+        <PortalRequestReceivedDesktop
+          displayId={sentTrip.displayId}
+          sentAt={sentAt ?? undefined}
+          summary={
+            receivedSummary ?? {
+              fromCode: sentTrip.from.icao,
+              toCode: sentTrip.to.icao,
+              need: 'ASAP',
+            }
+          }
+          onTrack={() => {
+            setPanel('trips')
+            setTab('pending')
+            setSel(sentTrip.id)
+            dismissReceived()
+          }}
+          onClose={dismissReceived}
         />
       ) : null}
     </div>
@@ -1355,9 +1379,6 @@ function RequestPanel(props: {
   companyName: string
   opsPhone: string
   invEmail: string
-  sent: boolean
-  sentTrip: PortalDesktopTrip | null
-  sentAt: Date | null
   fromText: string
   toText: string
   fromAp: ReturnType<typeof resolveAirportText>
@@ -1384,23 +1405,7 @@ function RequestPanel(props: {
   onNeed: (v: 'asap' | 'today' | 'tomorrow') => void
   onNotes: (v: string) => void
   onSend: () => void
-  onTrack: () => void
-  onAnother: () => void
 }) {
-  if (props.sent && props.sentTrip) {
-    return (
-      <div style={{ padding: '18px 16px', height: '100%', boxSizing: 'border-box' }}>
-        <PortalRequestReceived
-          dense
-          displayId={props.sentTrip.displayId}
-          sentAt={props.sentAt ?? undefined}
-          onTrack={props.onTrack}
-          onAnother={props.onAnother}
-        />
-      </div>
-    )
-  }
-
   const hint = (txt: string, ap: typeof props.fromAp) =>
     !txt
       ? ''
