@@ -59,7 +59,10 @@ describe('portalSoftQuote', () => {
 
   it('labels custom points without ICAO', () => {
     expect(softQuotePointLabel({ lat: 33.4, lon: -79.6 })).toBe(
-      "33.4°, 79.6°W",
+      '33.4°, 79.6°W',
+    )
+    expect(softQuotePointLabel({ lat: 35.6, lon: 120.8 })).toBe(
+      '35.6°, 120.8°E',
     )
   })
 

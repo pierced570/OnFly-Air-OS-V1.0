@@ -8,9 +8,11 @@ import {
   formatAirportShort,
   lookupAirport,
   nearestAirport,
+  nearbyAirports,
   searchAirports,
   type AirportInfo,
 } from '@/domain/airports'
+import { haversineNm } from '@/domain/geo'
 import { parseLaneAirports } from '@/domain/offerMissionDisplay'
 import portalMapData from '@/data/portalMapData.json'
 import type { PortalShipmentPhase } from '@/domain/portalTracking'
@@ -238,14 +240,44 @@ export function resolveAirportText(text: string): PortalDesktopAirport | null {
   return fromAirportInfo(primary)
 }
 
+export type SoftQuoteNearbyOption = {
+  code: string
+  city: string
+  name: string
+  lat: number
+  lon: number
+  nm: number
+  label: string
+}
+
 export type SoftQuoteMapPick = SoftQuotePoint & {
   label: string
   name?: string | null
+  /** Popular civil fields near the click (including the snapped choice). */
+  nearby?: SoftQuoteNearbyOption[]
+}
+
+const SOFT_QUOTE_SNAP_NM = 200
+
+function softQuoteOptionFromInfo(
+  a: AirportInfo & { nm?: number },
+): SoftQuoteNearbyOption {
+  const place = a.state ? `${a.city}, ${a.state}` : a.city
+  return {
+    code: a.icao,
+    city: place,
+    name: a.name,
+    lat: a.lat,
+    lon: a.lon,
+    nm: a.nm ?? 0,
+    label: formatAirportShort(a),
+  }
 }
 
 /**
  * Map click → airport: hub ICAO when present, else nearest catalog airport
- * (city + name), never a bare lat/lon "custom point" when a field is nearby.
+ * (city + name), plus popular nearby alternatives for the picker.
+ * Never a bare lat/lon "custom point" when a field is nearby.
  */
 export function resolveSoftQuoteMapPick(p: {
   lat: number
@@ -253,9 +285,35 @@ export function resolveSoftQuoteMapPick(p: {
   icao?: string
 }): SoftQuoteMapPick {
   const fromCode = p.icao ? lookupAirport(p.icao) : null
-  const near =
-    fromCode ??
-    nearestAirport(p.lat, p.lon, { preferIata: true, maxNm: 150 })
+  const nearbyRaw = nearbyAirports(p.lat, p.lon, {
+    preferIata: true,
+    maxNm: SOFT_QUOTE_SNAP_NM,
+    limit: 5,
+  })
+  const near = fromCode ?? nearbyRaw[0] ?? nearestAirport(p.lat, p.lon, {
+    preferIata: true,
+    maxNm: SOFT_QUOTE_SNAP_NM,
+  })
+
+  // Keep the chosen field first in the nearby list (hub / typed ICAO may differ).
+  const nearby: SoftQuoteNearbyOption[] = []
+  if (near) {
+    const chosenNm =
+      nearbyRaw.find((a) => a.icao === near.icao)?.nm ??
+      haversineNm(p.lat, p.lon, near.lat, near.lon)
+    nearby.push(
+      softQuoteOptionFromInfo({
+        ...near,
+        nm: chosenNm,
+      }),
+    )
+  }
+  for (const a of nearbyRaw) {
+    if (nearby.some((x) => x.code === a.icao)) continue
+    nearby.push(softQuoteOptionFromInfo(a))
+    if (nearby.length >= 5) break
+  }
+
   if (near) {
     const place = near.state ? `${near.city}, ${near.state}` : near.city
     return {
@@ -265,16 +323,19 @@ export function resolveSoftQuoteMapPick(p: {
       city: place,
       name: near.name,
       label: formatAirportShort(near),
+      nearby,
     }
   }
   const lat = Number.isFinite(p.lat) ? p.lat.toFixed(1) : '?'
   const lonAbs = Number.isFinite(p.lon) ? Math.abs(p.lon).toFixed(1) : '?'
+  const lonHem = Number.isFinite(p.lon) && p.lon >= 0 ? 'E' : 'W'
   return {
     lat: p.lat,
     lon: p.lon,
     code: null,
     city: 'Custom point',
-    label: `${lat}°, ${lonAbs}°W`,
+    label: `${lat}°, ${lonAbs}°${lonHem}`,
+    nearby: [],
   }
 }
 

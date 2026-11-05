@@ -116,6 +116,15 @@ describe('portalMap click-to-quote', () => {
     expect(formatClickLabel(-10.2, 20.5)).toBe('10.2°S, 20.5°E')
   })
 
+  it('snaps empty-map clicks to nearest catalog airport (not bare coords)', () => {
+    // Central California coast — no labeled hub at the exact click.
+    const pt = projectLonLat(-120.8, 35.6, projection)
+    const click = resolveMapClick(pt, airports, projection, 8)
+    expect(click.icao).toBe('KPRB')
+    expect(click.label).toBe('KPRB')
+    expect(click.lon).toBeLessThan(0)
+  })
+
   it('computes great-circle NM and statute miles', () => {
     const san = airports.find((a) => a.icao === 'KSAN')!
     const bos = airports.find((a) => a.icao === 'KBOS')!
