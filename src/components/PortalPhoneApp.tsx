@@ -16,6 +16,7 @@ import {
 import { Link } from 'react-router-dom'
 import { MapBackdrop } from '@/components/MapBackdrop'
 import { PortalInstallBanner } from '@/components/PortalInstallBanner'
+import { PortalRequestReceived } from '@/components/PortalRequestReceived'
 import {
   BRAND_LOGO_PATH,
   BRAND_PHONE_E164,
@@ -325,6 +326,7 @@ export function PortalPhoneApp(props: {
   const [notes, setNotes] = useState('')
   const [sent, setSent] = useState(false)
   const [sentTrip, setSentTrip] = useState<PortalDesktopTrip | null>(null)
+  const [sentAt, setSentAt] = useState<Date | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [approveGap, setApproveGap] = useState<string | null>(null)
@@ -679,8 +681,30 @@ export function PortalPhoneApp(props: {
       })
       setSentTrip(card)
       setSel(card.id)
+      setSentAt(new Date())
       setSent(true)
-      clearQuote()
+      // Keep route on the map behind the confirmation sheet.
+      const a = lookupAirport(card.from.icao)
+      const b = lookupAirport(card.to.icao)
+      if (a) {
+        setQa({
+          lat: a.lat,
+          lon: a.lon,
+          code: a.icao,
+          city: a.state ? `${a.city}, ${a.state}` : a.city,
+          label: a.icao,
+        })
+      }
+      if (b) {
+        setQb({
+          lat: b.lat,
+          lon: b.lon,
+          code: b.icao,
+          city: b.state ? `${b.city}, ${b.state}` : b.city,
+          label: b.icao,
+        })
+      }
+      applySnap('half')
     } catch (e) {
       setSendError(e instanceof Error ? e.message : 'Could not send request')
     } finally {
@@ -1280,54 +1304,37 @@ export function PortalPhoneApp(props: {
 
         {panel === 'request' ? (
           <>
-            <div className="m-sh-h">
-              <span className="m-kick">New request</span>
-              <button
-                type="button"
-                className="m-x"
-                aria-label="Close request"
-                onClick={() => goPanel(prevPanel === 'request' ? 'trips' : prevPanel)}
-              >
-                ×
-              </button>
-            </div>
+            {sent && sentTrip ? null : (
+              <div className="m-sh-h">
+                <span className="m-kick">New request</span>
+                <button
+                  type="button"
+                  className="m-x"
+                  aria-label="Close request"
+                  onClick={() =>
+                    goPanel(prevPanel === 'request' ? 'trips' : prevPanel)
+                  }
+                >
+                  ×
+                </button>
+              </div>
+            )}
             {sent && sentTrip ? (
-              <div className="m-body">
-                <div className="m-det-h">
-                  <span className="m-dot g-live" />
-                  <span className="m-stat">Request received</span>
-                </div>
-                <h2 className="m-h2">Our desk phones are ringing now.</h2>
-                <p className="g-body">
-                  Expect a call from dispatch within 10 minutes and a hard quote
-                  in 10–15. Your request is in Pending with trip number{' '}
-                  <b>{sentTrip.displayId}</b>.
-                </p>
-                <div className="m-sent-box">
-                  ROUTE {sentTrip.from.icao} → {sentTrip.to.icao}
-                  <br />
-                  LOAD {sentTrip.load}
-                  <br />
-                  NEED {need}
-                </div>
-                <div className="m-sticky" style={{ marginTop: 16 }}>
-                  <button
-                    type="button"
-                    className="g-btn"
-                    style={{ width: '100%' }}
-                    onClick={() => {
-                      setTab('pending')
-                      openDetail(sentTrip.id)
-                    }}
-                  >
-                    Track it in Pending
-                  </button>
-                  <div className="m-fine">
-                    <button type="button" onClick={() => setSent(false)}>
-                      Send another
-                    </button>
-                  </div>
-                </div>
+              <div className="m-body" style={{ paddingBottom: 8 }}>
+                <PortalRequestReceived
+                  displayId={sentTrip.displayId}
+                  sentAt={sentAt ?? undefined}
+                  onTrack={() => {
+                    setTab('pending')
+                    openDetail(sentTrip.id)
+                  }}
+                  onAnother={() => {
+                    setSent(false)
+                    setSentTrip(null)
+                    setSentAt(null)
+                    clearQuote()
+                  }}
+                />
               </div>
             ) : (
               <>

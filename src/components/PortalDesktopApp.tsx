@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { MapBackdrop } from '@/components/MapBackdrop'
+import { PortalRequestReceived } from '@/components/PortalRequestReceived'
 import portalMapData from '@/data/portalMapData.json'
 import {
   BRAND_LOGO_PATH,
@@ -283,6 +284,7 @@ export function PortalDesktopApp(props: {
   const [notes, setNotes] = useState('')
   const [sent, setSent] = useState(false)
   const [sentTrip, setSentTrip] = useState<PortalDesktopTrip | null>(null)
+  const [sentAt, setSentAt] = useState<Date | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [approveGap, setApproveGap] = useState<string | null>(null)
@@ -581,8 +583,28 @@ export function PortalDesktopApp(props: {
       })
       setSentTrip(card)
       setSel(card.id)
+      setSentAt(new Date())
       setSent(true)
-      clearQuote()
+      const a = lookupAirport(card.from.icao)
+      const b = lookupAirport(card.to.icao)
+      if (a) {
+        setQa({
+          lat: a.lat,
+          lon: a.lon,
+          code: a.icao,
+          city: a.state ? `${a.city}, ${a.state}` : a.city,
+          label: a.icao,
+        })
+      }
+      if (b) {
+        setQb({
+          lat: b.lat,
+          lon: b.lon,
+          code: b.icao,
+          city: b.state ? `${b.city}, ${b.state}` : b.city,
+          label: b.icao,
+        })
+      }
     } catch (e) {
       setSendError(e instanceof Error ? e.message : 'Could not send request')
     } finally {
@@ -885,6 +907,7 @@ export function PortalDesktopApp(props: {
             invEmail={acctInv || props.email}
             sent={sent}
             sentTrip={sentTrip}
+            sentAt={sentAt}
             clocksLocal={clocks.local}
             fromText={fromText}
             toText={toText}
@@ -938,6 +961,7 @@ export function PortalDesktopApp(props: {
             }}
             onAnother={() => {
               setSent(false)
+              setSentAt(null)
               setFromText('')
               setToText('')
               setNotes('')
@@ -948,6 +972,7 @@ export function PortalDesktopApp(props: {
               setCourierAddr('')
               setSel(null)
               setSentTrip(null)
+              clearQuote()
             }}
           />
         ) : null}
@@ -1333,6 +1358,7 @@ function RequestPanel(props: {
   invEmail: string
   sent: boolean
   sentTrip: PortalDesktopTrip | null
+  sentAt: Date | null
   clocksLocal: string
   fromText: string
   toText: string
@@ -1364,95 +1390,15 @@ function RequestPanel(props: {
   onAnother: () => void
 }) {
   if (props.sent && props.sentTrip) {
-    const t = props.sentTrip
     return (
-      <div
-        className="g-rise"
-        style={{
-          padding: '18px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: '50%',
-              background: '#C9A227',
-              boxShadow: '0 0 12px #C9A227',
-              animation: 'ofaBlink 1.2s infinite',
-            }}
-          />
-          <div className="g-kicker">Request received</div>
-        </div>
-        <div
-          style={{
-            fontSize: 24,
-            fontWeight: 500,
-            letterSpacing: '-.025em',
-            color: '#F4F2EC',
-            marginTop: 14,
-            lineHeight: 1.15,
-          }}
-        >
-          Our desk phones are ringing now.
-        </div>
-        <div
-          className="g-body"
-          style={{ marginTop: 10, lineHeight: 1.5 }}
-        >
-          Expect a call from dispatch within 10 minutes and a hard quote in
-          10–15. Your request is in Pending with trip number{' '}
-          <span className="g-mono" style={{ color: '#E3B341' }}>
-            {t.displayId}
-          </span>
-          .
-        </div>
-        <div
-          className="g-mono"
-          style={{
-            marginTop: 16,
-            border: '1px solid rgba(255,255,255,.1)',
-            borderRadius: 10,
-            padding: 12,
-            fontSize: 12,
-            color: '#F7F2E3',
-            letterSpacing: '.04em',
-            lineHeight: 1.7,
-          }}
-        >
-          <div>
-            <span style={{ color: '#6F6F74' }}>ROUTE </span>
-            {t.from.icao} → {t.to.icao}
-          </div>
-          <div>
-            <span style={{ color: '#6F6F74' }}>LOAD </span>
-            {t.load}
-          </div>
-          <div>
-            <span style={{ color: '#6F6F74' }}>NEED </span>
-            {t.nextEvent}
-          </div>
-          <div>
-            <span style={{ color: '#6F6F74' }}>TIME </span>
-            {props.clocksLocal} local
-          </div>
-        </div>
-        <div style={{ flex: 1 }} />
-        <button type="button" className="g-btn g-btn--portal" onClick={props.onTrack}>
-          Track it in Pending
-        </button>
-        <button
-          type="button"
-          className="ofa-link"
-          style={{ textAlign: 'center', padding: 14 }}
-          onClick={props.onAnother}
-        >
-          Send another
-        </button>
+      <div style={{ padding: '18px 16px', height: '100%', boxSizing: 'border-box' }}>
+        <PortalRequestReceived
+          dense
+          displayId={props.sentTrip.displayId}
+          sentAt={props.sentAt ?? undefined}
+          onTrack={props.onTrack}
+          onAnother={props.onAnother}
+        />
       </div>
     )
   }
