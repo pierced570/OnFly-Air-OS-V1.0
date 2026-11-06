@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { MapBackdrop } from '@/components/MapBackdrop'
+import { SoftQuoteRoughEstimateDesktop } from '@/components/SoftQuoteRoughEstimateDesktop'
 import { PortalRequestReceivedDesktop } from '@/components/PortalRequestReceivedDesktop'
 import type { PortalRequestReceivedSummaryInput } from '@/domain/portalRequestReceived'
 import portalMapData from '@/data/portalMapData.json'
@@ -51,6 +52,7 @@ import {
   softQuoteFor,
   softQuoteHardNotes,
   softQuotePointLabel,
+  type SoftQuoteClassResult,
   type SoftQuotePoint,
 } from '@/domain/portalSoftQuote'
 import { quoteHint } from '@/domain/portalMap'
@@ -279,6 +281,7 @@ export function PortalDesktopApp(props: {
   } | null>(null)
   const [qaText, setQaText] = useState('')
   const [qbText, setQbText] = useState('')
+  const [roughEditing, setRoughEditing] = useState(false)
   const [fromText, setFromText] = useState('')
   const [toText, setToText] = useState('')
   const [moving, setMoving] = useState<'cargo' | 'pax'>('cargo')
@@ -445,7 +448,51 @@ export function PortalDesktopApp(props: {
     setQb(null)
     setQaText('')
     setQbText('')
+    setRoughEditing(false)
     setNearbyPick(null)
+  }
+
+  function loadLineForRough(): string {
+    if (moving === 'pax') {
+      const n = Number.parseInt(loadText, 10)
+      return Number.isFinite(n) && n > 0 ? `Pax · ${n}` : 'Pax'
+    }
+    const raw = loadText.trim()
+    return raw ? `Cargo · ${raw}` : 'Cargo'
+  }
+
+  function quoteToDesk(
+    preferred?: SoftQuoteClassResult | null,
+    roundTrip = false,
+  ) {
+    if (!qa || !qb) return
+    setPanel('request')
+    setSent(false)
+    setFromText(
+      qa.code
+        ? formatPortalAirportField({
+            icao: qa.code,
+            city: qa.city ?? '',
+            lat: qa.lat,
+            lon: qa.lon,
+          })
+        : softQuotePointLabel(qa),
+    )
+    setToText(
+      qb.code
+        ? formatPortalAirportField({
+            icao: qb.code,
+            city: qb.city ?? '',
+            lat: qb.lat,
+            lon: qb.lon,
+          })
+        : softQuotePointLabel(qb),
+    )
+    if (need !== 'asap') {
+      /* keep need toggle for request form */
+    }
+    const note = softQuoteHardNotes(qa, qb, preferred?.name)
+    setNotes(roundTrip ? `${note}\nPrefer round trip.` : note)
   }
 
   function goPanel(next: PortalDesktopPanel) {
@@ -525,33 +572,6 @@ export function PortalDesktopApp(props: {
       label: opt.label,
       nearby: nearbyPick.options,
     })
-  }
-
-  function quoteToDesk() {
-    if (!qa || !qb) return
-    setPanel('request')
-    setSent(false)
-    setFromText(
-      qa.code
-        ? formatPortalAirportField({
-            icao: qa.code,
-            city: qa.city ?? '',
-            lat: qa.lat,
-            lon: qa.lon,
-          })
-        : softQuotePointLabel(qa),
-    )
-    setToText(
-      qb.code
-        ? formatPortalAirportField({
-            icao: qb.code,
-            city: qb.city ?? '',
-            lat: qb.lat,
-            lon: qb.lon,
-          })
-        : softQuotePointLabel(qb),
-    )
-    setNotes(softQuoteHardNotes(qa, qb))
   }
 
   function bookAgain(t: PortalDesktopTrip) {
@@ -1156,13 +1176,101 @@ export function PortalDesktopApp(props: {
         />
       ) : null}
 
-      {/* Soft-quote card when not on Quote panel */}
-      {soft && panel !== 'quote' && !sent ? (
-        <SoftQuoteCard
+      {/* Rough estimate modal whenever a route is set */}
+      {soft && qa && qb ? (
+        <SoftQuoteRoughEstimateDesktop
           soft={soft}
-          route={`${softQuotePointLabel(qa!)} → ${softQuotePointLabel(qb!)}`}
+          from={qa}
+          to={qb}
+          loadLine={loadLineForRough()}
+          need={need}
+          onNeed={setNeed}
+          editing={roughEditing}
+          onEdit={() => {
+            setRoughEditing((v) => !v)
+            if (!roughEditing) goPanel('quote')
+          }}
           onClose={clearQuote}
-          onHard={quoteToDesk}
+          onAskDesk={(cls, rt) => quoteToDesk(cls, rt)}
+          onBook={(cls, rt) => quoteToDesk(cls, rt)}
+          editors={
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: 8,
+              }}
+            >
+              <label>
+                <div className="g-label" style={{ marginBottom: 6 }}>
+                  Origin
+                </div>
+                <input
+                  className="ofa-portal-input ofa-portal-input--mono"
+                  value={qaText}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    const ap = resolveAirportText(v)
+                    const exactTok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                    const exact = lookupAirport(exactTok)
+                    if (ap) {
+                      setQa({
+                        lat: ap.lat,
+                        lon: ap.lon,
+                        code: ap.icao,
+                        city: ap.state ? `${ap.city}, ${ap.state}` : ap.city,
+                        label: formatPortalAirportField(ap),
+                      })
+                      setQaText(
+                        exact || /^[A-Za-z]{3,4}$/.test(exactTok)
+                          ? formatPortalAirportField(ap)
+                          : v,
+                      )
+                    } else {
+                      setQa(null)
+                      setQaText(v)
+                    }
+                  }}
+                  placeholder="ICAO, city, or map"
+                  autoComplete="off"
+                />
+              </label>
+              <label>
+                <div className="g-label" style={{ marginBottom: 6 }}>
+                  Destination
+                </div>
+                <input
+                  className="ofa-portal-input ofa-portal-input--mono"
+                  value={qbText}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    const ap = resolveAirportText(v)
+                    const exactTok = v.trim().split(/[\s—–\-·(,]/)[0] ?? ''
+                    const exact = lookupAirport(exactTok)
+                    if (ap) {
+                      setQb({
+                        lat: ap.lat,
+                        lon: ap.lon,
+                        code: ap.icao,
+                        city: ap.state ? `${ap.city}, ${ap.state}` : ap.city,
+                        label: formatPortalAirportField(ap),
+                      })
+                      setQbText(
+                        exact || /^[A-Za-z]{3,4}$/.test(exactTok)
+                          ? formatPortalAirportField(ap)
+                          : v,
+                      )
+                    } else {
+                      setQb(null)
+                      setQbText(v)
+                    }
+                  }}
+                  placeholder="ICAO, city, or map"
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+          }
         />
       ) : null}
 
@@ -2519,126 +2627,6 @@ function DetailCard(props: {
             {cta}
           </button>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function SoftQuoteCard(props: {
-  soft: NonNullable<ReturnType<typeof softQuoteFor>>
-  route: string
-  onClose: () => void
-  onHard: () => void
-}) {
-  return (
-    <div className="ofa-portal-quote-card g-panel g-panel--dense g-rise">
-      <div
-        style={{
-          height: 2,
-          background: 'linear-gradient(90deg,#C9A227,rgba(201,162,39,0))',
-        }}
-      />
-      <div
-        style={{
-          padding: '14px 16px 0',
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-        }}
-      >
-        <div>
-          <div className="g-kicker">Soft quote</div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 10,
-              marginTop: 8,
-            }}
-          >
-            <span
-              className="g-mono"
-              style={{ fontSize: 17, color: '#F7F2E3', letterSpacing: '.04em' }}
-            >
-              {props.route}
-            </span>
-            <span className="g-mono" style={{ fontSize: 11, color: '#9A9A9A' }}>
-              {props.soft.nmLabel} nm
-            </span>
-          </div>
-        </div>
-        <button type="button" className="g-close" onClick={props.onClose} aria-label="Close">
-          ×
-        </button>
-      </div>
-      <div style={{ padding: '6px 16px 0' }}>
-        {props.soft.classes.map((c) => (
-          <div
-            key={c.name}
-            style={{
-              padding: '10px 0',
-              borderBottom: '1px solid rgba(255,255,255,.06)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 10,
-              opacity: c.opacity,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 13.5,
-                  fontWeight: 500,
-                  letterSpacing: '-.01em',
-                  color: '#F4F2EC',
-                }}
-              >
-                {c.name}
-              </div>
-              <div style={{ fontSize: 10.5, color: '#9A9A9A', marginTop: 2 }}>
-                {c.sub}
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div
-                className="g-mono"
-                style={{
-                  fontSize: 13,
-                  color: '#E3B341',
-                  fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {c.price}
-              </div>
-              <div
-                className="g-mono"
-                style={{ fontSize: 10, color: '#9A9A9A', marginTop: 2 }}
-              >
-                {c.block}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          padding: '10px 16px 14px',
-        }}
-      >
-        <div style={{ fontSize: 10, color: '#6F6F74', lineHeight: 1.4 }}>
-          Rough, one-way, incl. repositioning.
-          <br />
-          Not a firm offer.
-        </div>
-        <button type="button" className="g-btn g-btn--sm" onClick={props.onHard}>
-          Get a hard quote
-        </button>
       </div>
     </div>
   )
