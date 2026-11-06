@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import {
   clearFastQuoteDraft,
   readFastQuoteDraft,
 } from '@/components/PortalFastQuote'
 import { PortalGlassGuestShell } from '@/components/PortalGlassGuestShell'
+import { PortalGuestHardQuoteLayout } from '@/components/PortalGuestHardQuoteLayout'
 import { PortalOneClickLogin } from '@/components/PortalOneClickLogin'
 import { SoftPricingPackageView } from '@/components/SoftPricingPackageView'
 import { usePortalSession } from '@/hooks/usePortalSession'
 import {
   TripRequestForm,
   type PortalSubmitIntent,
+  type TripRequestFormHandle,
 } from '@/components/TripRequestForm'
+import { buildPortalDispatchSees } from '@/domain/portalGuestHardQuote'
 import {
   emptyTripRequestDraft,
   type TripRequestDraft,
@@ -78,6 +82,8 @@ export default function PortalRequestPage() {
     searchParams.get('mode') === 'book' ? 'book' : 'quote'
   const restoreId = searchParams.get('requestId')?.trim() || null
   const fromFastQuote = searchParams.get('from') === 'fast-quote'
+  const isNarrow = useMediaQuery('(max-width: 960px)')
+  const bookSheet = entryMode === 'book' && isNarrow
 
   // Signed-in clients stay inside the glass portal (Request / Quote tabs).
   if (!authLoading && signedIn && !restoreId && !fromFastQuote) {
@@ -107,11 +113,22 @@ export default function PortalRequestPage() {
   const [editDraft, setEditDraft] = useState<TripRequestDraft | null>(null)
   const [formKey, setFormKey] = useState(0)
   const [sessionClient, setSessionClient] = useState<ClientProfile | undefined>()
+  const [liveDraft, setLiveDraft] = useState<TripRequestDraft>(() =>
+    emptyTripRequestDraft(),
+  )
+  const [panelNotes, setPanelNotes] = useState('')
+  const [formBusy, setFormBusy] = useState(false)
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1)
+  const formRef = useRef<TripRequestFormHandle>(null)
   const onboardClient = getPortalClient()
   const client = onboardClient ?? sessionClient
   const companyHello = portalRequestHelloLabel(client?.name)
   const loginNext = encodeURIComponent(
     entryMode === 'book' ? '/portal/request?mode=book' : '/quote',
+  )
+  const dispatchSees = useMemo(
+    () => buildPortalDispatchSees(liveDraft),
+    [liveDraft],
   )
 
   useEffect(() => {
@@ -191,6 +208,10 @@ export default function PortalRequestPage() {
       ),
     }
   }, [client, editDraft, fromFastQuote])
+
+  useEffect(() => {
+    setPanelNotes(initial.notes ?? '')
+  }, [formKey, initial.notes])
 
   /** Fresh rough estimates live on /quote — history restore stays here. */
   if (entryMode === 'quote' && !restoreId && !done && !estimating && !softPackage) {
@@ -481,6 +502,52 @@ export default function PortalRequestPage() {
     )
   }
 
+  const form = (
+    <TripRequestForm
+      key={`${client?.id ?? 'anon'}-${formKey}-${entryMode}-${bookSheet ? 'sheet' : 'desk'}`}
+      ref={formRef}
+      variant="portal"
+      initial={initial}
+      portalWizard={entryMode !== 'book' || bookSheet}
+      portalEntryMode={entryMode}
+      hidePortalActions={entryMode === 'book' && !bookSheet}
+      compactWizard={bookSheet}
+      onDraftChange={setLiveDraft}
+      onBusyChange={setFormBusy}
+      onWizardStepChange={setWizardStep}
+      onSubmit={(draft, submitIntent) => {
+        void onSubmit(
+          {
+            ...draft,
+            notes:
+              entryMode === 'book' && !bookSheet
+                ? panelNotes.trim() || draft.notes
+                : draft.notes,
+          },
+          submitIntent,
+        )
+      }}
+    />
+  )
+
+  if (entryMode === 'book') {
+    return (
+      <PortalGuestHardQuoteLayout
+        signedIn={signedIn}
+        loginHref={`/portal/login?next=${loginNext}`}
+        sheet={bookSheet}
+        wizardStep={wizardStep}
+        dispatch={dispatchSees}
+        notes={panelNotes}
+        onNotes={setPanelNotes}
+        busy={formBusy}
+        onRequestNow={() => formRef.current?.submitIntent('hard_quote')}
+      >
+        {form}
+      </PortalGuestHardQuoteLayout>
+    )
+  }
+
   return (
     <WizardShell appNav>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -519,16 +586,12 @@ export default function PortalRequestPage() {
             <h1 className="text-2xl font-semibold tracking-tight">
               {signedIn && client?.name?.trim()
                 ? `Request for ${client.name.trim()}`
-                : entryMode === 'book'
-                  ? "Let's get your freight moving"
-                  : 'Get a rough quote'}
+                : 'Get a rough quote'}
             </h1>
             <p className="mt-1 text-sm text-cream/60">
               {signedIn
                 ? 'Three quick steps. Our team quotes in 10–15 minutes.'
-                : entryMode === 'book'
-                  ? 'Three quick steps. Our team quotes in 10–15 minutes — no login required.'
-                  : 'Three quick steps. Soft pricing first, then push to a hard quote if it fits.'}
+                : 'Three quick steps. Soft pricing first, then push to a hard quote if it fits.'}
             </p>
             {signedIn && session?.email ? (
               <p className="mt-2 text-[11px] text-cream/45">
@@ -549,18 +612,7 @@ export default function PortalRequestPage() {
             <span className="font-semibold text-gold">{BRAND_PHONE}</span>
           </a>
         </header>
-        <div className="px-4 py-5 sm:px-6">
-          <TripRequestForm
-            key={`${client?.id ?? 'anon'}-${formKey}-${entryMode}`}
-            variant="portal"
-            initial={initial}
-            portalWizard
-            portalEntryMode={entryMode}
-            onSubmit={(draft, submitIntent) => {
-              void onSubmit(draft, submitIntent)
-            }}
-          />
-        </div>
+        <div className="px-4 py-5 sm:px-6">{form}</div>
       </div>
     </WizardShell>
   )

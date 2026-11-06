@@ -1,18 +1,31 @@
 /**
- * /quote — guest rough estimate in dark glass chrome (matches login).
+ * /quote — guest rough estimate (desktop) or AOG urgent sheet (mobile).
  * Signed-in clients land on the in-portal Quote tab instead.
  */
 
 import { Link, Navigate } from 'react-router-dom'
 import { PortalFastQuote } from '@/components/PortalFastQuote'
 import { PortalGlassGuestShell } from '@/components/PortalGlassGuestShell'
+import { PortalGuestAogSheet } from '@/components/PortalGuestAogSheet'
 import { usePortalSession } from '@/hooks/usePortalSession'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 export default function PortalFastQuotePage() {
   const { signedIn, session, loading } = usePortalSession()
+  const isNarrow = useMediaQuery('(max-width: 960px)')
 
   if (!loading && signedIn) {
     return <Navigate to="/?panel=quote" replace />
+  }
+
+  if (isNarrow) {
+    return (
+      <PortalGuestAogSheet
+        signedIn={signedIn}
+        loginHref="/portal/login?next=/?panel=quote"
+        email={session?.email}
+      />
+    )
   }
 
   return (
